@@ -151,10 +151,12 @@ class BackupManager:
             home = Path.home()
             dirs.append(str(home / "Library" / "Application Support" / "MobileSync" / "Backup"))
         elif sys.platform == "win32":
+            home = Path.home()
+            # Newer Apple Devices app stores backups directly in user home
+            dirs.append(str(home / "Apple" / "MobileSync" / "Backup"))
             appdata = os.environ.get("APPDATA", "")
             if appdata:
                 dirs.append(os.path.join(appdata, "Apple Computer", "MobileSync", "Backup"))
-                # Also check the newer "Apple" path
                 dirs.append(os.path.join(appdata, "Apple", "MobileSync", "Backup"))
         else:
             # Linux - user might have copied a backup here
@@ -256,15 +258,22 @@ class BackupManager:
 
         return info
 
-    def open_backup(self, udid: str, password: Optional[str] = None) -> dict:
+    def open_backup(self, udid: str, password: Optional[str] = None,
+                    backup_dir: Optional[str] = None) -> dict:
         """Open a backup for reading. Decrypts if encrypted and password provided."""
-        # Find the backup directory
-        all_backups = self.list_backups()
         backup_info = None
-        for b in all_backups["backups"]:
-            if b["udid"] == udid:
-                backup_info = b
-                break
+
+        # Use provided backup_dir directly if given
+        if backup_dir and os.path.isdir(backup_dir):
+            backup_info = self._read_backup_info(backup_dir)
+
+        # Fall back to scanning default locations
+        if not backup_info:
+            all_backups = self.list_backups()
+            for b in all_backups["backups"]:
+                if b["udid"] == udid:
+                    backup_info = b
+                    break
 
         if not backup_info:
             raise ValueError(f"Backup not found: {udid}")

@@ -8,13 +8,13 @@ interface Props {
   loading: boolean;
   error: string | null;
   onRefresh: (path?: string) => Promise<void>;
-  onOpen: (udid: string, password?: string) => Promise<string>;
+  onOpen: (udid: string, password?: string, backupDir?: string) => Promise<string>;
 }
 
 export default function BackupSelector({ backups, loading, error, onRefresh, onOpen }: Props) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [pendingUdid, setPendingUdid] = useState<string | null>(null);
+  const [pendingBackup, setPendingBackup] = useState<BackupInfo | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -24,9 +24,9 @@ export default function BackupSelector({ backups, loading, error, onRefresh, onO
   const handleOpen = async (backup: BackupInfo) => {
     setOpenError(null);
     if (backup.encrypted) {
-      setPendingUdid(backup.udid);
+      setPendingBackup(backup);
     } else {
-      const status = await onOpen(backup.udid);
+      const status = await onOpen(backup.udid, undefined, backup.backup_dir);
       if (status === 'error') {
         setOpenError('Failed to open backup');
       }
@@ -34,13 +34,13 @@ export default function BackupSelector({ backups, loading, error, onRefresh, onO
   };
 
   const handlePasswordSubmit = async () => {
-    if (!pendingUdid || !password) return;
+    if (!pendingBackup || !password) return;
     setOpenError(null);
-    const status = await onOpen(pendingUdid, password);
+    const status = await onOpen(pendingBackup.udid, password, pendingBackup.backup_dir);
     if (status === 'error') {
       setOpenError('Incorrect password or corrupted backup');
     } else if (status === 'open') {
-      setPendingUdid(null);
+      setPendingBackup(null);
       setPassword('');
     }
   };
@@ -73,7 +73,7 @@ export default function BackupSelector({ backups, loading, error, onRefresh, onO
         )}
 
         {/* Password prompt modal */}
-        {pendingUdid && (
+        {pendingBackup && (
           <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm font-medium text-blue-800 mb-3">
               This backup is encrypted. Enter your backup password:
@@ -104,7 +104,7 @@ export default function BackupSelector({ backups, loading, error, onRefresh, onO
                 {loading ? 'Decrypting...' : 'Unlock'}
               </button>
               <button
-                onClick={() => { setPendingUdid(null); setPassword(''); }}
+                onClick={() => { setPendingBackup(null); setPassword(''); }}
                 className="px-3 py-2 text-gray-600 text-sm hover:text-gray-800"
               >
                 Cancel

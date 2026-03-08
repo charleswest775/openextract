@@ -2,11 +2,11 @@
   "name": "openextract",
   "version": "0.1.0",
   "description": "Free, open-source iPhone backup extractor",
-  "main": "electron/main.js",
+  "main": "dist-electron/main.js",
   "author": "OpenExtract Contributors",
   "license": "MIT",
   "scripts": {
-    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev": "concurrently \"vite\" \"wait-on http://localhost:5174 && electron .\"",
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build": "npm run build:renderer && npm run build:electron",
@@ -41,7 +41,7 @@
     },
     "files": [
       "dist/**/*",
-      "electron/**/*.js",
+      "dist-electron/**/*.js",
       "python/dist/**/*"
     ],
     "extraResources": [

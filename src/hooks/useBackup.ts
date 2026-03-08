@@ -33,13 +33,13 @@ export function useBackup() {
     }
   }, []);
 
-  const openBackup = useCallback(async (udid: string, password?: string) => {
+  const openBackup = useCallback(async (udid: string, password?: string, backupDir?: string) => {
     setLoading(true);
     setError(null);
     try {
       const result = await sidecarCall<{ status: string; info: BackupInfo }>(
         'open_backup',
-        { udid, password }
+        { udid, password, backup_dir: backupDir }
       );
       if (result.status === 'password_required') {
         return 'password_required';

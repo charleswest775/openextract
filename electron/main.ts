@@ -1,3 +1,4 @@
+export {};
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { PythonSidecar } = require('./sidecar');
@@ -22,7 +23,7 @@ function createWindow() {
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.loadURL('http://localhost:5174');
     mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
@@ -31,10 +32,10 @@ function createWindow() {
 
 function getPythonPath(): string {
   if (isDev) {
-    return 'python3';
+    return process.platform === 'win32' ? 'python' : 'python3';
   }
   // In production, use the bundled PyInstaller executable
-  const resourcePath = process.resourcesPath || '';
+  const resourcePath = (process as any).resourcesPath || '';
   const binaryName = process.platform === 'win32' ? 'openextract-engine.exe' : 'openextract-engine';
   return path.join(resourcePath, 'python', binaryName);
 }

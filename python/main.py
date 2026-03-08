@@ -59,7 +59,8 @@ class SidecarServer:
     def open_backup(self, params):
         udid = params["udid"]
         password = params.get("password")
-        return self.backup_manager.open_backup(udid, password=password)
+        backup_dir = params.get("backup_dir")
+        return self.backup_manager.open_backup(udid, password=password, backup_dir=backup_dir)
 
     def validate_password(self, params):
         udid = params["udid"]

@@ -1,3 +1,4 @@
+export {};
 const { spawn } = require('child_process');
 
 interface PendingRequest {
