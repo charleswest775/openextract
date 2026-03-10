@@ -1,5 +1,5 @@
 export {};
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 import { PythonSidecar } from './sidecar';
 
@@ -52,8 +52,12 @@ function getPythonArgs(): string[] {
 app.whenReady().then(async () => {
   // Start the Python sidecar
   sidecar = new PythonSidecar(getPythonPath(), getPythonArgs());
-  await sidecar.start();
-  console.log('Python sidecar started');
+  try {
+    await sidecar.start();
+    console.log('Python sidecar started');
+  } catch (err) {
+    console.error('Failed to start Python sidecar:', err);
+  }
 
   createWindow();
 
@@ -75,6 +79,11 @@ app.whenReady().then(async () => {
       title: 'Select iPhone Backup Folder',
     });
     return result.canceled ? null : result.filePaths[0];
+  });
+
+  // Open URL in the system browser
+  ipcMain.handle('shell:openExternal', (_event: any, url: string) => {
+    shell.openExternal(url);
   });
 
   // Native dialog for save location

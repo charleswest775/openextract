@@ -15,67 +15,240 @@ from typing import Optional
 APPLE_EPOCH = datetime(2001, 1, 1, tzinfo=timezone.utc)
 NANOSECOND_THRESHOLD = 1_000_000_000_000  # Dates above this are in nanoseconds
 
-def parse_attributed_body(data: bytes) -> str:
-    """Extract plain text from an NSAttributedString (NSKeyedArchiver BLOB or TypedStream)."""
+# Direct balloon_bundle_id column value → message_type (checked before attributedBody parsing)
+_BUNDLE_ID_MAP: list[tuple[str, str]] = [
+    ('URLBalloonProvider',              'link'),
+    ('Maps',                            'location'),
+    ('maps.iMessage',                   'location'),
+    ('LocationShare',                   'location'),
+    ('findmy',                          'location'),
+    ('FindMy',                          'location'),
+    ('com.apple.pay',                   'payment'),
+    ('PassbookUI',                      'payment'),
+    ('DigitalTouch',                    'digital_touch'),
+    ('Handwriting',                     'handwriting'),
+    ('Fitness',                         'fitness'),
+    ('GameCenter',                      'game'),
+    ('GameKit',                         'game'),
+    # Generic iMessage extension balloon — unknown app share
+    ('MSMessageExtensionBalloonPlugin', 'app'),
+]
+
+def _type_from_bundle_id(bundle_id: Optional[str]) -> Optional[str]:
+    """Map a balloon_bundle_id to a message_type, or None if not recognised."""
+    if not bundle_id:
+        return None
+    for fragment, msg_type in _BUNDLE_ID_MAP:
+        if fragment in bundle_id:
+            return msg_type
+    return None
+
+# Fragments found in attributedBody $objects → message_type (fallback)
+_BALLOON_TYPE_MAP: list[tuple[str, str]] = [
+    ('Maps',                    'location'),
+    ('maps.iMessage',           'location'),
+    ('LocationShare',           'location'),
+    ('__kIMLocationShare',      'location'),
+    ('com.apple.pay',           'payment'),
+    ('PassbookUI',              'payment'),
+    ('DigitalTouch',            'digital_touch'),
+    ('Handwriting',             'handwriting'),
+    ('Fitness',                 'fitness'),
+    ('GameCenter',              'game'),
+    ('GameKit',                 'game'),
+    ('com.apple.audio',         'audio'),
+    ('AudioMessage',            'audio'),
+]
+
+_NS_CLASS_NAMES = frozenset([
+    "NSString", "NSMutableString", "NSAttributedString",
+    "NSMutableAttributedString", "NSObject",
+    "NSDictionary", "NSMutableDictionary",
+])
+
+
+def _detect_type_from_objects(objects: list) -> str:
+    """Scan bplist $objects for known Apple balloon/system message identifiers."""
+    for obj in objects:
+        if not isinstance(obj, str):
+            continue
+        for fragment, msg_type in _BALLOON_TYPE_MAP:
+            if fragment in obj:
+                return msg_type
+    return "text"
+
+
+def parse_attributed_body(data: bytes) -> tuple[str, str]:
+    """Extract plain text and message type from an NSAttributedString BLOB.
+
+    Returns (text, message_type) where message_type is one of:
+      'text', 'location', 'payment', 'audio', 'fitness',
+      'game', 'digital_touch', 'handwriting', 'system'
+    """
     if not data:
-        return ""
-    
+        return "", "text"
+
     # 1. Try NSKeyedArchiver (bplist00)
     if data.startswith(b'bplist00'):
         try:
             plist = plistlib.loads(data)
             objects = plist.get("$objects", [])
+
+            # Detect system/service message type first
+            msg_type = _detect_type_from_objects(objects)
+            if msg_type != "text":
+                return "", msg_type
+
+            def _resolve(val):
+                if isinstance(val, plistlib.UID):
+                    idx = val.data
+                    return objects[idx] if idx < len(objects) else None
+                return val
+
+            # Primary: follow NSKeyedArchiver structure to the actual NS.string value.
+            # $top.root → root NSAttributedString dict → NS.string UID → plain text.
+            top = plist.get("$top", {})
+            root_ref = top.get("root")
+            if root_ref is not None:
+                root_obj = _resolve(root_ref)
+                if isinstance(root_obj, dict):
+                    ns_string_val = _resolve(root_obj.get("NS.string"))
+                    if isinstance(ns_string_val, str) and ns_string_val:
+                        return ns_string_val, "text"
+
+            # Fallback: longest clean string in $objects (skips internal keys / class names)
             candidate = ""
             for obj in objects:
-                # Find the longest string that isn't a known Apple structural class
-                if isinstance(obj, str) and obj not in ("NSString", "NSMutableString", "NSAttributedString", "NSMutableAttributedString", "NSObject", "NSDictionary", "NSMutableDictionary"):
-                    # Skip internal Apple attribute names and UUIDs
-                    if "kIMFileTransferGUID" in obj or "kIMMessagePart" in obj or re.match(r'^\$?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$', obj, re.IGNORECASE):
-                        continue
-                    # Skip common attachment filenames
-                    if re.search(r'[\d_A-Fa-f\-]+(\.fullsizerender)*\.(jpeg|jpg|heic|heif|png|gif|mov|mp4|m4a|caf|pdf|doc|docx)', obj, re.IGNORECASE):
-                        continue
-                    if len(obj) > len(candidate):
-                        candidate = obj
+                if not isinstance(obj, str):
+                    continue
+                if obj in _NS_CLASS_NAMES:
+                    continue
+                # Skip NSKeyedArchiver structural strings
+                if obj.startswith('$') or obj == '$null':
+                    continue
+                # Skip NS/CF class name strings (e.g. "NSFont", "WNSValue", "CFString")
+                if re.match(r'^W?(NS|CF)[A-Z]', obj):
+                    continue
+                # Skip GUIDs and file attachment references
+                if "kIMFileTransferGUID" in obj or "kIMMessagePart" in obj:
+                    continue
+                if re.match(r'^\$?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$', obj, re.IGNORECASE):
+                    continue
+                if re.search(r'[\d_A-Fa-f\-]+(\.fullsizerender)*\.(jpeg|jpg|heic|heif|png|gif|mov|mp4|m4a|caf|pdf|doc|docx)', obj, re.IGNORECASE):
+                    continue
+                if len(obj) > len(candidate):
+                    candidate = obj
             if candidate:
-                return candidate
+                return candidate, "text"
         except Exception:
             pass
+        # bplist00 data that couldn't be parsed shouldn't be raw-decoded (produces garbage)
+        return "", "text"
 
-    # 2. Try TypedStream (or corrupted bplist) fallback
+    # 2. TypedStream / raw binary fallback — also check for system message clues
     try:
-        # Decode as utf-8, replacing invalid chars to preserve emojis and text
-        text = data.decode('utf-8', errors='replace')
-        
-        # Clean Apple internal identifiers and UUIDs
-        text = re.sub(r'__kIM\w+', '', text)
-        text = re.sub(r'\$?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}', '', text, flags=re.IGNORECASE)
-        # remove attachment filenames
-        text = re.sub(r'[\d_A-Fa-f\-]+(\.fullsizerender)*\.(jpeg|jpg|heic|heif|png|gif|mov|mp4|m4a|caf|pdf|doc|docx)', '', text, flags=re.IGNORECASE)
+        raw = data.decode('utf-8', errors='replace')
 
-        # Remove common Apple class names from the raw stream
-        classes = ["NSMutableAttributedString", "NSAttributedString", "NSString", "NSMutableString", "NSDictionary", "NSMutableDictionary", "NSObject"]
-        for c in classes:
+        # Quick system-type scan on raw text before cleaning
+        for fragment, msg_type in _BALLOON_TYPE_MAP:
+            if fragment in raw:
+                return "", msg_type
+
+        text = raw
+        # Strip TypedStream / NSKeyedArchiver structural noise.
+        # ORDER MATTERS: remove full GUIDs and __kIM keys BEFORE $\w+ cleanup,
+        # because $\w+ would consume the first GUID segment (e.g. "$19129343")
+        # leaving an unrecognisable "-A4D6-…" fragment behind.
+        text = re.sub(r'streamtyped', '', text)              # TypedStream magic word
+        text = re.sub(r'__kIM\w+', '', text)                 # __kIMFileTransferGUIDAttributeName …
+        text = re.sub(r'at_\d+_', '', text)                  # attachment ref prefix "at_0_"
+        # Full GUIDs (with or without leading $)
+        text = re.sub(r'\$?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}', '', text, flags=re.IGNORECASE)
+        # Partial GUIDs (tail segments left after splitting on control chars)
+        text = re.sub(r'(?<![.\w])[0-9A-Fa-f]{4,}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{8,}', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\$\w+', '', text)                    # $classname, $classes, $top …
+        text = re.sub(r'W?(NS|CF)[A-Z][A-Za-z]*', '', text) # NSFont, CFString, WNSValue …
+        text = re.sub(r'Z?(NS|CF)\.\w+', '', text)          # NS.rangeval, ZNS.special …
+        text = re.sub(r'\b[A-Z][a-z]{3,}/', '', text)       # TypedStream class tags: Email/ DateTime/
+        text = re.sub(r'mailto:', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'[\d_A-Fa-f\-]+(\.fullsizerender)*\.(jpeg|jpg|heic|heif|png|gif|mov|mp4|m4a|caf|pdf|doc|docx)', '', text, flags=re.IGNORECASE)
+        for c in _NS_CLASS_NAMES:
             text = text.replace(c, "")
-            
-        # Split by control characters EXCEPT newline (\x0a) and carriage return (\x0d)
-        # This breaks the binary payload into readable string blocks
+
         parts = re.split(r'[\x00-\x08\x0b\x0c\x0e-\x1f]+', text)
-        
         candidate = ""
         for p in parts:
-            p = p.strip()
-            p = p.replace('\ufffc', '').replace('\ufffd', '').strip()
-            
-            # Check length to avoid picking up random 1-2 char binary artifacts
-            if p and len(p) > len(candidate) and len(p) > 1:
+            p = p.strip().replace('\ufffc', '').replace('\ufffd', '').strip()
+            # Strip TypedStream string length-prefix artifact: '+' followed by one
+            # printable byte that encodes the declared length (e.g. "+I"=73, "+ "=32).
+            # Only strip when the declared length closely matches the remaining text.
+            m_prefix = re.match(r'^\+([\x20-\x7e])(.*)', p, re.DOTALL)
+            if m_prefix:
+                declared = ord(m_prefix.group(1))
+                remainder = m_prefix.group(2)
+                if abs(len(remainder.rstrip()) - declared) <= 3:
+                    p = remainder.lstrip()
+            # For strings containing an email address, use a regex to extract just
+            # the address and discard surrounding TypedStream noise (UEmail/, type bytes).
+            # Use lowercase-only TLD ([a-z]{2,}) so uppercase TypedStream type bytes
+            # (e.g. the 'U' in 'comUEmail') are not consumed as part of the TLD.
+            if '@' in p:
+                m_email = re.search(r'[\w._%+\-]+@[\w.\-]+\.[a-z]{2,}', p)
+                p = m_email.group(0) if m_email else ''
+            if p and len(p) > len(candidate) and len(p) > 3:
                 candidate = p
-                
-        return candidate
+
+        return candidate, "text"
     except Exception:
         pass
-        
-    return ""
+
+    return "", "text"
+
+
+def parse_link_payload(data: bytes) -> dict:
+    """Extract URL, title, summary and site name from a URLBalloonProvider payload_data blob."""
+    if not data:
+        return {}
+    try:
+        plist = plistlib.loads(bytes(data))
+        objs = plist.get("$objects", [])
+
+        def resolve(val):
+            if isinstance(val, plistlib.UID):
+                return objs[val.data]
+            return val
+
+        root = resolve(objs[1])
+        if not isinstance(root, dict) or "richLinkMetadata" not in root:
+            return {}
+
+        meta = resolve(root["richLinkMetadata"])
+        if not isinstance(meta, dict):
+            return {}
+
+        result: dict = {}
+
+        # Resolve NSURL → string via NS.relative
+        for key in ("originalURL", "URL"):
+            if key in meta:
+                url_obj = resolve(meta[key])
+                if isinstance(url_obj, dict):
+                    rel = resolve(url_obj.get("NS.relative", ""))
+                    if rel and isinstance(rel, str):
+                        result["url"] = rel
+                        break
+                elif isinstance(url_obj, str):
+                    result["url"] = url_obj
+                    break
+
+        for key in ("title", "summary", "siteName"):
+            val = resolve(meta.get(key, ""))
+            if val and isinstance(val, str):
+                result[key.replace("N", "n").replace("S", "s") if key == "siteName" else key] = val
+
+        return result
+    except Exception:
+        return {}
 
 
 def apple_date_to_iso(apple_timestamp) -> Optional[str]:
@@ -167,71 +340,110 @@ class MessageExtractor:
 
         messages = []
         try:
-            try:
-                # Try iOS 14+ schema with attributedBody
-                rows = conn.execute("""
-                    SELECT
-                        m.ROWID AS message_id,
-                        m.text,
-                        m.attributedBody,
-                        m.date,
-                        m.date_read,
-                        m.date_delivered,
-                        m.is_from_me,
-                        m.is_read,
-                        m.cache_has_attachments,
-                        m.associated_message_type,
-                        m.group_title,
-                        h.id AS handle_id_str,
-                        h.uncanonicalized_id
-                    FROM message m
-                    LEFT JOIN handle h ON h.ROWID = m.handle_id
-                    INNER JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
-                    WHERE cmj.chat_id = ?
-                    ORDER BY m.date DESC
-                    LIMIT ? OFFSET ?
-                """, (chat_id, limit, offset)).fetchall()
-                has_attributed_body = True
-            except sqlite3.OperationalError:
-                # Fallback to iOS 13- schema
-                rows = conn.execute("""
-                    SELECT
-                        m.ROWID AS message_id,
-                        m.text,
-                        m.date,
-                        m.date_read,
-                        m.date_delivered,
-                        m.is_from_me,
-                        m.is_read,
-                        m.cache_has_attachments,
-                        m.associated_message_type,
-                        m.group_title,
-                        h.id AS handle_id_str,
-                        h.uncanonicalized_id
-                    FROM message m
-                    LEFT JOIN handle h ON h.ROWID = m.handle_id
-                    INNER JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
-                    WHERE cmj.chat_id = ?
-                    ORDER BY m.date DESC
-                    LIMIT ? OFFSET ?
-                """, (chat_id, limit, offset)).fetchall()
-                has_attributed_body = False
+            # Probe which optional columns actually exist so we never query a
+            # missing column (which would crash both query tiers).
+            msg_cols = {r[1] for r in conn.execute("PRAGMA table_info(message)").fetchall()}
+            handle_cols = {r[1] for r in conn.execute("PRAGMA table_info(handle)").fetchall()}
 
-            # Reverse the descending array so it renders top to bottom in chronological order
+            has_attributed_body   = 'attributedBody'     in msg_cols
+            has_payload_data      = 'payload_data'       in msg_cols
+            has_balloon_bundle_id = 'balloon_bundle_id'  in msg_cols
+            has_audio_message     = 'is_audio_message'   in msg_cols
+            has_item_type         = 'item_type'          in msg_cols
+            has_share_status      = 'share_status'       in msg_cols
+            has_share_direction   = 'share_direction'    in msg_cols
+            has_uncanonicalized   = 'uncanonicalized_id' in handle_cols
+
+            # Build SELECT list from confirmed-present columns only
+            select_parts = [
+                'm.ROWID AS message_id',
+                'm.text',
+                'm.date',
+                'm.is_from_me',
+                'm.cache_has_attachments',
+                'm.associated_message_type',
+                'h.id AS handle_id_str',
+            ]
+            if has_attributed_body:   select_parts.append('m.attributedBody')
+            if has_payload_data:      select_parts.append('m.payload_data')
+            if has_balloon_bundle_id: select_parts.append('m.balloon_bundle_id')
+            if has_audio_message:     select_parts.append('m.is_audio_message')
+            if has_item_type:         select_parts.append('m.item_type')
+            if has_share_status:      select_parts.append('m.share_status')
+            if has_share_direction:   select_parts.append('m.share_direction')
+            if has_uncanonicalized:   select_parts.append('h.uncanonicalized_id')
+
+            rows = conn.execute(f"""
+                SELECT {', '.join(select_parts)}
+                FROM message m
+                LEFT JOIN handle h ON h.ROWID = m.handle_id
+                INNER JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
+                WHERE cmj.chat_id = ?
+                ORDER BY m.date DESC
+                LIMIT ? OFFSET ?
+            """, (chat_id, limit, offset)).fetchall()
+
+            # Reverse so messages render top-to-bottom in chronological order
             rows = list(rows)[::-1]
+
+            # Pre-fetch the primary contact name for this chat — used as fallback for
+            # system notification messages that have no handle_id (e.g. location sharing)
+            chat_contact_name = ""
+            chat_handle_row = conn.execute("""
+                SELECT h.id FROM handle h
+                INNER JOIN chat_handle_join chj ON chj.handle_id = h.ROWID
+                WHERE chj.chat_id = ?
+                LIMIT 1
+            """, (chat_id,)).fetchone()
+            if chat_handle_row:
+                chat_contact_name = contacts.get(chat_handle_row[0], chat_handle_row[0])
 
             for row in rows:
                 handle = row["handle_id_str"] or ""
                 sender_name = handle
                 if handle in contacts:
                     sender_name = contacts[handle]
-                elif row["uncanonicalized_id"] and row["uncanonicalized_id"] in contacts:
+                elif has_uncanonicalized and row["uncanonicalized_id"] and row["uncanonicalized_id"] in contacts:
                     sender_name = contacts[row["uncanonicalized_id"]]
+                # Fall back to the chat's primary contact for handle-less system messages
+                if not sender_name:
+                    sender_name = chat_contact_name
 
-                # Resolve message text using attributedBody fallback if it exists in the row
+                # Determine message type — balloon_bundle_id column is authoritative
+                bundle_type = _type_from_bundle_id(row["balloon_bundle_id"] if has_balloon_bundle_id else None)
+                is_audio    = bool(row["is_audio_message"]) if has_audio_message else False
+                item_type   = (row["item_type"]      or 0)  if has_item_type     else 0
+                share_status    = (row["share_status"]    or 0) if has_share_status    else 0
+                share_direction = (row["share_direction"] or 0) if has_share_direction else 0
+
                 msg_text = row["text"]
-                if not msg_text and has_attributed_body and row["attributedBody"]:
-                    msg_text = parse_attributed_body(row["attributedBody"])
+                if bundle_type == "location":
+                    # FindMy map balloon — redundant with the text notifications that follow; skip it
+                    msg_type = "hidden"
+                elif bundle_type:
+                    msg_type = bundle_type
+                elif is_audio:
+                    msg_type = "audio"
+                elif item_type in (3, 4):
+                    # item_type 3/4 = location sharing events
+                    # share_direction: 0 = outgoing (you), 1 = incoming (them)
+                    # share_status:    0 = started,        1 = stopped
+                    if item_type == 4 and share_direction == 0 and share_status == 1:
+                        msg_type = "location_stopped_by_me"
+                    elif item_type == 4 and share_direction == 0:
+                        msg_type = "location_started_by_me"
+                    elif item_type == 4 and share_direction == 1 and share_status == 1:
+                        msg_type = "location_stopped_by_them"
+                    elif item_type == 4 and share_direction == 1:
+                        msg_type = "location_started_by_them"
+                    else:
+                        msg_type = "location"
+                else:
+                    msg_type = "text"
+
+                # Fall back to attributedBody for text content when text column is empty
+                if not msg_text and has_attributed_body and msg_type == "text":
+                    msg_text, msg_type = parse_attributed_body(row["attributedBody"])
 
                 if msg_text:
                     # Clean up Apple object replacement characters and attachment identifiers
@@ -239,29 +451,45 @@ class MessageExtractor:
                     msg_text = re.sub(r'__kIM\w+', '', msg_text)
                     msg_text = re.sub(r'\$?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}', '', msg_text, flags=re.IGNORECASE)
                     msg_text = re.sub(r'[\d_A-Fa-f\-]+(\.fullsizerender)*\.(jpeg|jpg|heic|heif|png|gif|mov|mp4|m4a|caf|pdf|doc|docx)', '', msg_text, flags=re.IGNORECASE)
-                    
+
                     # Remove junk wrapper quotes, spaces, or newlines left from stripping
                     msg_text = re.sub(r'^[ \n"\uFFFD\uFFFC]+', '', msg_text)
                     msg_text = re.sub(r'[ \n"\uFFFD\uFFFC]+$', '', msg_text)
                     msg_text = msg_text.strip()
-                    
-                if not msg_text:
-                    msg_text = "[Attachment]" if bool(row["cache_has_attachments"]) else "[no content]"
+
+                # Skip messages that are redundant or have no displayable content
+                if msg_type == "hidden":
+                    continue
+
+                if not msg_text and msg_type == "text":
+                    if bool(row["cache_has_attachments"]):
+                        msg_type = "attachment"
+                    else:
+                        msg_type = "system"
+                    msg_text = ""
+
+                link_preview = None
+                if msg_type == "link" and has_payload_data and row["payload_data"]:
+                    link_preview = parse_link_payload(row["payload_data"]) or None
+
+                # Fetch real (non-plugin) attachments and derive has_attachments from them
+                real_attachments: list = []
+                if bool(row["cache_has_attachments"]):
+                    real_attachments = self._get_message_attachments(conn, row["message_id"])
 
                 msg = {
                     "message_id": row["message_id"],
                     "text": msg_text,
+                    "message_type": msg_type,
+                    "link_preview": link_preview,
                     "date": apple_date_to_iso(row["date"]),
                     "is_from_me": bool(row["is_from_me"]),
                     "sender": "me" if row["is_from_me"] else sender_name,
                     "sender_handle": handle,
-                    "has_attachments": bool(row["cache_has_attachments"]),
+                    "has_attachments": bool(real_attachments),
+                    "attachments": real_attachments,
                     "is_reaction": row["associated_message_type"] is not None and row["associated_message_type"] != 0,
                 }
-
-                # Get attachments if any
-                if msg["has_attachments"]:
-                    msg["attachments"] = self._get_message_attachments(conn, row["message_id"])
 
                 messages.append(msg)
 
@@ -282,7 +510,7 @@ class MessageExtractor:
         }
 
     def _get_message_attachments(self, conn, message_id: int) -> list:
-        """Get attachment metadata for a message."""
+        """Get attachment metadata for a message, excluding iMessage plugin payloads."""
         attachments = []
         try:
             rows = conn.execute("""
@@ -298,11 +526,20 @@ class MessageExtractor:
             """, (message_id,)).fetchall()
 
             for row in rows:
+                # Skip iMessage app/link plugin payload blobs — they are internal
+                # data containers (e.g. URLBalloonProvider payload), not real files.
+                transfer_name = row["transfer_name"] or ""
+                if transfer_name.endswith('.pluginPayloadAttachment'):
+                    continue
+                filename = row["filename"] or ""
+                if filename.endswith('.pluginPayloadAttachment'):
+                    continue
+
                 attachments.append({
                     "attachment_id": row["attachment_id"],
-                    "filename": row["filename"],
+                    "filename": filename,
                     "mime_type": row["mime_type"],
-                    "transfer_name": row["transfer_name"],
+                    "transfer_name": transfer_name,
                     "total_bytes": row["total_bytes"],
                 })
         except Exception:

@@ -12,9 +12,18 @@ export interface Conversation {
   is_group: boolean;
 }
 
+export interface LinkPreview {
+  url?: string;
+  title?: string;
+  summary?: string;
+  sitename?: string;
+}
+
 export interface Message {
   message_id: number;
   text: string | null;
+  message_type: string; // 'text' | 'link' | 'location' | 'payment' | 'audio' | 'fitness' | 'game' | 'digital_touch' | 'handwriting' | 'attachment' | 'system'
+  link_preview?: LinkPreview;
   date: string;
   is_from_me: boolean;
   sender: string;

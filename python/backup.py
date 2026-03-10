@@ -161,6 +161,11 @@ class BackupManager:
             if localappdata:
                 dirs.append(os.path.join(localappdata, "Apple", "MobileSync", "Backup"))
                 dirs.append(os.path.join(localappdata, "Apple Computer", "MobileSync", "Backup"))
+            # USERPROFILE — some versions store directly in the user's home folder
+            userprofile = os.environ.get("USERPROFILE", "")
+            if userprofile:
+                dirs.append(os.path.join(userprofile, "Apple", "MobileSync", "Backup"))
+                dirs.append(os.path.join(userprofile, "Apple Computer", "MobileSync", "Backup"))
         else:
             home = Path.home()
             dirs.append(str(home / "MobileSync" / "Backup"))

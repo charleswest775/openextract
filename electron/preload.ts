@@ -8,4 +8,7 @@ contextBridge.exposeInMainWorld('openextract', {
   // Native dialogs
   selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
   saveFolder: () => ipcRenderer.invoke('dialog:saveFolder'),
+
+  // Open URL in system browser
+  openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
 });
