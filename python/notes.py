@@ -26,7 +26,10 @@ class NoteExtractor:
             notes = self._parse_legacy_notes(db_path)
 
         if not notes:
-            # Try the group container path for newer iOS
+            # Try the group container path for newer iOS via manifest scan.
+            # For unencrypted backups this finds paths dynamically; for encrypted
+            # backups list_files() returns [] (manifest is encrypted) so we fall
+            # through to the hardcoded path below.
             files = backup.list_files(path_like="%NoteStore.sqlite")
             for f in files:
                 extracted = backup.get_file(f["path"], domain=f["domain"])
@@ -34,6 +37,16 @@ class NoteExtractor:
                     notes = self._parse_notestore(extracted)
                     if notes:
                         break
+
+        if not notes:
+            # Encrypted backups: Manifest.db is encrypted so list_files() returns
+            # nothing. Try the well-known iOS 11+ group container path directly.
+            notestore_path = backup.get_file(
+                "NoteStore.sqlite",
+                domain="AppDomainGroup-group.com.apple.notes",
+            )
+            if notestore_path:
+                notes = self._parse_notestore(notestore_path)
 
         return {"notes": notes}
 

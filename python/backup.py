@@ -53,12 +53,14 @@ class OpenBackup:
             try:
                 self._decrypted_backup.extract_file(
                     relative_path=relative_path,
+                    domain_like=domain,
                     output_filename=output_path
                 )
                 if os.path.exists(output_path):
                     self._file_cache[cache_key] = output_path
                     return output_path
-            except Exception:
+            except Exception as e:
+                print(f"[backup.get_file] extract_file failed for {domain}:{relative_path}: {e}", file=sys.stderr, flush=True)
                 return None
         else:
             # Unencrypted: look up file hash in Manifest.db
@@ -105,6 +107,27 @@ class OpenBackup:
     def list_files(self, domain: Optional[str] = None,
                    path_like: Optional[str] = None) -> list:
         """List files in the backup matching optional filters."""
+        if self.encrypted and self._decrypted_backup:
+            # For encrypted backups, query the library's decrypted manifest.
+            try:
+                query = "SELECT fileID, domain, relativePath FROM Files WHERE flags=1"
+                params = []
+                if domain:
+                    query += " AND domain = ?"
+                    params.append(domain)
+                if path_like:
+                    query += " AND relativePath LIKE ?"
+                    params.append(path_like)
+                with self._decrypted_backup.manifest_db_cursor() as cur:
+                    cur.execute(query, params)
+                    return [
+                        {"hash": row[0], "domain": row[1], "path": row[2]}
+                        for row in cur.fetchall()
+                    ]
+            except Exception as e:
+                print(f"[backup.list_files] encrypted manifest query failed: {e}", file=sys.stderr, flush=True)
+                return []
+
         manifest = self.get_manifest_db()
         if not manifest:
             return []

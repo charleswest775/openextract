@@ -30,11 +30,28 @@ function createWindow() {
   }
 }
 
+function findVenvPython(): string {
+  const fs = require('fs');
+  const rel = process.platform === 'win32'
+    ? path.join('.venv', 'Scripts', 'python.exe')
+    : path.join('.venv', 'bin', 'python');
+  // Start at the project root (one above electron/) and walk up to handle
+  // git worktrees where .venv lives in the main repo, not the worktree.
+  let dir = path.resolve(__dirname, '..');
+  for (let i = 0; i < 6; i++) {
+    const candidate = path.join(dir, rel);
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break; // reached filesystem root
+    dir = parent;
+  }
+  // Fallback: hope Python is on PATH
+  return process.platform === 'win32' ? 'python.exe' : 'python3';
+}
+
 function getPythonPath(): string {
   if (isDev) {
-    return process.platform === 'win32'
-      ? path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe')
-      : path.join(__dirname, '..', '.venv', 'bin', 'python');
+    return findVenvPython();
   }
   // In production, use the bundled PyInstaller executable
   const resourcePath = (process as any).resourcesPath || '';

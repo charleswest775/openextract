@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const sidecar_1 = require("./sidecar");
 let mainWindow = null;
@@ -27,11 +27,29 @@ function createWindow() {
         mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
     }
 }
+function findVenvPython() {
+    const fs = require('fs');
+    const rel = process.platform === 'win32'
+        ? path.join('.venv', 'Scripts', 'python.exe')
+        : path.join('.venv', 'bin', 'python');
+    // Start at the project root (one above electron/) and walk up to handle
+    // git worktrees where .venv lives in the main repo, not the worktree.
+    let dir = path.resolve(__dirname, '..');
+    for (let i = 0; i < 6; i++) {
+        const candidate = path.join(dir, rel);
+        if (fs.existsSync(candidate))
+            return candidate;
+        const parent = path.dirname(dir);
+        if (parent === dir)
+            break; // reached filesystem root
+        dir = parent;
+    }
+    // Fallback: hope Python is on PATH
+    return process.platform === 'win32' ? 'python.exe' : 'python3';
+}
 function getPythonPath() {
     if (isDev) {
-        return process.platform === 'win32'
-            ? path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe')
-            : path.join(__dirname, '..', '.venv', 'bin', 'python');
+        return findVenvPython();
     }
     // In production, use the bundled PyInstaller executable
     const resourcePath = process.resourcesPath || '';
@@ -47,8 +65,13 @@ function getPythonArgs() {
 app.whenReady().then(async () => {
     // Start the Python sidecar
     sidecar = new sidecar_1.PythonSidecar(getPythonPath(), getPythonArgs());
-    await sidecar.start();
-    console.log('Python sidecar started');
+    try {
+        await sidecar.start();
+        console.log('Python sidecar started');
+    }
+    catch (err) {
+        console.error('Failed to start Python sidecar:', err);
+    }
     createWindow();
     // Bridge IPC: renderer -> Python sidecar
     ipcMain.handle('sidecar:call', async (_event, method, params) => {
@@ -68,6 +91,10 @@ app.whenReady().then(async () => {
             title: 'Select iPhone Backup Folder',
         });
         return result.canceled ? null : result.filePaths[0];
+    });
+    // Open URL in the system browser
+    ipcMain.handle('shell:openExternal', (_event, url) => {
+        shell.openExternal(url);
     });
     // Native dialog for save location
     ipcMain.handle('dialog:saveFolder', async () => {

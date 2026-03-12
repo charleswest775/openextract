@@ -76,8 +76,13 @@ class PhotoExtractor:
 
     def _open_photos_db(self, backup) -> Optional[sqlite3.Connection]:
         """Open Photos.sqlite from the backup. Returns a connection or None."""
-        db_path = backup.get_file("PhotoData/Photos.sqlite", domain="CameraRollDomain")
+        # In CameraRollDomain, the relativePath includes the "Media/" prefix on real backups.
+        # Try both forms to handle different iOS versions.
+        db_path = backup.get_file("Media/PhotoData/Photos.sqlite", domain="CameraRollDomain")
         if not db_path or not os.path.exists(db_path):
+            db_path = backup.get_file("PhotoData/Photos.sqlite", domain="CameraRollDomain")
+        if not db_path or not os.path.exists(db_path):
+            print("[photos] _open_photos_db: Photos.sqlite not found in backup", file=sys.stderr, flush=True)
             return None
         try:
             conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
@@ -316,9 +321,14 @@ class PhotoExtractor:
             else:
                 dcim_path = f"Media/DCIM/{filename}"
 
-            file_hash = backup._lookup_file_hash(dcim_path, "CameraRollDomain")
-            if not file_hash:
-                continue  # Cannot resolve — skip
+            if backup.encrypted:
+                # Manifest.db is encrypted — cannot look up hash directly.
+                # Use a path-based synthetic key; _resolve_file() understands it.
+                file_hash = f"dcim:{dcim_path}"
+            else:
+                file_hash = backup._lookup_file_hash(dcim_path, "CameraRollDomain")
+                if not file_hash:
+                    continue  # Cannot resolve — skip
 
             asset = self._asset_row_to_dict(row, album_map.get(row["Z_PK"], []), file_hash)
             photos.append(asset)
@@ -343,10 +353,13 @@ class PhotoExtractor:
                 kind = "video"
             else:
                 continue
+            # For encrypted backups, use a path-based key so _resolve_file can
+            # call backup.get_file() to decrypt on demand.
+            file_hash = f"dcim:{f['path']}" if backup.encrypted else f["hash"]
             media_files.append({
                 "uuid": f["hash"],
                 "filename": os.path.basename(f["path"]),
-                "file_hash": f["hash"],
+                "file_hash": file_hash,
                 "kind": kind,
                 "date_created": None,
                 "date_modified": None,
@@ -422,7 +435,10 @@ class PhotoExtractor:
                 f"Media/DCIM/{directory}/{filename}" if directory
                 else f"Media/DCIM/{filename}"
             )
-            file_hash = backup._lookup_file_hash(dcim_path, "CameraRollDomain") or ""
+            if backup.encrypted:
+                file_hash = f"dcim:{dcim_path}"
+            else:
+                file_hash = backup._lookup_file_hash(dcim_path, "CameraRollDomain") or ""
 
             asset = self._asset_row_to_dict(row, album_ids, file_hash)
             asset["album_names"] = album_names
@@ -672,36 +688,55 @@ class PhotoExtractor:
         return ""
 
     def _resolve_file(self, backup, file_hash: str) -> Optional[str]:
-        """Resolve a file hash to an absolute path on disk.
+        """Resolve a file hash (or path-based key) to an absolute path on disk.
 
         For unencrypted backups, files sit at backup_dir/XX/XXXX... and can
-        be read directly.  For encrypted backups the same path exists but
-        contains cipher-text, so we must go through backup.get_file() which
-        runs the iphone_backup_decrypt decryption layer.
+        be read directly.  For encrypted backups the Manifest.db is also
+        encrypted, so _list_photos_from_db stores "dcim:<relative_path>"
+        as the file_hash. We detect that prefix here and call backup.get_file()
+        directly instead of going through the manifest.
         """
+        if file_hash.startswith("dcim:"):
+            # Path-based key written for encrypted backups — decrypt on demand.
+            return backup.get_file(file_hash[len("dcim:"):], domain="CameraRollDomain")
+
         if not backup.encrypted:
             # Plain backup — file is readable at the hash-based path
             source = os.path.join(backup.backup_dir, file_hash[:2], file_hash)
             if os.path.exists(source):
                 return source
 
-        # Encrypted backup (or plain file not found): look up the logical
-        # path in Manifest.db then let backup.get_file() handle extraction /
-        # decryption into a temp file.
-        manifest = backup.get_manifest_db()
-        if manifest:
+        # Look up the logical path by fileID hash then let backup.get_file() handle
+        # extraction / decryption into a temp file.
+        if backup.encrypted and backup._decrypted_backup:
             try:
-                conn = sqlite3.connect(manifest)
-                row = conn.execute(
-                    "SELECT domain, relativePath FROM Files WHERE fileID = ?",
-                    (file_hash,)
-                ).fetchone()
-                conn.close()
+                with backup._decrypted_backup.manifest_db_cursor() as cur:
+                    cur.execute(
+                        "SELECT domain, relativePath FROM Files WHERE fileID = ?",
+                        (file_hash,)
+                    )
+                    row = cur.fetchone()
                 if row:
                     extracted = backup.get_file(row[1], domain=row[0])
                     if extracted:
                         return extracted
             except Exception:
                 pass
+        else:
+            manifest = backup.get_manifest_db()
+            if manifest:
+                try:
+                    conn = sqlite3.connect(manifest)
+                    row = conn.execute(
+                        "SELECT domain, relativePath FROM Files WHERE fileID = ?",
+                        (file_hash,)
+                    ).fetchone()
+                    conn.close()
+                    if row:
+                        extracted = backup.get_file(row[1], domain=row[0])
+                        if extracted:
+                            return extracted
+                except Exception:
+                    pass
 
         return None
