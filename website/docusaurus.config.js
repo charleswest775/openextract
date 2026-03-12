@@ -29,8 +29,6 @@ const config = {
   organizationName: 'charleswest775',
   projectName: 'openextract',
 
-  outDir: 'build',
-
   onBrokenLinks: 'throw',
 
   // Even if you don't use internationalization, you can use this field to set
