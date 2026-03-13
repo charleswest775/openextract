@@ -66,10 +66,11 @@ class TestNoteExtractor(unittest.TestCase):
         """)
         
         # Record 2: A modern iOS note with a gzipped payload in ZDATA
-        # Let's create a fake gzip sequence with protobuf junk, followed by our uncompressed UTF-8 target text
-        mock_body_text = "This is a secret note.\\nIt has multiple lines.\\nAnd it was decompressed successfully!"
-        # Add some random bytes to simulate protobuf junk
-        mock_protobuf_payload = b"\x08\x00\x12\x04junk" + mock_body_text.encode('utf-8')
+        # Encode the body text as a proper protobuf field (field 2, wire type 2).
+        mock_body_text = "This is a secret note.\nIt has multiple lines.\nAnd it was decompressed successfully!"
+        text_bytes = mock_body_text.encode('utf-8')
+        # Protobuf: tag = (field_number=2 << 3) | wire_type=2 = 0x12; length as varint
+        mock_protobuf_payload = b"\x12" + bytes([len(text_bytes)]) + text_bytes
         mock_gzipped_payload = gzip.compress(mock_protobuf_payload)
         
         conn.execute("""
