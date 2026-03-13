@@ -8,9 +8,26 @@ import sys
 import plistlib
 import sqlite3
 import tempfile
+import time
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
+
+
+def _tlog(msg: str) -> None:
+    try:
+        with open("python_log.txt", "a", encoding="utf-8") as f:
+            f.write(f"[TIMING {time.strftime('%H:%M:%S')}] {msg}\n")
+    except Exception:
+        pass
+
+
+# Files that must be decrypted before any data is accessible.
+# Pre-warming these during open_backup avoids 10-15s stalls on first use.
+_PREWARM_FILES = [
+    ("Library/AddressBook/AddressBook.sqlitedb", "HomeDomain"),
+    ("Library/SMS/sms.db",                       "HomeDomain"),
+]
 
 # Try to import iphone_backup_decrypt for encrypted backups
 try:
@@ -273,13 +290,15 @@ class BackupManager:
         info["encrypted"] = encrypted
         info["backup_dir"] = backup_dir
 
-        # Calculate approximate size
+        # Sum file sizes one level deep (backup files live in 2-char hex subdirs).
+        # This is much faster than a full os.walk while still being accurate.
         try:
-            total_size = sum(
-                os.path.getsize(os.path.join(dirpath, filename))
-                for dirpath, _, filenames in os.walk(backup_dir)
-                for filename in filenames
-            )
+            total_size = 0
+            for entry in os.scandir(backup_dir):
+                if entry.is_dir() and len(entry.name) == 2:
+                    for f in os.scandir(entry.path):
+                        if f.is_file():
+                            total_size += f.stat().st_size
             info["size_bytes"] = total_size
             info["size_gb"] = round(total_size / (1024 ** 3), 2)
         except Exception:
@@ -346,6 +365,17 @@ class BackupManager:
         )
 
         self._open_backups[udid] = backup
+
+        # For encrypted backups, pre-decrypt the most-accessed files now so that
+        # list_conversations / get_messages don't stall on first use.
+        # Unencrypted get_file is a fast hash lookup — no pre-warm needed.
+        if encrypted:
+            t_pw = time.perf_counter()
+            for path, domain in _PREWARM_FILES:
+                t_f = time.perf_counter()
+                result = backup.get_file(path, domain)
+                _tlog(f"open_backup prewarm {path}: {time.perf_counter()-t_f:.3f}s {'OK' if result else 'MISSING'}")
+            _tlog(f"open_backup prewarm total={time.perf_counter()-t_pw:.3f}s")
 
         return {
             "status": "open",

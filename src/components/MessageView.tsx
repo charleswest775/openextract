@@ -65,6 +65,13 @@ export default function MessageView({ udid }: Props) {
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
 
+  // Auto-select the first conversation so messages are visible without a manual click.
+  useEffect(() => {
+    if (conversations.length > 0 && activeChat === null) {
+      loadMessages(conversations[0].chat_id);
+    }
+  }, [conversations, activeChat, loadMessages]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -91,12 +98,12 @@ export default function MessageView({ udid }: Props) {
     }
   }, [activeChat, searchMessages, loadMessages]);
 
-  function handleClearFilters() {
+  function handleClearFilters(reload = true) {
     setMsgSearch('');
     setDateFrom('');
     setDateTo('');
     setFiltersActive(false);
-    if (activeChat) loadMessages(activeChat);
+    if (reload && activeChat) loadMessages(activeChat);
   }
 
   function applyPreset(from: string, to: string) {
@@ -159,7 +166,7 @@ export default function MessageView({ udid }: Props) {
             <button
               key={conv.chat_id}
               onClick={() => {
-                handleClearFilters();
+                handleClearFilters(false);
                 loadMessages(conv.chat_id);
               }}
               className={`w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${

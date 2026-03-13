@@ -15,13 +15,13 @@ export default function BackupSelector({ backups, loading, error, onRefresh, onO
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [pendingBackup, setPendingBackup] = useState<BackupInfo | null>(null);
+  const [pendingBackupDir, setPendingBackupDir] = useState<string | undefined>(undefined);
   const [openError, setOpenError] = useState<string | null>(null);
+  const [decrypting, setDecrypting] = useState(false);
 
   useEffect(() => {
     onRefresh();
   }, []);
-
-  const [pendingBackupDir, setPendingBackupDir] = useState<string | undefined>(undefined);
 
   const handleOpen = async (backup: BackupInfo) => {
     setOpenError(null);
@@ -39,7 +39,9 @@ export default function BackupSelector({ backups, loading, error, onRefresh, onO
   const handlePasswordSubmit = async () => {
     if (!pendingBackup || !password) return;
     setOpenError(null);
+    setDecrypting(true);
     const status = await onOpen(pendingBackup.udid, password, pendingBackupDir);
+    setDecrypting(false);
     if (status === 'error') {
       setOpenError('Incorrect password or corrupted backup');
     } else if (status === 'open') {
@@ -75,8 +77,47 @@ export default function BackupSelector({ backups, loading, error, onRefresh, onO
           </div>
         )}
 
+        {/* Decryption progress panel */}
+        {decrypting && pendingBackup && (
+          <div className="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center gap-3 mb-4">
+              <svg className="animate-spin h-5 w-5 text-blue-600 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <div>
+                <p className="text-sm font-semibold text-blue-900">Decrypting backup…</p>
+                <p className="text-xs text-blue-700 mt-0.5">{pendingBackup.device_name}</p>
+              </div>
+            </div>
+
+            {/* Indeterminate progress bar */}
+            <div className="w-full h-1.5 bg-blue-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full"
+                style={{
+                  width: '40%',
+                  animation: 'decryptSlide 1.6s ease-in-out infinite',
+                }}
+              />
+            </div>
+
+            <p className="text-xs text-blue-600 mt-3">
+              Decrypting and indexing backup files — this takes 15–30 seconds the first time and will be instant afterwards.
+            </p>
+
+            <style>{`
+              @keyframes decryptSlide {
+                0%   { transform: translateX(-100%); }
+                50%  { transform: translateX(150%); }
+                100% { transform: translateX(150%); }
+              }
+            `}</style>
+          </div>
+        )}
+
         {/* Password prompt modal */}
-        {pendingBackup && (
+        {pendingBackup && !decrypting && (
           <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm font-medium text-blue-800 mb-3">
               This backup is encrypted. Enter your backup password:
@@ -104,7 +145,7 @@ export default function BackupSelector({ backups, loading, error, onRefresh, onO
                 disabled={!password || loading}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50"
               >
-                {loading ? 'Decrypting...' : 'Unlock'}
+                Unlock
               </button>
               <button
                 onClick={() => { setPendingBackup(null); setPassword(''); setPendingBackupDir(undefined); }}

@@ -8,12 +8,26 @@ import base64
 import os
 import plistlib
 import re
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional
+
+
+def _tlog(msg: str) -> None:
+    try:
+        with open("python_log.txt", "a", encoding="utf-8") as f:
+            f.write(f"[TIMING {time.strftime('%H:%M:%S')}] {msg}\n")
+    except Exception:
+        pass
 
 # Apple Cocoa epoch: Jan 1, 2001
 APPLE_EPOCH = datetime(2001, 1, 1, tzinfo=timezone.utc)
 NANOSECOND_THRESHOLD = 1_000_000_000_000  # Dates above this are in nanoseconds
+
+# Cache of sms.db column sets, keyed by db_path. Schema never changes for a given backup.
+_pragma_cache: dict[str, dict] = {}
+# Set of db_paths for which we've already created performance indexes.
+_indexed_dbs: set[str] = set()
 
 # Direct balloon_bundle_id column value → message_type (checked before attributedBody parsing)
 _BUNDLE_ID_MAP: list[tuple[str, str]] = [
@@ -302,9 +316,44 @@ class MessageExtractor:
 
     SMS_DB_PATH = "Library/SMS/sms.db"
 
+    def __init__(self):
+        # Persistent SQLite connections keyed by db_path.
+        # The sidecar processes one request at a time, so reuse is safe.
+        self._connections: dict[str, sqlite3.Connection] = {}
+
     def _get_sms_db(self, backup) -> Optional[str]:
         """Get path to the sms.db file from the backup."""
         return backup.get_file(self.SMS_DB_PATH, domain="HomeDomain")
+
+    def _get_conn(self, db_path: str) -> sqlite3.Connection:
+        """Return a cached SQLite connection for db_path, creating it if needed."""
+        if db_path not in self._connections:
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            self._ensure_indexes(conn, db_path)
+            self._connections[db_path] = conn
+        return self._connections[db_path]
+
+    def _ensure_indexes(self, conn, db_path: str) -> None:
+        """Create performance indexes on sms.db the first time it is opened.
+
+        Uses IF NOT EXISTS so this is idempotent — SQLite skips creation if the
+        index already exists (either from iOS or a prior run).  Errors are
+        silently ignored so a read-only filesystem won't break anything.
+        """
+        if db_path in _indexed_dbs:
+            return
+        try:
+            conn.executescript("""
+                CREATE INDEX IF NOT EXISTS _oe_cmj_chat
+                    ON chat_message_join (chat_id, message_id);
+                CREATE INDEX IF NOT EXISTS _oe_msg_date
+                    ON message (date);
+            """)
+            conn.commit()
+        except Exception:
+            pass  # Read-only filesystem or locked db — non-fatal
+        _indexed_dbs.add(db_path)
 
     def list_conversations(self, backup, contacts: dict) -> dict:
         """List all conversations with preview info."""
@@ -312,30 +361,52 @@ class MessageExtractor:
         if not db_path:
             return {"conversations": [], "error": "sms.db not found"}
 
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        t0 = time.perf_counter()
+        conn = self._get_conn(db_path)
+        _tlog(f"list_conversations: _get_conn={time.perf_counter()-t0:.3f}s")
 
         conversations = []
         try:
+            t1 = time.perf_counter()
+            # CTE avoids a correlated subquery per-row for last message preview.
+            # ranked_msgs assigns ROW_NUMBER per chat ordered by date DESC so rn=1
+            # is the latest message; msg_counts aggregates totals separately.
             rows = conn.execute("""
+                WITH ranked_msgs AS (
+                    SELECT
+                        cmj.chat_id,
+                        COALESCE(m.text, '[Message contents hidden]') AS text,
+                        m.date,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY cmj.chat_id ORDER BY m.date DESC
+                        ) AS rn
+                    FROM chat_message_join cmj
+                    JOIN message m ON m.ROWID = cmj.message_id
+                ),
+                last_msg AS (
+                    SELECT chat_id, text, date FROM ranked_msgs WHERE rn = 1
+                ),
+                msg_counts AS (
+                    SELECT chat_id, COUNT(*) AS message_count
+                    FROM chat_message_join
+                    GROUP BY chat_id
+                )
                 SELECT
-                    c.ROWID AS chat_id,
+                    c.ROWID          AS chat_id,
                     c.chat_identifier,
                     c.display_name,
                     c.service_name,
-                    COUNT(cmj.message_id) AS message_count,
-                    MAX(m.date) AS last_message_date,
-                    (SELECT coalesce(m2.text, '[Message contents hidden]') FROM message m2
-                     INNER JOIN chat_message_join cmj2 ON cmj2.message_id = m2.ROWID
-                     WHERE cmj2.chat_id = c.ROWID
-                     ORDER BY m2.date DESC LIMIT 1) AS last_message_text
+                    mc.message_count,
+                    lm.date          AS last_message_date,
+                    lm.text          AS last_message_text
                 FROM chat c
-                JOIN chat_message_join cmj ON cmj.chat_id = c.ROWID
-                JOIN message m ON m.ROWID = cmj.message_id
-                GROUP BY c.ROWID
-                ORDER BY last_message_date DESC
+                JOIN last_msg   lm ON lm.chat_id = c.ROWID
+                JOIN msg_counts mc ON mc.chat_id = c.ROWID
+                ORDER BY lm.date DESC
             """).fetchall()
+            _tlog(f"list_conversations: CTE query={time.perf_counter()-t1:.3f}s rows={len(rows)}")
 
+            t2 = time.perf_counter()
             for row in rows:
                 chat_identifier = row["chat_identifier"] or ""
                 display_name = row["display_name"] or ""
@@ -354,8 +425,9 @@ class MessageExtractor:
                     "last_message_preview": (row["last_message_text"] or "")[:100],
                     "is_group": "chat" in chat_identifier.lower(),
                 })
-        finally:
-            conn.close()
+            _tlog(f"list_conversations: contact-resolve loop={time.perf_counter()-t2:.3f}s convs={len(conversations)}")
+        except Exception:
+            raise
 
         return {"conversations": conversations}
 
@@ -368,24 +440,38 @@ class MessageExtractor:
         if not db_path:
             return {"messages": [], "error": "sms.db not found"}
 
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        t0 = time.perf_counter()
+        conn = self._get_conn(db_path)
+        _tlog(f"get_messages(chat={chat_id}): _get_conn={time.perf_counter()-t0:.3f}s")
 
         messages = []
         try:
             # Probe which optional columns actually exist so we never query a
             # missing column (which would crash both query tiers).
-            msg_cols = {r[1] for r in conn.execute("PRAGMA table_info(message)").fetchall()}
-            handle_cols = {r[1] for r in conn.execute("PRAGMA table_info(handle)").fetchall()}
-
-            has_attributed_body   = 'attributedBody'     in msg_cols
-            has_payload_data      = 'payload_data'       in msg_cols
-            has_balloon_bundle_id = 'balloon_bundle_id'  in msg_cols
-            has_audio_message     = 'is_audio_message'   in msg_cols
-            has_item_type         = 'item_type'          in msg_cols
-            has_share_status      = 'share_status'       in msg_cols
-            has_share_direction   = 'share_direction'    in msg_cols
-            has_uncanonicalized   = 'uncanonicalized_id' in handle_cols
+            # Results are cached by db_path since schema never changes for a given backup.
+            if db_path not in _pragma_cache:
+                msg_cols = {r[1] for r in conn.execute("PRAGMA table_info(message)").fetchall()}
+                handle_cols = {r[1] for r in conn.execute("PRAGMA table_info(handle)").fetchall()}
+                _pragma_cache[db_path] = {
+                    'has_attributed_body':   'attributedBody'     in msg_cols,
+                    'has_payload_data':      'payload_data'       in msg_cols,
+                    'has_balloon_bundle_id': 'balloon_bundle_id'  in msg_cols,
+                    'has_audio_message':     'is_audio_message'   in msg_cols,
+                    'has_item_type':         'item_type'          in msg_cols,
+                    'has_share_status':      'share_status'       in msg_cols,
+                    'has_share_direction':   'share_direction'    in msg_cols,
+                    'has_uncanonicalized':   'uncanonicalized_id' in handle_cols,
+                    'uses_nanoseconds':      _db_uses_nanoseconds(conn),
+                }
+            schema = _pragma_cache[db_path]
+            has_attributed_body   = schema['has_attributed_body']
+            has_payload_data      = schema['has_payload_data']
+            has_balloon_bundle_id = schema['has_balloon_bundle_id']
+            has_audio_message     = schema['has_audio_message']
+            has_item_type         = schema['has_item_type']
+            has_share_status      = schema['has_share_status']
+            has_share_direction   = schema['has_share_direction']
+            has_uncanonicalized   = schema['has_uncanonicalized']
 
             # Build SELECT list from confirmed-present columns only
             select_parts = [
@@ -409,7 +495,7 @@ class MessageExtractor:
             date_clauses = []
             date_params: list = [chat_id]
             if date_from or date_to:
-                ns = _db_uses_nanoseconds(conn)
+                ns = _pragma_cache[db_path]['uses_nanoseconds']
                 apple_from = iso_to_apple_date(date_from, nanoseconds=ns) if date_from else None
                 apple_to = iso_to_apple_date(date_to, nanoseconds=ns) if date_to else None
                 if apple_from is not None:
@@ -420,6 +506,7 @@ class MessageExtractor:
                     date_params.append(apple_to)
             where_extra = (" AND " + " AND ".join(date_clauses)) if date_clauses else ""
 
+            t_q = time.perf_counter()
             rows = conn.execute(f"""
                 SELECT {', '.join(select_parts)}
                 FROM message m
@@ -429,9 +516,48 @@ class MessageExtractor:
                 ORDER BY m.date DESC
                 LIMIT ? OFFSET ?
             """, (*date_params, limit, offset)).fetchall()
+            _tlog(f"get_messages: main query={time.perf_counter()-t_q:.3f}s rows={len(rows)}")
 
             # Reverse so messages render top-to-bottom in chronological order
             rows = list(rows)[::-1]
+
+            # Batch-fetch all attachment metadata for this page in a single query
+            # instead of one query per message (N+1 → 1).
+            t_att = time.perf_counter()
+            attachment_ids_needed = [
+                row["message_id"] for row in rows if bool(row["cache_has_attachments"])
+            ]
+            attachments_by_msg: dict[int, list] = {}
+            if attachment_ids_needed:
+                placeholders = ','.join('?' * len(attachment_ids_needed))
+                for att in conn.execute(f"""
+                    SELECT
+                        maj.message_id,
+                        a.ROWID AS attachment_id,
+                        a.filename,
+                        a.mime_type,
+                        a.transfer_name,
+                        a.total_bytes
+                    FROM attachment a
+                    JOIN message_attachment_join maj ON maj.attachment_id = a.ROWID
+                    WHERE maj.message_id IN ({placeholders})
+                """, attachment_ids_needed).fetchall():
+                    transfer_name = att["transfer_name"] or ""
+                    filename = att["filename"] or ""
+                    if transfer_name.endswith('.pluginPayloadAttachment'):
+                        continue
+                    if filename.endswith('.pluginPayloadAttachment'):
+                        continue
+                    mid = att["message_id"]
+                    attachments_by_msg.setdefault(mid, []).append({
+                        "attachment_id": att["attachment_id"],
+                        "filename": filename,
+                        "mime_type": att["mime_type"],
+                        "transfer_name": transfer_name,
+                        "total_bytes": att["total_bytes"],
+                    })
+
+            _tlog(f"get_messages: attachment batch={time.perf_counter()-t_att:.3f}s msgs_with_att={len(attachment_ids_needed)}")
 
             # Pre-fetch the primary contact name for this chat — used as fallback for
             # system notification messages that have no handle_id (e.g. location sharing)
@@ -445,6 +571,7 @@ class MessageExtractor:
             if chat_handle_row:
                 chat_contact_name = contacts.get(chat_handle_row[0], chat_handle_row[0])
 
+            t_loop = time.perf_counter()
             for row in rows:
                 handle = row["handle_id_str"] or ""
                 sender_name = handle
@@ -519,10 +646,8 @@ class MessageExtractor:
                 if msg_type == "link" and has_payload_data and row["payload_data"]:
                     link_preview = parse_link_payload(row["payload_data"]) or None
 
-                # Fetch real (non-plugin) attachments and derive has_attachments from them
-                real_attachments: list = []
-                if bool(row["cache_has_attachments"]):
-                    real_attachments = self._get_message_attachments(conn, row["message_id"])
+                # Look up pre-fetched attachments (batched above, no per-message query)
+                real_attachments = attachments_by_msg.get(row["message_id"], [])
 
                 msg = {
                     "message_id": row["message_id"],
@@ -540,16 +665,20 @@ class MessageExtractor:
 
                 messages.append(msg)
 
+            _tlog(f"get_messages: message loop={time.perf_counter()-t_loop:.3f}s out={len(messages)}")
+
             # Get total count (respects date filters)
+            t_cnt = time.perf_counter()
             total = conn.execute(
                 f"""SELECT COUNT(*) FROM message m
                     INNER JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
                     WHERE cmj.chat_id = ?{where_extra}""",
                 tuple(date_params)
             ).fetchone()[0]
+            _tlog(f"get_messages: count query={time.perf_counter()-t_cnt:.3f}s total={total}")
 
-        finally:
-            conn.close()
+        except Exception:
+            raise
 
         return {
             "messages": messages,
@@ -602,8 +731,7 @@ class MessageExtractor:
         if not db_path:
             return {"error": "sms.db not found"}
 
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = self._get_conn(db_path)
 
         try:
             row = conn.execute(
@@ -656,8 +784,8 @@ class MessageExtractor:
                 "mime_type": mime_type,
                 "filename": row["transfer_name"] or os.path.basename(row["filename"]),
             }
-        finally:
-            conn.close()
+        except Exception:
+            raise
 
     def search_messages(self, backup, query: str, contacts: dict,
                         chat_id: Optional[int] = None,
@@ -669,8 +797,7 @@ class MessageExtractor:
         if not db_path:
             return {"results": []}
 
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = self._get_conn(db_path)
 
         results = []
         try:
@@ -717,8 +844,8 @@ class MessageExtractor:
                     "sender": "me" if row["is_from_me"] else contacts.get(handle, handle),
                     "chat_id": row["chat_id"],
                 })
-        finally:
-            conn.close()
+        except Exception:
+            raise
 
         return {"results": results, "query": query}
 

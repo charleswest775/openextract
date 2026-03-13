@@ -65,7 +65,7 @@ export function useMessages(udid: string | undefined) {
   const loadMessages = useCallback(async (
     chatId: number,
     offset = 0,
-    limit = 100,
+    limit = 50,
     dateFrom?: string,
     dateTo?: string
   ) => {

@@ -7,6 +7,16 @@ JSON-RPC server communicating over stdin/stdout with the Electron main process.
 import sys
 import json
 import traceback
+import time
+
+
+def _tlog(msg: str) -> None:
+    """Append a timestamped line to python_log.txt."""
+    try:
+        with open("python_log.txt", "a", encoding="utf-8") as f:
+            f.write(f"[TIMING {time.strftime('%H:%M:%S')}] {msg}\n")
+    except Exception:
+        pass
 
 from backup import BackupManager
 from messages import MessageExtractor
@@ -82,7 +92,7 @@ class SidecarServer:
         udid = params["udid"]
         chat_id = params["chat_id"]
         offset = params.get("offset", 0)
-        limit = params.get("limit", 100)
+        limit = params.get("limit", 50)
         date_from = params.get("date_from")
         date_to = params.get("date_to")
         backup = self.backup_manager.get_open_backup(udid)
@@ -229,7 +239,9 @@ class SidecarServer:
             }
 
         try:
+            t0 = time.perf_counter()
             result = self.methods[method](params)
+            _tlog(f"{method} total={time.perf_counter()-t0:.3f}s")
             return {"id": req_id, "result": result}
         except Exception as e:
             import traceback

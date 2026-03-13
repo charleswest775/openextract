@@ -5,8 +5,17 @@ Maps phone numbers and email addresses to contact names.
 
 import sqlite3
 import re
+import time
 from typing import Optional
 from functools import lru_cache
+
+
+def _tlog(msg: str) -> None:
+    try:
+        with open("python_log.txt", "a", encoding="utf-8") as f:
+            f.write(f"[TIMING {time.strftime('%H:%M:%S')}] {msg}\n")
+    except Exception:
+        pass
 
 
 class ContactResolver:
@@ -35,6 +44,7 @@ class ContactResolver:
         if udid in self._cache:
             return self._cache[udid]
 
+        t0 = time.perf_counter()
         contacts = {}
         db_path = backup.get_file(self.ADDRESS_BOOK_PATH, domain="HomeDomain")
         if not db_path:
@@ -42,8 +52,10 @@ class ContactResolver:
             return contacts
 
         try:
+            t_open = time.perf_counter()
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
+            _tlog(f"contacts: sqlite3.connect={time.perf_counter()-t_open:.3f}s")
 
             # Get all person records
             persons = {}
@@ -88,6 +100,7 @@ class ContactResolver:
                     contacts[email.lower()] = persons[person_id]
 
             conn.close()
+            _tlog(f"contacts: load_contacts total={time.perf_counter()-t0:.3f}s entries={len(contacts)}")
         except Exception:
             pass
 
