@@ -21,7 +21,7 @@ function formatDuration(seconds: number): string {
     if (!seconds) return '0s';
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
+    const s = parseFloat((seconds % 60).toFixed(2));
     if (h > 0) return `${h}h ${m}m ${s}s`;
     if (m > 0) return `${m}m ${s}s`;
     return `${s}s`;
