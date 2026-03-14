@@ -66,6 +66,28 @@ export default function ContactsView({ backup }: Props) {
     const paginatedContacts = filteredContacts.slice(page * pageSize, (page + 1) * pageSize);
     const totalPages = Math.ceil(filteredContacts.length / pageSize);
 
+    function exportToCSV() {
+        const headers = ['First Name', 'Last Name', 'Display Name', 'Organization', 'Phone Numbers', 'Email Addresses', 'Notes'];
+        const escape = (val: string) => `"${(val ?? '').replace(/"/g, '""')}"`;
+        const rows = contacts.map(c => [
+            escape(c.first_name),
+            escape(c.last_name),
+            escape(c.display_name),
+            escape(c.organization),
+            escape(c.phones.join('; ')),
+            escape(c.emails.join('; ')),
+            escape(c.note),
+        ]);
+        const csv = [headers.map(h => `"${h}"`).join(','), ...rows.map(r => r.join(','))].join('\r\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `contacts_${backup.udid.slice(0, 8)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
     return (
         <div className="flex flex-col h-full bg-[#0f1115] text-gray-200 font-sans">
             <div className="flex items-center justify-between p-6 border-b border-gray-800 bg-[#161920]">
@@ -94,6 +116,13 @@ export default function ContactsView({ backup }: Props) {
                             }}
                         />
                     </div>
+                    <button
+                        onClick={exportToCSV}
+                        disabled={loading || contacts.length === 0}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors"
+                    >
+                        ⬇ Export CSV
+                    </button>
                 </div>
             </div>
 
