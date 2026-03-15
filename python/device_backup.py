@@ -156,20 +156,22 @@ class DeviceBackupManager:
         files_done = 0
         files_total = 0
 
-        def _progress_cb(progress_info: dict) -> None:
+        def _progress_cb(progress_info) -> None:
             """
-            Translate raw MobileBackup2 progress dicts into our phase/percent model.
+            Translate raw MobileBackup2 progress into our phase/percent model.
 
-            pymobiledevice3 delivers the raw backup protocol message as a dict.
-            Keys vary slightly across iOS versions, so every access uses .get().
-
-            Observed keys:
-              Progress         — float 0.0–1.0  (newer iOS) OR int 0–100 (older)
-              TotalFiles       — int
-              FilesTransferred — int
-              SnapshotState    — str e.g. "copying", "finalizing"
+            pymobiledevice3 may deliver either:
+              - a dict with keys: Progress, TotalFiles, FilesTransferred, SnapshotState
+              - a raw float (0.0–1.0) on some iOS versions / pymobiledevice3 builds
             """
             nonlocal files_done, files_total
+
+            if not isinstance(progress_info, dict):
+                # Raw float progress value
+                raw_pct = float(progress_info) if progress_info is not None else 0.0
+                pct = min(99, max(0, int(raw_pct * 100 if raw_pct <= 1.0 else raw_pct)))
+                notify("backing_up", pct, files_done, files_total)
+                return
 
             raw_pct = progress_info.get("Progress", 0)
             if isinstance(raw_pct, float):
