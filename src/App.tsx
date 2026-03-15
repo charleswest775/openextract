@@ -70,7 +70,10 @@ export default function App() {
           <Dashboard backup={backup.activeBackup} />
         )}
         {screen === 'create-backup' && (
-          <CreateBackup onBack={() => setScreen('select')} />
+          <CreateBackup
+            onBack={() => setScreen('select')}
+            onBackupComplete={(udid, backupPath) => backup.openBackup(udid, undefined, backupPath)}
+          />
         )}
       </main>
     </div>

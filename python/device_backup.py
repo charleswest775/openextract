@@ -155,6 +155,7 @@ class DeviceBackupManager:
         # Track progress counters across the callback.
         files_done = 0
         files_total = 0
+        last_pct = 0  # high-water mark — progress never moves backward
 
         def _progress_cb(progress_info) -> None:
             """
@@ -164,21 +165,22 @@ class DeviceBackupManager:
               - a dict with keys: Progress, TotalFiles, FilesTransferred, SnapshotState
               - a raw float (0.0–1.0) on some iOS versions / pymobiledevice3 builds
             """
-            nonlocal files_done, files_total
+            nonlocal files_done, files_total, last_pct
 
             if not isinstance(progress_info, dict):
                 # Raw float progress value
                 raw_pct = float(progress_info) if progress_info is not None else 0.0
-                pct = min(99, max(0, int(raw_pct * 100 if raw_pct <= 1.0 else raw_pct)))
+                pct = min(99, max(last_pct, int(raw_pct * 100 if raw_pct <= 1.0 else raw_pct)))
+                last_pct = pct
                 notify("backing_up", pct, files_done, files_total)
                 return
 
             raw_pct = progress_info.get("Progress", 0)
             if isinstance(raw_pct, float):
                 # Normalise 0.0–1.0 → 0–99 (reserve 100 for completion signal)
-                pct = min(99, max(0, int(raw_pct * 100)))
+                pct = min(99, max(last_pct, int(raw_pct * 100)))
             else:
-                pct = min(99, max(0, int(raw_pct)))
+                pct = min(99, max(last_pct, int(raw_pct)))
 
             files_total = progress_info.get("TotalFiles", files_total) or files_total
             files_done = progress_info.get("FilesTransferred", files_done) or files_done
@@ -186,6 +188,7 @@ class DeviceBackupManager:
             state = str(progress_info.get("SnapshotState", "")).lower()
             phase = "finalizing" if ("final" in state or pct >= 95) else "backing_up"
 
+            last_pct = pct
             notify(phase, pct, files_done, files_total)
 
         async def _run_backup():

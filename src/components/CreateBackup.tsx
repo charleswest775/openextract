@@ -33,6 +33,7 @@ type BackupStatus = 'idle' | 'running' | 'success' | 'error';
 
 interface Props {
   onBack: () => void;
+  onBackupComplete?: (udid: string, backupPath: string) => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -51,7 +52,7 @@ function ConnectionIcon({ type }: { type: 'usb' | 'wifi' }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function CreateBackup({ onBack }: Props) {
+export default function CreateBackup({ onBack, onBackupComplete }: Props) {
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [loadingDevices, setLoadingDevices] = useState(false);
   const [deviceError, setDeviceError] = useState<string | null>(null);
@@ -136,6 +137,7 @@ export default function CreateBackup({ onBack }: Props) {
       );
       setBackupPath(result.backup_path);
       setStatus('success');
+      onBackupComplete?.(selectedDevice.udid, result.backup_path);
     } catch (err: any) {
       setBackupError(err.message || 'Backup failed');
       setStatus('error');
