@@ -5,6 +5,7 @@ Handles both encrypted and unencrypted iTunes/Finder backups.
 
 import os
 import sys
+import json
 import plistlib
 import sqlite3
 import tempfile
@@ -12,6 +13,28 @@ import time
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
+
+
+def _size_cache_path() -> str:
+    cache_dir = os.path.join(Path.home(), ".openextract")
+    os.makedirs(cache_dir, exist_ok=True)
+    return os.path.join(cache_dir, "size_cache.json")
+
+
+def _load_size_cache() -> dict:
+    try:
+        with open(_size_cache_path(), "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_size_cache(cache: dict) -> None:
+    try:
+        with open(_size_cache_path(), "w", encoding="utf-8") as f:
+            json.dump(cache, f)
+    except Exception:
+        pass
 
 
 def _tlog(msg: str) -> None:
@@ -290,20 +313,9 @@ class BackupManager:
         info["encrypted"] = encrypted
         info["backup_dir"] = backup_dir
 
-        # Sum file sizes one level deep (backup files live in 2-char hex subdirs).
-        # This is much faster than a full os.walk while still being accurate.
-        try:
-            total_size = 0
-            for entry in os.scandir(backup_dir):
-                if entry.is_dir() and len(entry.name) == 2:
-                    for f in os.scandir(entry.path):
-                        if f.is_file():
-                            total_size += f.stat().st_size
-            info["size_bytes"] = total_size
-            info["size_gb"] = round(total_size / (1024 ** 3), 2)
-        except Exception:
-            info["size_bytes"] = 0
-            info["size_gb"] = 0
+        # Size is computed lazily via get_backup_size() to keep list_backups fast.
+        info["size_bytes"] = None
+        info["size_gb"] = None
 
         return info
 
@@ -389,6 +401,40 @@ class BackupManager:
             return {"valid": True}
         except ValueError:
             return {"valid": False}
+
+    def get_backup_size(self, backup_dir: str) -> dict:
+        """
+        Return the total size of a backup directory.
+        Results are cached in ~/.openextract/size_cache.json keyed by backup_dir
+        and the mtime of Manifest.db, so repeated calls are instant.
+        """
+        manifest_db = os.path.join(backup_dir, "Manifest.db")
+        try:
+            mtime = os.path.getmtime(manifest_db)
+        except OSError:
+            mtime = 0.0
+
+        cache = _load_size_cache()
+        key = backup_dir
+        entry = cache.get(key)
+        if entry and entry.get("mtime") == mtime:
+            return {"size_bytes": entry["size_bytes"], "size_gb": entry["size_gb"]}
+
+        # Compute by scanning one level of hex subdirs
+        total_size = 0
+        try:
+            for entry_dir in os.scandir(backup_dir):
+                if entry_dir.is_dir() and len(entry_dir.name) == 2:
+                    for f in os.scandir(entry_dir.path):
+                        if f.is_file():
+                            total_size += f.stat().st_size
+        except Exception:
+            pass
+
+        size_gb = round(total_size / (1024 ** 3), 2)
+        cache[key] = {"mtime": mtime, "size_bytes": total_size, "size_gb": size_gb}
+        _save_size_cache(cache)
+        return {"size_bytes": total_size, "size_gb": size_gb}
 
     def get_open_backup(self, udid: str) -> OpenBackup:
         """Get an already-opened backup by UDID."""

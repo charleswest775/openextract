@@ -199,7 +199,7 @@ export default function BackupSelector({ backups, loading, error, onRefresh, onO
                 </div>
                 <div className="text-right">
                   <div className="font-mono text-caption text-text-tertiary">
-                    {backup.size_gb} GB
+                    {backup.size_gb !== null ? `${backup.size_gb} GB` : '— GB'}
                   </div>
                   {backup.encrypted && (
                     <span

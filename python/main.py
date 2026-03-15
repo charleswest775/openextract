@@ -43,6 +43,7 @@ class SidecarServer:
             "list_backups": self.list_backups,
             "open_backup": self.open_backup,
             "validate_password": self.validate_password,
+            "get_backup_size": self.get_backup_size,
             "list_conversations": self.list_conversations,
             "get_messages": self.get_messages,
             "get_attachment": self.get_attachment,
@@ -81,6 +82,10 @@ class SidecarServer:
         udid = params["udid"]
         password = params["password"]
         return self.backup_manager.validate_password(udid, password)
+
+    def get_backup_size(self, params):
+        backup_dir = params["backup_dir"]
+        return self.backup_manager.get_backup_size(backup_dir)
 
     def list_conversations(self, params):
         udid = params["udid"]
