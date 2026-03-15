@@ -307,6 +307,11 @@ class BackupManager:
 
         return info
 
+    @staticmethod
+    def _norm_udid(udid: str) -> str:
+        """Normalise a UDID for comparison: strip dashes, lowercase."""
+        return udid.replace("-", "").lower()
+
     def open_backup(self, udid: str, password: Optional[str] = None,
                     backup_dir: Optional[str] = None) -> dict:
         """
@@ -315,18 +320,36 @@ class BackupManager:
         backup was found via a custom/browse path or a non-default location.
         """
         backup_info = None
+        norm_udid = self._norm_udid(udid)
 
-        # Fast path: use the provided directory directly
+        # Fast path: use the provided directory directly.
+        # pymobiledevice3 UDIDs may have dashes while Info.plist stores them
+        # without, so compare normalised forms.  Also check one level of
+        # subdirectories — pymobiledevice3 sometimes creates a UDID subfolder
+        # inside the chosen output directory.
         if backup_dir and os.path.isdir(backup_dir):
             backup_info = self._read_backup_info(backup_dir)
-            if not backup_info or backup_info.get("udid") != udid:
-                backup_info = None  # directory doesn't match — fall through to scan
+            if backup_info and self._norm_udid(backup_info.get("udid", "")) != norm_udid:
+                backup_info = None  # mismatched UDID — try subdirectories
+
+            if not backup_info:
+                # Check one level of subdirectories (e.g. output_dir/<udid>/)
+                try:
+                    for entry in os.scandir(backup_dir):
+                        if not entry.is_dir():
+                            continue
+                        sub_info = self._read_backup_info(entry.path)
+                        if sub_info and self._norm_udid(sub_info.get("udid", "")) == norm_udid:
+                            backup_info = sub_info
+                            break
+                except Exception:
+                    pass
 
         # Slow path: scan all default locations
         if not backup_info:
             all_backups = self.list_backups()
             for b in all_backups["backups"]:
-                if b["udid"] == udid:
+                if self._norm_udid(b["udid"]) == norm_udid:
                     backup_info = b
                     break
 
@@ -364,7 +387,7 @@ class BackupManager:
             decrypted_backup=decrypted_backup,
         )
 
-        self._open_backups[udid] = backup
+        self._open_backups[self._norm_udid(backup_info["udid"])] = backup
 
         # For encrypted backups, pre-decrypt the most-accessed files now so that
         # list_conversations / get_messages don't stall on first use.
@@ -392,6 +415,7 @@ class BackupManager:
 
     def get_open_backup(self, udid: str) -> OpenBackup:
         """Get an already-opened backup by UDID."""
-        if udid not in self._open_backups:
+        key = self._norm_udid(udid)
+        if key not in self._open_backups:
             raise ValueError(f"Backup not open: {udid}. Call open_backup first.")
-        return self._open_backups[udid]
+        return self._open_backups[key]
