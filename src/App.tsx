@@ -63,6 +63,7 @@ export default function App() {
             error={backup.error}
             onRefresh={backup.listBackups}
             onOpen={backup.openBackup}
+            onCreateBackup={() => setScreen('create-backup')}
           />
         )}
         {screen === 'dashboard' && backup.activeBackup && (

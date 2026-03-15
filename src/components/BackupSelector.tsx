@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Smartphone, Lock, Loader2, FolderOpen } from 'lucide-react';
+import { Smartphone, Lock, Loader2, FolderOpen, PlusCircle } from 'lucide-react';
 import { selectFolder } from '../lib/ipc';
 import { formatDateTime } from '../lib/dates';
 import { BackupInfo } from '../hooks/useBackup';
@@ -10,9 +10,10 @@ interface Props {
   error: string | null;
   onRefresh: (path?: string) => Promise<void>;
   onOpen: (udid: string, password?: string, backupDir?: string) => Promise<string>;
+  onCreateBackup: () => void;
 }
 
-export default function BackupSelector({ backups, loading, error, onRefresh, onOpen }: Props) {
+export default function BackupSelector({ backups, loading, error, onRefresh, onOpen, onCreateBackup }: Props) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [pendingBackup, setPendingBackup] = useState<BackupInfo | null>(null);
@@ -69,6 +70,14 @@ export default function BackupSelector({ backups, loading, error, onRefresh, onO
           <p className="text-body text-text-secondary">
             Select an iPhone backup to browse your messages, photos, voicemails, and more.
           </p>
+          <button
+            onClick={onCreateBackup}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-body font-medium transition-colors duration-200"
+            style={{ background: 'var(--accent)', color: '#fff' }}
+          >
+            <PlusCircle size={16} strokeWidth={2} />
+            Create New Backup from iPhone
+          </button>
         </div>
 
         {/* Error display */}
