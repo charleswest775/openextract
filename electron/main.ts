@@ -92,7 +92,9 @@ app.whenReady().then(async () => {
   // Bridge IPC: renderer -> Python sidecar
   ipcMain.handle('sidecar:call', async (_event: any, method: string, params: any) => {
     try {
-      const result = await sidecar.call(method, params);
+      // Backup operations can take hours on large devices — use a much longer timeout.
+      const timeoutMs = method === 'backup.start' ? 7_200_000 : undefined; // 2 hours
+      const result = await sidecar.call(method, params, timeoutMs);
       return { success: true, data: result };
     } catch (error: any) {
       console.error(`Sidecar call failed: ${method}`, error);

@@ -121,7 +121,7 @@ export class PythonSidecar {
     }
   }
 
-  async call(method: string, params: any = {}): Promise<any> {
+  async call(method: string, params: any = {}, timeoutMs?: number): Promise<any> {
     if (!this.process || this.process.killed) {
       throw new Error('Python sidecar is not running');
     }
@@ -133,7 +133,7 @@ export class PythonSidecar {
       const timeout = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`Sidecar call timed out: ${method}`));
-      }, this.TIMEOUT_MS);
+      }, timeoutMs ?? this.TIMEOUT_MS);
 
       this.pending.set(id, { resolve, reject, timeout });
       this.process.stdin.write(request);

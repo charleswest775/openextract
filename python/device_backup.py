@@ -214,11 +214,20 @@ class DeviceBackupManager:
         try:
             asyncio.run(_run_backup())
         except ConnectionTerminatedError as e:
-            raise RuntimeError(
-                "The connection to your iPhone was terminated unexpectedly. "
-                "Make sure you have tapped 'Trust' on the device when prompted, "
-                "and that the cable is securely connected. Then try again."
-            ) from e
+            # iOS often closes the backup channel immediately after all data has been
+            # transferred — this is normal end-of-backup behaviour and does NOT mean
+            # the backup failed.  If the backup directory already contains a Manifest
+            # or Info.plist we treat the run as successful.
+            manifest_path = os.path.join(output_dir, "Manifest.db")
+            info_path = os.path.join(output_dir, "Info.plist")
+            if os.path.exists(manifest_path) or os.path.exists(info_path):
+                notify("finalizing", 100, files_done, files_total)
+            else:
+                raise RuntimeError(
+                    "The connection to your iPhone was terminated unexpectedly. "
+                    "Make sure you have tapped 'Trust' on the device when prompted, "
+                    "and that the cable is securely connected. Then try again."
+                ) from e
         return {"success": True, "backup_path": output_dir}
 
     # ── Internal helpers ──────────────────────────────────────────────────────
