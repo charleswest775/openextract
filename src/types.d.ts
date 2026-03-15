@@ -6,6 +6,9 @@ declare global {
       call: (method: string, params?: any) => Promise<{ success: boolean; data?: any; error?: string }>;
       selectFolder: () => Promise<string | null>;
       saveFolder: () => Promise<string | null>;
+      openExternal: (url: string) => void;
+      /** Subscribe to JSON-RPC notifications from the Python sidecar (e.g. backup.progress). Returns a cleanup function. */
+      onNotification: (callback: (notification: { method: string; params: Record<string, any> }) => void) => () => void;
     };
   }
 }
