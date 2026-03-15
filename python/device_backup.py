@@ -45,7 +45,20 @@ class DeviceBackupManager:
 
         async def _collect_usb_devices():
             # ── Path 1: usbmuxd (USB cable + legacy Wi-Fi sync) ──────────────────
-            for dev in await list_devices():
+            try:
+                usb_devs = await list_devices()
+            except Exception as e:
+                from pymobiledevice3.exceptions import ConnectionFailedToUsbmuxdError
+                if isinstance(e, ConnectionFailedToUsbmuxdError):
+                    raise RuntimeError(
+                        "Cannot connect to Apple Mobile Device Service. "
+                        "On Windows, install iTunes or the Apple Devices app from the "
+                        "Microsoft Store, then make sure it is running before searching "
+                        "for devices."
+                    ) from None
+                raise
+
+            for dev in usb_devs:
                 try:
                     lockdown = await create_using_usbmux(serial=dev.serial)
                     udid = lockdown.udid
