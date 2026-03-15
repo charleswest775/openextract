@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useBackup } from './hooks/useBackup';
 import BackupSelector from './components/BackupSelector';
 import Dashboard from './components/Dashboard';
+import CreateBackup from './components/CreateBackup';
 
-type Screen = 'select' | 'dashboard';
+type Screen = 'select' | 'dashboard' | 'create-backup';
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('select');
@@ -29,17 +30,28 @@ export default function App() {
             </span>
           )}
         </div>
-        {backup.activeBackup && (
-          <button
-            onClick={() => {
-              backup.setActiveBackup(null);
-              setScreen('select');
-            }}
-            className="text-caption text-text-accent hover:bg-accent-subtle px-2 py-1 rounded-sm transition-colors duration-200"
-          >
-            Change Backup
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Create Backup button — visible on select screen */}
+          {screen === 'select' && (
+            <button
+              onClick={() => setScreen('create-backup')}
+              className="text-caption text-text-accent hover:bg-accent-subtle px-2 py-1 rounded-sm transition-colors duration-200"
+            >
+              Create Backup
+            </button>
+          )}
+          {backup.activeBackup && (
+            <button
+              onClick={() => {
+                backup.setActiveBackup(null);
+                setScreen('select');
+              }}
+              className="text-caption text-text-accent hover:bg-accent-subtle px-2 py-1 rounded-sm transition-colors duration-200"
+            >
+              Change Backup
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Main content */}
@@ -55,6 +67,9 @@ export default function App() {
         )}
         {screen === 'dashboard' && backup.activeBackup && (
           <Dashboard backup={backup.activeBackup} />
+        )}
+        {screen === 'create-backup' && (
+          <CreateBackup onBack={() => setScreen('select')} />
         )}
       </main>
     </div>

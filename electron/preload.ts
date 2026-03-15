@@ -11,4 +11,13 @@ contextBridge.exposeInMainWorld('openextract', {
 
   // Open URL in system browser
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
+
+  // Subscribe to JSON-RPC notifications pushed by the Python sidecar.
+  // Used to receive backup.progress events during a live backup.
+  onNotification: (callback: (notification: any) => void) => {
+    const listener = (_event: any, notification: any) => callback(notification);
+    ipcRenderer.on('sidecar:notification', listener);
+    // Return a cleanup function so the caller can unsubscribe.
+    return () => ipcRenderer.removeListener('sidecar:notification', listener);
+  },
 });

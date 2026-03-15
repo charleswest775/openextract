@@ -25,6 +25,7 @@ from photos import PhotoExtractor
 from voicemail import VoicemailExtractor
 from calls import CallExtractor
 from notes import NoteExtractor
+from device_backup import DeviceBackupManager
 
 
 class SidecarServer:
@@ -36,6 +37,7 @@ class SidecarServer:
         self.voicemail_extractor = VoicemailExtractor()
         self.call_extractor = CallExtractor()
         self.note_extractor = NoteExtractor()
+        self.device_backup_manager = DeviceBackupManager()
 
         # Method dispatch table
         self.methods = {
@@ -62,7 +64,29 @@ class SidecarServer:
             "export_voicemails": self.export_voicemails,
             "export_calls": self.export_calls,
             "export_notes": self.export_notes,
+            # Live device backup
+            "backup.list_devices": self.backup_list_devices,
+            "backup.start": self.backup_start,
         }
+
+    # ── Notification helpers ──────────────────────────────────────────────────
+
+    def send_notification(self, method: str, params: dict) -> None:
+        """
+        Write a JSON-RPC *notification* (no id field) directly to stdout.
+
+        Notifications are one-way messages pushed from the sidecar to Electron
+        *during* a long-running request.  Unlike responses they carry no id and
+        are never matched against a pending request — Electron's sidecar.ts
+        routes them to a separate notificationHandler callback instead.
+
+        This is used by backup.start to stream real-time progress events while
+        the backup RPC call is still in progress.
+        """
+        notification = {"jsonrpc": "2.0", "method": method, "params": params}
+        print(json.dumps(notification), flush=True)
+
+    # ── RPC method handlers ───────────────────────────────────────────────────
 
     def ping(self, params):
         return {"status": "ok", "version": "0.1.0"}
@@ -227,6 +251,50 @@ class SidecarServer:
         output_dir = params["output_dir"]
         backup = self.backup_manager.get_open_backup(udid)
         return self.note_extractor.export_notes(backup, note_ids, fmt, output_dir)
+
+    # ── Live-device backup ────────────────────────────────────────────────────
+
+    def backup_list_devices(self, params):
+        """
+        Return all iPhone/iPad devices currently reachable via USB or Wi-Fi.
+        Each entry: { udid, name, ios_version, connection_type: "usb"|"wifi" }.
+        """
+        return self.device_backup_manager.list_devices()
+
+    def backup_start(self, params):
+        """
+        Initiate a full backup of the device identified by params["udid"].
+
+        Progress is streamed to Electron as JSON-RPC notifications:
+            { "jsonrpc":"2.0", "method":"backup.progress",
+              "params": { "phase": str, "percent": int,
+                          "files_done": int, "files_total": int } }
+
+        Phases: "negotiating" → "backing_up" → "finalizing"
+
+        Returns on completion: { "success": true, "backup_path": "..." }
+        """
+        udid = params["udid"]
+        output_dir = params["output_dir"]
+        encrypted = params.get("encrypted", False)
+        password = params.get("password")
+
+        def _notify(phase: str, percent: int, files_done: int, files_total: int) -> None:
+            self.send_notification("backup.progress", {
+                "phase": phase,
+                "percent": percent,
+                "files_done": files_done,
+                "files_total": files_total,
+            })
+
+        return self.device_backup_manager.start_backup(
+            udid=udid,
+            output_dir=output_dir,
+            encrypted=encrypted,
+            password=password,
+            notify=_notify,
+        )
+
     def handle_request(self, request):
         req_id = request.get("id")
         method = request.get("method")
