@@ -144,6 +144,7 @@ class DeviceBackupManager:
         try:
             from pymobiledevice3.lockdown import create_using_usbmux
             from pymobiledevice3.services.mobilebackup2 import Mobilebackup2Service
+            from pymobiledevice3.exceptions import ConnectionTerminatedError
         except ImportError:
             raise RuntimeError(
                 "pymobiledevice3 is not installed. Run: pip install pymobiledevice3"
@@ -208,7 +209,14 @@ class DeviceBackupManager:
 
             notify("finalizing", 100, files_done, files_total)
 
-        asyncio.run(_run_backup())
+        try:
+            asyncio.run(_run_backup())
+        except ConnectionTerminatedError as e:
+            raise RuntimeError(
+                "The connection to your iPhone was terminated unexpectedly. "
+                "Make sure you have tapped 'Trust' on the device when prompted, "
+                "and that the cable is securely connected. Then try again."
+            ) from e
         return {"success": True, "backup_path": output_dir}
 
     # ── Internal helpers ──────────────────────────────────────────────────────
