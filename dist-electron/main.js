@@ -65,6 +65,15 @@ function getPythonArgs() {
 app.whenReady().then(async () => {
     // Start the Python sidecar
     sidecar = new sidecar_1.PythonSidecar(getPythonPath(), getPythonArgs());
+    // Forward JSON-RPC notifications from the sidecar to the renderer.
+    // The sidecar sends notifications (no id field) during long-running
+    // operations such as backup.start — this pipes them through to the
+    // renderer via the 'sidecar:notification' IPC channel.
+    sidecar.notificationHandler = (notification) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('sidecar:notification', notification);
+        }
+    };
     try {
         await sidecar.start();
         console.log('Python sidecar started');

@@ -8,7 +8,13 @@ class PythonSidecar {
         this.requestId = 0;
         this.pending = new Map();
         this.buffer = '';
-        this.TIMEOUT_MS = 60000; // 60s for slow operations like decryption
+        this.TIMEOUT_MS = 300000; // 5 min — backups can take a while
+        /**
+         * Called for every JSON-RPC *notification* received from the sidecar.
+         * Notifications are one-way messages that have no `id` field.
+         * Set this before calling start() to receive backup.progress events.
+         */
+        this.notificationHandler = null;
         this.pythonPath = pythonPath;
         this.pythonArgs = pythonArgs;
     }
@@ -56,24 +62,34 @@ class PythonSidecar {
         });
     }
     processBuffer() {
-        // Each JSON-RPC response is a single line
+        // Each JSON-RPC message is a single line terminated by \n
         const lines = this.buffer.split('\n');
-        this.buffer = lines.pop() || ''; // Keep incomplete line in buffer
+        this.buffer = lines.pop() || ''; // Keep the incomplete trailing line in buffer
         for (const line of lines) {
             const trimmed = line.trim();
             if (!trimmed)
                 continue;
             try {
-                const response = JSON.parse(trimmed);
-                const pending = this.pending.get(response.id);
+                const message = JSON.parse(trimmed);
+                // JSON-RPC *notifications* have no `id` field (or id === null/undefined)
+                // and a `method` field.  Route them to notificationHandler rather than
+                // trying to resolve a pending request.
+                if (message.method !== undefined && message.id === undefined) {
+                    if (this.notificationHandler) {
+                        this.notificationHandler(message);
+                    }
+                    continue;
+                }
+                // Normal response: match by id to a pending call.
+                const pending = this.pending.get(message.id);
                 if (pending) {
                     clearTimeout(pending.timeout);
-                    this.pending.delete(response.id);
-                    if (response.error) {
-                        pending.reject(new Error(response.error.message || 'Unknown error'));
+                    this.pending.delete(message.id);
+                    if (message.error) {
+                        pending.reject(new Error(message.error.message || 'Unknown error'));
                     }
                     else {
-                        pending.resolve(response.result);
+                        pending.resolve(message.result);
                     }
                 }
             }
