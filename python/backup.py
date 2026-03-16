@@ -323,27 +323,35 @@ class BackupManager:
         norm_udid = self._norm_udid(udid)
 
         # Fast path: use the provided directory directly.
-        # pymobiledevice3 UDIDs may have dashes while Info.plist stores them
-        # without, so compare normalised forms.  Also check one level of
-        # subdirectories — pymobiledevice3 sometimes creates a UDID subfolder
-        # inside the chosen output directory.
+        # When backup_dir is explicitly supplied (e.g. immediately after
+        # creating a backup), trust it unconditionally — do NOT reject on a
+        # UDID mismatch because pymobiledevice3 may format UDIDs differently
+        # from what iTunes writes into Info.plist.
         if backup_dir and os.path.isdir(backup_dir):
             backup_info = self._read_backup_info(backup_dir)
-            if backup_info and self._norm_udid(backup_info.get("udid", "")) != norm_udid:
-                backup_info = None  # mismatched UDID — try subdirectories
 
             if not backup_info:
-                # Check one level of subdirectories (e.g. output_dir/<udid>/)
+                # pymobiledevice3 sometimes creates a UDID subfolder inside
+                # the chosen output directory — check one level deep.
                 try:
                     for entry in os.scandir(backup_dir):
-                        if not entry.is_dir():
-                            continue
-                        sub_info = self._read_backup_info(entry.path)
-                        if sub_info and self._norm_udid(sub_info.get("udid", "")) == norm_udid:
-                            backup_info = sub_info
-                            break
+                        if entry.is_dir():
+                            backup_info = self._read_backup_info(entry.path)
+                            if backup_info:
+                                break
                 except Exception:
                     pass
+
+            if backup_info:
+                _tlog(
+                    f"open_backup fast-path OK: dir={backup_dir!r} "
+                    f"udid_param={udid!r} udid_plist={backup_info.get('udid')!r}"
+                )
+            else:
+                _tlog(
+                    f"open_backup fast-path MISS: dir={backup_dir!r} "
+                    f"udid_param={udid!r} — no Manifest.db found"
+                )
 
         # Slow path: scan all default locations
         if not backup_info:
