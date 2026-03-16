@@ -138,7 +138,6 @@ class DeviceBackupManager:
         encrypted: bool,
         password: Optional[str],
         notify: Callable[[str, int, int, int], None],
-        dry_run: bool = False,
     ) -> dict:
         """
         Initiate a full backup of the device identified by *udid*.
@@ -150,22 +149,8 @@ class DeviceBackupManager:
         :param notify:      Progress callback: notify(phase, percent, files_done, files_total).
                             Called repeatedly during the backup.  Safe to call from
                             the same thread — this method is synchronous.
-        :param dry_run:     Skip the actual backup; resolve and return the existing
-                            backup path inside output_dir immediately.  Use this to
-                            test the post-backup open flow without a real device.
         :returns:           { "success": True, "backup_path": <resolved dir> }
         """
-        import time as _time
-        _tlog = lambda msg: _dev_log(f"[start_backup] {msg}")
-
-        # ── Dry-run: skip the real backup, just resolve whatever is already there ──
-        if dry_run:
-            _tlog(f"DRY RUN — skipping backup. output_dir={output_dir!r} udid={udid!r}")
-            notify("finalizing", 100, 0, 0)
-            actual_backup_path = self._resolve_backup_path(output_dir, udid)
-            _tlog(f"DRY RUN — resolved backup_path={actual_backup_path!r}")
-            return {"success": True, "backup_path": actual_backup_path}
-
         try:
             from pymobiledevice3.lockdown import create_using_usbmux
             from pymobiledevice3.services.mobilebackup2 import Mobilebackup2Service

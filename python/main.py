@@ -278,15 +278,11 @@ class SidecarServer:
         Phases: "negotiating" → "backing_up" → "finalizing"
 
         Returns on completion: { "success": true, "backup_path": "..." }
-
-        Pass dry_run: true to skip the actual backup and immediately resolve
-        the backup path (for testing the post-backup open flow).
         """
         udid = params["udid"]
         output_dir = params["output_dir"]
         encrypted = params.get("encrypted", False)
         password = params.get("password")
-        dry_run = params.get("dry_run", False)
 
         def _notify(phase: str, percent: int, files_done: int, files_total: int) -> None:
             self.send_notification("backup.progress", {
@@ -302,7 +298,6 @@ class SidecarServer:
             encrypted=encrypted,
             password=password,
             notify=_notify,
-            dry_run=dry_run,
         )
 
     def handle_request(self, request):
