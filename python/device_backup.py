@@ -201,7 +201,24 @@ class DeviceBackupManager:
             _tracked_notify("negotiating", 0, 0, 0)
 
             # Open the lockdown channel to the device (async in pymobiledevice3 v4+).
-            lockdown = await create_using_usbmux(serial=udid)
+            # Catch trust/pairing errors early and surface them with a clear message.
+            try:
+                lockdown = await create_using_usbmux(serial=udid)
+            except Exception as e:
+                err_type = type(e).__name__
+                if "PairingDialogResponsePending" in err_type:
+                    raise RuntimeError(
+                        "TRUST_REQUIRED: Your iPhone is showing a 'Trust This Computer?' "
+                        "prompt. Tap Trust on your device and enter your passcode, "
+                        "then click Retry."
+                    ) from None
+                if "NotTrusted" in err_type or "UserDeniedPairing" in err_type:
+                    raise RuntimeError(
+                        "TRUST_REQUIRED: Your iPhone did not trust this computer. "
+                        "Disconnect and reconnect your iPhone, then tap Trust "
+                        "when prompted."
+                    ) from None
+                raise
 
             _tracked_notify("negotiating", 5, 0, 0)
 

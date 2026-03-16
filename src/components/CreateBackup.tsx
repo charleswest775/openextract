@@ -10,6 +10,7 @@ import {
   CheckCircle,
   XCircle,
   ChevronLeft,
+  ShieldAlert,
 } from 'lucide-react';
 import { saveFolder, sidecarCall } from '../lib/ipc';
 
@@ -399,25 +400,45 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
           </div>
         )}
 
-        {status === 'error' && (
-          <div
-            className="mb-6 p-4 rounded-lg flex items-start gap-3"
-            style={{
-              background: 'rgba(255,59,48,0.08)',
-              border: '0.5px solid rgba(255,59,48,0.2)',
-            }}
-          >
-            <XCircle size={18} strokeWidth={1.8} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--error)' }} />
-            <div>
-              <p className="text-body font-semibold text-text-primary">Backup failed</p>
-              <p className="text-caption text-text-secondary mt-0.5">{backupError}</p>
+        {status === 'error' && (() => {
+          const isTrust = backupError?.startsWith('TRUST_REQUIRED:');
+          const msg = isTrust
+            ? backupError!.replace('TRUST_REQUIRED: ', '')
+            : backupError;
+          return isTrust ? (
+            <div
+              className="mb-6 p-4 rounded-lg flex items-start gap-3"
+              style={{
+                background: 'rgba(255,179,0,0.08)',
+                border: '0.5px solid rgba(255,179,0,0.35)',
+              }}
+            >
+              <ShieldAlert size={18} strokeWidth={1.8} className="flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
+              <div>
+                <p className="text-body font-semibold text-text-primary">Trust required</p>
+                <p className="text-caption text-text-secondary mt-0.5">{msg}</p>
+              </div>
             </div>
-          </div>
-        )}
+          ) : (
+            <div
+              className="mb-6 p-4 rounded-lg flex items-start gap-3"
+              style={{
+                background: 'rgba(255,59,48,0.08)',
+                border: '0.5px solid rgba(255,59,48,0.2)',
+              }}
+            >
+              <XCircle size={18} strokeWidth={1.8} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--error)' }} />
+              <div>
+                <p className="text-body font-semibold text-text-primary">Backup failed</p>
+                <p className="text-caption text-text-secondary mt-0.5">{msg}</p>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── Action buttons ── */}
         <div className="flex gap-3">
-          {(status === 'idle') && (
+          {status === 'idle' && (
             <button
               onClick={handleStartBackup}
               disabled={!canStart}
@@ -436,12 +457,21 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
             </button>
           )}
 
-          {(status === 'success' || status === 'error') && (
+          {status === 'success' && (
             <button
               onClick={handleReset}
               className="px-5 py-2.5 bg-accent text-white rounded-lg text-body font-medium hover:bg-accent-hover transition-colors"
             >
               Back Up Again
+            </button>
+          )}
+
+          {status === 'error' && (
+            <button
+              onClick={handleReset}
+              className="px-5 py-2.5 bg-accent text-white rounded-lg text-body font-medium hover:bg-accent-hover transition-colors"
+            >
+              {backupError?.startsWith('TRUST_REQUIRED:') ? 'Retry' : 'Back Up Again'}
             </button>
           )}
         </div>
