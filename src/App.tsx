@@ -72,7 +72,11 @@ export default function App() {
         {screen === 'create-backup' && (
           <CreateBackup
             onBack={() => setScreen('select')}
-            onBackupComplete={(udid, backupPath) => backup.openBackup(udid, undefined, backupPath) as Promise<string>}
+            onBackupComplete={async (udid, backupPath) => {
+              const result = await backup.openBackup(udid, undefined, backupPath);
+              if (result === 'open') setScreen('dashboard');
+              return result as string;
+            }}
           />
         )}
       </main>
