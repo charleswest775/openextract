@@ -244,8 +244,9 @@ class DeviceBackupManager:
             # transferred — this is normal end-of-backup behaviour and does NOT mean
             # the backup failed.  If the backup directory already contains a Manifest
             # or Info.plist we treat the run as successful.
-            manifest_path = os.path.join(output_dir, "Manifest.db")
-            info_path = os.path.join(output_dir, "Info.plist")
+            actual = self._resolve_backup_path(output_dir, udid)
+            manifest_path = os.path.join(actual, "Manifest.db")
+            info_path = os.path.join(actual, "Info.plist")
             if os.path.exists(manifest_path) or os.path.exists(info_path):
                 _tracked_notify("finalizing", 100, files_done, files_total)
             else:
@@ -254,9 +255,54 @@ class DeviceBackupManager:
                     "Make sure you have tapped 'Trust' on the device when prompted, "
                     "and that the cable is securely connected. Then try again."
                 ) from e
-        return {"success": True, "backup_path": output_dir}
+        actual_backup_path = self._resolve_backup_path(output_dir, udid)
+        return {"success": True, "backup_path": actual_backup_path}
 
     # ── Internal helpers ──────────────────────────────────────────────────────
+
+    def _resolve_backup_path(self, output_dir: str, udid: str) -> str:
+        """
+        Return the actual directory that contains the backup files (Manifest.db).
+
+        pymobiledevice3 may write backup files directly into *output_dir* or into
+        a UDID-named subdirectory — behaviour varies by iOS version and
+        pymobiledevice3 release.  When multiple candidates exist (e.g. the user
+        reuses a folder for successive backups) we pick the most recently modified
+        Manifest.db so we always open the freshly-created backup.
+        """
+        # Case 1: files written directly into output_dir
+        if os.path.exists(os.path.join(output_dir, "Manifest.db")):
+            return output_dir
+
+        # Case 2: well-known UDID subfolder variants (with/without dashes)
+        for candidate_name in [udid, udid.replace("-", "")]:
+            candidate = os.path.join(output_dir, candidate_name)
+            if os.path.isdir(candidate) and os.path.exists(
+                os.path.join(candidate, "Manifest.db")
+            ):
+                return candidate
+
+        # Case 3: scan one level deep; prefer the most recently modified Manifest.db
+        # so that a freshly-created backup is chosen over stale ones.
+        try:
+            best_mtime = -1.0
+            best_path = None
+            for entry in os.scandir(output_dir):
+                if not entry.is_dir():
+                    continue
+                manifest = os.path.join(entry.path, "Manifest.db")
+                if os.path.exists(manifest):
+                    mtime = os.path.getmtime(manifest)
+                    if mtime > best_mtime:
+                        best_mtime = mtime
+                        best_path = entry.path
+            if best_path:
+                return best_path
+        except Exception:
+            pass
+
+        # Fallback: return output_dir unchanged (open_backup will surface any error)
+        return output_dir
 
     async def _configure_encryption_async(self, lockdown, password: str) -> None:
         """
