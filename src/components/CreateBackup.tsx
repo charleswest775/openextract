@@ -68,7 +68,7 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
   const [progress, setProgress] = useState<BackupProgress | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
   const [backupPath, setBackupPath] = useState<string | null>(null);
-  const [autoOpenFailed, setAutoOpenFailed] = useState(false);
+  const [autoOpenFailed, setAutoOpenFailed] = useState<string | null>(null);
 
   // Dev-mode only: skip the real backup and immediately trigger the open flow.
   // Only visible when running in the Vite dev server (http:), not in a packaged app.
@@ -147,7 +147,9 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
       setStatus('success');
       if (onBackupComplete) {
         const openResult = await onBackupComplete(selectedDevice.udid, result.backup_path);
-        if (openResult === 'error') setAutoOpenFailed(true);
+        if (openResult?.startsWith('error:')) {
+          setAutoOpenFailed(openResult.slice(6) || 'Failed to open backup');
+        }
       }
     } catch (err: any) {
       setBackupError(err.message || 'Backup failed');
@@ -165,7 +167,7 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
     setProgress(null);
     setBackupError(null);
     setBackupPath(null);
-    setAutoOpenFailed(false);
+    setAutoOpenFailed(null);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -395,12 +397,20 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
               <p className="text-body font-semibold text-text-primary">Backup complete!</p>
               <p className="text-caption text-text-secondary mt-0.5 break-all">{backupPath}</p>
               {autoOpenFailed && (
-                <button
-                  onClick={onBack}
-                  className="mt-2 text-caption text-text-accent hover:underline"
-                >
-                  Browse backup manually →
-                </button>
+                <div className="mt-2">
+                  <p className="text-caption font-medium" style={{ color: 'var(--error)' }}>
+                    Could not open backup automatically:
+                  </p>
+                  <p className="text-caption text-text-secondary mt-0.5 break-all">
+                    {autoOpenFailed}
+                  </p>
+                  <button
+                    onClick={onBack}
+                    className="mt-2 text-caption text-text-accent hover:underline"
+                  >
+                    Browse backup manually →
+                  </button>
+                </div>
               )}
             </div>
           </div>

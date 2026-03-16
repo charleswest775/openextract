@@ -59,8 +59,10 @@ export function useBackup() {
       setActiveBackup(result.info);
       return 'open';
     } catch (e: any) {
-      setError(e.message);
-      return 'error';
+      const msg = e.message || 'Unknown error';
+      setError(msg);
+      console.error('[openBackup] failed:', msg, '| udid:', udid, '| dir:', backupDir);
+      return `error:${msg}`;
     } finally {
       setLoading(false);
     }

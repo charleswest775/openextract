@@ -299,6 +299,18 @@ class BackupManager:
                     "product_type": "Unknown",
                     "product_version": "Unknown",
                 }
+        else:
+            # No Info.plist — still provide the required fields so the rest of the
+            # code (open_backup, dashboard) doesn't crash on missing keys.
+            info = {
+                "udid": os.path.basename(backup_dir),
+                "device_name": "Unknown",
+                "product_type": "Unknown",
+                "product_version": "Unknown",
+                "serial_number": "",
+                "phone_number": "",
+                "last_backup": "",
+            }
 
         # Read Manifest.plist for encryption status
         encrypted = False
@@ -387,6 +399,12 @@ class BackupManager:
         if not backup_info:
             _tlog(f"open_backup FAILED: backup not found for udid={udid!r} backup_dir={backup_dir!r}")
             raise ValueError(f"Backup not found: {udid}")
+
+        # Ensure udid is always present — _read_backup_info falls back to the
+        # directory name when Info.plist is absent, but guard here as well.
+        if not backup_info.get("udid"):
+            _tlog(f"open_backup: backup_info missing udid, filling from param: {udid!r}")
+            backup_info["udid"] = udid
 
         backup_dir = backup_info["backup_dir"]
         encrypted = backup_info["encrypted"]

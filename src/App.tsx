@@ -75,7 +75,7 @@ export default function App() {
             onBackupComplete={async (udid, backupPath) => {
               const result = await backup.openBackup(udid, undefined, backupPath);
               if (result === 'open') setScreen('dashboard');
-              return result as string;
+              return result;
             }}
           />
         )}

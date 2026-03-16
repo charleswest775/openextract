@@ -32,8 +32,8 @@ export default function BackupSelector({ backups, loading, error, onRefresh, onO
       setPendingBackupDir(backup.backup_dir);
     } else {
       const status = await onOpen(backup.udid, undefined, backup.backup_dir);
-      if (status === 'error') {
-        setOpenError('Failed to open backup');
+      if (status.startsWith('error:')) {
+        setOpenError(status.slice(6) || 'Failed to open backup');
       }
     }
   };
@@ -44,7 +44,7 @@ export default function BackupSelector({ backups, loading, error, onRefresh, onO
     setDecrypting(true);
     const status = await onOpen(pendingBackup.udid, password, pendingBackupDir);
     setDecrypting(false);
-    if (status === 'error') {
+    if (status.startsWith('error:')) {
       setOpenError('Incorrect password or corrupted backup');
     } else if (status === 'open') {
       setPendingBackup(null);
