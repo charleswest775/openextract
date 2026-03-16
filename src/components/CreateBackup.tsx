@@ -33,7 +33,7 @@ type BackupStatus = 'idle' | 'running' | 'success' | 'error';
 
 interface Props {
   onBack: () => void;
-  onBackupComplete?: (udid: string, backupPath: string) => void;
+  onBackupComplete?: (udid: string, backupPath: string) => Promise<string | void> | void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -67,6 +67,7 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
   const [progress, setProgress] = useState<BackupProgress | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
   const [backupPath, setBackupPath] = useState<string | null>(null);
+  const [autoOpenFailed, setAutoOpenFailed] = useState(false);
 
   // Cleanup ref for the notification unsubscribe function
   const unsubscribeRef = useRef<(() => void) | null>(null);
@@ -137,7 +138,10 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
       );
       setBackupPath(result.backup_path);
       setStatus('success');
-      onBackupComplete?.(selectedDevice.udid, result.backup_path);
+      if (onBackupComplete) {
+        const openResult = await onBackupComplete(selectedDevice.udid, result.backup_path);
+        if (openResult === 'error') setAutoOpenFailed(true);
+      }
     } catch (err: any) {
       setBackupError(err.message || 'Backup failed');
       setStatus('error');
@@ -154,6 +158,7 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
     setProgress(null);
     setBackupError(null);
     setBackupPath(null);
+    setAutoOpenFailed(false);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -382,6 +387,14 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
             <div>
               <p className="text-body font-semibold text-text-primary">Backup complete!</p>
               <p className="text-caption text-text-secondary mt-0.5 break-all">{backupPath}</p>
+              {autoOpenFailed && (
+                <button
+                  onClick={onBack}
+                  className="mt-2 text-caption text-text-accent hover:underline"
+                >
+                  Browse backup manually →
+                </button>
+              )}
             </div>
           </div>
         )}

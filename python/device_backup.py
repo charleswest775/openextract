@@ -152,10 +152,19 @@ class DeviceBackupManager:
 
         os.makedirs(output_dir, exist_ok=True)
 
-        # Track progress counters across the callback.
+        # Shared mutable state across the nested helpers.
         files_done = 0
         files_total = 0
-        last_pct = 0  # high-water mark — progress never moves backward
+        # high-water mark shared by ALL notification paths so that the hardcoded
+        # negotiating / backing_up milestones (0 → 5 → 10) are never overwritten
+        # by an early 0% callback from pymobiledevice3.
+        last_pct = [0]
+
+        def _tracked_notify(phase: str, pct: int, fd: int, ft: int) -> None:
+            """Emit a progress notification, enforcing monotone progress."""
+            pct = max(last_pct[0], pct)
+            last_pct[0] = pct
+            notify(phase, pct, fd, ft)
 
         def _progress_cb(progress_info) -> None:
             """
@@ -165,54 +174,51 @@ class DeviceBackupManager:
               - a dict with keys: Progress, TotalFiles, FilesTransferred, SnapshotState
               - a raw float (0.0–1.0) on some iOS versions / pymobiledevice3 builds
             """
-            nonlocal files_done, files_total, last_pct
+            nonlocal files_done, files_total
 
             if not isinstance(progress_info, dict):
                 # Raw float progress value
                 raw_pct = float(progress_info) if progress_info is not None else 0.0
-                pct = min(99, max(last_pct, int(raw_pct * 100 if raw_pct <= 1.0 else raw_pct)))
-                last_pct = pct
-                notify("backing_up", pct, files_done, files_total)
+                pct = min(99, int(raw_pct * 100 if raw_pct <= 1.0 else raw_pct))
+                _tracked_notify("backing_up", pct, files_done, files_total)
                 return
 
             raw_pct = progress_info.get("Progress", 0)
             if isinstance(raw_pct, float):
-                # Normalise 0.0–1.0 → 0–99 (reserve 100 for completion signal)
-                pct = min(99, max(last_pct, int(raw_pct * 100)))
+                pct = min(99, int(raw_pct * 100))
             else:
-                pct = min(99, max(last_pct, int(raw_pct)))
+                pct = min(99, int(raw_pct))
 
             files_total = progress_info.get("TotalFiles", files_total) or files_total
             files_done = progress_info.get("FilesTransferred", files_done) or files_done
 
             state = str(progress_info.get("SnapshotState", "")).lower()
-            phase = "finalizing" if ("final" in state or pct >= 95) else "backing_up"
+            phase = "finalizing" if "final" in state else "backing_up"
 
-            last_pct = pct
-            notify(phase, pct, files_done, files_total)
+            _tracked_notify(phase, pct, files_done, files_total)
 
         async def _run_backup():
-            notify("negotiating", 0, 0, 0)
+            _tracked_notify("negotiating", 0, 0, 0)
 
             # Open the lockdown channel to the device (async in pymobiledevice3 v4+).
             lockdown = await create_using_usbmux(serial=udid)
 
-            notify("negotiating", 5, 0, 0)
+            _tracked_notify("negotiating", 5, 0, 0)
 
             if encrypted:
                 await self._configure_encryption_async(lockdown, password or "")
 
-            notify("negotiating", 10, 0, 0)
+            _tracked_notify("negotiating", 10, 0, 0)
 
             async with Mobilebackup2Service(lockdown) as mb2:
-                notify("backing_up", 10, 0, 0)
+                _tracked_notify("backing_up", 11, 0, 0)
                 await mb2.backup(
                     full=True,
                     backup_directory=output_dir,
                     progress_callback=_progress_cb,
                 )
 
-            notify("finalizing", 100, files_done, files_total)
+            _tracked_notify("finalizing", 100, files_done, files_total)
 
         try:
             asyncio.run(_run_backup())
@@ -224,7 +230,7 @@ class DeviceBackupManager:
             manifest_path = os.path.join(output_dir, "Manifest.db")
             info_path = os.path.join(output_dir, "Info.plist")
             if os.path.exists(manifest_path) or os.path.exists(info_path):
-                notify("finalizing", 100, files_done, files_total)
+                _tracked_notify("finalizing", 100, files_done, files_total)
             else:
                 raise RuntimeError(
                     "The connection to your iPhone was terminated unexpectedly. "
