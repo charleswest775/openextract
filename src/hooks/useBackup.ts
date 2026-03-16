@@ -8,7 +8,7 @@ export interface BackupInfo {
   product_version: string;
   last_backup: string;
   encrypted: boolean;
-  size_gb: number;
+  size_gb: number | null;
   backup_dir: string;
 }
 
@@ -26,6 +26,18 @@ export function useBackup() {
         path: customPath,
       });
       setBackups(result.backups);
+      // Fetch sizes in the background — non-blocking, updates each card as it resolves
+      for (const backup of result.backups) {
+        sidecarCall<{ size_bytes: number; size_gb: number }>('get_backup_size', {
+          backup_dir: backup.backup_dir,
+        }).then(sizes => {
+          setBackups(prev =>
+            prev.map(b =>
+              b.backup_dir === backup.backup_dir ? { ...b, ...sizes } : b
+            )
+          );
+        }).catch(() => {});
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
