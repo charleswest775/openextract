@@ -70,6 +70,11 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
   const [backupPath, setBackupPath] = useState<string | null>(null);
   const [autoOpenFailed, setAutoOpenFailed] = useState(false);
 
+  // Dev-mode only: skip the real backup and immediately trigger the open flow.
+  // Only visible when running in the Vite dev server (http:), not in a packaged app.
+  const isDev = typeof window !== 'undefined' && window.location.protocol !== 'file:';
+  const [skipBackup, setSkipBackup] = useState(false);
+
   // Cleanup ref for the notification unsubscribe function
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
@@ -135,6 +140,7 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
           output_dir: outputDir,
           encrypted: useEncryption,
           ...(useEncryption && password ? { password } : {}),
+          ...(skipBackup ? { dry_run: true } : {}),
         },
       );
       setBackupPath(result.backup_path);
@@ -435,6 +441,23 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
             </div>
           );
         })()}
+
+        {/* ── Dev: skip backup toggle ── */}
+        {isDev && (
+          <div className="mb-4 flex items-center gap-2 opacity-60">
+            <input
+              type="checkbox"
+              id="skip-backup"
+              checked={skipBackup}
+              onChange={(e) => setSkipBackup(e.target.checked)}
+              disabled={status === 'running'}
+              className="w-3.5 h-3.5 accent-[var(--accent)]"
+            />
+            <label htmlFor="skip-backup" className="text-caption text-text-tertiary cursor-pointer select-none">
+              Dev: skip backup (test open flow only)
+            </label>
+          </div>
+        )}
 
         {/* ── Action buttons ── */}
         <div className="flex gap-3">

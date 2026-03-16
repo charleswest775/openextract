@@ -6,7 +6,17 @@ Uses pymobiledevice3 for device communication and MobileBackup2 protocol.
 
 import asyncio
 import os
+import time
 from typing import Callable, Optional
+
+
+def _dev_log(msg: str) -> None:
+    """Append a timestamped line to python_log.txt (survives sidecar restarts)."""
+    try:
+        with open("python_log.txt", "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
+    except Exception:
+        pass
 
 
 class DeviceBackupManager:
@@ -128,6 +138,7 @@ class DeviceBackupManager:
         encrypted: bool,
         password: Optional[str],
         notify: Callable[[str, int, int, int], None],
+        dry_run: bool = False,
     ) -> dict:
         """
         Initiate a full backup of the device identified by *udid*.
@@ -139,8 +150,22 @@ class DeviceBackupManager:
         :param notify:      Progress callback: notify(phase, percent, files_done, files_total).
                             Called repeatedly during the backup.  Safe to call from
                             the same thread — this method is synchronous.
-        :returns:           { "success": True, "backup_path": output_dir }
+        :param dry_run:     Skip the actual backup; resolve and return the existing
+                            backup path inside output_dir immediately.  Use this to
+                            test the post-backup open flow without a real device.
+        :returns:           { "success": True, "backup_path": <resolved dir> }
         """
+        import time as _time
+        _tlog = lambda msg: _dev_log(f"[start_backup] {msg}")
+
+        # ── Dry-run: skip the real backup, just resolve whatever is already there ──
+        if dry_run:
+            _tlog(f"DRY RUN — skipping backup. output_dir={output_dir!r} udid={udid!r}")
+            notify("finalizing", 100, 0, 0)
+            actual_backup_path = self._resolve_backup_path(output_dir, udid)
+            _tlog(f"DRY RUN — resolved backup_path={actual_backup_path!r}")
+            return {"success": True, "backup_path": actual_backup_path}
+
         try:
             from pymobiledevice3.lockdown import create_using_usbmux
             from pymobiledevice3.services.mobilebackup2 import Mobilebackup2Service
@@ -256,6 +281,7 @@ class DeviceBackupManager:
                     "and that the cable is securely connected. Then try again."
                 ) from e
         actual_backup_path = self._resolve_backup_path(output_dir, udid)
+        _tlog(f"backup complete. output_dir={output_dir!r} resolved={actual_backup_path!r}")
         return {"success": True, "backup_path": actual_backup_path}
 
     # ── Internal helpers ──────────────────────────────────────────────────────
@@ -270,8 +296,11 @@ class DeviceBackupManager:
         reuses a folder for successive backups) we pick the most recently modified
         Manifest.db so we always open the freshly-created backup.
         """
+        _dev_log(f"[_resolve_backup_path] output_dir={output_dir!r} udid={udid!r}")
+
         # Case 1: files written directly into output_dir
         if os.path.exists(os.path.join(output_dir, "Manifest.db")):
+            _dev_log(f"[_resolve_backup_path] case 1 match (direct): {output_dir!r}")
             return output_dir
 
         # Case 2: well-known UDID subfolder variants (with/without dashes)
@@ -280,6 +309,7 @@ class DeviceBackupManager:
             if os.path.isdir(candidate) and os.path.exists(
                 os.path.join(candidate, "Manifest.db")
             ):
+                _dev_log(f"[_resolve_backup_path] case 2 match (UDID subdir): {candidate!r}")
                 return candidate
 
         # Case 3: scan one level deep; prefer the most recently modified Manifest.db
@@ -287,21 +317,28 @@ class DeviceBackupManager:
         try:
             best_mtime = -1.0
             best_path = None
+            subdirs_found = []
             for entry in os.scandir(output_dir):
                 if not entry.is_dir():
                     continue
                 manifest = os.path.join(entry.path, "Manifest.db")
                 if os.path.exists(manifest):
                     mtime = os.path.getmtime(manifest)
+                    subdirs_found.append((entry.name, mtime))
                     if mtime > best_mtime:
                         best_mtime = mtime
                         best_path = entry.path
+            _dev_log(
+                f"[_resolve_backup_path] case 3 scan: found {len(subdirs_found)} "
+                f"candidate(s): {subdirs_found!r}  best={best_path!r}"
+            )
             if best_path:
                 return best_path
-        except Exception:
-            pass
+        except Exception as exc:
+            _dev_log(f"[_resolve_backup_path] case 3 scan error: {exc}")
 
         # Fallback: return output_dir unchanged (open_backup will surface any error)
+        _dev_log(f"[_resolve_backup_path] fallback → {output_dir!r}")
         return output_dir
 
     async def _configure_encryption_async(self, lockdown, password: str) -> None:
