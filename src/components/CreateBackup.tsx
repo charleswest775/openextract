@@ -34,7 +34,7 @@ type BackupStatus = 'idle' | 'running' | 'success' | 'error';
 
 interface Props {
   onBack: () => void;
-  onBackupComplete?: (udid: string, backupPath: string) => Promise<string | void> | void;
+  onBackupComplete?: (udid: string, backupPath: string, password?: string) => Promise<string | void> | void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -69,6 +69,14 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
   const [backupError, setBackupError] = useState<string | null>(null);
   const [backupPath, setBackupPath] = useState<string | null>(null);
   const [autoOpenFailed, setAutoOpenFailed] = useState<string | null>(null);
+
+  // Password prompt shown when open_backup returns password_required
+  const [passwordRequired, setPasswordRequired] = useState(false);
+  const [pendingOpen, setPendingOpen] = useState<{ udid: string; backupPath: string } | null>(null);
+  const [openPassword, setOpenPassword] = useState('');
+  const [showOpenPassword, setShowOpenPassword] = useState(false);
+  const [openPasswordError, setOpenPasswordError] = useState<string | null>(null);
+  const [openingBackup, setOpeningBackup] = useState(false);
 
   // Dev-mode only: skip the real backup and immediately trigger the open flow.
   // Only visible when running in the Vite dev server (http:), not in a packaged app.
@@ -147,7 +155,10 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
       setStatus('success');
       if (onBackupComplete) {
         const openResult = await onBackupComplete(selectedDevice.udid, result.backup_path);
-        if (openResult?.startsWith('error:')) {
+        if (openResult === 'password_required') {
+          setPasswordRequired(true);
+          setPendingOpen({ udid: selectedDevice.udid, backupPath: result.backup_path });
+        } else if (openResult?.startsWith('error:')) {
           setAutoOpenFailed(openResult.slice(6) || 'Failed to open backup');
         }
       }
@@ -162,12 +173,28 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
     }
   };
 
+  const handleSubmitOpenPassword = async () => {
+    if (!pendingOpen || !openPassword || !onBackupComplete) return;
+    setOpenPasswordError(null);
+    setOpeningBackup(true);
+    const result = await onBackupComplete(pendingOpen.udid, pendingOpen.backupPath, openPassword);
+    setOpeningBackup(false);
+    if (result?.startsWith('error:')) {
+      setOpenPasswordError(result.slice(6) || 'Incorrect password or corrupted backup');
+    }
+  };
+
   const handleReset = () => {
     setStatus('idle');
     setProgress(null);
     setBackupError(null);
     setBackupPath(null);
     setAutoOpenFailed(null);
+    setPasswordRequired(false);
+    setPendingOpen(null);
+    setOpenPassword('');
+    setOpenPasswordError(null);
+    setOpeningBackup(false);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -385,34 +412,88 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
         )}
 
         {status === 'success' && (
-          <div
-            className="mb-6 p-4 rounded-lg flex items-start gap-3"
-            style={{
-              background: 'rgba(52,199,89,0.08)',
-              border: '0.5px solid rgba(52,199,89,0.25)',
-            }}
-          >
-            <CheckCircle size={18} strokeWidth={1.8} className="text-green-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-body font-semibold text-text-primary">Backup complete!</p>
-              <p className="text-caption text-text-secondary mt-0.5 break-all">{backupPath}</p>
-              {autoOpenFailed && (
-                <div className="mt-2">
-                  <p className="text-caption font-medium" style={{ color: 'var(--error)' }}>
-                    Could not open backup automatically:
-                  </p>
-                  <p className="text-caption text-text-secondary mt-0.5 break-all">
-                    {autoOpenFailed}
-                  </p>
+          <div className="mb-6 space-y-3">
+            {/* Backup complete banner */}
+            <div
+              className="p-4 rounded-lg flex items-start gap-3"
+              style={{
+                background: 'rgba(52,199,89,0.08)',
+                border: '0.5px solid rgba(52,199,89,0.25)',
+              }}
+            >
+              <CheckCircle size={18} strokeWidth={1.8} className="text-green-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-body font-semibold text-text-primary">Backup complete!</p>
+                <p className="text-caption text-text-secondary mt-0.5 break-all">{backupPath}</p>
+                {autoOpenFailed && (
+                  <div className="mt-2">
+                    <p className="text-caption font-medium" style={{ color: 'var(--error)' }}>
+                      Could not open backup automatically:
+                    </p>
+                    <p className="text-caption text-text-secondary mt-0.5 break-all">
+                      {autoOpenFailed}
+                    </p>
+                    <button
+                      onClick={onBack}
+                      className="mt-2 text-caption text-text-accent hover:underline"
+                    >
+                      Browse backup manually →
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Password prompt for encrypted backups */}
+            {passwordRequired && (
+              <div
+                className="p-4 rounded-lg"
+                style={{ background: 'var(--accent-subtle)', border: '0.5px solid var(--border-default)' }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Lock size={14} strokeWidth={1.8} className="text-text-accent flex-shrink-0" />
+                  <p className="text-body font-semibold text-text-primary">Backup is encrypted</p>
+                </div>
+                <p className="text-caption text-text-secondary mb-3">
+                  Enter the password you set when enabling encrypted backups.
+                </p>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showOpenPassword ? 'text' : 'password'}
+                      value={openPassword}
+                      onChange={(e) => setOpenPassword(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSubmitOpenPassword()}
+                      placeholder="Backup password"
+                      disabled={openingBackup}
+                      autoFocus
+                      className="w-full px-3 py-2 bg-base text-body text-text-primary rounded-md focus:outline-none focus:ring-2 focus:shadow-focus disabled:opacity-50"
+                      style={{ border: '0.5px solid var(--border-strong)' }}
+                    />
+                    <button
+                      onClick={() => setShowOpenPassword(!showOpenPassword)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-caption text-text-tertiary hover:text-text-secondary transition-colors"
+                    >
+                      {showOpenPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
                   <button
-                    onClick={onBack}
-                    className="mt-2 text-caption text-text-accent hover:underline"
+                    onClick={handleSubmitOpenPassword}
+                    disabled={!openPassword || openingBackup}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-accent text-white rounded-lg text-body font-medium hover:bg-accent-hover disabled:opacity-40 transition-colors"
                   >
-                    Browse backup manually →
+                    {openingBackup
+                      ? <><Loader2 size={14} strokeWidth={2} className="animate-spin" /> Unlocking…</>
+                      : 'Unlock'}
                   </button>
                 </div>
-              )}
-            </div>
+                {openPasswordError && (
+                  <p className="mt-2 text-caption" style={{ color: 'var(--error)' }}>
+                    {openPasswordError}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
