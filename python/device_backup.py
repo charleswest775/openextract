@@ -233,7 +233,7 @@ class DeviceBackupManager:
             _tracked_notify("negotiating", 5, 0, 0)
 
             if encrypted:
-                await self._configure_encryption_async(lockdown, password or "")
+                await self._configure_encryption_async(lockdown, password or "", output_dir)
 
             _tracked_notify("negotiating", 10, 0, 0)
 
@@ -259,6 +259,12 @@ class DeviceBackupManager:
             info_path = os.path.join(actual, "Info.plist")
             if os.path.exists(manifest_path) or os.path.exists(info_path):
                 _tracked_notify("finalizing", 100, files_done, files_total)
+            elif encrypted:
+                raise RuntimeError(
+                    "PASSCODE_REQUIRED: Your iPhone is prompting for your passcode "
+                    "to allow the backup. Check your iPhone screen, enter your "
+                    "passcode when prompted, then click Retry."
+                ) from e
             else:
                 raise RuntimeError(
                     "The connection to your iPhone was terminated unexpectedly. "
@@ -266,7 +272,7 @@ class DeviceBackupManager:
                     "and that the cable is securely connected. Then try again."
                 ) from e
         actual_backup_path = self._resolve_backup_path(output_dir, udid)
-        _tlog(f"backup complete. output_dir={output_dir!r} resolved={actual_backup_path!r}")
+        _dev_log(f"backup complete. output_dir={output_dir!r} resolved={actual_backup_path!r}")
         return {"success": True, "backup_path": actual_backup_path}
 
     # ── Internal helpers ──────────────────────────────────────────────────────
@@ -326,17 +332,41 @@ class DeviceBackupManager:
         _dev_log(f"[_resolve_backup_path] fallback → {output_dir!r}")
         return output_dir
 
-    async def _configure_encryption_async(self, lockdown, password: str) -> None:
+    async def _configure_encryption_async(
+        self, lockdown, password: str, backup_directory: str
+    ) -> None:
         """
-        Enable encrypted backups on the device, or verify the password if
-        encryption is already active.
-        """
-        try:
-            from pymobiledevice3.services.mobilebackup2 import Mobilebackup2Service
+        Enable encrypted backups on the device if not already active.
 
+        If encryption is already enabled we skip change_password entirely —
+        calling it would open a second MobileBackup2 connection, causing iOS
+        to show an extra passcode prompt before the backup even starts.
+
+        Raises RuntimeError with a PASSCODE_REQUIRED prefix if iOS terminates
+        the connection while waiting for the user to enter their passcode.
+        """
+        from pymobiledevice3.services.mobilebackup2 import Mobilebackup2Service
+        from pymobiledevice3.exceptions import ConnectionTerminatedError
+
+        # Check whether backup encryption is already configured on the device.
+        # If it is, the backup will use the stored password and no password
+        # change (or extra passcode prompt) is needed.
+        already_encrypted = lockdown.get_value("com.apple.mobile.backup", "WillEncrypt") or False
+        if already_encrypted:
+            return
+
+        try:
             async with Mobilebackup2Service(lockdown) as mb2:
-                await mb2.change_backup_password(old_password="", new_password=password)
-        except Exception:
-            # Encryption already enabled; the backup call will fail with an
-            # authentication error if the supplied password is wrong.
-            pass
+                await mb2.change_password(
+                    backup_directory=backup_directory,
+                    old="",
+                    new=password,
+                )
+        except ConnectionTerminatedError:
+            # iOS terminated the connection while waiting for the user to enter
+            # their passcode on the device to authorise enabling encryption.
+            raise RuntimeError(
+                "PASSCODE_REQUIRED: Your iPhone is prompting for your passcode "
+                "to allow the backup. Check your iPhone screen, enter your "
+                "passcode when prompted, then click Retry."
+            )

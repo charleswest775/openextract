@@ -493,24 +493,47 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
 
         {status === 'error' && (() => {
           const isTrust = backupError?.startsWith('TRUST_REQUIRED:');
+          const isPasscode = backupError?.startsWith('PASSCODE_REQUIRED:');
           const msg = isTrust
             ? backupError!.replace('TRUST_REQUIRED: ', '')
+            : isPasscode
+            ? backupError!.replace('PASSCODE_REQUIRED: ', '')
             : backupError;
-          return isTrust ? (
-            <div
-              className="mb-6 p-4 rounded-lg flex items-start gap-3"
-              style={{
-                background: 'rgba(255,179,0,0.08)',
-                border: '0.5px solid rgba(255,179,0,0.35)',
-              }}
-            >
-              <ShieldAlert size={18} strokeWidth={1.8} className="flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
-              <div>
-                <p className="text-body font-semibold text-text-primary">Trust required</p>
-                <p className="text-caption text-text-secondary mt-0.5">{msg}</p>
+          if (isTrust) {
+            return (
+              <div
+                className="mb-6 p-4 rounded-lg flex items-start gap-3"
+                style={{
+                  background: 'rgba(255,179,0,0.08)',
+                  border: '0.5px solid rgba(255,179,0,0.35)',
+                }}
+              >
+                <ShieldAlert size={18} strokeWidth={1.8} className="flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
+                <div>
+                  <p className="text-body font-semibold text-text-primary">Trust required</p>
+                  <p className="text-caption text-text-secondary mt-0.5">{msg}</p>
+                </div>
               </div>
-            </div>
-          ) : (
+            );
+          }
+          if (isPasscode) {
+            return (
+              <div
+                className="mb-6 p-4 rounded-lg flex items-start gap-3"
+                style={{
+                  background: 'rgba(255,179,0,0.08)',
+                  border: '0.5px solid rgba(255,179,0,0.35)',
+                }}
+              >
+                <Lock size={18} strokeWidth={1.8} className="flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
+                <div>
+                  <p className="text-body font-semibold text-text-primary">Passcode required</p>
+                  <p className="text-caption text-text-secondary mt-0.5">{msg}</p>
+                </div>
+              </div>
+            );
+          }
+          return (
             <div
               className="mb-6 p-4 rounded-lg flex items-start gap-3"
               style={{
@@ -562,7 +585,7 @@ export default function CreateBackup({ onBack, onBackupComplete }: Props) {
               onClick={handleReset}
               className="px-5 py-2.5 bg-accent text-white rounded-lg text-body font-medium hover:bg-accent-hover transition-colors"
             >
-              {backupError?.startsWith('TRUST_REQUIRED:') ? 'Retry' : 'Back Up Again'}
+              {(backupError?.startsWith('TRUST_REQUIRED:') || backupError?.startsWith('PASSCODE_REQUIRED:')) ? 'Retry' : 'Back Up Again'}
             </button>
           )}
         </div>
