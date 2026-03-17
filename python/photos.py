@@ -399,7 +399,7 @@ class PhotoExtractor:
                 f"ORDER BY {order_clause} LIMIT ? OFFSET ?"
             )
             count_query = (
-                f"SELECT COUNT(*) FROM ZASSET"
+                "SELECT COUNT(*) FROM ZASSET"
                 + (" WHERE ZTRASHEDSTATE = 0" if has_trashed else "")
             )
             params = [limit, offset]

@@ -6,8 +6,6 @@ Maps phone numbers and email addresses to contact names.
 import sqlite3
 import re
 import time
-from typing import Optional
-from functools import lru_cache
 
 
 def _tlog(msg: str) -> None:

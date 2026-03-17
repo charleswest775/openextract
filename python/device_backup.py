@@ -266,7 +266,7 @@ class DeviceBackupManager:
                     "and that the cable is securely connected. Then try again."
                 ) from e
         actual_backup_path = self._resolve_backup_path(output_dir, udid)
-        _tlog(f"backup complete. output_dir={output_dir!r} resolved={actual_backup_path!r}")
+        _dev_log(f"backup complete. output_dir={output_dir!r} resolved={actual_backup_path!r}")
         return {"success": True, "backup_path": actual_backup_path}
 
     # ── Internal helpers ──────────────────────────────────────────────────────

@@ -6,7 +6,6 @@ JSON-RPC server communicating over stdin/stdout with the Electron main process.
 
 import sys
 import json
-import traceback
 import time
 
 
@@ -18,14 +17,14 @@ def _tlog(msg: str) -> None:
     except Exception:
         pass
 
-from backup import BackupManager
-from messages import MessageExtractor
-from contacts import ContactResolver
-from photos import PhotoExtractor
-from voicemail import VoicemailExtractor
-from calls import CallExtractor
-from notes import NoteExtractor
-from device_backup import DeviceBackupManager
+from backup import BackupManager  # noqa: E402
+from messages import MessageExtractor  # noqa: E402
+from contacts import ContactResolver  # noqa: E402
+from photos import PhotoExtractor  # noqa: E402
+from voicemail import VoicemailExtractor  # noqa: E402
+from calls import CallExtractor  # noqa: E402
+from notes import NoteExtractor  # noqa: E402
+from device_backup import DeviceBackupManager  # noqa: E402
 
 
 class SidecarServer:
@@ -322,7 +321,7 @@ class SidecarServer:
             try:
                 with open("python_log.txt", "a", encoding="utf-8") as f:
                     f.write(f"[RPC ERROR] {method}: {err_str}\n")
-            except:
+            except Exception:
                 pass
             traceback.print_exc(file=sys.stderr)
             return {

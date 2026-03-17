@@ -5,8 +5,6 @@ Voicemail extraction from voicemail.db.
 import sqlite3
 import os
 import base64
-from typing import Optional
-from messages import apple_date_to_iso
 
 
 class VoicemailExtractor:

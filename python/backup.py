@@ -54,7 +54,7 @@ _PREWARM_FILES = [
 
 # Try to import iphone_backup_decrypt for encrypted backups
 try:
-    from iphone_backup_decrypt import EncryptedBackup, RelativePath
+    from iphone_backup_decrypt import EncryptedBackup
     HAS_DECRYPT = True
 except ImportError:
     HAS_DECRYPT = False
@@ -353,7 +353,7 @@ class BackupManager:
         # UDID mismatch because pymobiledevice3 may format UDIDs differently
         # from what iTunes writes into Info.plist.
         if backup_dir and os.path.isdir(backup_dir):
-            _tlog(f"open_backup fast-path: dir exists, reading backup info")
+            _tlog("open_backup fast-path: dir exists, reading backup info")
             backup_info = self._read_backup_info(backup_dir)
             _tlog(f"open_backup fast-path: _read_backup_info returned {'OK' if backup_info else 'None'}")
 

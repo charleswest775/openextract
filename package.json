@@ -13,6 +13,9 @@
     "preview": "vite preview",
     "package": "npm run build && electron-builder",
     "python:install": "cd python && ../.venv/Scripts/pip install -r requirements.txt",
+    "python:install:dev": "cd python && ../.venv/Scripts/pip install -r requirements-dev.txt",
+    "python:lint": ".venv/Scripts/ruff check python/",
+    "python:test": ".venv/Scripts/pytest python/tests/ -v",
     "python:bundle": "cd python && pyinstaller --onefile --name openextract-engine main.py"
   },
   "dependencies": {

@@ -9,7 +9,7 @@ module can be imported even when pymobiledevice3 is not installed.
 import sys
 import types
 import unittest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 
 # ---------------------------------------------------------------------------

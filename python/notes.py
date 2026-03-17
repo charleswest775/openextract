@@ -3,7 +3,6 @@ Notes extraction from NoteStore.sqlite.
 """
 
 import sqlite3
-from typing import Optional
 from messages import apple_date_to_iso
 
 
@@ -106,7 +105,7 @@ class NoteExtractor:
             shift = 0
             valid = False
             while pos < data_len:
-                b = data[pos]; pos += 1
+                b = data[pos]; pos += 1  # noqa: E702
                 tag |= (b & 0x7F) << shift
                 if not (b & 0x80):
                     valid = True
@@ -121,7 +120,7 @@ class NoteExtractor:
 
             if wire_type == 0:  # varint — skip
                 while pos < data_len:
-                    b = data[pos]; pos += 1
+                    b = data[pos]; pos += 1  # noqa: E702
                     if not (b & 0x80):
                         break
             elif wire_type == 1:  # 64-bit — skip
@@ -131,7 +130,7 @@ class NoteExtractor:
                 shift = 0
                 valid = False
                 while pos < data_len:
-                    b = data[pos]; pos += 1
+                    b = data[pos]; pos += 1  # noqa: E702
                     length |= (b & 0x7F) << shift
                     if not (b & 0x80):
                         valid = True

@@ -1,0 +1,7 @@
+[lint]
+# F = pyflakes (undefined names, unused imports, etc.)
+# E = pycodestyle errors
+select = ["F", "E"]
+
+# E501 line-too-long — not worth enforcing on an existing codebase
+ignore = ["E501"]

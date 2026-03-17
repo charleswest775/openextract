@@ -483,14 +483,14 @@ class MessageExtractor:
                 'm.associated_message_type',
                 'h.id AS handle_id_str',
             ]
-            if has_attributed_body:   select_parts.append('m.attributedBody')
-            if has_payload_data:      select_parts.append('m.payload_data')
-            if has_balloon_bundle_id: select_parts.append('m.balloon_bundle_id')
-            if has_audio_message:     select_parts.append('m.is_audio_message')
-            if has_item_type:         select_parts.append('m.item_type')
-            if has_share_status:      select_parts.append('m.share_status')
-            if has_share_direction:   select_parts.append('m.share_direction')
-            if has_uncanonicalized:   select_parts.append('h.uncanonicalized_id')
+            if has_attributed_body:   select_parts.append('m.attributedBody')  # noqa: E701
+            if has_payload_data:      select_parts.append('m.payload_data')  # noqa: E701
+            if has_balloon_bundle_id: select_parts.append('m.balloon_bundle_id')  # noqa: E701
+            if has_audio_message:     select_parts.append('m.is_audio_message')  # noqa: E701
+            if has_item_type:         select_parts.append('m.item_type')  # noqa: E701
+            if has_share_status:      select_parts.append('m.share_status')  # noqa: E701
+            if has_share_direction:   select_parts.append('m.share_direction')  # noqa: E701
+            if has_uncanonicalized:   select_parts.append('h.uncanonicalized_id')  # noqa: E701
 
             date_clauses = []
             date_params: list = [chat_id]
@@ -774,7 +774,7 @@ class MessageExtractor:
                     img.save(buf, format="JPEG")
                     raw_data = buf.getvalue()
                     mime_type = "image/jpeg"
-                except Exception as e:
+                except Exception:
                     pass
 
             data = base64.b64encode(raw_data).decode("ascii")

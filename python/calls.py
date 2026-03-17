@@ -5,7 +5,6 @@ Call history extraction from CallHistory.storedata.
 import sqlite3
 import csv
 import os
-from typing import Optional
 from messages import apple_date_to_iso
 
 
