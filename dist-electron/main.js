@@ -88,10 +88,23 @@ app.whenReady().then(async () => {
             // Backup operations can take hours on large devices — use a much longer timeout.
             const timeoutMs = method === 'backup.start' ? 7200000 : undefined; // 2 hours
             const result = await sidecar.call(method, params, timeoutMs);
+            // Log open_backup results so failures are visible in python_log.txt
+            if (method === 'open_backup') {
+                const fs = require('fs');
+                const ts = new Date().toTimeString().slice(0, 8);
+                const status = result?.status ?? 'unknown';
+                fs.appendFileSync('python_log.txt', `[${ts}] [Electron] open_backup → status=${status} udid=${params?.udid} dir=${params?.backup_dir}\n`);
+            }
             return { success: true, data: result };
         }
         catch (error) {
             console.error(`Sidecar call failed: ${method}`, error);
+            // Always log open_backup failures to python_log.txt
+            if (method === 'open_backup') {
+                const fs = require('fs');
+                const ts = new Date().toTimeString().slice(0, 8);
+                fs.appendFileSync('python_log.txt', `[${ts}] [Electron] open_backup FAILED: ${error.message} | udid=${params?.udid} dir=${params?.backup_dir}\n`);
+            }
             return { success: false, error: error.message };
         }
     });

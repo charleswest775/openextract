@@ -507,14 +507,21 @@ class MessageExtractor:
             where_extra = (" AND " + " AND ".join(date_clauses)) if date_clauses else ""
 
             t_q = time.perf_counter()
+            # Use a subquery to deduplicate message ROWIDs first (a single message can
+            # appear multiple times in chat_message_join, which would corrupt OFFSET
+            # pagination and cause messages from other conversations to bleed through).
             rows = conn.execute(f"""
                 SELECT {', '.join(select_parts)}
                 FROM message m
                 LEFT JOIN handle h ON h.ROWID = m.handle_id
-                INNER JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
-                WHERE cmj.chat_id = ?{where_extra}
+                WHERE m.ROWID IN (
+                    SELECT DISTINCT cmj.message_id
+                    FROM chat_message_join cmj
+                    WHERE cmj.chat_id = ?{where_extra}
+                    ORDER BY cmj.message_id DESC
+                    LIMIT ? OFFSET ?
+                )
                 ORDER BY m.date DESC
-                LIMIT ? OFFSET ?
             """, (*date_params, limit, offset)).fetchall()
             _tlog(f"get_messages: main query={time.perf_counter()-t_q:.3f}s rows={len(rows)}")
 
@@ -667,11 +674,11 @@ class MessageExtractor:
 
             _tlog(f"get_messages: message loop={time.perf_counter()-t_loop:.3f}s out={len(messages)}")
 
-            # Get total count (respects date filters)
+            # Get total count (respects date filters, counts distinct message IDs)
             t_cnt = time.perf_counter()
             total = conn.execute(
-                f"""SELECT COUNT(*) FROM message m
-                    INNER JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
+                f"""SELECT COUNT(DISTINCT cmj.message_id) FROM chat_message_join cmj
+                    INNER JOIN message m ON m.ROWID = cmj.message_id
                     WHERE cmj.chat_id = ?{where_extra}""",
                 tuple(date_params)
             ).fetchone()[0]
@@ -683,6 +690,11 @@ class MessageExtractor:
         return {
             "messages": messages,
             "total": total,
+            # next_offset is the raw DB row count fetched, not the filtered message count.
+            # The frontend must use this value (not len(messages)) to advance the SQL OFFSET
+            # on subsequent page loads — otherwise filtered-out rows shift the window and
+            # cause messages from other conversations to bleed into the view.
+            "next_offset": offset + len(rows),
             "offset": offset,
             "limit": limit,
         }

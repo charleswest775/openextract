@@ -141,10 +141,11 @@ class SidecarServer:
         chat_id = params.get("chat_id")
         date_from = params.get("date_from")
         date_to = params.get("date_to")
+        limit = params.get("limit", 5000)
         backup = self.backup_manager.get_open_backup(udid)
         contacts = self.contact_resolver.load_contacts(backup)
         return self.message_extractor.search_messages(
-            backup, query, contacts, chat_id, date_from=date_from, date_to=date_to
+            backup, query, contacts, chat_id, date_from=date_from, date_to=date_to, limit=limit
         )
 
     def list_albums(self, params):

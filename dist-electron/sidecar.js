@@ -108,7 +108,7 @@ class PythonSidecar {
             const timeout = setTimeout(() => {
                 this.pending.delete(id);
                 reject(new Error(`Sidecar call timed out: ${method}`));
-            }, timeoutMs !== null && timeoutMs !== void 0 ? timeoutMs : this.TIMEOUT_MS);
+            }, timeoutMs ?? this.TIMEOUT_MS);
             this.pending.set(id, { resolve, reject, timeout });
             this.process.stdin.write(request);
         });

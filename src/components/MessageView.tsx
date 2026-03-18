@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react';
 import { Search, MessageSquare, Loader2 } from 'lucide-react';
 import { useMessages } from '../hooks/useMessages';
 import { formatRelative } from '../lib/dates';
@@ -37,9 +37,11 @@ export default function MessageView({ udid }: Props) {
     messages,
     activeChat,
     totalMessages,
+    hasMore,
     loading,
     loadConversations,
     loadMessages,
+    loadMore,
     searchMessages,
     exportConversation,
   } = useMessages(udid);
@@ -53,6 +55,19 @@ export default function MessageView({ udid }: Props) {
   const [exporting, setExporting] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // Snapshot of scrollHeight taken just before a loadMore prepend, used to restore position.
+  const prevScrollHeightRef = useRef<number>(0);
+  // Prevents concurrent loadMore calls while one is in-flight.
+  const loadingMoreRef = useRef(false);
+  // Refs so the IntersectionObserver callback always sees current values without re-subscribing.
+  const hasMoreRef = useRef(hasMore);
+  const loadingRef = useRef(loading);
+  useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
+  useEffect(() => { loadingRef.current = loading; }, [loading]);
+  // Only auto-scroll to bottom on initial load, not when prepending older messages
+  const suppressAutoScroll = useRef(false);
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
 
@@ -64,8 +79,49 @@ export default function MessageView({ udid }: Props) {
   }, [conversations, activeChat, loadMessages]);
 
   useEffect(() => {
+    if (suppressAutoScroll.current) {
+      suppressAutoScroll.current = false;
+      return;
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // After messages are prepended (loadMore), restore the scroll position so the viewport
+  // stays anchored to the same message instead of jumping to the top.
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || prevScrollHeightRef.current === 0) return;
+    const diff = container.scrollHeight - prevScrollHeightRef.current;
+    if (diff > 0) container.scrollTop += diff;
+    prevScrollHeightRef.current = 0;
+  }, [messages]);
+
+  // Infinite scroll: watch the top sentinel and load more when it enters the viewport.
+  useEffect(() => {
+    const sentinel = topSentinelRef.current;
+    const container = scrollContainerRef.current;
+    if (!sentinel || !container) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          hasMoreRef.current &&
+          !loadingRef.current &&
+          !loadingMoreRef.current
+        ) {
+          loadingMoreRef.current = true;
+          suppressAutoScroll.current = true;
+          prevScrollHeightRef.current = container.scrollHeight;
+          loadMore().finally(() => { loadingMoreRef.current = false; });
+        }
+      },
+      { root: container, threshold: 0 }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   const applyFilters = useCallback((query: string, from: string, to: string) => {
     if (!activeChat) return;
@@ -78,7 +134,7 @@ export default function MessageView({ udid }: Props) {
       if (hasQuery) {
         searchMessages(query.trim(), activeChat, utcFrom, utcTo);
       } else {
-        loadMessages(activeChat, 0, 500, utcFrom, utcTo);
+        loadMessages(activeChat, 0, 1000, utcFrom, utcTo);
       }
     } else {
       setFiltersActive(false);
@@ -254,7 +310,7 @@ export default function MessageView({ udid }: Props) {
                 </button>
                 {filtersActive && (
                   <button
-                    onClick={handleClearFilters}
+                    onClick={() => handleClearFilters()}
                     className="px-3 py-1.5 text-body text-text-secondary bg-base rounded-md hover:bg-elevated transition-colors"
                     style={{ border: '0.5px solid var(--border-default)' }}
                   >
@@ -276,7 +332,14 @@ export default function MessageView({ udid }: Props) {
                     key={label}
                     onClick={() => {
                       if (months === -1) {
-                        applyPreset('', '');
+                        // Load the full message set with no date filter
+                        setDateFrom('');
+                        setDateTo('');
+                        setFiltersActive(false);
+                        if (activeChat) {
+                          const total = activeConversation?.message_count ?? 1_000_000;
+                          loadMessages(activeChat, 0, total);
+                        }
                       } else if (months === null) {
                         const p = thisYearPreset();
                         applyPreset(p.from, p.to);
@@ -317,8 +380,17 @@ export default function MessageView({ udid }: Props) {
             </div>
 
             {/* Messages area */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 bg-surface">
-              {loading && (
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-4 bg-surface">
+              {/* Top sentinel — IntersectionObserver triggers loadMore when this is visible */}
+              <div ref={topSentinelRef} />
+              {/* Spinner shown while loading older messages (not the initial load) */}
+              {loading && messages.length > 0 && (
+                <div className="flex items-center justify-center py-3 text-text-tertiary">
+                  <Loader2 size={14} strokeWidth={1.5} className="animate-spin mr-2" />
+                  <span className="text-caption">Loading older messages…</span>
+                </div>
+              )}
+              {loading && messages.length === 0 && (
                 <div className="flex items-center justify-center py-8 text-text-tertiary">
                   <Loader2 size={16} strokeWidth={1.5} className="animate-spin mr-2" />
                   <span className="text-body">Loading...</span>
