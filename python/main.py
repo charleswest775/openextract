@@ -25,6 +25,7 @@ from voicemail import VoicemailExtractor  # noqa: E402
 from calls import CallExtractor  # noqa: E402
 from notes import NoteExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
+from youtube import YouTubeExtractor  # noqa: E402
 
 
 class SidecarServer:
@@ -37,6 +38,7 @@ class SidecarServer:
         self.call_extractor = CallExtractor()
         self.note_extractor = NoteExtractor()
         self.device_backup_manager = DeviceBackupManager()
+        self.youtube_extractor = YouTubeExtractor()
 
         # Method dispatch table
         self.methods = {
@@ -64,6 +66,13 @@ class SidecarServer:
             "export_voicemails": self.export_voicemails,
             "export_calls": self.export_calls,
             "export_notes": self.export_notes,
+            # YouTube
+            "youtube.check_installed": self.youtube_check_installed,
+            "youtube.list_watch_history": self.youtube_list_watch_history,
+            "youtube.list_search_history": self.youtube_list_search_history,
+            "youtube.list_downloads": self.youtube_list_downloads,
+            "youtube.list_all_files": self.youtube_list_all_files,
+            "youtube.export": self.youtube_export,
             # Live device backup
             "backup.list_devices": self.backup_list_devices,
             "backup.start": self.backup_start,
@@ -259,6 +268,46 @@ class SidecarServer:
         output_dir = params["output_dir"]
         backup = self.backup_manager.get_open_backup(udid)
         return self.note_extractor.export_notes(backup, note_ids, fmt, output_dir)
+
+    # ── YouTube ───────────────────────────────────────────────────────────────
+
+    def youtube_check_installed(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.youtube_extractor.check_installed(backup)
+
+    def youtube_list_watch_history(self, params):
+        udid = params["udid"]
+        offset = params.get("offset", 0)
+        limit = params.get("limit", 200)
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.youtube_extractor.list_watch_history(backup, offset, limit)
+
+    def youtube_list_search_history(self, params):
+        udid = params["udid"]
+        offset = params.get("offset", 0)
+        limit = params.get("limit", 200)
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.youtube_extractor.list_search_history(backup, offset, limit)
+
+    def youtube_list_downloads(self, params):
+        udid = params["udid"]
+        offset = params.get("offset", 0)
+        limit = params.get("limit", 200)
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.youtube_extractor.list_downloads(backup, offset, limit)
+
+    def youtube_list_all_files(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.youtube_extractor.list_all_files(backup)
+
+    def youtube_export(self, params):
+        udid = params["udid"]
+        output_dir = params["output_dir"]
+        fmt = params.get("format", "csv")
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.youtube_extractor.export_youtube_data(backup, output_dir, fmt)
 
     # ── Live-device backup ────────────────────────────────────────────────────
 
