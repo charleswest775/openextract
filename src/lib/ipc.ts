@@ -3,6 +3,19 @@
  * In dev mode without Electron, falls back to mock data.
  */
 
+export type DataSourceId = 'messages' | 'photos' | 'contacts' | 'calls' | 'voicemail' | 'notes';
+
+export interface DataSource {
+  id: DataSourceId;
+  label: string;
+  available: boolean;
+  record_count: number;
+}
+
+export interface ScanResult {
+  sources: DataSource[];
+}
+
 const isElectron = typeof window !== 'undefined' && window.openextract;
 
 export async function sidecarCall<T = any>(method: string, params: any = {}): Promise<T> {

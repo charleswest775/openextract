@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BackupInfo } from '../hooks/useBackup';
 import { MessageSquare, Image, Phone, PhoneCall, Users, FileText, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { DataSource } from '../lib/ipc';
 import MessageView from './MessageView';
 import PhotoGallery from './photos/PhotoGallery';
 import VoicemailView from './voicemail/VoicemailView';
@@ -12,9 +13,10 @@ type Tab = 'messages' | 'photos' | 'voicemail' | 'calls' | 'contacts' | 'notes';
 
 interface Props {
   backup: BackupInfo;
+  selectedSources: DataSource[];
 }
 
-const tabs: { id: Tab; label: string; icon: typeof MessageSquare }[] = [
+const ALL_TABS: { id: Tab; label: string; icon: typeof MessageSquare }[] = [
   { id: 'messages', label: 'Messages', icon: MessageSquare },
   { id: 'photos', label: 'Photos', icon: Image },
   { id: 'voicemail', label: 'Voicemail', icon: Phone },
@@ -23,8 +25,13 @@ const tabs: { id: Tab; label: string; icon: typeof MessageSquare }[] = [
   { id: 'notes', label: 'Notes', icon: FileText },
 ];
 
-export default function Dashboard({ backup }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>('messages');
+export default function Dashboard({ backup, selectedSources }: Props) {
+  const selectedIds = new Set(selectedSources.map(s => s.id));
+  const tabs = selectedIds.size > 0
+    ? ALL_TABS.filter(t => selectedIds.has(t.id))
+    : ALL_TABS;
+
+  const [activeTab, setActiveTab] = useState<Tab>(() => tabs[0]?.id ?? 'messages');
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('sidebar-collapsed') === 'true'; } catch { return false; }
   });

@@ -2,17 +2,20 @@ import { useState, useEffect } from 'react';
 import { useBackup } from './hooks/useBackup';
 import BackupSelector from './components/BackupSelector';
 import Dashboard from './components/Dashboard';
+import DataSourcePicker from './components/DataSourcePicker';
 import CreateBackup from './components/CreateBackup';
+import { DataSource } from './lib/ipc';
 
-type Screen = 'select' | 'dashboard' | 'create-backup';
+type Screen = 'select' | 'source-picker' | 'dashboard' | 'create-backup';
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('select');
+  const [selectedSources, setSelectedSources] = useState<DataSource[]>([]);
   const backup = useBackup();
 
   useEffect(() => {
     if (backup.activeBackup) {
-      setScreen('dashboard');
+      setScreen('source-picker');
     }
   }, [backup.activeBackup]);
 
@@ -44,6 +47,7 @@ export default function App() {
             <button
               onClick={() => {
                 backup.setActiveBackup(null);
+                setSelectedSources([]);
                 setScreen('select');
               }}
               className="text-caption text-text-accent hover:bg-accent-subtle px-2 py-1 rounded-sm transition-colors duration-200"
@@ -67,8 +71,17 @@ export default function App() {
             onCreateBackup={() => setScreen('create-backup')}
           />
         )}
+        {screen === 'source-picker' && backup.activeBackup && (
+          <DataSourcePicker
+            backup={backup.activeBackup}
+            onConfirm={(sources) => {
+              setSelectedSources(sources);
+              setScreen('dashboard');
+            }}
+          />
+        )}
         {screen === 'dashboard' && backup.activeBackup && (
-          <Dashboard backup={backup.activeBackup} />
+          <Dashboard backup={backup.activeBackup} selectedSources={selectedSources} />
         )}
         {screen === 'create-backup' && (
           <CreateBackup

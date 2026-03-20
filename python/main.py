@@ -64,6 +64,7 @@ class SidecarServer:
             "export_voicemails": self.export_voicemails,
             "export_calls": self.export_calls,
             "export_notes": self.export_notes,
+            "scan_data_sources": self.scan_data_sources,
             # Live device backup
             "backup.list_devices": self.backup_list_devices,
             "backup.start": self.backup_start,
@@ -302,6 +303,66 @@ class SidecarServer:
             password=password,
             notify=_notify,
         )
+
+    def scan_data_sources(self, params):
+        """
+        Scan the open backup for available data sources.
+
+        Checks Manifest.db for the presence of each known database file, then
+        queries a record count from each one that is found.
+
+        Returns:
+            {"sources": [{"id": str, "label": str, "available": bool, "record_count": int}, ...]}
+        """
+        import sqlite3
+
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+
+        # Each entry: (id, label, domain, path_like, relative_path, count_table)
+        SOURCE_DEFS = [
+            ("messages",  "Messages",        "HomeDomain",
+             "%Library/SMS/sms.db",               "Library/SMS/sms.db",                          "message"),
+            ("photos",    "Photos & Videos", "CameraRollDomain",
+             "%Photos.sqlite",                     "Media/PhotoData/Photos.sqlite",               "ZASSET"),
+            ("contacts",  "Contacts",        "HomeDomain",
+             "%AddressBook.sqlitedb",              "Library/AddressBook/AddressBook.sqlitedb",    "ABPerson"),
+            ("calls",     "Call History",    "HomeDomain",
+             "%CallHistory.storedata",             "Library/CallHistoryDB/CallHistory.storedata", "ZCALLRECORD"),
+            ("voicemail", "Voicemail",       "HomeDomain",
+             "%voicemail.db",                      "Library/Voicemail/voicemail.db",              "voicemail"),
+            ("notes",     "Notes",           "AppDomainGroup-group.com.apple.notes",
+             "%NoteStore.sqlite",                  "Library/NoteStore.sqlite",                    "ZNOTE"),
+        ]
+
+        sources = []
+        for src_id, label, domain, path_like, rel_path, count_table in SOURCE_DEFS:
+            # Step 1: check presence in Manifest.db (fast — no file extraction)
+            matches = backup.list_files(domain=domain, path_like=path_like)
+            available = len(matches) > 0
+
+            record_count = 0
+            if available:
+                # Step 2: extract DB and count rows in primary table
+                try:
+                    db_path = backup.get_file(rel_path, domain)
+                    if db_path:
+                        conn = sqlite3.connect(db_path)
+                        row = conn.execute(f"SELECT COUNT(*) FROM {count_table}").fetchone()  # noqa: S608
+                        conn.close()
+                        record_count = row[0] if row else 0
+                except Exception:
+                    # Count is best-effort; keep available=True if the file existed
+                    record_count = 0
+
+            sources.append({
+                "id": src_id,
+                "label": label,
+                "available": available,
+                "record_count": record_count,
+            })
+
+        return {"sources": sources}
 
     def handle_request(self, request):
         req_id = request.get("id")
