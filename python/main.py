@@ -25,6 +25,7 @@ from voicemail import VoicemailExtractor  # noqa: E402
 from calls import CallExtractor  # noqa: E402
 from notes import NoteExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
+from location import LocationExtractor  # noqa: E402
 
 
 class SidecarServer:
@@ -37,6 +38,7 @@ class SidecarServer:
         self.call_extractor = CallExtractor()
         self.note_extractor = NoteExtractor()
         self.device_backup_manager = DeviceBackupManager()
+        self.location_extractor = LocationExtractor()
 
         # Method dispatch table
         self.methods = {
@@ -64,6 +66,12 @@ class SidecarServer:
             "export_voicemails": self.export_voicemails,
             "export_calls": self.export_calls,
             "export_notes": self.export_notes,
+            # Location data
+            "list_photo_locations": self.list_photo_locations,
+            "list_significant_locations": self.list_significant_locations,
+            "list_map_favorites": self.list_map_favorites,
+            "list_all_locations": self.list_all_locations,
+            "export_locations": self.export_locations,
             # Live device backup
             "backup.list_devices": self.backup_list_devices,
             "backup.start": self.backup_start,
@@ -259,6 +267,35 @@ class SidecarServer:
         output_dir = params["output_dir"]
         backup = self.backup_manager.get_open_backup(udid)
         return self.note_extractor.export_notes(backup, note_ids, fmt, output_dir)
+
+    # ── Location data ─────────────────────────────────────────────────────────
+
+    def list_photo_locations(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.location_extractor.list_photo_locations(backup)
+
+    def list_significant_locations(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.location_extractor.list_significant_locations(backup)
+
+    def list_map_favorites(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.location_extractor.list_map_favorites(backup)
+
+    def list_all_locations(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.location_extractor.list_all_locations(backup)
+
+    def export_locations(self, params):
+        udid = params["udid"]
+        output_dir = params["output_dir"]
+        fmt = params.get("format", "csv")
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.location_extractor.export_locations(backup, output_dir, fmt)
 
     # ── Live-device backup ────────────────────────────────────────────────────
 
