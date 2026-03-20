@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { BackupInfo } from '../hooks/useBackup';
-import { MessageSquare, Image, Phone, PhoneCall, Users, FileText, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { MessageSquare, Image, Phone, PhoneCall, Users, FileText, Globe, PanelLeftClose, PanelLeft } from 'lucide-react';
 import MessageView from './MessageView';
 import PhotoGallery from './photos/PhotoGallery';
 import VoicemailView from './voicemail/VoicemailView';
 import CallsView from './calls/CallsView';
 import ContactsView from './contacts/ContactsView';
 import NotesView from './notes/NotesView';
+import ChromeView from './chrome/ChromeView';
 
-type Tab = 'messages' | 'photos' | 'voicemail' | 'calls' | 'contacts' | 'notes';
+type Tab = 'messages' | 'photos' | 'voicemail' | 'calls' | 'contacts' | 'notes' | 'chrome';
 
 interface Props {
   backup: BackupInfo;
@@ -21,6 +22,7 @@ const tabs: { id: Tab; label: string; icon: typeof MessageSquare }[] = [
   { id: 'calls', label: 'Calls', icon: PhoneCall },
   { id: 'contacts', label: 'Contacts', icon: Users },
   { id: 'notes', label: 'Notes', icon: FileText },
+  { id: 'chrome', label: 'Chrome', icon: Globe },
 ];
 
 export default function Dashboard({ backup }: Props) {
@@ -107,6 +109,7 @@ export default function Dashboard({ backup }: Props) {
         {activeTab === 'calls' && <CallsView backup={backup} />}
         {activeTab === 'contacts' && <ContactsView backup={backup} />}
         {activeTab === 'notes' && <NotesView backup={backup} />}
+        {activeTab === 'chrome' && <ChromeView backup={backup} />}
       </div>
     </div>
   );
