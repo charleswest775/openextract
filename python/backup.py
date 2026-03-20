@@ -194,6 +194,62 @@ class OpenBackup:
         except Exception:
             return []
 
+    def list_app_databases(self) -> list:
+        """
+        Return all SQLite database files found in AppDomain-* domains.
+
+        These represent third-party (and Apple first-party) app data stores
+        for which no dedicated extraction adapter may exist.
+
+        Each entry: {"domain": str, "bundle_id": str, "path": str}
+        """
+        _DB_EXTENSIONS = ("%.sqlite", "%.db", "%.sqlite3", "%.sqlitedb")
+
+        def _query(conn_or_cur, params_list):
+            results = []
+            for ext in _DB_EXTENSIONS:
+                p = params_list + [ext]
+                rows = conn_or_cur.execute(
+                    "SELECT domain, relativePath FROM Files "
+                    "WHERE flags=1 AND domain LIKE 'AppDomain-%' "
+                    "AND relativePath LIKE ?",
+                    p,
+                ).fetchall()
+                results.extend(rows)
+            return results
+
+        rows = []
+        if self.encrypted and self._decrypted_backup:
+            try:
+                with self._decrypted_backup.manifest_db_cursor() as cur:
+                    rows = _query(cur, [])
+            except Exception as e:
+                print(f"[backup.list_app_databases] encrypted query failed: {e}", file=sys.stderr, flush=True)
+                return []
+        else:
+            manifest = self.get_manifest_db()
+            if not manifest:
+                return []
+            try:
+                conn = sqlite3.connect(manifest)
+                rows = _query(conn, [])
+                conn.close()
+            except Exception:
+                return []
+
+        seen = set()
+        entries = []
+        for domain, rel_path in rows:
+            key = (domain, rel_path)
+            if key in seen:
+                continue
+            seen.add(key)
+            # Strip "AppDomain-" prefix to get the bundle ID
+            bundle_id = domain[len("AppDomain-"):] if domain.startswith("AppDomain-") else domain
+            entries.append({"domain": domain, "bundle_id": bundle_id, "path": rel_path})
+
+        return entries
+
     def cleanup(self):
         """Clean up temporary files."""
         import shutil

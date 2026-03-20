@@ -12,8 +12,15 @@ export interface DataSource {
   record_count: number;
 }
 
+export interface DetectedApp {
+  bundle_id: string;
+  display_name: string;
+  db_files: string[];
+}
+
 export interface ScanResult {
   sources: DataSource[];
+  detected: DetectedApp[];
 }
 
 const isElectron = typeof window !== 'undefined' && window.openextract;

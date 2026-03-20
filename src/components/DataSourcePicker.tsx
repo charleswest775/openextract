@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { MessageSquare, Image, Phone, PhoneCall, Users, FileText, Loader2 } from 'lucide-react';
-import { sidecarCall, DataSource, DataSourceId, ScanResult } from '../lib/ipc';
+import { MessageSquare, Image, Phone, PhoneCall, Users, FileText, Loader2, Database } from 'lucide-react';
+import { sidecarCall, DataSource, DataSourceId, DetectedApp, ScanResult } from '../lib/ipc';
 import { BackupInfo } from '../hooks/useBackup';
 
 interface Props {
@@ -25,17 +25,19 @@ function formatCount(count: number): string {
 
 export default function DataSourcePicker({ backup, onConfirm }: Props) {
   const [sources, setSources] = useState<DataSource[]>([]);
+  const [detected, setDetected] = useState<DetectedApp[]>([]);
   const [selected, setSelected] = useState<Set<DataSourceId>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [detectedExpanded, setDetectedExpanded] = useState(false);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
     sidecarCall<ScanResult>('scan_data_sources', { udid: backup.udid })
-      .then(({ sources: scanned }) => {
+      .then(({ sources: scanned, detected: apps }) => {
         setSources(scanned);
-        // Pre-select all available sources
+        setDetected(apps ?? []);
         setSelected(new Set(scanned.filter(s => s.available).map(s => s.id)));
       })
       .catch(err => setError(err.message ?? 'Scan failed'))
@@ -66,7 +68,7 @@ export default function DataSourcePicker({ backup, onConfirm }: Props) {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center h-full px-6 py-8">
+    <div className="flex flex-col items-center justify-start h-full px-6 py-8 overflow-y-auto">
       <div className="w-full max-w-lg">
         <h2 className="font-display text-lg font-semibold text-text-primary mb-1">
           Choose Data Sources
@@ -91,10 +93,10 @@ export default function DataSourcePicker({ backup, onConfirm }: Props) {
 
         {!loading && !error && (
           <>
-            {/* Select all toggle */}
+            {/* ── Supported sources ─────────────────────────────────── */}
             <div className="flex items-center justify-between mb-3">
               <span className="text-caption text-text-tertiary uppercase tracking-wide font-semibold">
-                Available sources
+                Supported sources
               </span>
               {availableSources.length > 0 && (
                 <button
@@ -157,6 +159,64 @@ export default function DataSourcePicker({ backup, onConfirm }: Props) {
                 );
               })}
             </div>
+
+            {/* ── Detected app data (no adapter) ────────────────────── */}
+            {detected.length > 0 && (
+              <div className="mb-6">
+                <button
+                  onClick={() => setDetectedExpanded(x => !x)}
+                  className="flex items-center justify-between w-full mb-3 group"
+                >
+                  <span className="text-caption text-text-tertiary uppercase tracking-wide font-semibold">
+                    App data detected — no adapter
+                    <span className="ml-1.5 normal-case font-normal text-text-tertiary">
+                      ({detected.length})
+                    </span>
+                  </span>
+                  <span className="text-caption text-text-accent group-hover:underline">
+                    {detectedExpanded ? 'Hide' : 'Show'}
+                  </span>
+                </button>
+
+                {detectedExpanded && (
+                  <>
+                    <p className="text-caption text-text-secondary mb-3 leading-relaxed">
+                      These apps have data in the backup but no extraction adapter is available yet.
+                      The raw database files are present — adapter contributions are welcome.
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                      {detected.map(app => (
+                        <div
+                          key={app.bundle_id}
+                          className="flex items-start gap-3 rounded-lg px-4 py-3 border border-border-default bg-surface opacity-60"
+                        >
+                          <Database size={15} strokeWidth={1.5} className="text-text-tertiary flex-shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-body text-text-primary font-medium">
+                                {app.display_name}
+                              </span>
+                              <span
+                                className="text-caption text-text-tertiary bg-sidebar-active px-1.5 py-0.5 rounded"
+                                title={app.bundle_id}
+                              >
+                                no adapter
+                              </span>
+                            </div>
+                            <span className="text-caption text-text-tertiary truncate block" title={app.bundle_id}>
+                              {app.bundle_id}
+                            </span>
+                            <span className="text-caption text-text-tertiary">
+                              {app.db_files.length} database file{app.db_files.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             <button
               onClick={handleConfirm}

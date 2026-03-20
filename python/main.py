@@ -308,11 +308,17 @@ class SidecarServer:
         """
         Scan the open backup for available data sources.
 
-        Checks Manifest.db for the presence of each known database file, then
-        queries a record count from each one that is found.
+        Returns two lists:
+        - sources: known sources with dedicated extraction adapters, each with
+          availability and record count
+        - detected: third-party / unadapted app databases found in the backup,
+          grouped by bundle ID, with no extraction adapter available
 
-        Returns:
-            {"sources": [{"id": str, "label": str, "available": bool, "record_count": int}, ...]}
+        Response shape:
+        {
+            "sources": [{"id", "label", "available", "record_count"}, ...],
+            "detected": [{"bundle_id", "display_name", "db_files": [str, ...]}, ...]
+        }
         """
         import sqlite3
 
@@ -362,7 +368,37 @@ class SidecarServer:
                 "record_count": record_count,
             })
 
-        return {"sources": sources}
+        # Scan for third-party app databases with no adapter
+        app_db_entries = backup.list_app_databases()
+
+        # Group db files by bundle_id
+        by_bundle: dict = {}
+        for entry in app_db_entries:
+            bid = entry["bundle_id"]
+            by_bundle.setdefault(bid, []).append(entry["path"])
+
+        def _display_name(bundle_id: str) -> str:
+            """Best-effort human-readable name from a bundle ID."""
+            parts = bundle_id.split(".")
+            # Take the last non-empty segment that isn't purely a generic suffix
+            for segment in reversed(parts):
+                if segment and segment.lower() not in ("app", "ios", "iphone", "ipad", "mobile"):
+                    # Capitalise each word if the segment uses camelCase or is all lower
+                    import re
+                    words = re.sub(r"([a-z])([A-Z])", r"\1 \2", segment)
+                    return words.title()
+            return bundle_id
+
+        detected = [
+            {
+                "bundle_id": bid,
+                "display_name": _display_name(bid),
+                "db_files": sorted(paths),
+            }
+            for bid, paths in sorted(by_bundle.items())
+        ]
+
+        return {"sources": sources, "detected": detected}
 
     def handle_request(self, request):
         req_id = request.get("id")
