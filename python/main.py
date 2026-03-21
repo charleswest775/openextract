@@ -325,24 +325,26 @@ class SidecarServer:
         udid = params["udid"]
         backup = self.backup_manager.get_open_backup(udid)
 
-        # Each entry: (id, label, domain, path_like, relative_path, count_table)
+        # Each entry: (id, label, domain, path_like, relative_path, count_table, count_where)
+        # count_where is an optional SQL WHERE clause (without the WHERE keyword) to
+        # filter the count to only meaningful records, e.g. excluding folders/attachments.
         SOURCE_DEFS = [
             ("messages",  "Messages",        "HomeDomain",
-             "%Library/SMS/sms.db",               "Library/SMS/sms.db",                          "message"),
+             "%Library/SMS/sms.db",               "Library/SMS/sms.db",                          "message",                  None),
             ("photos",    "Photos & Videos", "CameraRollDomain",
-             "%Photos.sqlite",                     "Media/PhotoData/Photos.sqlite",               "ZASSET"),
+             "%Photos.sqlite",                     "Media/PhotoData/Photos.sqlite",               "ZASSET",                   None),
             ("contacts",  "Contacts",        "HomeDomain",
-             "%AddressBook.sqlitedb",              "Library/AddressBook/AddressBook.sqlitedb",    "ABPerson"),
+             "%AddressBook.sqlitedb",              "Library/AddressBook/AddressBook.sqlitedb",    "ABPerson",                 None),
             ("calls",     "Call History",    "HomeDomain",
-             "%CallHistory.storedata",             "Library/CallHistoryDB/CallHistory.storedata", "ZCALLRECORD"),
+             "%CallHistory.storedata",             "Library/CallHistoryDB/CallHistory.storedata", "ZCALLRECORD",              None),
             ("voicemail", "Voicemail",       "HomeDomain",
-             "%voicemail.db",                      "Library/Voicemail/voicemail.db",              "voicemail"),
+             "%voicemail.db",                      "Library/Voicemail/voicemail.db",              "voicemail",                None),
             ("notes",     "Notes",           "AppDomainGroup-group.com.apple.notes",
-             "%NoteStore.sqlite",                  "NoteStore.sqlite",                            "ZICCLOUDSYNCINGOBJECT"),
+             "%NoteStore.sqlite",                  "NoteStore.sqlite",                            "ZICCLOUDSYNCINGOBJECT",    "ZTITLE1 IS NOT NULL"),
         ]
 
         sources = []
-        for src_id, label, domain, path_like, rel_path, count_table in SOURCE_DEFS:
+        for src_id, label, domain, path_like, rel_path, count_table, count_where in SOURCE_DEFS:
             # Step 1: check presence in Manifest.db (fast — no file extraction)
             matches = backup.list_files(domain=domain, path_like=path_like)
             available = len(matches) > 0
@@ -353,8 +355,11 @@ class SidecarServer:
                 try:
                     db_path = backup.get_file(rel_path, domain)
                     if db_path:
+                        sql = f"SELECT COUNT(*) FROM {count_table}"  # noqa: S608
+                        if count_where:
+                            sql += f" WHERE {count_where}"  # noqa: S608
                         conn = sqlite3.connect(db_path)
-                        row = conn.execute(f"SELECT COUNT(*) FROM {count_table}").fetchone()  # noqa: S608
+                        row = conn.execute(sql).fetchone()
                         conn.close()
                         record_count = row[0] if row else 0
                 except Exception:
