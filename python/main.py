@@ -25,6 +25,7 @@ from voicemail import VoicemailExtractor  # noqa: E402
 from calls import CallExtractor  # noqa: E402
 from notes import NoteExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
+from chrome import ChromeExtractor  # noqa: E402
 
 
 class SidecarServer:
@@ -37,6 +38,7 @@ class SidecarServer:
         self.call_extractor = CallExtractor()
         self.note_extractor = NoteExtractor()
         self.device_backup_manager = DeviceBackupManager()
+        self.chrome_extractor = ChromeExtractor()
 
         # Method dispatch table
         self.methods = {
@@ -68,6 +70,11 @@ class SidecarServer:
             # Live device backup
             "backup.list_devices": self.backup_list_devices,
             "backup.start": self.backup_start,
+            # Chrome browser data
+            "chrome.list_history": self.chrome_list_history,
+            "chrome.export_history": self.chrome_export_history,
+            "chrome.list_bookmarks": self.chrome_list_bookmarks,
+            "chrome.export_bookmarks": self.chrome_export_bookmarks,
         }
 
     # ── Notification helpers ──────────────────────────────────────────────────
@@ -404,6 +411,34 @@ class SidecarServer:
         ]
 
         return {"sources": sources, "detected": detected}
+
+    # ── Chrome browser data ───────────────────────────────────────────────────
+
+    def chrome_list_history(self, params):
+        udid = params["udid"]
+        offset = params.get("offset", 0)
+        limit = params.get("limit", 500)
+        query = params.get("query")
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.chrome_extractor.list_history(backup, offset=offset, limit=limit, query=query)
+
+    def chrome_export_history(self, params):
+        udid = params["udid"]
+        output_dir = params["output_dir"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.chrome_extractor.export_history_csv(backup, output_dir)
+
+    def chrome_list_bookmarks(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.chrome_extractor.list_bookmarks(backup)
+
+    def chrome_export_bookmarks(self, params):
+        udid = params["udid"]
+        output_dir = params["output_dir"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.chrome_extractor.export_bookmarks_json(backup, output_dir)
+>>>>>>> origin/claude/chrome-data-adapter-nYkRH
 
     def handle_request(self, request):
         req_id = request.get("id")
