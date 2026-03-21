@@ -71,6 +71,7 @@ class SidecarServer:
             "export_calls": self.export_calls,
             "export_notes": self.export_notes,
             "scan_data_sources": self.scan_data_sources,
+            "list_domain_files": self.list_domain_files,
             # YouTube
             "youtube.check_installed": self.youtube_check_installed,
             "youtube.list_watch_history": self.youtube_list_watch_history,
@@ -396,6 +397,18 @@ class SidecarServer:
             password=password,
             notify=_notify,
         )
+
+    def list_domain_files(self, params):
+        """
+        List all files in a backup domain. Diagnostic utility.
+        Returns {"files": [{"domain": str, "path": str}, ...]}
+        """
+        udid = params["udid"]
+        domain = params["domain"]
+        path_like = params.get("path_like")
+        backup = self.backup_manager.get_open_backup(udid)
+        files = backup.list_files(domain=domain, path_like=path_like)
+        return {"files": [{"domain": f["domain"], "path": f["path"]} for f in files]}
 
     def scan_data_sources(self, params):
         """
