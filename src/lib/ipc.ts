@@ -3,7 +3,7 @@
  * In dev mode without Electron, falls back to mock data.
  */
 
-export type DataSourceId = 'messages' | 'photos' | 'contacts' | 'calls' | 'voicemail' | 'notes';
+export type DataSourceId = 'messages' | 'photos' | 'contacts' | 'calls' | 'voicemail' | 'notes' | 'chrome' | 'youtube' | 'location';
 
 export interface DataSource {
   id: DataSourceId;

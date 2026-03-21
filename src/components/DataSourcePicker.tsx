@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MessageSquare, Image, Phone, PhoneCall, Users, FileText, Loader2, Database } from 'lucide-react';
+import { MessageSquare, Image, Phone, PhoneCall, Users, FileText, Globe, Youtube, MapPin, Loader2, Database } from 'lucide-react';
 import { sidecarCall, DataSource, DataSourceId, DetectedApp, ScanResult } from '../lib/ipc';
 import { BackupInfo } from '../hooks/useBackup';
 
@@ -15,6 +15,9 @@ const SOURCE_ICONS: Record<DataSourceId, typeof MessageSquare> = {
   calls: PhoneCall,
   contacts: Users,
   notes: FileText,
+  chrome: Globe,
+  youtube: Youtube,
+  location: MapPin,
 };
 
 function formatCount(count: number): string {

@@ -434,6 +434,8 @@ class SidecarServer:
              "%voicemail.db",                      "Library/Voicemail/voicemail.db",              "voicemail",                None),
             ("notes",     "Notes",           "AppDomainGroup-group.com.apple.notes",
              "%NoteStore.sqlite",                  "NoteStore.sqlite",                            "ZICCLOUDSYNCINGOBJECT",    "ZTITLE1 IS NOT NULL"),
+            ("chrome",    "Chrome",          "AppDomain-com.google.chrome.ios",
+             "%History",                          "Library/Application Support/Google/Chrome/Default/History", "urls", None),
         ]
 
         sources = []
@@ -465,6 +467,65 @@ class SidecarServer:
                 "available": available,
                 "record_count": record_count,
             })
+
+        # ── YouTube — probe multiple candidate DB paths and table names ────────
+        _yt_domain = "AppDomain-com.google.ios.youtube"
+        _yt_watch_paths = [
+            "Library/Application Support/YouTube/watch_history.db",
+            "Library/Application Support/watch_history.db",
+            "Library/Databases/watch_history.db",
+        ]
+        _yt_watch_tables = ["watch_history", "history", "view_history", "WatchHistory"]
+        yt_available = len(backup.list_files(domain=_yt_domain)) > 0
+        yt_count = 0
+        if yt_available:
+            for yt_path in _yt_watch_paths:
+                try:
+                    db_path = backup.get_file(yt_path, domain=_yt_domain)
+                    if not db_path:
+                        continue
+                    conn = sqlite3.connect(db_path)
+                    for tbl in _yt_watch_tables:
+                        try:
+                            row = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()  # noqa: S608
+                            yt_count = row[0] if row else 0
+                            break
+                        except Exception:
+                            continue
+                    conn.close()
+                    if yt_count:
+                        break
+                except Exception:
+                    continue
+        sources.append({"id": "youtube", "label": "YouTube", "available": yt_available, "record_count": yt_count})
+
+        # ── Location — check routined DB (significant locations) ──────────────
+        _loc_paths = [
+            "Library/Caches/com.apple.routined/Local.sqlite",
+            "Library/Caches/com.apple.routined/Cache.sqlite",
+        ]
+        _loc_tables = ["ZRTLEARNEDLOCATIONOFINTERESTMO", "ZRTVISITMO"]
+        loc_available = False
+        loc_count = 0
+        for loc_path in _loc_paths:
+            matches = backup.list_files(domain="HomeDomain", path_like=f"%{loc_path.split('/')[-1]}")
+            if matches:
+                loc_available = True
+                try:
+                    db_path = backup.get_file(loc_path, domain="HomeDomain")
+                    if db_path:
+                        conn = sqlite3.connect(db_path)
+                        for tbl in _loc_tables:
+                            try:
+                                row = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()  # noqa: S608
+                                loc_count += row[0] if row else 0
+                            except Exception:
+                                continue
+                        conn.close()
+                except Exception:
+                    pass
+                break
+        sources.append({"id": "location", "label": "Location", "available": loc_available, "record_count": loc_count})
 
         # Scan for third-party app databases with no adapter
         app_db_entries = backup.list_app_databases()
