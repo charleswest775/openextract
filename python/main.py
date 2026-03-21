@@ -434,8 +434,6 @@ class SidecarServer:
              "%voicemail.db",                      "Library/Voicemail/voicemail.db",              "voicemail",                None),
             ("notes",     "Notes",           "AppDomainGroup-group.com.apple.notes",
              "%NoteStore.sqlite",                  "NoteStore.sqlite",                            "ZICCLOUDSYNCINGOBJECT",    "ZTITLE1 IS NOT NULL"),
-            ("chrome",    "Chrome",          "AppDomain-com.google.chrome.ios",
-             "%History",                          "Library/Application Support/Google/Chrome/Default/History", "urls", None),
         ]
 
         sources = []
@@ -468,6 +466,26 @@ class SidecarServer:
                 "record_count": record_count,
             })
 
+        # ── Chrome — check domain existence, then probe History for count ───────
+        _chrome_domain = "AppDomain-com.google.chrome.ios"
+        chrome_available = len(backup.list_files(domain=_chrome_domain)) > 0
+        chrome_count = 0
+        if chrome_available:
+            # History file may be under any profile folder name ("Default", "Profile 1", etc.)
+            history_files = backup.list_files(domain=_chrome_domain, path_like="%/History")
+            for hf in history_files:
+                try:
+                    db_path = backup.get_file(hf["path"], domain=_chrome_domain)
+                    if not db_path:
+                        continue
+                    conn = sqlite3.connect(db_path)
+                    row = conn.execute("SELECT COUNT(*) FROM urls").fetchone()
+                    conn.close()
+                    chrome_count += row[0] if row else 0
+                except Exception:
+                    continue
+        sources.append({"id": "chrome", "label": "Chrome", "available": chrome_available, "record_count": chrome_count})
+
         # ── YouTube — probe multiple candidate DB paths and table names ────────
         _yt_domain = "AppDomain-com.google.ios.youtube"
         _yt_watch_paths = [
@@ -499,32 +517,72 @@ class SidecarServer:
                     continue
         sources.append({"id": "youtube", "label": "YouTube", "available": yt_available, "record_count": yt_count})
 
-        # ── Location — check routined DB (significant locations) ──────────────
-        _loc_paths = [
-            "Library/Caches/com.apple.routined/Local.sqlite",
-            "Library/Caches/com.apple.routined/Cache.sqlite",
-        ]
-        _loc_tables = ["ZRTLEARNEDLOCATIONOFINTERESTMO", "ZRTVISITMO"]
+        # ── Location — available if any location source exists ────────────────
+        # Primary: photos with GPS coords (most reliably backed up)
+        # Secondary: routined significant-locations DB (often excluded from backups)
+        # Tertiary: Maps favorites DB
         loc_available = False
         loc_count = 0
-        for loc_path in _loc_paths:
-            matches = backup.list_files(domain="HomeDomain", path_like=f"%{loc_path.split('/')[-1]}")
-            if matches:
+
+        # 1. Photos with GPS — same DB as the Photos adapter; count geotagged assets
+        photo_db = backup.get_file("Media/PhotoData/Photos.sqlite", domain="CameraRollDomain")
+        if photo_db:
+            try:
+                conn = sqlite3.connect(photo_db)
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM ZASSET WHERE ZLATITUDE IS NOT NULL AND ZLATITUDE != 0"
+                ).fetchone()
+                conn.close()
+                geotagged = row[0] if row else 0
+                if geotagged:
+                    loc_available = True
+                    loc_count += geotagged
+            except Exception:
+                pass
+
+        # 2. Routined significant-locations DB (not always present)
+        for routined_path in [
+            "Library/Caches/com.apple.routined/Local.sqlite",
+            "Library/Caches/com.apple.routined/Cache.sqlite",
+        ]:
+            routined_db = backup.get_file(routined_path, domain="HomeDomain")
+            if routined_db:
                 loc_available = True
                 try:
-                    db_path = backup.get_file(loc_path, domain="HomeDomain")
-                    if db_path:
-                        conn = sqlite3.connect(db_path)
-                        for tbl in _loc_tables:
-                            try:
-                                row = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()  # noqa: S608
-                                loc_count += row[0] if row else 0
-                            except Exception:
-                                continue
-                        conn.close()
+                    conn = sqlite3.connect(routined_db)
+                    for tbl in ["ZRTLEARNEDLOCATIONOFINTERESTMO", "ZRTVISITMO"]:
+                        try:
+                            row = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()  # noqa: S608
+                            loc_count += row[0] if row else 0
+                        except Exception:
+                            continue
+                    conn.close()
                 except Exception:
                     pass
                 break
+
+        # 3. Maps favorites DB
+        for maps_path, maps_domain in [
+            ("Library/Maps/MapDataShared.db",  "AppDomain-com.apple.Maps"),
+            ("Library/Maps/MapsSync_0.0.1",    "AppDomain-com.apple.Maps"),
+        ]:
+            maps_db = backup.get_file(maps_path, domain=maps_domain)
+            if maps_db:
+                loc_available = True
+                try:
+                    conn = sqlite3.connect(maps_db)
+                    for tbl in ["ZMAPDATAPLACEMARK", "Placemark"]:
+                        try:
+                            row = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()  # noqa: S608
+                            loc_count += row[0] if row else 0
+                            break
+                        except Exception:
+                            continue
+                    conn.close()
+                except Exception:
+                    pass
+                break
+
         sources.append({"id": "location", "label": "Location", "available": loc_available, "record_count": loc_count})
 
         # Scan for third-party app databases with no adapter
