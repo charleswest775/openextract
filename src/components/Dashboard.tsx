@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { BackupInfo } from '../hooks/useBackup';
-import { MessageSquare, Image, Phone, PhoneCall, Users, FileText, Globe, Youtube, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { MessageSquare, Image, Phone, PhoneCall, Users, FileText, Globe, Youtube, MapPin, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { DataSource } from '../lib/ipc';
 import MessageView from './MessageView';
 import PhotoGallery from './photos/PhotoGallery';
@@ -10,8 +10,9 @@ import ContactsView from './contacts/ContactsView';
 import NotesView from './notes/NotesView';
 import ChromeView from './chrome/ChromeView';
 import YouTubeView from './youtube/YouTubeView';
+import LocationView from './location/LocationView';
 
-type Tab = 'messages' | 'photos' | 'voicemail' | 'calls' | 'contacts' | 'notes' | 'chrome' | 'youtube';
+type Tab = 'messages' | 'photos' | 'voicemail' | 'calls' | 'contacts' | 'notes' | 'chrome' | 'youtube' | 'location';
 
 interface Props {
   backup: BackupInfo;
@@ -27,6 +28,7 @@ const ALL_TABS: { id: Tab; label: string; icon: typeof MessageSquare }[] = [
   { id: 'notes', label: 'Notes', icon: FileText },
   { id: 'chrome', label: 'Chrome', icon: Globe },
   { id: 'youtube', label: 'YouTube', icon: Youtube },
+  { id: 'location', label: 'Location', icon: MapPin },
 ];
 
 export default function Dashboard({ backup, selectedSources }: Props) {
@@ -120,6 +122,7 @@ export default function Dashboard({ backup, selectedSources }: Props) {
         {activeTab === 'notes' && <NotesView backup={backup} />}
         {activeTab === 'chrome' && <ChromeView backup={backup} />}
         {activeTab === 'youtube' && <YouTubeView backup={backup} />}
+        {activeTab === 'location' && <LocationView backup={backup} />}
       </div>
     </div>
   );

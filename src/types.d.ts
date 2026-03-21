@@ -53,6 +53,30 @@ export interface ExportOptions {
   include_metadata_sidecar: boolean;
 }
 
+// ─── Location types ───────────────────────────────────────────────────────────
+
+export interface LocationPoint {
+  source: 'photo' | 'significant_location' | 'visit' | 'maps_favorite';
+  latitude: number;
+  longitude: number;
+  date: string | null;
+  label: string;
+  address: string | null;
+  /** Only present for photo-sourced points */
+  uuid?: string;
+}
+
+export interface LocationResult {
+  points: LocationPoint[];
+  total: number;
+  counts: {
+    photos: number;
+    significant_locations: number;
+    maps_favorites: number;
+  };
+  errors: Record<string, string> | null;
+}
+
 export interface FullPhotoResult {
   data: string;                  // base64
   mime_type: string;

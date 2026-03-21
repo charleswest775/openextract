@@ -27,6 +27,7 @@ from notes import NoteExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
 from chrome import ChromeExtractor  # noqa: E402
 from youtube import YouTubeExtractor  # noqa: E402
+from location import LocationExtractor  # noqa: E402
 
 
 class SidecarServer:
@@ -41,6 +42,7 @@ class SidecarServer:
         self.device_backup_manager = DeviceBackupManager()
         self.chrome_extractor = ChromeExtractor()
         self.youtube_extractor = YouTubeExtractor()
+        self.location_extractor = LocationExtractor()
 
         # Method dispatch table
         self.methods = {
@@ -76,6 +78,12 @@ class SidecarServer:
             "youtube.list_downloads": self.youtube_list_downloads,
             "youtube.list_all_files": self.youtube_list_all_files,
             "youtube.export": self.youtube_export,
+            # Location data
+            "list_photo_locations": self.list_photo_locations,
+            "list_significant_locations": self.list_significant_locations,
+            "list_map_favorites": self.list_map_favorites,
+            "list_all_locations": self.list_all_locations,
+            "export_locations": self.export_locations,
             # Live device backup
             "backup.list_devices": self.backup_list_devices,
             "backup.start": self.backup_start,
@@ -317,6 +325,35 @@ class SidecarServer:
         backup = self.backup_manager.get_open_backup(udid)
         return self.youtube_extractor.export_youtube_data(backup, output_dir, fmt)
 
+    # ── Location data ─────────────────────────────────────────────────────────
+
+    def list_photo_locations(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.location_extractor.list_photo_locations(backup)
+
+    def list_significant_locations(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.location_extractor.list_significant_locations(backup)
+
+    def list_map_favorites(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.location_extractor.list_map_favorites(backup)
+
+    def list_all_locations(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.location_extractor.list_all_locations(backup)
+
+    def export_locations(self, params):
+        udid = params["udid"]
+        output_dir = params["output_dir"]
+        fmt = params.get("format", "csv")
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.location_extractor.export_locations(backup, output_dir, fmt)
+
     # ── Live-device backup ────────────────────────────────────────────────────
 
     def backup_list_devices(self, params):
@@ -487,7 +524,6 @@ class SidecarServer:
         output_dir = params["output_dir"]
         backup = self.backup_manager.get_open_backup(udid)
         return self.chrome_extractor.export_bookmarks_json(backup, output_dir)
->>>>>>> origin/claude/chrome-data-adapter-nYkRH
 
     def handle_request(self, request):
         req_id = request.get("id")
