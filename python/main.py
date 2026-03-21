@@ -338,7 +338,7 @@ class SidecarServer:
             ("voicemail", "Voicemail",       "HomeDomain",
              "%voicemail.db",                      "Library/Voicemail/voicemail.db",              "voicemail"),
             ("notes",     "Notes",           "AppDomainGroup-group.com.apple.notes",
-             "%NoteStore.sqlite",                  "Library/NoteStore.sqlite",                    "ZNOTE"),
+             "%NoteStore.sqlite",                  "NoteStore.sqlite",                            "ZICCLOUDSYNCINGOBJECT"),
         ]
 
         sources = []
