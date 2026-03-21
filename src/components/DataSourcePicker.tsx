@@ -153,7 +153,7 @@ export default function DataSourcePicker({ backup, onConfirm }: Props) {
 
                     {source.available ? (
                       <span className="text-caption text-text-secondary tabular-nums">
-                        {formatCount(source.record_count)}
+                        {source.record_count > 0 ? formatCount(source.record_count) : '—'}
                       </span>
                     ) : (
                       <span className="text-caption text-text-tertiary">Not found</span>

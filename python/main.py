@@ -466,13 +466,14 @@ class SidecarServer:
                 "record_count": record_count,
             })
 
-        # ── Chrome — check domain existence, then probe History for count ───────
+        # ── Chrome — check domain existence, scan all History files for count ───
         _chrome_domain = "AppDomain-com.google.chrome.ios"
         chrome_available = len(backup.list_files(domain=_chrome_domain)) > 0
         chrome_count = 0
         if chrome_available:
-            # History file may be under any profile folder name ("Default", "Profile 1", etc.)
-            history_files = backup.list_files(domain=_chrome_domain, path_like="%/History")
+            # "History" may live under any profile folder ("Default", "Profile 1", etc.)
+            # Use list_files to discover actual paths rather than hardcoding.
+            history_files = backup.list_files(domain=_chrome_domain, path_like="%History")
             for hf in history_files:
                 try:
                     db_path = backup.get_file(hf["path"], domain=_chrome_domain)
@@ -486,33 +487,28 @@ class SidecarServer:
                     continue
         sources.append({"id": "chrome", "label": "Chrome", "available": chrome_available, "record_count": chrome_count})
 
-        # ── YouTube — probe multiple candidate DB paths and table names ────────
+        # ── YouTube — dynamically scan domain for any DB files ────────────────
         _yt_domain = "AppDomain-com.google.ios.youtube"
-        _yt_watch_paths = [
-            "Library/Application Support/YouTube/watch_history.db",
-            "Library/Application Support/watch_history.db",
-            "Library/Databases/watch_history.db",
-        ]
         _yt_watch_tables = ["watch_history", "history", "view_history", "WatchHistory"]
         yt_available = len(backup.list_files(domain=_yt_domain)) > 0
         yt_count = 0
         if yt_available:
-            for yt_path in _yt_watch_paths:
+            # Discover actual DB files rather than probing hardcoded paths
+            yt_db_files = backup.list_files(domain=_yt_domain, path_like="%.db")
+            for f in yt_db_files:
                 try:
-                    db_path = backup.get_file(yt_path, domain=_yt_domain)
+                    db_path = backup.get_file(f["path"], domain=_yt_domain)
                     if not db_path:
                         continue
                     conn = sqlite3.connect(db_path)
                     for tbl in _yt_watch_tables:
                         try:
                             row = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()  # noqa: S608
-                            yt_count = row[0] if row else 0
+                            yt_count += row[0] if row else 0
                             break
                         except Exception:
                             continue
                     conn.close()
-                    if yt_count:
-                        break
                 except Exception:
                     continue
         sources.append({"id": "youtube", "label": "YouTube", "available": yt_available, "record_count": yt_count})
