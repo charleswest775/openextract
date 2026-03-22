@@ -55,6 +55,7 @@
       "releaseType": "release"
     },
     "mac": {
+      "identity": null,
       "target": "dmg",
       "category": "public.app-category.utilities",
       "extraResources": [
