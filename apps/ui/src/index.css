@@ -1,0 +1,2 @@
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: #0f1117; color: #e0e4ef; font-family: system-ui, -apple-system, sans-serif; }
