@@ -20,4 +20,10 @@ contextBridge.exposeInMainWorld('openextract', {
     // Return a cleanup function so the caller can unsubscribe.
     return () => ipcRenderer.removeListener('sidecar:notification', listener);
   },
+
+  // Extraction controls
+  extraction: {
+    start: (params?: any) => ipcRenderer.invoke('extraction:start', params || {}),
+    status: () => ipcRenderer.invoke('extraction:status'),
+  },
 });

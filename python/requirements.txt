@@ -3,3 +3,4 @@ Pillow>=10.0
 pillow-heif>=0.13.0
 debugpy>=1.8.0
 pymobiledevice3>=4.0.0
+pydantic>=2.0

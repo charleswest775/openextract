@@ -26,6 +26,28 @@ from calls import CallExtractor  # noqa: E402
 from notes import NoteExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
 
+# v1.0 extraction engine + new extractors
+from pathlib import Path  # noqa: E402
+from extraction_db import ExtractionDB  # noqa: E402
+from extraction_engine import ExtractionEngine  # noqa: E402
+from extractors.contacts_adapter import ContactsExtractor as ContactsExtractorV2  # noqa: E402
+from extractors.messages_adapter import MessagesExtractor as MessagesExtractorV2  # noqa: E402
+from extractors.calls_adapter import CallsExtractor as CallsExtractorV2  # noqa: E402
+from extractors.photos_adapter import PhotosExtractor as PhotosExtractorV2  # noqa: E402
+from extractors.voicemail_adapter import VoicemailExtractor as VoicemailExtractorV2  # noqa: E402
+from extractors.notes_adapter import NotesExtractor as NotesExtractorV2  # noqa: E402
+from extractors.locations import LocationExtractor  # noqa: E402
+from extractors.safari import SafariExtractor  # noqa: E402
+from extractors.calendar import CalendarExtractor  # noqa: E402
+from extractors.screentime import ScreenTimeExtractor  # noqa: E402
+from extractors.health import HealthExtractor  # noqa: E402
+from extractors.power import PowerExtractor  # noqa: E402
+from extractors.wifi import WiFiExtractor  # noqa: E402
+from extractors.bluetooth import BluetoothExtractor  # noqa: E402
+from extractors.notifications import NotificationExtractor  # noqa: E402
+from extractors.apps import AppsExtractor  # noqa: E402
+from extractors.wallet import WalletExtractor  # noqa: E402
+
 
 class SidecarServer:
     def __init__(self):
@@ -37,6 +59,10 @@ class SidecarServer:
         self.call_extractor = CallExtractor()
         self.note_extractor = NoteExtractor()
         self.device_backup_manager = DeviceBackupManager()
+
+        # v1.0 extraction engine — registered in priority order
+        self._extraction_engine: ExtractionEngine | None = None
+        self._extraction_dbs: dict[str, ExtractionDB] = {}  # keyed by UDID
 
         # Method dispatch table
         self.methods = {
@@ -67,6 +93,14 @@ class SidecarServer:
             # Live device backup
             "backup.list_devices": self.backup_list_devices,
             "backup.start": self.backup_start,
+            # v1.0 extraction engine
+            "extraction.start": self.extraction_start,
+            "extraction.status": self.extraction_status,
+            "extraction.query": self.extraction_query,
+            "extraction.search": self.extraction_search,
+            # v1.0 bulk export + quick analysis
+            "export.start": self.export_start,
+            "analyze.quick": self.analyze_quick,
         }
 
     # ── Notification helpers ──────────────────────────────────────────────────
@@ -89,7 +123,7 @@ class SidecarServer:
     # ── RPC method handlers ───────────────────────────────────────────────────
 
     def ping(self, params):
-        return {"status": "ok", "version": "0.1.0"}
+        return {"status": "ok", "version": "1.0.0"}
 
     def list_backups(self, params):
         custom_path = params.get("path")
@@ -302,6 +336,238 @@ class SidecarServer:
             password=password,
             notify=_notify,
         )
+
+    # ── v1.0 Extraction Engine ─────────────────────────────────────────────
+
+    def _get_extraction_engine(self, udid: str) -> ExtractionEngine:
+        """Get or create an ExtractionEngine for the given UDID."""
+        if udid not in self._extraction_dbs:
+            home = Path.home() / ".openextract" / "extractions" / udid
+            home.mkdir(parents=True, exist_ok=True)
+            self._extraction_dbs[udid] = ExtractionDB(home / "extraction.db")
+
+        db = self._extraction_dbs[udid]
+        engine = ExtractionEngine(db)
+
+        # Register all extractors in priority order (P0 → P3)
+        engine.register_extractor("contacts", ContactsExtractorV2)
+        engine.register_extractor("messages", MessagesExtractorV2)
+        engine.register_extractor("calls", CallsExtractorV2)
+        engine.register_extractor("locations", LocationExtractor)
+
+        engine.register_extractor("photos", PhotosExtractorV2)
+        engine.register_extractor("safari", SafariExtractor)
+        engine.register_extractor("notes", NotesExtractorV2)
+        engine.register_extractor("calendar", CalendarExtractor)
+
+        engine.register_extractor("screentime", ScreenTimeExtractor)
+        engine.register_extractor("health", HealthExtractor)
+        engine.register_extractor("power", PowerExtractor)
+        engine.register_extractor("wifi", WiFiExtractor)
+
+        engine.register_extractor("bluetooth", BluetoothExtractor)
+        engine.register_extractor("notifications", NotificationExtractor)
+        engine.register_extractor("apps", AppsExtractor)
+        engine.register_extractor("voicemail", VoicemailExtractorV2)
+        engine.register_extractor("wallet", WalletExtractor)
+
+        return engine
+
+    def extraction_start(self, params):
+        """Run the full extraction pipeline against an open backup.
+
+        params: { udid: str, backup_dir?: str }
+        Returns: { total_artifacts: int, status: str }
+        """
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        backup_dir = Path(params.get("backup_dir", backup.backup_dir))
+        ios_version = backup.info.get("ios_version") if backup.info else None
+        backup_date = backup.info.get("last_backup_date", "") if backup.info else ""
+
+        engine = self._get_extraction_engine(udid)
+
+        def _notify(method: str, data: dict) -> None:
+            self.send_notification(method, data)
+
+        total = engine.extract_all(
+            backup_path=backup_dir,
+            backup_udid=udid,
+            backup_date=backup_date,
+            ios_version=ios_version,
+            notify=_notify,
+        )
+
+        return {"total_artifacts": total, "status": "completed"}
+
+    def extraction_status(self, params):
+        """Return the latest extraction run status for a device.
+
+        params: { udid: str }
+        """
+        udid = params.get("udid", "")
+        if udid not in self._extraction_dbs:
+            return {"status": "no_extractions", "runs": []}
+
+        db = self._extraction_dbs[udid]
+        rows = db.conn.execute(
+            "SELECT * FROM extraction_runs ORDER BY id DESC LIMIT 5"
+        ).fetchall()
+        return {
+            "status": "ok",
+            "runs": [dict(r) for r in rows],
+        }
+
+    def extraction_query(self, params):
+        """Query extracted artifacts.
+
+        params: { udid: str, artifact_type?: str, start?: str, end?: str, limit?: int }
+        """
+        udid = params["udid"]
+        if udid not in self._extraction_dbs:
+            return {"artifacts": [], "error": "No extraction data for this device"}
+
+        db = self._extraction_dbs[udid]
+        artifacts = db.query_artifacts(
+            artifact_type=params.get("artifact_type"),
+            start=params.get("start"),
+            end=params.get("end"),
+            limit=params.get("limit", 1000),
+        )
+        return {"artifacts": artifacts, "count": len(artifacts)}
+
+    def extraction_search(self, params):
+        """Full-text search across extracted artifacts.
+
+        params: { udid: str, query: str, artifact_type?: str, limit?: int }
+        """
+        udid = params["udid"]
+        if udid not in self._extraction_dbs:
+            return {"artifacts": [], "error": "No extraction data for this device"}
+
+        db = self._extraction_dbs[udid]
+        artifacts = db.search(
+            query=params["query"],
+            artifact_type=params.get("artifact_type"),
+            limit=params.get("limit", 100),
+        )
+        return {"artifacts": artifacts, "count": len(artifacts)}
+
+    # ── Bulk Export ─────────────────────────────────────────────────────
+
+    def export_start(self, params):
+        """Export extracted artifacts to a directory as JSON/CSV files.
+
+        params: { output_dir: str, udid?: str, artifact_type?: str, format?: str }
+        Returns: { exported_files: list[str], total_artifacts: int }
+        """
+        import csv
+        import os
+
+        output_dir = Path(params["output_dir"])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        fmt = params.get("format", "json")
+        artifact_type = params.get("artifact_type")
+
+        # Find a UDID to export — use explicit param or first available
+        udid = params.get("udid")
+        if not udid and self._extraction_dbs:
+            udid = next(iter(self._extraction_dbs))
+        if not udid:
+            return {"error": "No extraction data available. Run an extraction first."}
+
+        if udid not in self._extraction_dbs:
+            return {"error": f"No extraction data for device {udid}"}
+
+        db = self._extraction_dbs[udid]
+        artifacts = db.query_artifacts(artifact_type=artifact_type, limit=100_000)
+
+        if not artifacts:
+            return {"exported_files": [], "total_artifacts": 0}
+
+        exported_files: list[str] = []
+
+        if fmt == "csv":
+            # Group by artifact_type for separate CSV files
+            by_type: dict[str, list[dict]] = {}
+            for a in artifacts:
+                by_type.setdefault(a["artifact_type"], []).append(a)
+
+            for atype, items in by_type.items():
+                filename = f"{atype}.csv"
+                filepath = output_dir / filename
+                keys = list(items[0].keys())
+                with open(filepath, "w", newline="", encoding="utf-8") as f:
+                    writer = csv.DictWriter(f, fieldnames=keys)
+                    writer.writeheader()
+                    writer.writerows(items)
+                exported_files.append(str(filepath))
+        else:
+            # JSON export — single file
+            filepath = output_dir / "extraction.json"
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(artifacts, f, indent=2, default=str)
+            exported_files.append(str(filepath))
+
+        return {"exported_files": exported_files, "total_artifacts": len(artifacts)}
+
+    # ── Quick Analysis ────────────────────────────────────────────────
+
+    def analyze_quick(self, params):
+        """Run a quick analysis on extracted data.
+
+        params: { objective: str, udid?: str }
+        Returns: { summary: str, artifact_count: int }
+        """
+        objective = params.get("objective", "summary")
+
+        # Find a UDID — use explicit param or first available
+        udid = params.get("udid")
+        if not udid and self._extraction_dbs:
+            udid = next(iter(self._extraction_dbs))
+        if not udid or udid not in self._extraction_dbs:
+            return {"summary": "No extraction data available. Run an extraction first.", "artifact_count": 0}
+
+        db = self._extraction_dbs[udid]
+
+        if objective == "messages_today":
+            from datetime import datetime, timezone
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            artifacts = db.query_artifacts(artifact_type="message", start=today, limit=500)
+            return {
+                "summary": f"Found {len(artifacts)} messages from today.",
+                "artifact_count": len(artifacts),
+                "artifacts": artifacts[:50],  # Return a sample
+            }
+        elif objective == "locations_recent":
+            artifacts = db.query_artifacts(artifact_type="location", limit=100)
+            return {
+                "summary": f"Found {len(artifacts)} recent location records.",
+                "artifact_count": len(artifacts),
+                "artifacts": artifacts[:50],
+            }
+        elif objective == "identity_profile":
+            # Aggregate contacts and message stats
+            contacts = db.query_artifacts(artifact_type="contact", limit=1000)
+            messages = db.query_artifacts(artifact_type="message", limit=1)
+            calls = db.query_artifacts(artifact_type="call", limit=1)
+            return {
+                "summary": f"Profile: {len(contacts)} contacts extracted.",
+                "artifact_count": len(contacts),
+                "contacts_count": len(contacts),
+            }
+        else:
+            # Generic summary
+            row = db.conn.execute("SELECT COUNT(*) as cnt FROM artifacts").fetchone()
+            total = row["cnt"] if row else 0
+            type_counts = {}
+            for r in db.conn.execute("SELECT artifact_type, COUNT(*) as cnt FROM artifacts GROUP BY artifact_type"):
+                type_counts[r["artifact_type"]] = r["cnt"]
+            return {
+                "summary": f"Total artifacts: {total}",
+                "artifact_count": total,
+                "type_counts": type_counts,
+            }
 
     def handle_request(self, request):
         req_id = request.get("id")
