@@ -71,6 +71,7 @@ class OpenBackup:
         self.encrypted = encrypted
         self._decrypted_backup = decrypted_backup  # EncryptedBackup instance
         self._manifest_db_path: Optional[str] = None
+        self._manifest_conn: Optional[sqlite3.Connection] = None
         self._temp_dir = tempfile.mkdtemp(prefix="openextract_")
         self._file_cache: dict = {}
 
@@ -82,7 +83,8 @@ class OpenBackup:
         """
         cache_key = f"{domain}:{relative_path}"
         if cache_key in self._file_cache:
-            return self._file_cache[cache_key]
+            cached = self._file_cache[cache_key]
+            return cached if cached else None  # None means previously failed
 
         output_path = os.path.join(
             self._temp_dir,
@@ -101,6 +103,7 @@ class OpenBackup:
                     return output_path
             except Exception as e:
                 print(f"[backup.get_file] extract_file failed for {domain}:{relative_path}: {e}", file=sys.stderr, flush=True)
+                self._file_cache[cache_key] = None  # Cache failure to avoid retries
                 return None
         else:
             # Unencrypted: look up file hash in Manifest.db
@@ -112,6 +115,7 @@ class OpenBackup:
                     self._file_cache[cache_key] = source
                     return source
 
+        self._file_cache[cache_key] = None  # Cache miss to avoid retries
         return None
 
     def get_manifest_db(self) -> Optional[str]:
@@ -126,20 +130,36 @@ class OpenBackup:
 
         return None
 
-    def _lookup_file_hash(self, relative_path: str, domain: str) -> Optional[str]:
-        """Look up the SHA1 hash for a file in Manifest.db."""
+    def _get_manifest_conn(self) -> Optional[sqlite3.Connection]:
+        """Return a cached SQLite connection to Manifest.db."""
+        if self._manifest_conn is not None:
+            return self._manifest_conn
         manifest = self.get_manifest_db()
         if not manifest:
             return None
-
         try:
             conn = sqlite3.connect(manifest)
+            conn.execute("PRAGMA query_only = TRUE")
+            conn.execute("PRAGMA synchronous = OFF")
+            conn.execute("PRAGMA cache_size = -10000")
+            conn.execute("PRAGMA temp_store = MEMORY")
+            self._manifest_conn = conn
+            return conn
+        except Exception:
+            return None
+
+    def _lookup_file_hash(self, relative_path: str, domain: str) -> Optional[str]:
+        """Look up the SHA1 hash for a file in Manifest.db."""
+        conn = self._get_manifest_conn()
+        if not conn:
+            return None
+
+        try:
             cursor = conn.execute(
                 "SELECT fileID FROM Files WHERE relativePath = ? AND domain = ?",
                 (relative_path, domain)
             )
             row = cursor.fetchone()
-            conn.close()
             return row[0] if row else None
         except Exception:
             return None

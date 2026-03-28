@@ -92,6 +92,7 @@ class PhotoExtractor:
     def __init__(self):
         # Simple in-memory thumbnail cache (file_hash:size → base64 string)
         self._thumb_cache: dict = {}
+        self._thumb_fail_count: int = 0
 
     # ─── Photos.sqlite helpers ────────────────────────────────────────────────
 
@@ -437,6 +438,12 @@ class PhotoExtractor:
         for row in rows:
             directory = row["ZDIRECTORY"] or ""
             filename = row["ZFILENAME"] or ""
+
+            # Skip iCloud shared photos — they exist in the DB but aren't
+            # extractable from a local backup.
+            if "PhotoCloudSharingData" in directory or "PhotoCloudSharingData" in filename:
+                continue
+
             dcim_path = _build_dcim_path(directory, filename)
 
             if backup.encrypted:
@@ -593,8 +600,18 @@ class PhotoExtractor:
 
         file_path = self._resolve_file(backup, file_hash)
         if not file_path:
-            print(f"[THUMB] File not found on disk for hash {file_hash[:12]}", file=sys.stderr, flush=True)
+            self._thumb_fail_count += 1
+            if self._thumb_fail_count <= 5:
+                print(f"[THUMB] File not found on disk for hash {file_hash[:40]}", file=sys.stderr, flush=True)
+                if self._thumb_fail_count == 5:
+                    print("[THUMB] Suppressing further 'not found' warnings", file=sys.stderr, flush=True)
             return {"error": "Photo not found"}
+
+        # Skip video files early — PIL cannot open them
+        _VIDEO_EXTS = {".mov", ".mp4", ".m4v", ".avi", ".3gp", ".mkv", ".webm"}
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext in _VIDEO_EXTS:
+            return {"error": "video", "is_video": True}
 
         try:
             img = Image.open(file_path)

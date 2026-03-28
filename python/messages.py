@@ -14,6 +14,13 @@ from typing import Optional
 
 from contacts import resolve_contact
 
+# Pre-compiled regex patterns for message text cleanup (used per-message)
+_RE_KIMMSG = re.compile(r'__kIM\w+')
+_RE_UUID = re.compile(r'\$?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}', re.IGNORECASE)
+_RE_MEDIA_FILE = re.compile(r'[\d_A-Fa-f\-]+(\.fullsizerender)*\.(jpeg|jpg|heic|heif|png|gif|mov|mp4|m4a|caf|pdf|doc|docx)', re.IGNORECASE)
+_RE_JUNK_START = re.compile(r'^[ \n"\uFFFD\uFFFC]+')
+_RE_JUNK_END = re.compile(r'[ \n"\uFFFD\uFFFC]+$')
+
 
 def _tlog(msg: str) -> None:
     try:
@@ -322,6 +329,8 @@ class MessageExtractor:
         # Persistent SQLite connections keyed by db_path.
         # The sidecar processes one request at a time, so reuse is safe.
         self._connections: dict[str, sqlite3.Connection] = {}
+        # Cache total message counts per (db_path, chat_id) to skip redundant COUNT queries
+        self._count_cache: dict[tuple, int] = {}
 
     def _get_sms_db(self, backup) -> Optional[str]:
         """Get path to the sms.db file from the backup."""
@@ -332,7 +341,13 @@ class MessageExtractor:
         if db_path not in self._connections:
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
+            # Performance pragmas (set before indexes so cache is warm)
+            conn.execute("PRAGMA synchronous = OFF")
+            conn.execute("PRAGMA cache_size = -50000")  # 50MB cache
+            conn.execute("PRAGMA temp_store = MEMORY")
             self._ensure_indexes(conn, db_path)
+            # Set query_only AFTER index creation so CREATE INDEX can succeed
+            conn.execute("PRAGMA query_only = TRUE")
             self._connections[db_path] = conn
         return self._connections[db_path]
 
@@ -662,13 +677,13 @@ class MessageExtractor:
                 if msg_text:
                     # Clean up Apple object replacement characters and attachment identifiers
                     msg_text = msg_text.replace('\ufffc', '').replace('\ufffd', '').strip()
-                    msg_text = re.sub(r'__kIM\w+', '', msg_text)
-                    msg_text = re.sub(r'\$?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}', '', msg_text, flags=re.IGNORECASE)
-                    msg_text = re.sub(r'[\d_A-Fa-f\-]+(\.fullsizerender)*\.(jpeg|jpg|heic|heif|png|gif|mov|mp4|m4a|caf|pdf|doc|docx)', '', msg_text, flags=re.IGNORECASE)
+                    msg_text = _RE_KIMMSG.sub('', msg_text)
+                    msg_text = _RE_UUID.sub('', msg_text)
+                    msg_text = _RE_MEDIA_FILE.sub('', msg_text)
 
                     # Remove junk wrapper quotes, spaces, or newlines left from stripping
-                    msg_text = re.sub(r'^[ \n"\uFFFD\uFFFC]+', '', msg_text)
-                    msg_text = re.sub(r'[ \n"\uFFFD\uFFFC]+$', '', msg_text)
+                    msg_text = _RE_JUNK_START.sub('', msg_text)
+                    msg_text = _RE_JUNK_END.sub('', msg_text)
                     msg_text = msg_text.strip()
 
                 # Skip messages that are redundant or have no displayable content
@@ -707,15 +722,22 @@ class MessageExtractor:
 
             _tlog(f"get_messages: message loop={time.perf_counter()-t_loop:.3f}s out={len(messages)}")
 
-            # Get total count (respects date filters, counts distinct message IDs)
+            # Get total count — use cache when no date filters are applied
             t_cnt = time.perf_counter()
-            total = conn.execute(
-                f"""SELECT COUNT(DISTINCT cmj.message_id) FROM chat_message_join cmj
-                    INNER JOIN message m ON m.ROWID = cmj.message_id
-                    WHERE cmj.chat_id = ?{where_extra}""",
-                tuple(date_params)
-            ).fetchone()[0]
-            _tlog(f"get_messages: count query={time.perf_counter()-t_cnt:.3f}s total={total}")
+            count_key = (db_path, chat_id)
+            if not date_from and not date_to and count_key in self._count_cache:
+                total = self._count_cache[count_key]
+                _tlog(f"get_messages: count cache hit total={total}")
+            else:
+                total = conn.execute(
+                    f"""SELECT COUNT(DISTINCT cmj.message_id) FROM chat_message_join cmj
+                        INNER JOIN message m ON m.ROWID = cmj.message_id
+                        WHERE cmj.chat_id = ?{where_extra}""",
+                    tuple(date_params)
+                ).fetchone()[0]
+                if not date_from and not date_to:
+                    self._count_cache[count_key] = total
+                _tlog(f"get_messages: count query={time.perf_counter()-t_cnt:.3f}s total={total}")
 
         except Exception:
             raise
