@@ -70,6 +70,10 @@ class ContactResolver:
             t_open = time.perf_counter()
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA query_only = TRUE")
+            conn.execute("PRAGMA synchronous = OFF")
+            conn.execute("PRAGMA cache_size = -10000")
+            conn.execute("PRAGMA temp_store = MEMORY")
             _tlog(f"contacts: sqlite3.connect={time.perf_counter()-t_open:.3f}s")
 
             # Get all person records
