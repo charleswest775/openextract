@@ -596,6 +596,11 @@ class PhotoExtractor:
             print(f"[THUMB] File not found on disk for hash {file_hash[:12]}", file=sys.stderr, flush=True)
             return {"error": "Photo not found"}
 
+        # Fast-path: skip PIL entirely for known video extensions
+        _VIDEO_EXTS = {".mov", ".mp4", ".m4v", ".avi", ".mkv", ".3gp", ".m4a"}
+        if os.path.splitext(file_path)[1].lower() in _VIDEO_EXTS:
+            return {"error": "video", "is_video": True}
+
         try:
             img = Image.open(file_path)
             img.thumbnail((size, size), Image.LANCZOS)

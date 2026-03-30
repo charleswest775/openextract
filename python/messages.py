@@ -671,6 +671,31 @@ class MessageExtractor:
                     msg_text = re.sub(r'[ \n"\uFFFD\uFFFC]+$', '', msg_text)
                     msg_text = msg_text.strip()
 
+                    # Strip TypedStream string-length prefix artifact from raw text column.
+                    # Format: '+' followed by one printable ASCII byte whose ordinal encodes
+                    # the declared string length, e.g. "+*I'll call you later" where
+                    # '*'=chr(42) declares length 42.
+                    # Apple stores NSString lengths in different units depending on context:
+                    #   - Python len()       : Unicode codepoints
+                    #   - UTF-8 byte count   : e.g. ASCII chars with a few CJK/emoji bumps
+                    #   - UTF-16 code units  : non-BMP emoji (😘) each cost 2 units here
+                    # Checking all three representations with a ±8 byte tolerance catches
+                    # the full range of real-world messages (emoji, accented chars, etc.)
+                    # while keeping false-positive risk low (ordinary "+word" text would
+                    # need to be within 8 chars of the ASCII value of the letter after +).
+                    _m = re.match(r'^\+([\x20-\x7e])(.*)', msg_text, re.DOTALL)
+                    if _m:
+                        _declared = ord(_m.group(1))
+                        _remainder = _m.group(2).lstrip()
+                        _rs = _remainder.rstrip()
+                        _lens = (
+                            len(_rs),
+                            len(_rs.encode('utf-8')),
+                            len(_rs.encode('utf-16-le')) // 2,
+                        )
+                        if any(abs(l - _declared) <= 8 for l in _lens):
+                            msg_text = _remainder
+
                 # Skip messages that are redundant or have no displayable content
                 if msg_type == "hidden":
                     continue

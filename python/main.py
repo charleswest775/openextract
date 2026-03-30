@@ -8,6 +8,17 @@ import sys
 import json
 import time
 
+# ── Stdout guard ──────────────────────────────────────────────────────────────
+# JSON-RPC uses stdout as its transport channel.  Any non-JSON text printed to
+# stdout by third-party libraries (e.g. "WARN: decrypted N bytes…" from
+# iphone_backup_decrypt) corrupts the protocol and causes Electron to fail to
+# parse responses.  Fix: save the real stdout, then replace sys.stdout with
+# stderr so that all incidental library output is harmlessly redirected.  The
+# four places in this file that legitimately emit JSON-RPC write directly to
+# _rpc_out instead of relying on print().
+_rpc_out = sys.stdout
+sys.stdout = sys.stderr
+
 
 def _tlog(msg: str) -> None:
     """Append a timestamped line to python_log.txt."""
@@ -85,7 +96,8 @@ class SidecarServer:
         the backup RPC call is still in progress.
         """
         notification = {"jsonrpc": "2.0", "method": method, "params": params}
-        print(json.dumps(notification), flush=True)
+        _rpc_out.write(json.dumps(notification) + "\n")
+        _rpc_out.flush()
 
     # ── RPC method handlers ───────────────────────────────────────────────────
 
@@ -355,7 +367,8 @@ class SidecarServer:
 
     def run(self):
         """Main loop: read JSON-RPC requests from stdin, write responses to stdout."""
-        print('{"status":"ready"}', flush=True)  # Signal to Electron that we're alive
+        _rpc_out.write('{"status":"ready"}\n')  # Signal to Electron that we're alive
+        _rpc_out.flush()
 
         for line in sys.stdin:
             line = line.strip()
@@ -368,11 +381,13 @@ class SidecarServer:
                     "id": None,
                     "error": {"code": -32700, "message": f"Parse error: {e}"},
                 }
-                print(json.dumps(response), flush=True)
+                _rpc_out.write(json.dumps(response) + "\n")
+                _rpc_out.flush()
                 continue
 
             response = self.handle_request(request)
-            print(json.dumps(response), flush=True)
+            _rpc_out.write(json.dumps(response) + "\n")
+            _rpc_out.flush()
 
 
 if __name__ == "__main__":
