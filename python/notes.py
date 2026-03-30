@@ -55,6 +55,10 @@ class NoteExtractor:
         try:
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA query_only = TRUE")
+            conn.execute("PRAGMA synchronous = OFF")
+            conn.execute("PRAGMA cache_size = -10000")
+            conn.execute("PRAGMA temp_store = MEMORY")
 
             rows = conn.execute("""
                 SELECT
@@ -169,6 +173,10 @@ class NoteExtractor:
         try:
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA query_only = TRUE")
+            conn.execute("PRAGMA synchronous = OFF")
+            conn.execute("PRAGMA cache_size = -10000")
+            conn.execute("PRAGMA temp_store = MEMORY")
 
             rows = conn.execute("""
                 SELECT

@@ -35,6 +35,7 @@ from photos import PhotoExtractor  # noqa: E402
 from voicemail import VoicemailExtractor  # noqa: E402
 from calls import CallExtractor  # noqa: E402
 from notes import NoteExtractor  # noqa: E402
+from browser_history import BrowserHistoryExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
 
 
@@ -47,6 +48,7 @@ class SidecarServer:
         self.voicemail_extractor = VoicemailExtractor()
         self.call_extractor = CallExtractor()
         self.note_extractor = NoteExtractor()
+        self.browser_history_extractor = BrowserHistoryExtractor()
         self.device_backup_manager = DeviceBackupManager()
 
         # Method dispatch table
@@ -64,6 +66,7 @@ class SidecarServer:
             "list_photos": self.list_photos,
             "get_photo_thumbnail": self.get_photo_thumbnail,
             "get_photo": self.get_photo,
+            "get_photo_path": self.get_photo_path,
             "get_photo_metadata": self.get_photo_metadata,
             "list_voicemails": self.list_voicemails,
             "get_voicemail_audio": self.get_voicemail_audio,
@@ -76,6 +79,12 @@ class SidecarServer:
             "export_voicemails": self.export_voicemails,
             "export_calls": self.export_calls,
             "export_notes": self.export_notes,
+            # Browser history
+            "has_browser_history": self.has_browser_history,
+            "list_browser_history": self.list_browser_history,
+            "export_browser_history": self.export_browser_history,
+            # Aggregate stats
+            "get_aggregate_stats": self.get_aggregate_stats,
             # Live device backup
             "backup.list_devices": self.backup_list_devices,
             "backup.start": self.backup_start,
@@ -196,6 +205,16 @@ class SidecarServer:
         backup = self.backup_manager.get_open_backup(udid)
         return self.photo_extractor.get_photo(backup, file_hash)
 
+    def get_photo_path(self, params):
+        """Return the on-disk file path for a photo/video (no base64 encoding)."""
+        udid = params["udid"]
+        file_hash = params["file_hash"]
+        backup = self.backup_manager.get_open_backup(udid)
+        path = self.photo_extractor._resolve_file(backup, file_hash)
+        if not path:
+            return {"error": "File not found"}
+        return {"path": path}
+
     def list_voicemails(self, params):
         udid = params["udid"]
         backup = self.backup_manager.get_open_backup(udid)
@@ -291,6 +310,56 @@ class SidecarServer:
         output_dir = params["output_dir"]
         backup = self.backup_manager.get_open_backup(udid)
         return self.note_extractor.export_notes(backup, note_ids, fmt, output_dir)
+
+    # ── Browser history ──────────────────────────────────────────────────────
+
+    def has_browser_history(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.browser_history_extractor.has_browser_history(backup)
+
+    def list_browser_history(self, params):
+        udid = params["udid"]
+        browser = params.get("browser", "all")
+        offset = params.get("offset", 0)
+        limit = params.get("limit", 0)
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.browser_history_extractor.list_browser_history(
+            backup, browser, offset, limit
+        )
+
+    def export_browser_history(self, params):
+        udid = params["udid"]
+        output_dir = params["output_dir"]
+        browser = params.get("browser", "all")
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.browser_history_extractor.export_browser_history_csv(
+            backup, output_dir, browser
+        )
+
+    # ── Aggregate stats ──────────────────────────────────────────────────────
+
+    def get_aggregate_stats(self, params):
+        """Return aggregate statistics across all opened backups."""
+        import sqlite3
+        stats = {
+            "total_devices": 0,
+            "total_size_gb": 0.0,
+            "total_messages": 0,
+        }
+        for udid, backup in self.backup_manager._open_backups.items():
+            stats["total_devices"] += 1
+            stats["total_size_gb"] += getattr(backup, "size_gb", 0) or 0
+            try:
+                sms_path = backup.get_file("Library/SMS/sms.db", "HomeDomain")
+                if sms_path:
+                    conn = sqlite3.connect(sms_path)
+                    count = conn.execute("SELECT COUNT(*) FROM message").fetchone()[0]
+                    stats["total_messages"] += count
+                    conn.close()
+            except Exception:
+                pass
+        return stats
 
     # ── Live-device backup ────────────────────────────────────────────────────
 

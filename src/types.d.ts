@@ -1,5 +1,7 @@
 export {};
 
+import type { AppStateData, RecentSession } from './lib/appState';
+
 declare global {
   interface Window {
     openextract: {
@@ -7,8 +9,16 @@ declare global {
       selectFolder: () => Promise<string | null>;
       saveFolder: () => Promise<string | null>;
       openExternal: (url: string) => void;
+      openPath: (filePath: string) => Promise<string>;
       /** Subscribe to JSON-RPC notifications from the Python sidecar (e.g. backup.progress). Returns a cleanup function. */
       onNotification: (callback: (notification: { method: string; params: Record<string, any> }) => void) => () => void;
+      /** App state persistence */
+      getAppState: () => Promise<AppStateData>;
+      setFirstLaunchCompleted: () => Promise<void>;
+      addSession: (session: RecentSession) => Promise<void>;
+      removeSession: (id: string) => Promise<void>;
+      getRecentSessions: () => Promise<RecentSession[]>;
+      incrementExportCount: () => Promise<number>;
     };
   }
 }

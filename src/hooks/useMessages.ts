@@ -22,7 +22,7 @@ export interface LinkPreview {
 export interface Message {
   message_id: number;
   text: string | null;
-  message_type: string; // 'text' | 'link' | 'location' | 'payment' | 'audio' | 'fitness' | 'game' | 'digital_touch' | 'handwriting' | 'attachment' | 'system'
+  message_type: string;
   link_preview?: LinkPreview;
   date: string;
   is_from_me: boolean;
@@ -52,16 +52,12 @@ export function useMessages(udid: string | undefined) {
   const [loading, setLoading] = useState(false);
   const [selectedChats, setSelectedChats] = useState<Set<number>>(new Set());
 
-  // Track active load context so loadMore can continue with same filters
   const activeChatRef = useRef<number | null>(null);
   const activeDateFromRef = useRef<string | undefined>(undefined);
   const activeDateToRef = useRef<string | undefined>(undefined);
   const currentOffsetRef = useRef<number>(0);
   const inSearchModeRef = useRef<boolean>(false);
-  // Incremented on every new conversation/filter load so stale responses are discarded
   const loadEpochRef = useRef<number>(0);
-
-  // True when there are more messages to load (not in search mode)
   const [hasMore, setHasMore] = useState(false);
 
   const loadConversations = useCallback(async () => {
@@ -69,8 +65,7 @@ export function useMessages(udid: string | undefined) {
     setLoading(true);
     try {
       const result = await sidecarCall<{ conversations: Conversation[] }>(
-        'list_conversations',
-        { udid }
+        'list_conversations', { udid }
       );
       setConversations(result.conversations);
     } finally {
@@ -79,18 +74,13 @@ export function useMessages(udid: string | undefined) {
   }, [udid]);
 
   const loadMessages = useCallback(async (
-    chatId: number,
-    offset = 0,
-    limit = PAGE_SIZE,
-    dateFrom?: string,
-    dateTo?: string
+    chatId: number, offset = 0, limit = PAGE_SIZE,
+    dateFrom?: string, dateTo?: string
   ) => {
     if (!udid) return;
     setLoading(true);
     inSearchModeRef.current = false;
-
     if (offset === 0) {
-      // Clear stale messages immediately so the old conversation never bleeds through
       setMessages([]);
       setTotalMessages(0);
       setHasMore(false);
@@ -101,29 +91,18 @@ export function useMessages(udid: string | undefined) {
       currentOffsetRef.current = 0;
       loadEpochRef.current += 1;
     }
-
     const epoch = loadEpochRef.current;
-
     try {
       const result = await sidecarCall<{ messages: Message[]; total: number; next_offset: number }>(
         'get_messages',
         { udid, chat_id: chatId, offset, limit, date_from: dateFrom, date_to: dateTo }
       );
-
-      // Discard response if a newer load has started (conversation switched mid-flight)
       if (loadEpochRef.current !== epoch) return;
-
-      // Backend returns chronological order (it reverses the DESC query internally).
-      // For load-more (offset > 0), result.messages are older and must be prepended.
       if (offset === 0) {
         setMessages(result.messages);
       } else {
         setMessages(prev => [...result.messages, ...prev]);
       }
-
-      // Use next_offset (raw DB rows fetched) not result.messages.length (filtered count).
-      // Filtered rows (hidden/system) are dropped after the SQL LIMIT/OFFSET, so using
-      // the filtered count would shift subsequent page windows and cause conversation bleed.
       const newOffset = result.next_offset ?? offset + result.messages.length;
       currentOffsetRef.current = newOffset;
       setTotalMessages(result.total);
@@ -137,19 +116,13 @@ export function useMessages(udid: string | undefined) {
     const chatId = activeChatRef.current;
     if (!udid || chatId === null || inSearchModeRef.current) return;
     await loadMessages(
-      chatId,
-      currentOffsetRef.current,
-      LOAD_MORE_SIZE,
-      activeDateFromRef.current,
-      activeDateToRef.current
+      chatId, currentOffsetRef.current, LOAD_MORE_SIZE,
+      activeDateFromRef.current, activeDateToRef.current
     );
   }, [udid, loadMessages]);
 
   const searchMessages = useCallback(async (
-    query: string,
-    chatId?: number,
-    dateFrom?: string,
-    dateTo?: string
+    query: string, chatId?: number, dateFrom?: string, dateTo?: string
   ) => {
     if (!udid) return [];
     setLoading(true);
@@ -173,12 +146,8 @@ export function useMessages(udid: string | undefined) {
   }, [udid]);
 
   const exportConversation = useCallback(async (
-    chatId: number,
-    format: 'txt' | 'csv' | 'html',
-    outputDir: string,
-    dateFrom?: string,
-    dateTo?: string,
-    query?: string
+    chatId: number, format: 'txt' | 'csv' | 'html',
+    outputDir: string, dateFrom?: string, dateTo?: string, query?: string
   ) => {
     if (!udid) return null;
     return sidecarCall<{ file: string; message_count: number }>(
@@ -205,49 +174,21 @@ export function useMessages(udid: string | undefined) {
   }, []);
 
   const exportConversations = useCallback(async (
-    chatIds: number[],
-    conversationNames: Record<number, string>,
-    format: 'txt' | 'csv' | 'html',
-    outputDir: string,
-    mode: 'merged' | 'separate',
-    dateFrom?: string,
-    dateTo?: string,
-    query?: string
+    chatIds: number[], conversationNames: Record<number, string>,
+    format: 'txt' | 'csv' | 'html', outputDir: string,
+    mode: 'merged' | 'separate', dateFrom?: string, dateTo?: string, query?: string
   ) => {
     if (!udid) return null;
     return sidecarCall<{ files: string[]; message_count: number }>(
       'export_conversations',
-      {
-        udid,
-        chat_ids: chatIds,
-        conversation_names: conversationNames,
-        format,
-        output_dir: outputDir,
-        mode,
-        date_from: dateFrom,
-        date_to: dateTo,
-        query,
-      }
+      { udid, chat_ids: chatIds, conversation_names: conversationNames, format, output_dir: outputDir, mode, date_from: dateFrom, date_to: dateTo, query }
     );
   }, [udid]);
 
   return {
-    conversations,
-    messages,
-    activeChat,
-    totalMessages,
-    hasMore,
-    loading,
-    selectedChats,
-    loadConversations,
-    loadMessages,
-    loadMore,
-    searchMessages,
-    exportConversation,
-    exportConversations,
-    toggleChatSelection,
-    selectAllChats,
-    clearSelection,
-    setActiveChat,
+    conversations, messages, activeChat, totalMessages, hasMore, loading, selectedChats,
+    loadConversations, loadMessages, loadMore, searchMessages,
+    exportConversation, exportConversations,
+    toggleChatSelection, selectAllChats, clearSelection, setActiveChat,
   };
 }

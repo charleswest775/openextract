@@ -3,9 +3,9 @@
   "configurations": [
     {
       "name": "openextract-dev",
-      "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "npm run dev"],
-      "port": 5179
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "5180"],
+      "port": 5180
     }
   ]
 }

@@ -6,6 +6,7 @@ Uses pymobiledevice3 for device communication and MobileBackup2 protocol.
 
 import asyncio
 import os
+import sys
 import time
 from typing import Callable, Optional
 
@@ -351,17 +352,21 @@ class DeviceBackupManager:
         # Check whether backup encryption is already configured on the device.
         # If it is, the backup will use the stored password and no password
         # change (or extra passcode prompt) is needed.
-        already_encrypted = lockdown.get_value("com.apple.mobile.backup", "WillEncrypt") or False
+        already_encrypted = await lockdown.get_value("com.apple.mobile.backup", "WillEncrypt") or False
+        print(f"[encryption] WillEncrypt={already_encrypted}", file=sys.stderr, flush=True)
         if already_encrypted:
+            print("[encryption] already enabled, skipping change_password", file=sys.stderr, flush=True)
             return
 
         try:
+            print(f"[encryption] calling change_password (backup_directory={backup_directory})", file=sys.stderr, flush=True)
             async with Mobilebackup2Service(lockdown) as mb2:
                 await mb2.change_password(
                     backup_directory=backup_directory,
                     old="",
                     new=password,
                 )
+            print("[encryption] change_password succeeded", file=sys.stderr, flush=True)
         except ConnectionTerminatedError:
             # iOS terminated the connection while waiting for the user to enter
             # their passcode on the device to authorise enabling encryption.
@@ -370,3 +375,12 @@ class DeviceBackupManager:
                 "to allow the backup. Check your iPhone screen, enter your "
                 "passcode when prompted, then click Retry."
             )
+        except Exception as e:
+            print(f"[encryption] change_password failed: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+            raise
+
+        # Verify encryption was actually enabled
+        will_encrypt_now = await lockdown.get_value("com.apple.mobile.backup", "WillEncrypt") or False
+        print(f"[encryption] post-change WillEncrypt={will_encrypt_now}", file=sys.stderr, flush=True)
+        if not will_encrypt_now:
+            print("[encryption] WARNING: WillEncrypt still False after change_password", file=sys.stderr, flush=True)

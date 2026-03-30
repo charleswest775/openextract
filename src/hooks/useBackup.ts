@@ -18,7 +18,7 @@ export function useBackup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const listBackups = useCallback(async (customPath?: string) => {
+  const listBackups = useCallback(async (customPath?: string, skipSizes = false): Promise<BackupInfo[]> => {
     setLoading(true);
     setError(null);
     try {
@@ -26,26 +26,29 @@ export function useBackup() {
         path: customPath,
       });
       setBackups(result.backups);
-      // Fetch sizes in the background — non-blocking, updates each card as it resolves
-      for (const backup of result.backups) {
-        sidecarCall<{ size_bytes: number; size_gb: number }>('get_backup_size', {
-          backup_dir: backup.backup_dir,
-        }).then(sizes => {
-          setBackups(prev =>
-            prev.map(b =>
-              b.backup_dir === backup.backup_dir ? { ...b, ...sizes } : b
-            )
-          );
-        }).catch(() => {});
+      if (!skipSizes) {
+        for (const backup of result.backups) {
+          sidecarCall<{ size_bytes: number; size_gb: number }>('get_backup_size', {
+            backup_dir: backup.backup_dir,
+          }).then(sizes => {
+            setBackups(prev =>
+              prev.map(b =>
+                b.backup_dir === backup.backup_dir ? { ...b, ...sizes } : b
+              )
+            );
+          }).catch(() => {});
+        }
       }
+      return result.backups;
     } catch (e: any) {
       setError(e.message);
+      return [];
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const openBackup = useCallback(async (udid: string, password?: string, backupDir?: string) => {
+  const openBackup = useCallback(async (udid: string, password?: string, backupDir?: string): Promise<{ status: string; info?: BackupInfo }> => {
     setLoading(true);
     setError(null);
     try {
@@ -54,15 +57,28 @@ export function useBackup() {
         { udid, password, backup_dir: backupDir }
       );
       if (result.status === 'password_required') {
-        return 'password_required';
+        return { status: 'password_required' };
       }
       setActiveBackup(result.info);
-      return 'open';
+
+      // Record session
+      window.openextract.addSession({
+        id: result.info.udid,
+        type: 'device',
+        name: result.info.device_name,
+        subtitle: `Last opened ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · iOS ${result.info.product_version}`,
+        exportCount: 0,
+        lastOpened: new Date().toISOString(),
+        sizeGB: result.info.size_gb ?? 0,
+        iosVersion: result.info.product_version,
+        backupDir: result.info.backup_dir,
+      });
+
+      return { status: 'open', info: result.info };
     } catch (e: any) {
       const msg = e.message || 'Unknown error';
       setError(msg);
-      console.error('[openBackup] failed:', msg, '| udid:', udid, '| dir:', backupDir);
-      return `error:${msg}`;
+      return { status: `error:${msg}` };
     } finally {
       setLoading(false);
     }
