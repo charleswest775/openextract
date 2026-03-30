@@ -24,6 +24,7 @@ from photos import PhotoExtractor  # noqa: E402
 from voicemail import VoicemailExtractor  # noqa: E402
 from calls import CallExtractor  # noqa: E402
 from notes import NoteExtractor  # noqa: E402
+from browser_history import BrowserHistoryExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
 
 
@@ -36,6 +37,7 @@ class SidecarServer:
         self.voicemail_extractor = VoicemailExtractor()
         self.call_extractor = CallExtractor()
         self.note_extractor = NoteExtractor()
+        self.browser_history_extractor = BrowserHistoryExtractor()
         self.device_backup_manager = DeviceBackupManager()
 
         # Method dispatch table
@@ -66,6 +68,10 @@ class SidecarServer:
             "export_voicemails": self.export_voicemails,
             "export_calls": self.export_calls,
             "export_notes": self.export_notes,
+            # Browser history
+            "has_browser_history": self.has_browser_history,
+            "list_browser_history": self.list_browser_history,
+            "export_browser_history": self.export_browser_history,
             # Aggregate stats
             "get_aggregate_stats": self.get_aggregate_stats,
             # Live device backup
@@ -292,6 +298,32 @@ class SidecarServer:
         output_dir = params["output_dir"]
         backup = self.backup_manager.get_open_backup(udid)
         return self.note_extractor.export_notes(backup, note_ids, fmt, output_dir)
+
+    # ── Browser history ──────────────────────────────────────────────────────
+
+    def has_browser_history(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.browser_history_extractor.has_browser_history(backup)
+
+    def list_browser_history(self, params):
+        udid = params["udid"]
+        browser = params.get("browser", "all")
+        offset = params.get("offset", 0)
+        limit = params.get("limit", 0)
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.browser_history_extractor.list_browser_history(
+            backup, browser, offset, limit
+        )
+
+    def export_browser_history(self, params):
+        udid = params["udid"]
+        output_dir = params["output_dir"]
+        browser = params.get("browser", "all")
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.browser_history_extractor.export_browser_history_csv(
+            backup, output_dir, browser
+        )
 
     # ── Aggregate stats ──────────────────────────────────────────────────────
 
