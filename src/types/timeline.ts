@@ -1,4 +1,4 @@
-export type TimelineEntryType = 'message' | 'call' | 'photo' | 'voicemail' | 'note';
+export type TimelineEntryType = 'message' | 'call' | 'photo' | 'voicemail' | 'note' | 'browser';
 
 export interface TimelineEntry {
   id: string;                         // "{type}:{original_id}"
@@ -39,6 +39,12 @@ export interface TimelineEntry {
     bodyPreview: string;
     modified: string;
   };
+  browser?: {
+    url: string;
+    title: string;
+    domain: string;
+    browserName: 'safari' | 'firefox';
+  };
 }
 
 export interface TimelineFilters {
@@ -55,7 +61,7 @@ export interface ContactOption {
 }
 
 export const DEFAULT_FILTERS: TimelineFilters = {
-  types: new Set(['message', 'call', 'photo', 'voicemail', 'note']),
+  types: new Set(['message', 'call', 'photo', 'voicemail', 'note', 'browser']),
   contactIdentifier: '',
   dateFrom: '',
   dateTo: '',

@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { Clock, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { BackupInfo } from '../../hooks/useBackup';
 import { useTimeline } from '../../hooks/useTimeline';
 import { TimelineEntry, TimelineEntryType } from '../../types/timeline';
 import TimelineFilterBar from './TimelineFilterBar';
@@ -8,7 +7,7 @@ import TimelineEntryCard from './TimelineEntryCard';
 import { formatDate } from '../../lib/dates';
 
 interface Props {
-  backup: BackupInfo;
+  udid: string;
 }
 
 const LOADING_LABELS: Record<TimelineEntryType, string> = {
@@ -17,16 +16,17 @@ const LOADING_LABELS: Record<TimelineEntryType, string> = {
   photo:     'Photos',
   voicemail: 'Voicemail',
   note:      'Notes',
+  browser:   'Browser History',
 };
 
-const ALL_TYPES: TimelineEntryType[] = ['message', 'call', 'photo', 'voicemail', 'note'];
+const ALL_TYPES: TimelineEntryType[] = ['message', 'call', 'photo', 'voicemail', 'note', 'browser'];
 
 // Group entries by calendar day
 function groupByDay(entries: TimelineEntry[]): { date: string; entries: TimelineEntry[] }[] {
   const groups: { date: string; entries: TimelineEntry[] }[] = [];
-  let lastDate = '';
+  let lastDate: string | null = null;
   for (const e of entries) {
-    const d = formatDate(e.timestamp);
+    const d = formatDate(e.timestamp) || 'Unknown date';
     if (d !== lastDate) {
       lastDate = d;
       groups.push({ date: d, entries: [] });
@@ -36,7 +36,7 @@ function groupByDay(entries: TimelineEntry[]): { date: string; entries: Timeline
   return groups;
 }
 
-export default function TimelineView({ backup }: Props) {
+export default function TimelineView({ udid }: Props) {
   const {
     entries,
     allContacts,
@@ -52,7 +52,7 @@ export default function TimelineView({ backup }: Props) {
     setPage,
     pageSize,
     loadAllMessages,
-  } = useTimeline(backup.udid);
+  } = useTimeline(udid);
 
   const groups = useMemo(() => groupByDay(entries), [entries]);
 
@@ -205,7 +205,7 @@ export default function TimelineView({ backup }: Props) {
               {/* Entry cards */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {group.entries.map(entry => (
-                  <TimelineEntryCard key={entry.id} entry={entry} udid={backup.udid} />
+                  <TimelineEntryCard key={entry.id} entry={entry} udid={udid} />
                 ))}
               </div>
             </div>

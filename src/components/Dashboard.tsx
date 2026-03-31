@@ -103,7 +103,7 @@ export default function Dashboard({ backup }: Props) {
 
       {/* Content area */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'timeline'  && <TimelineView backup={backup} />}
+        {activeTab === 'timeline'  && <TimelineView udid={backup.udid} />}
         {activeTab === 'messages'  && <MessageView udid={backup.udid} />}
         {activeTab === 'photos'    && <PhotoGallery backup={backup} />}
         {activeTab === 'voicemail' && <VoicemailView backup={backup} />}

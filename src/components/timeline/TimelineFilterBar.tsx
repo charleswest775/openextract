@@ -8,6 +8,7 @@ const TYPE_CONFIG: { type: TimelineEntryType; label: string; color: string }[] =
   { type: 'photo',     label: 'Photos',    color: '#AF52DE' },
   { type: 'voicemail', label: 'Voicemail', color: '#ff9f0a' },
   { type: 'note',      label: 'Notes',     color: '#5AC8FA' },
+  { type: 'browser',   label: 'Web',       color: '#34C759' },
 ];
 
 interface Props {

@@ -19,8 +19,10 @@ function appDisplayName(bundleId: string): string {
   return parts[parts.length - 1] || bundleId;
 }
 
-// Maximum messages loaded on initial timeline fetch (across all conversations)
-const MAX_MESSAGES = 2000;
+// Per-conversation cap ensures every contact is represented in the timeline.
+// Global cap prevents extremely large backups from overwhelming the UI.
+const MESSAGES_PER_CONV = 50;
+const MAX_MESSAGES = 5000;
 const PAGE_SIZE = 100;
 
 // ── Phone-number normalizer ────────────────────────────────────────────────────
@@ -152,13 +154,39 @@ function normalizeNote(note: RawNote): TimelineEntry {
   return {
     id: `note:${note.note_id}`,
     type: 'note',
-    timestamp: note.created,
+    timestamp: note.created || note.modified,
     contactName: null,
     contactIdentifier: null,
     note: {
       title: note.title || 'Untitled',
       bodyPreview: (note.body || '').slice(0, 120),
       modified: note.modified,
+    },
+  };
+}
+
+interface RawBrowserVisit {
+  visit_id: string;
+  url: string;
+  title: string;
+  domain: string;
+  visit_date: string | null;
+  browser: 'safari' | 'firefox';
+  visit_count: number | null;
+}
+
+function normalizeBrowserVisit(v: RawBrowserVisit): TimelineEntry {
+  return {
+    id: `browser:${v.visit_id}`,
+    type: 'browser',
+    timestamp: v.visit_date ?? '',
+    contactName: null,
+    contactIdentifier: null,
+    browser: {
+      url: v.url,
+      title: v.title || v.domain || v.url,
+      domain: v.domain,
+      browserName: v.browser,
     },
   };
 }
@@ -183,6 +211,44 @@ export interface UseTimelineReturn {
   refresh: () => void;
 }
 
+// Maps any identifier (phone / email) to the set of ALL identifiers
+// belonging to the same address-book contact.  Built from list_contacts.
+type IdentifierGroupMap = Map<string, Set<string>>;
+
+function buildIdentifierGroupMap(
+  contacts: { phones: string[]; emails: string[] }[]
+): IdentifierGroupMap {
+  const map: IdentifierGroupMap = new Map();
+  for (const c of contacts) {
+    // Collect every raw and normalised form of this contact's identifiers
+    const group = new Set<string>();
+    for (const p of c.phones) {
+      group.add(p);
+      const np = normPhone(p);
+      if (np) group.add(np);
+    }
+    for (const e of c.emails) {
+      group.add(e);
+      group.add(e.toLowerCase());
+    }
+    // Point every form back to the full group
+    for (const id of group) {
+      map.set(id, group);
+    }
+  }
+  return map;
+}
+
+// Return all identifiers belonging to the same contact as `id`,
+// checking raw, normalised, and +1-prefixed variants.
+function getContactGroup(id: string, idMap: IdentifierGroupMap): Set<string> | null {
+  if (idMap.has(id)) return idMap.get(id)!;
+  const np = normPhone(id);
+  if (np && idMap.has(np)) return idMap.get(np)!;
+  if (np && idMap.has(`+1${np}`)) return idMap.get(`+1${np}`)!;
+  return null;
+}
+
 export function useTimeline(udid: string): UseTimelineReturn {
   const [rawEntries, setRawEntries] = useState<TimelineEntry[]>([]);
   const [loadingTypes, setLoadingTypes] = useState<Set<TimelineEntryType>>(
@@ -193,6 +259,7 @@ export function useTimeline(udid: string): UseTimelineReturn {
   const [filters, setFiltersState] = useState<TimelineFilters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(0);
   const loadEpochRef = useRef(0);
+  const [identifierGroupMap, setIdentifierGroupMap] = useState<IdentifierGroupMap>(new Map());
 
   const addEntries = useCallback((incoming: TimelineEntry[], type: TimelineEntryType) => {
     setRawEntries(prev => {
@@ -236,11 +303,12 @@ export function useTimeline(udid: string): UseTimelineReturn {
 
       for (const conv of sorted) {
         if (loaded >= MAX_MESSAGES) break;
-        const remaining = MAX_MESSAGES - loaded;
+        // Cap per conversation so every contact is represented
+        const limit = Math.min(MESSAGES_PER_CONV, conv.message_count);
         try {
           const { messages } = await sidecarCall<{ messages: Message[]; total: number; next_offset: number }>(
             'get_messages',
-            { udid, chat_id: conv.chat_id, offset: 0, limit: Math.min(remaining, conv.message_count) }
+            { udid, chat_id: conv.chat_id, offset: 0, limit }
           );
           if (loadEpochRef.current !== epoch) return;
           entries.push(...messages.filter(m => !m.is_reaction).map(m => normalizeMessage(m, conv)));
@@ -317,13 +385,45 @@ export function useTimeline(udid: string): UseTimelineReturn {
     }
   }, [udid, addEntries, markError]);
 
+  const fetchBrowser = useCallback(async (epoch: number) => {
+    try {
+      // Check first — not every backup has browser history
+      const hasRes = await sidecarCall<{ has_any: boolean }>('has_browser_history', { udid });
+      if (!hasRes.has_any) {
+        // No history — remove from loading set without adding entries
+        addEntries([], 'browser');
+        return;
+      }
+      const res = await sidecarCall<{ visits: RawBrowserVisit[] }>(
+        'list_browser_history',
+        { udid }
+      );
+      if (loadEpochRef.current !== epoch) return;
+      addEntries((res.visits ?? []).map(normalizeBrowserVisit), 'browser');
+    } catch (e: any) {
+      markError('browser', e.message || 'Failed to load browser history');
+    }
+  }, [udid, addEntries, markError]);
+
+  const fetchContactGroups = useCallback(async () => {
+    try {
+      const res = await sidecarCall<{ contacts: { phones: string[]; emails: string[] }[] }>(
+        'list_contacts',
+        { udid }
+      );
+      setIdentifierGroupMap(buildIdentifierGroupMap(res.contacts));
+    } catch {
+      // Non-critical — contact grouping is best-effort
+    }
+  }, [udid]);
+
   const load = useCallback(() => {
     loadEpochRef.current += 1;
     const epoch = loadEpochRef.current;
     setRawEntries([]);
     setErrors({});
     setMessageCap(null);
-    setLoadingTypes(new Set(['message', 'call', 'photo', 'voicemail', 'note']));
+    setLoadingTypes(new Set(['message', 'call', 'photo', 'voicemail', 'note', 'browser']));
     setPage(0);
 
     // Fire all fetches in parallel; each one updates state independently
@@ -332,7 +432,9 @@ export function useTimeline(udid: string): UseTimelineReturn {
     fetchPhotos(epoch);
     fetchVoicemail(epoch);
     fetchNotes(epoch);
-  }, [fetchMessages, fetchCalls, fetchPhotos, fetchVoicemail, fetchNotes]);
+    fetchBrowser(epoch);
+    fetchContactGroups();
+  }, [fetchMessages, fetchCalls, fetchPhotos, fetchVoicemail, fetchNotes, fetchBrowser, fetchContactGroups]);
 
   useEffect(() => {
     load();
@@ -391,7 +493,7 @@ export function useTimeline(udid: string): UseTimelineReturn {
   // ── Counts per type (unfiltered) ──────────────────────────────────────────
   const counts = useMemo((): Record<TimelineEntryType, number> => {
     const c: Record<TimelineEntryType, number> = {
-      message: 0, call: 0, photo: 0, voicemail: 0, note: 0,
+      message: 0, call: 0, photo: 0, voicemail: 0, note: 0, browser: 0,
     };
     for (const e of rawEntries) c[e.type]++;
     return c;
@@ -407,11 +509,85 @@ export function useTimeline(udid: string): UseTimelineReturn {
     const fromMs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() : null;
     const toMs = dateTo ? new Date(dateTo + 'T23:59:59').getTime() : null;
 
+    // ── Contact matching ───────────────────────────────────────────────────
+    // When a contact is selected we match entries three ways:
+    //  1. Identifier match (exact, normalised phone, or address-book group)
+    //  2. Name match (same resolved display name)
+    //  3. Unattributed entries (photos, notes, browser) shown within the
+    //     communication window of matched entries.
+    let matchesContact: ((e: TimelineEntry) => boolean) | null = null;
+
+    if (contactIdentifier) {
+      const selectedContact = allContacts.find(c => identifiersMatch(contactIdentifier, c.identifier));
+      const selectedName = selectedContact?.name?.toLowerCase() ?? '';
+
+      // Use the address-book identifier group to get ALL identifiers
+      // (phones + emails) belonging to the same contact.
+      const abGroup = getContactGroup(contactIdentifier, identifierGroupMap);
+
+      // Collect every raw identifier seen in rawEntries that belongs to
+      // this contact, plus track the communication-window timestamps.
+      const contactIds = new Set<string>();
+      let minTs = Infinity;
+      let maxTs = -Infinity;
+
+      for (const e of rawEntries) {
+        if (!e.contactIdentifier) continue;
+
+        // Check: direct identifier match
+        const idMatch = identifiersMatch(contactIdentifier, e.contactIdentifier);
+
+        // Check: address-book group match (phone ↔ email for same person)
+        const abMatch = !idMatch && abGroup != null && (
+          abGroup.has(e.contactIdentifier)
+          || abGroup.has(e.contactIdentifier.toLowerCase())
+          || abGroup.has(normPhone(e.contactIdentifier))
+        );
+
+        // Check: display-name match (bridges identifiers the AB doesn't link)
+        const nameMatch = !idMatch && !abMatch
+          && selectedName !== ''
+          && e.contactName?.toLowerCase() === selectedName;
+
+        if (idMatch || abMatch || nameMatch) {
+          contactIds.add(e.contactIdentifier);
+          if (e.timestamp) {
+            const ts = new Date(e.timestamp).getTime();
+            if (ts < minTs) minTs = ts;
+            if (ts > maxTs) maxTs = ts;
+          }
+        }
+      }
+
+      matchesContact = (e: TimelineEntry): boolean => {
+        // Entries with an identifier: check against collected set
+        if (e.contactIdentifier) {
+          if (contactIds.has(e.contactIdentifier)) return true;
+          // Normalised phone fallback for slight formatting differences
+          for (const cid of contactIds) {
+            if (identifiersMatch(cid, e.contactIdentifier)) return true;
+          }
+          if (selectedName && e.contactName?.toLowerCase() === selectedName) return true;
+          return false;
+        }
+        // Entries with a name but no identifier
+        if (e.contactName) {
+          return selectedName ? e.contactName.toLowerCase() === selectedName : false;
+        }
+        // Unattributed entries (photos, notes, browser): show within communication window
+        if (e.timestamp && minTs !== Infinity) {
+          const ts = new Date(e.timestamp).getTime();
+          return ts >= minTs && ts <= maxTs;
+        }
+        return false;
+      };
+    }
+
     return rawEntries
       .filter(e => {
         if (!types.has(e.type)) return false;
 
-        if (contactIdentifier && !identifiersMatch(contactIdentifier, e.contactIdentifier ?? '')) return false;
+        if (matchesContact && !matchesContact(e)) return false;
 
         if (fromMs || toMs) {
           if (!e.timestamp) return false; // undated entries can't be placed in a date range
@@ -430,6 +606,9 @@ export function useTimeline(udid: string): UseTimelineReturn {
             e.voicemail?.transcript,
             e.note?.title,
             e.note?.bodyPreview,
+            e.browser?.title,
+            e.browser?.domain,
+            e.browser?.url,
           ].filter(Boolean).join(' ').toLowerCase();
           if (!haystack.includes(q)) return false;
         }
@@ -437,7 +616,7 @@ export function useTimeline(udid: string): UseTimelineReturn {
         return true;
       })
       .sort((a, b) => (b.timestamp ?? '').localeCompare(a.timestamp ?? ''));
-  }, [rawEntries, filters]);
+  }, [rawEntries, filters, allContacts, identifierGroupMap]);
 
   // ── Paginated slice ───────────────────────────────────────────────────────
   const entries = useMemo(() => {

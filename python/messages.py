@@ -58,13 +58,18 @@ _BUNDLE_ID_MAP: list[tuple[str, str]] = [
 ]
 
 def _type_from_bundle_id(bundle_id: Optional[str]) -> Optional[str]:
-    """Map a balloon_bundle_id to a message_type, or None if not recognised."""
+    """Map a balloon_bundle_id to a message_type, or None if not set.
+
+    Returns 'app' for any non-empty bundle_id that isn't specifically
+    recognised — this prevents garbled extension payload data from
+    leaking through as user-visible text.
+    """
     if not bundle_id:
         return None
     for fragment, msg_type in _BUNDLE_ID_MAP:
         if fragment in bundle_id:
             return msg_type
-    return None
+    return "app"
 
 # Fragments found in attributedBody $objects → message_type (fallback)
 _BALLOON_TYPE_MAP: list[tuple[str, str]] = [

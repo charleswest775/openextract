@@ -59,6 +59,11 @@ export default function RecentSessionList({ sessions, onOpenSession }: Props) {
                 )}
               </div>
               <div className="text-xs text-gray-400 truncate">{formatSubtitle(session)}</div>
+              {session.backupDir && (
+                <div className="text-xs text-gray-400 truncate mt-0.5" title={session.backupDir}>
+                  {session.backupDir}
+                </div>
+              )}
             </div>
             {session.exportCount > 0 && (
               <span className="text-xs text-gray-400 flex-shrink-0">

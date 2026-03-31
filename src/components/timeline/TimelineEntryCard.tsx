@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MessageSquare, PhoneCall, Image, Phone, FileText, ChevronDown, ChevronUp, Loader2, X, ZoomIn } from 'lucide-react';
+import { MessageSquare, PhoneCall, Image, Phone, FileText, Globe, ChevronDown, ChevronUp, Loader2, X, ZoomIn } from 'lucide-react';
 import { TimelineEntry } from '../../types/timeline';
 import { formatTime, formatDate, formatDuration } from '../../lib/dates';
 import { sidecarCall } from '../../lib/ipc';
@@ -113,6 +113,7 @@ const TYPE_CONFIG = {
   photo:     { color: '#AF52DE', icon: Image,         badge: 'PHOTO' },
   voicemail: { color: '#ff9f0a', icon: Phone,         badge: 'VM'    },
   note:      { color: '#5AC8FA', icon: FileText,      badge: 'NOTE'  },
+  browser:   { color: '#34C759', icon: Globe,         badge: 'WEB'   },
 } as const;
 
 function accentColor(entry: TimelineEntry): string {
@@ -248,11 +249,11 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
 
   if (entry.type === 'message' && entry.message) {
     const { text, isFromMe, conversationName, service, messageType } = entry.message;
-    const displayText = text
-      ? text
+    const displayText = messageType === 'app' ? '📱 App message'
       : messageType === 'attachment' ? '📎 Attachment'
       : messageType === 'audio' ? '🎙 Audio message'
       : messageType === 'location' ? '📍 Location'
+      : text ? text
       : '(no text)';
 
     body = (
@@ -391,6 +392,24 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
         )}
         <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 1 }}>
           Modified: {formatDate(modified)}
+        </div>
+      </>
+    );
+  } else if (entry.type === 'browser' && entry.browser) {
+    const { url, title, domain, browserName } = entry.browser;
+    const browserLabel = browserName === 'firefox' ? 'Firefox' : 'Safari';
+
+    body = (
+      <>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+          {metaLeft}
+          <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}>{browserLabel}</span>
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {title || domain}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+          {domain || url}
         </div>
       </>
     );
