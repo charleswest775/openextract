@@ -50,7 +50,7 @@ function TimelinePhotoLightbox({ fileHash, udid, filename, onClose }: LightboxPr
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
       }}
-      onClick={onClose}
+      onClick={e => { e.stopPropagation(); onClose(); }}
     >
       {/* Close button */}
       <button
@@ -101,6 +101,86 @@ function TimelinePhotoLightbox({ fileHash, udid, filename, onClose }: LightboxPr
           {filename}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Note viewer modal ─────────────────────────────────────────────────────────
+
+interface NoteViewerProps {
+  title: string;
+  body: string;
+  modified: string;
+  onClose: () => void;
+}
+
+function NoteViewerModal({ title, body, modified, onClose }: NoteViewerProps) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 24,
+      }}
+      onClick={e => { e.stopPropagation(); onClose(); }}
+    >
+      <div
+        style={{
+          background: 'var(--bg-base)',
+          border: '0.5px solid var(--border-default)',
+          borderRadius: 12,
+          width: '100%', maxWidth: 600,
+          maxHeight: '80vh',
+          display: 'flex', flexDirection: 'column',
+          boxShadow: '0 16px 64px rgba(0,0,0,0.3)',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 20px',
+          borderBottom: '0.5px solid var(--border-default)',
+          flexShrink: 0,
+        }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+              Modified: {formatDate(modified)}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'var(--bg-elevated)', border: 'none', borderRadius: '50%',
+              width: 30, height: 30,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{
+          flex: 1, overflowY: 'auto',
+          padding: '16px 20px',
+          fontSize: 13, color: 'var(--text-primary)',
+          lineHeight: 1.65,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+        }}>
+          {body || <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic' }}>No content</span>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -226,6 +306,7 @@ interface Props {
 export default function TimelineEntryCard({ entry, udid }: Props) {
   const [vmExpanded, setVmExpanded] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
   const color = accentColor(entry);
   const { icon: Icon, badge } = TYPE_CONFIG[entry.type];
 
@@ -377,7 +458,7 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
       </>
     );
   } else if (entry.type === 'note' && entry.note) {
-    const { title, bodyPreview, modified } = entry.note;
+    const { title, bodyPreview, body: noteBody, modified } = entry.note;
 
     body = (
       <>
@@ -393,6 +474,14 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
         <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 1 }}>
           Modified: {formatDate(modified)}
         </div>
+        {noteOpen && (
+          <NoteViewerModal
+            title={title}
+            body={noteBody}
+            modified={modified}
+            onClose={() => setNoteOpen(false)}
+          />
+        )}
       </>
     );
   } else if (entry.type === 'browser' && entry.browser) {
@@ -415,18 +504,22 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
     );
   }
 
+  const isClickable = entry.type === 'voicemail' || entry.type === 'note';
+
   return (
-    <div style={{
-      display: 'flex',
-      borderRadius: 8,
-      border: '0.5px solid var(--border-default)',
-      background: 'var(--bg-base)',
-      overflow: 'hidden',
-      cursor: entry.type === 'voicemail' ? 'pointer' : 'default',
-      transition: 'background 0.12s',
-    }}
-    onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')}
-    onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg-base)')}
+    <div
+      style={{
+        display: 'flex',
+        borderRadius: 8,
+        border: '0.5px solid var(--border-default)',
+        background: 'var(--bg-base)',
+        overflow: 'hidden',
+        cursor: isClickable ? 'pointer' : 'default',
+        transition: 'background 0.12s',
+      }}
+      onClick={entry.type === 'note' ? () => setNoteOpen(true) : undefined}
+      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg-base)')}
     >
       {/* Color accent bar */}
       <div style={{ width: 3, flexShrink: 0, background: color }} />

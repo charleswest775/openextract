@@ -35,8 +35,10 @@ export interface TimelineEntry {
     phoneNumber: string;
   };
   note?: {
+    noteId: number | string;
     title: string;
     bodyPreview: string;
+    body: string;
     modified: string;
   };
   browser?: {

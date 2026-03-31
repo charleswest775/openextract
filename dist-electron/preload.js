@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('openextract', {
     // Native dialogs
     selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
     saveFolder: () => ipcRenderer.invoke('dialog:saveFolder'),
+    saveFile: (options) => ipcRenderer.invoke('dialog:saveFile', options),
+    writeFile: (filePath, content) => ipcRenderer.invoke('fs:writeFile', filePath, content),
     // Open URL in system browser
     openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
     // Open a local file in the system default app (e.g. video player)

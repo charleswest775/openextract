@@ -187,6 +187,17 @@ app.whenReady().then(async () => {
         });
         return result.canceled ? null : result.filePaths[0];
     });
+    ipcMain.handle('dialog:saveFile', async (_event, options) => {
+        const result = await dialog.showSaveDialog(mainWindow, {
+            title: options.title || 'Save File',
+            defaultPath: options.defaultPath,
+            filters: options.filters,
+        });
+        return result.canceled ? null : result.filePath;
+    });
+    ipcMain.handle('fs:writeFile', async (_event, filePath, content) => {
+        fs.writeFileSync(filePath, content, 'utf-8');
+    });
     // ── App state persistence ───────────────────────────────────────────────
     ipcMain.handle('get-app-state', async () => {
         const sessions = store.get('sessions', [])

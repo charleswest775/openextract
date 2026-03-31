@@ -158,8 +158,10 @@ function normalizeNote(note: RawNote): TimelineEntry {
     contactName: null,
     contactIdentifier: null,
     note: {
+      noteId: note.note_id,
       title: note.title || 'Untitled',
       bodyPreview: (note.body || '').slice(0, 120),
+      body: note.body || '',
       modified: note.modified,
     },
   };
@@ -195,6 +197,7 @@ function normalizeBrowserVisit(v: RawBrowserVisit): TimelineEntry {
 
 export interface UseTimelineReturn {
   entries: TimelineEntry[];
+  filteredEntries: TimelineEntry[];
   allContacts: ContactOption[];
   counts: Record<TimelineEntryType, number>;
   totalFiltered: number;
@@ -633,6 +636,7 @@ export function useTimeline(udid: string): UseTimelineReturn {
 
   return {
     entries,
+    filteredEntries,
     allContacts,
     counts,
     totalFiltered: filteredEntries.length,

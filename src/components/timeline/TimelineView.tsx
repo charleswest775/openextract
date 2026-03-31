@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
-import { Clock, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { useMemo, useState, useCallback } from 'react';
+import { Clock, Loader2, CheckCircle2, AlertTriangle, Download } from 'lucide-react';
 import { useTimeline } from '../../hooks/useTimeline';
 import { TimelineEntry, TimelineEntryType } from '../../types/timeline';
 import TimelineFilterBar from './TimelineFilterBar';
 import TimelineEntryCard from './TimelineEntryCard';
 import { formatDate } from '../../lib/dates';
+import { formatTimeline, FORMAT_FILTERS, ExportFormat } from '../../lib/timelineExport';
 
 interface Props {
   udid: string;
@@ -39,6 +40,7 @@ function groupByDay(entries: TimelineEntry[]): { date: string; entries: Timeline
 export default function TimelineView({ udid }: Props) {
   const {
     entries,
+    filteredEntries,
     allContacts,
     counts,
     totalFiltered,
@@ -53,6 +55,32 @@ export default function TimelineView({ udid }: Props) {
     pageSize,
     loadAllMessages,
   } = useTimeline(udid);
+
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = useCallback(async (format: ExportFormat) => {
+    setExportMenuOpen(false);
+    if (!window.openextract || filteredEntries.length === 0) return;
+
+    const filePath = await window.openextract.saveFile({
+      title: 'Export Timeline',
+      defaultPath: `timeline-export.${FORMAT_FILTERS[format].extensions[0]}`,
+      filters: [FORMAT_FILTERS[format]],
+    });
+    if (!filePath) return;
+
+    setExporting(true);
+    try {
+      const content = formatTimeline(filteredEntries, format);
+      await window.openextract.writeFile(filePath, content);
+      await window.openextract.incrementExportCount();
+    } catch (e: any) {
+      console.error('Timeline export failed:', e);
+    } finally {
+      setExporting(false);
+    }
+  }, [filteredEntries]);
 
   const groups = useMemo(() => groupByDay(entries), [entries]);
 
@@ -87,20 +115,78 @@ export default function TimelineView({ udid }: Props) {
           )}
         </div>
 
-        {messageCap && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-tertiary)' }}>
-            Messages: {messageCap.loaded.toLocaleString()} of {messageCap.total.toLocaleString()} loaded
-            <button
-              onClick={loadAllMessages}
-              style={{
-                fontSize: 11, color: 'var(--text-accent)',
-                background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-              }}
-            >
-              Load all
-            </button>
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {messageCap && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-tertiary)' }}>
+              Messages: {messageCap.loaded.toLocaleString()} of {messageCap.total.toLocaleString()} loaded
+              <button
+                onClick={loadAllMessages}
+                style={{
+                  fontSize: 11, color: 'var(--text-accent)',
+                  background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                }}
+              >
+                Load all
+              </button>
+            </div>
+          )}
+
+          {/* Export dropdown */}
+          {totalFiltered > 0 && !loading && (
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setExportMenuOpen(o => !o)}
+                disabled={exporting}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '4px 10px', borderRadius: 6,
+                  border: '0.5px solid var(--border-strong)',
+                  background: 'var(--bg-base)',
+                  color: 'var(--text-secondary)',
+                  fontSize: 12, fontFamily: 'inherit',
+                  cursor: exporting ? 'not-allowed' : 'pointer',
+                  opacity: exporting ? 0.5 : 1,
+                }}
+              >
+                {exporting
+                  ? <Loader2 size={12} className="animate-spin" />
+                  : <Download size={12} />}
+                Export
+              </button>
+              {exportMenuOpen && (
+                <div style={{
+                  position: 'absolute', top: 32, right: 0, zIndex: 50,
+                  background: 'var(--bg-elevated)',
+                  border: '0.5px solid var(--border-strong)',
+                  borderRadius: 8,
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
+                  overflow: 'hidden', minWidth: 160,
+                }}>
+                  {(['html', 'md', 'csv'] as ExportFormat[]).map(fmt => (
+                    <button
+                      key={fmt}
+                      onClick={() => handleExport(fmt)}
+                      style={{
+                        display: 'block', width: '100%',
+                        padding: '8px 14px', textAlign: 'left',
+                        background: 'transparent', border: 'none',
+                        fontSize: 12, fontFamily: 'inherit',
+                        color: 'var(--text-primary)', cursor: 'pointer',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      {FORMAT_FILTERS[fmt].name} (.{FORMAT_FILTERS[fmt].extensions[0]})
+                    </button>
+                  ))}
+                  <div style={{ padding: '4px 14px 6px', fontSize: 11, color: 'var(--text-tertiary)', borderTop: '0.5px solid var(--border-default)' }}>
+                    {totalFiltered.toLocaleString()} entries (all filtered)
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Filter bar */}
