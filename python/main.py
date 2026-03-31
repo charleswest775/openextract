@@ -83,6 +83,8 @@ class SidecarServer:
             "has_browser_history": self.has_browser_history,
             "list_browser_history": self.list_browser_history,
             "export_browser_history": self.export_browser_history,
+            # Utility
+            "write_file": self.write_file,
             # Aggregate stats
             "get_aggregate_stats": self.get_aggregate_stats,
             # Live device backup
@@ -112,6 +114,16 @@ class SidecarServer:
 
     def ping(self, params):
         return {"status": "ok", "version": "0.1.0"}
+
+    def write_file(self, params):
+        """Write text content to a file path. Used by timeline export."""
+        import os
+        file_path = params["path"]
+        content = params["content"]
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return {"status": "ok", "path": file_path}
 
     def list_backups(self, params):
         custom_path = params.get("path")

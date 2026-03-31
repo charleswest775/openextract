@@ -105,6 +105,94 @@ function TimelinePhotoLightbox({ fileHash, udid, filename, onClose }: LightboxPr
   );
 }
 
+// ── Message viewer modal ──────────────────────────────────────────────────────
+
+interface MessageViewerProps {
+  text: string | null;
+  displayText: string;
+  isFromMe: boolean;
+  conversationName: string;
+  service: string;
+  timestamp: string;
+  onClose: () => void;
+}
+
+function MessageViewerModal({ text, displayText, isFromMe, conversationName, service, timestamp, onClose }: MessageViewerProps) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const isSpecial = !text || displayText !== text;
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 24,
+      }}
+      onClick={e => { e.stopPropagation(); onClose(); }}
+    >
+      <div
+        style={{
+          background: 'var(--bg-base)',
+          border: '0.5px solid var(--border-default)',
+          borderRadius: 12,
+          width: '100%', maxWidth: 560,
+          maxHeight: '80vh',
+          display: 'flex', flexDirection: 'column',
+          boxShadow: '0 16px 64px rgba(0,0,0,0.3)',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 20px',
+          borderBottom: '0.5px solid var(--border-default)',
+          flexShrink: 0,
+        }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
+              {isFromMe ? `Me → ${conversationName}` : conversationName}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+              {service} · {formatDate(timestamp)} at {formatTime(timestamp)}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'var(--bg-elevated)', border: 'none', borderRadius: '50%',
+              width: 30, height: 30,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{
+          flex: 1, overflowY: 'auto',
+          padding: '16px 20px',
+          fontSize: 13, color: isSpecial ? 'var(--text-tertiary)' : 'var(--text-primary)',
+          fontStyle: isSpecial ? 'italic' : 'normal',
+          lineHeight: 1.65,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+        }}>
+          {displayText}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Note viewer modal ─────────────────────────────────────────────────────────
 
 interface NoteViewerProps {
@@ -307,6 +395,7 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
   const [vmExpanded, setVmExpanded] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [msgOpen, setMsgOpen] = useState(false);
   const color = accentColor(entry);
   const { icon: Icon, badge } = TYPE_CONFIG[entry.type];
 
@@ -351,6 +440,17 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
         <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 1 }}>
           {service} · {conversationName}
         </div>
+        {msgOpen && (
+          <MessageViewerModal
+            text={text}
+            displayText={displayText}
+            isFromMe={isFromMe}
+            conversationName={conversationName}
+            service={service}
+            timestamp={entry.timestamp}
+            onClose={() => setMsgOpen(false)}
+          />
+        )}
       </>
     );
   } else if (entry.type === 'call' && entry.call) {
@@ -504,7 +604,12 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
     );
   }
 
-  const isClickable = entry.type === 'voicemail' || entry.type === 'note';
+  const isClickable = entry.type === 'voicemail' || entry.type === 'note' || entry.type === 'message';
+
+  function handleCardClick() {
+    if (entry.type === 'note') setNoteOpen(true);
+    else if (entry.type === 'message') setMsgOpen(true);
+  }
 
   return (
     <div
@@ -517,7 +622,7 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
         cursor: isClickable ? 'pointer' : 'default',
         transition: 'background 0.12s',
       }}
-      onClick={entry.type === 'note' ? () => setNoteOpen(true) : undefined}
+      onClick={isClickable ? handleCardClick : undefined}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg-base)')}
     >

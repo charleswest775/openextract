@@ -21,7 +21,20 @@ function entryDescription(e: TimelineEntry): string {
     case 'message': {
       const m = e.message!;
       const dir = m.isFromMe ? 'Sent' : 'Received';
-      const text = m.text || (m.messageType === 'attachment' ? '[Attachment]' : m.messageType === 'audio' ? '[Audio message]' : '[No text]');
+      const typeLabels: Record<string, string> = {
+        attachment: '[Attachment]',
+        audio: '[Audio message]',
+        app: '[App message]',
+        location: '[Location]',
+        link: '[Link]',
+        payment: '[Payment]',
+        fitness: '[Fitness]',
+        game: '[Game message]',
+        digital_touch: '[Digital Touch]',
+        handwriting: '[Handwriting]',
+        system: '[System message]',
+      };
+      const text = m.text || typeLabels[m.messageType] || `[${m.messageType || 'No text'}]`;
       return `${dir}: ${text}`;
     }
     case 'call': {
