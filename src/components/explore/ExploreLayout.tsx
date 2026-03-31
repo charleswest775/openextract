@@ -4,6 +4,7 @@ import {
   LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon,
   VoicemailIcon, ClockIcon, ChartIcon, ArrowLeftIcon, ExportIcon,
 } from '../shared/Icons';
+import BackupDashboard from './BackupDashboard';
 import MessageExplorer from './MessageExplorer';
 import PhotoExplorer from './PhotoExplorer';
 import ContactExplorer from './ContactExplorer';
@@ -12,7 +13,7 @@ import NoteExplorer from './NoteExplorer';
 import VoicemailExplorer from './VoicemailExplorer';
 import ExportPanel from './ExportPanel';
 
-type Tab = 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'export';
+type Tab = 'dashboard' | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'export';
 
 interface Props {
   udid: string;
@@ -21,6 +22,7 @@ interface Props {
 }
 
 const navItems: { id: Tab; label: string; icon: typeof LinesIcon; comingSoon?: boolean }[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: ChartIcon },
   { id: 'messages', label: 'Messages', icon: LinesIcon },
   { id: 'photos', label: 'Photos', icon: CameraIcon },
   { id: 'contacts', label: 'Contacts', icon: ContactIcon },
@@ -31,7 +33,8 @@ const navItems: { id: Tab; label: string; icon: typeof LinesIcon; comingSoon?: b
 ];
 
 export default function ExploreLayout({ udid, session, onBack }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>('messages');
+  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const handleNavigate = (tab: string) => setActiveTab(tab as Tab);
 
   return (
     <div className="h-screen flex bg-white">
@@ -91,6 +94,7 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
 
       {/* Content area */}
       <div className="flex-1 overflow-hidden">
+        {activeTab === 'dashboard' && <BackupDashboard udid={udid} onNavigate={handleNavigate} />}
         {activeTab === 'messages' && <MessageExplorer udid={udid} />}
         {activeTab === 'photos' && <PhotoExplorer udid={udid} />}
         {activeTab === 'contacts' && <ContactExplorer udid={udid} />}
