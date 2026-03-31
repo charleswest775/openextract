@@ -210,9 +210,23 @@ app.whenReady().then(async () => {
     return result.canceled ? null : result.filePaths[0];
   });
 
+  ipcMain.handle('dialog:saveFile', async (_event: any, options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: options.title || 'Save File',
+      defaultPath: options.defaultPath,
+      filters: options.filters,
+    });
+    return result.canceled ? null : result.filePath;
+  });
+
+  ipcMain.handle('fs:writeFile', async (_event: any, filePath: string, content: string) => {
+    fs.writeFileSync(filePath, content, 'utf-8');
+  });
+
   // ── App state persistence ───────────────────────────────────────────────
   ipcMain.handle('get-app-state', async () => {
-    const sessions = store.get('sessions', []) as any[];
+    const sessions = (store.get('sessions', []) as any[])
+      .sort((a: any, b: any) => new Date(b.lastOpened).getTime() - new Date(a.lastOpened).getTime());
     const firstLaunch = store.get('firstLaunchCompleted', false) as boolean;
     const stats = store.get('stats', { totalExports: 0 }) as any;
 
@@ -239,12 +253,9 @@ app.whenReady().then(async () => {
   ipcMain.handle('add-session', (_event: any, session: any) => {
     const sessions = store.get('sessions', []) as any[];
     const existing = sessions.findIndex((s: any) => s.id === session.id);
-    if (existing >= 0) {
-      sessions[existing] = { ...sessions[existing], ...session };
-    } else {
-      sessions.unshift(session);
-    }
-    store.set('sessions', sessions.slice(0, 20));
+    const merged = existing >= 0 ? { ...sessions[existing], ...session } : session;
+    const rest = sessions.filter((s: any) => s.id !== session.id);
+    store.set('sessions', [merged, ...rest].slice(0, 20));
   });
 
   ipcMain.handle('remove-session', (_event: any, id: string) => {

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { saveFolder } from '../../lib/ipc';
-import { ExportIcon, LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon } from '../shared/Icons';
+import { ExportIcon, LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon, GlobeIcon } from '../shared/Icons';
 
 interface Props {
   udid: string;
 }
 
-type ExportType = 'messages' | 'photos' | 'calls' | 'voicemail' | 'notes';
+type ExportType = 'messages' | 'photos' | 'calls' | 'voicemail' | 'notes' | 'browser_history';
 
 const exportOptions: { id: ExportType; label: string; description: string; icon: typeof LinesIcon }[] = [
   { id: 'messages', label: 'Messages', description: 'Export all conversations as HTML, CSV, or TXT', icon: LinesIcon },
@@ -14,6 +14,7 @@ const exportOptions: { id: ExportType; label: string; description: string; icon:
   { id: 'calls', label: 'Call History', description: 'Export call log as CSV', icon: CallIcon },
   { id: 'voicemail', label: 'Voicemail', description: 'Export voicemail audio and transcripts', icon: VoicemailIcon },
   { id: 'notes', label: 'Notes', description: 'Export all notes as TXT or PDF', icon: NoteIcon },
+  { id: 'browser_history', label: 'Browser History', description: 'Export browsing history as CSV', icon: GlobeIcon },
 ];
 
 export default function ExportPanel({ udid }: Props) {
@@ -43,6 +44,9 @@ export default function ExportPanel({ udid }: Props) {
           break;
         case 'voicemail':
           method = 'export_voicemails';
+          break;
+        case 'browser_history':
+          method = 'export_browser_history';
           break;
         default:
           setExporting(null);

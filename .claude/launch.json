@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "openextract-renderer",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite"],
+      "port": 5179
+    },
+    {
       "name": "openextract-dev",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["vite", "--port", "5180"],

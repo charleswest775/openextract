@@ -1,30 +1,32 @@
 import { useState } from 'react';
 import { BackupInfo } from '../hooks/useBackup';
-import { MessageSquare, Image, Phone, PhoneCall, Users, FileText, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { MessageSquare, Image, Phone, PhoneCall, Users, FileText, Clock, PanelLeftClose, PanelLeft } from 'lucide-react';
 import MessageView from './MessageView';
 import PhotoGallery from './photos/PhotoGallery';
 import VoicemailView from './voicemail/VoicemailView';
 import CallsView from './calls/CallsView';
 import ContactsView from './contacts/ContactsView';
 import NotesView from './notes/NotesView';
+import TimelineView from './timeline/TimelineView';
 
-type Tab = 'messages' | 'photos' | 'voicemail' | 'calls' | 'contacts' | 'notes';
+type Tab = 'timeline' | 'messages' | 'photos' | 'voicemail' | 'calls' | 'contacts' | 'notes';
 
 interface Props {
   backup: BackupInfo;
 }
 
 const tabs: { id: Tab; label: string; icon: typeof MessageSquare }[] = [
-  { id: 'messages', label: 'Messages', icon: MessageSquare },
-  { id: 'photos', label: 'Photos', icon: Image },
+  { id: 'timeline',  label: 'Timeline',  icon: Clock },
+  { id: 'messages',  label: 'Messages',  icon: MessageSquare },
+  { id: 'photos',    label: 'Photos',    icon: Image },
   { id: 'voicemail', label: 'Voicemail', icon: Phone },
-  { id: 'calls', label: 'Calls', icon: PhoneCall },
-  { id: 'contacts', label: 'Contacts', icon: Users },
-  { id: 'notes', label: 'Notes', icon: FileText },
+  { id: 'calls',     label: 'Calls',     icon: PhoneCall },
+  { id: 'contacts',  label: 'Contacts',  icon: Users },
+  { id: 'notes',     label: 'Notes',     icon: FileText },
 ];
 
 export default function Dashboard({ backup }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>('messages');
+  const [activeTab, setActiveTab] = useState<Tab>('timeline');
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('sidebar-collapsed') === 'true'; } catch { return false; }
   });
@@ -101,12 +103,13 @@ export default function Dashboard({ backup }: Props) {
 
       {/* Content area */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'messages' && <MessageView udid={backup.udid} />}
-        {activeTab === 'photos' && <PhotoGallery backup={backup} />}
+        {activeTab === 'timeline'  && <TimelineView udid={backup.udid} />}
+        {activeTab === 'messages'  && <MessageView udid={backup.udid} />}
+        {activeTab === 'photos'    && <PhotoGallery backup={backup} />}
         {activeTab === 'voicemail' && <VoicemailView backup={backup} />}
-        {activeTab === 'calls' && <CallsView backup={backup} />}
-        {activeTab === 'contacts' && <ContactsView backup={backup} />}
-        {activeTab === 'notes' && <NotesView backup={backup} />}
+        {activeTab === 'calls'     && <CallsView backup={backup} />}
+        {activeTab === 'contacts'  && <ContactsView backup={backup} />}
+        {activeTab === 'notes'     && <NotesView backup={backup} />}
       </div>
     </div>
   );

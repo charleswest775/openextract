@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenExtract — Timeline (Mockup)</title>
+  <style>
+    /* ── Design System ── */
+    :root {
+      --bg-base: #ffffff;
+      --bg-surface: #f5f5f7;
+      --bg-elevated: #e8e8ed;
+      --bg-sidebar: rgba(245, 245, 247, 0.95);
+      --bg-sidebar-active: rgba(0, 0, 0, 0.06);
+      --text-primary: #1d1d1f;
+      --text-secondary: #6e6e73;
+      --text-tertiary: #aeaeb2;
+      --text-accent: #0071e3;
+      --border-subtle: rgba(0, 0, 0, 0.04);
+      --border-default: rgba(0, 0, 0, 0.08);
+      --border-strong: rgba(0, 0, 0, 0.14);
+      --accent: #0071e3;
+      --accent-hover: #0077ed;
+      --accent-subtle: rgba(0, 113, 227, 0.08);
+      --success: #30d158;
+      --warning: #ff9f0a;
+      --error: #ff3b30;
+
+      /* Timeline type colors */
+      --color-message: #007AFF;
+      --color-call-answered: #30d158;
+      --color-call-missed: #ff3b30;
+      --color-photo: #AF52DE;
+      --color-voicemail: #ff9f0a;
+      --color-note: #5AC8FA;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-base: #1c1c1e;
+        --bg-surface: #2c2c2e;
+        --bg-elevated: #3a3a3c;
+        --bg-sidebar: rgba(28, 28, 30, 0.95);
+        --bg-sidebar-active: rgba(255, 255, 255, 0.08);
+        --text-primary: #f5f5f7;
+        --text-secondary: #aeaeb2;
+        --text-tertiary: #636366;
+        --text-accent: #0a84ff;
+        --border-subtle: rgba(255, 255, 255, 0.04);
+        --border-default: rgba(255, 255, 255, 0.08);
+        --border-strong: rgba(255, 255, 255, 0.14);
+        --accent: #0a84ff;
+        --accent-hover: #409cff;
+        --accent-subtle: rgba(10, 132, 255, 0.15);
+        --color-message: #0a84ff;
+        --color-call-answered: #32d74b;
+        --color-call-missed: #ff453a;
+        --color-photo: #bf5af2;
+        --color-voicemail: #ffd60a;
+        --color-note: #64d2ff;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      letter-spacing: -0.003em;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      -webkit-font-smoothing: antialiased;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+    /* ── Layout ── */
+    .app { display: flex; height: 100vh; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 180px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-sidebar);
+      border-right: 0.5px solid var(--border-default);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      transition: width 0.25s ease;
+    }
+    .sidebar.collapsed { width: 56px; }
+
+    .sidebar-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.01em;
+      padding: 12px 14px 6px;
+    }
+    .sidebar.collapsed .sidebar-label { display: none; }
+
+    .sidebar-nav { display: flex; flex-direction: column; gap: 2px; padding: 0 8px; flex: 1; }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 32px;
+      padding: 0 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-size: 13px;
+      letter-spacing: -0.003em;
+      border: none;
+      background: transparent;
+      width: 100%;
+      text-align: left;
+      transition: background 0.15s;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .sidebar.collapsed .nav-item { justify-content: center; padding: 0; width: 40px; margin: 0 auto; }
+    .sidebar.collapsed .nav-item span { display: none; }
+    .nav-item:hover { background: var(--bg-sidebar-active); }
+    .nav-item.active {
+      background: var(--bg-sidebar-active);
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+    .nav-item.active .nav-icon { color: var(--text-accent); }
+    .nav-icon { flex-shrink: 0; color: var(--text-tertiary); width: 16px; height: 16px; }
+    .nav-item.active .nav-icon { color: var(--text-accent); }
+
+    .sidebar-collapse-btn {
+      display: flex; align-items: center; justify-content: center;
+      height: 40px;
+      border-top: 0.5px solid var(--border-default);
+      cursor: pointer;
+      color: var(--text-tertiary);
+      background: none;
+      border-left: none; border-right: none; border-bottom: none;
+      width: 100%;
+      transition: color 0.15s;
+    }
+    .sidebar-collapse-btn:hover { color: var(--text-secondary); }
+
+    /* ── Content ── */
+    .content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+    /* ── Timeline Header ── */
+    .timeline-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px 12px;
+      border-bottom: 0.5px solid var(--border-default);
+      flex-shrink: 0;
+    }
+    .timeline-title { font-size: 20px; font-weight: 600; letter-spacing: -0.015em; }
+    .timeline-count { font-size: 13px; color: var(--text-secondary); }
+
+    /* ── Filter Bar ── */
+    .filter-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px 20px;
+      background: var(--bg-surface);
+      border-bottom: 0.5px solid var(--border-default);
+      flex-shrink: 0;
+    }
+
+    .filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    .filter-label { font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.01em; width: 52px; flex-shrink: 0; }
+
+    /* Type toggle pills */
+    .type-toggles { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    .type-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-base);
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .type-pill:hover { border-color: var(--text-tertiary); }
+    .type-pill.active {
+      color: #fff;
+      border-color: transparent;
+    }
+    .type-pill.active.msg  { background: var(--color-message); }
+    .type-pill.active.call { background: var(--color-call-answered); }
+    .type-pill.active.photo { background: var(--color-photo); }
+    .type-pill.active.vm   { background: var(--color-voicemail); }
+    .type-pill.active.note { background: var(--color-note); }
+
+    .pill-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .type-pill:not(.active) .pill-dot-msg   { background: var(--color-message); }
+    .type-pill:not(.active) .pill-dot-call  { background: var(--color-call-answered); }
+    .type-pill:not(.active) .pill-dot-photo { background: var(--color-photo); }
+    .type-pill:not(.active) .pill-dot-vm    { background: var(--color-voicemail); }
+    .type-pill:not(.active) .pill-dot-note  { background: var(--color-note); }
+    .type-pill.active .pill-dot { background: rgba(255,255,255,0.7); }
+
+    .pill-count { font-size: 11px; opacity: 0.75; }
+
+    /* Inputs */
+    .filter-input, .filter-select {
+      height: 28px;
+      padding: 0 8px;
+      border: 0.5px solid var(--border-strong);
+      border-radius: 6px;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+    }
+    .filter-input:focus, .filter-select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-subtle);
+    }
+    .filter-select { min-width: 180px; cursor: pointer; }
+    .filter-date { width: 120px; }
+    .filter-search { flex: 1; max-width: 320px; }
+    .date-sep { color: var(--text-tertiary); font-size: 12px; }
+
+    /* ── Timeline Body ── */
+    .timeline-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 20px 20px;
+    }
+
+    /* ── Date Group Header ── */
+    .date-group-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 0 8px;
+      position: sticky;
+      top: 0;
+      background: var(--bg-base);
+      z-index: 10;
+    }
+    .date-group-line { flex: 1; height: 0.5px; background: var(--border-default); }
+    .date-group-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+    .date-group-count {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      white-space: nowrap;
+    }
+
+    /* ── Entry Cards ── */
+    .entry-list { display: flex; flex-direction: column; gap: 4px; }
+
+    .entry-card {
+      display: flex;
+      align-items: stretch;
+      border-radius: 8px;
+      border: 0.5px solid var(--border-default);
+      background: var(--bg-base);
+      overflow: hidden;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .entry-card:hover { background: var(--bg-surface); }
+
+    .entry-accent-bar {
+      width: 3px;
+      flex-shrink: 0;
+    }
+    .entry-accent-bar.msg   { background: var(--color-message); }
+    .entry-accent-bar.call  { background: var(--color-call-answered); }
+    .entry-accent-bar.call-missed { background: var(--color-call-missed); }
+    .entry-accent-bar.photo { background: var(--color-photo); }
+    .entry-accent-bar.vm    { background: var(--color-voicemail); }
+    .entry-accent-bar.note  { background: var(--color-note); }
+
+    .entry-body { flex: 1; padding: 8px 12px; min-width: 0; }
+
+    .entry-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 3px;
+    }
+    .entry-meta-left { display: flex; align-items: center; gap: 6px; }
+
+    .entry-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: #fff;
+    }
+    .entry-badge.msg   { background: var(--color-message); }
+    .entry-badge.call  { background: var(--color-call-answered); }
+    .entry-badge.call-missed { background: var(--color-call-missed); }
+    .entry-badge.photo { background: var(--color-photo); }
+    .entry-badge.vm    { background: var(--color-voicemail); }
+    .entry-badge.note  { background: var(--color-note); }
+
+    .entry-time { font-size: 11px; color: var(--text-tertiary); }
+    .entry-right-meta { font-size: 11px; color: var(--text-secondary); white-space: nowrap; flex-shrink: 0; }
+
+    .entry-contact {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .entry-text {
+      font-size: 12px;
+      color: var(--text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .entry-caption {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+
+    /* Photo entry thumb */
+    .entry-photo-row { display: flex; align-items: center; gap: 10px; }
+    .entry-thumb {
+      width: 48px;
+      height: 48px;
+      border-radius: 6px;
+      background: var(--bg-elevated);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-tertiary);
+      overflow: hidden;
+    }
+    .entry-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .entry-photo-info { min-width: 0; }
+
+    /* ── Pagination ── */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-top: 0.5px solid var(--border-default);
+      flex-shrink: 0;
+      background: var(--bg-base);
+    }
+    .pagination-info { font-size: 12px; color: var(--text-secondary); }
+    .pagination-btns { display: flex; gap: 6px; }
+    .pagination-btn {
+      padding: 5px 14px;
+      border-radius: 6px;
+      border: 0.5px solid var(--border-strong);
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .pagination-btn:hover { background: var(--bg-surface); }
+    .pagination-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── Loading State ── */
+    .loading-state {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .loading-card {
+      background: var(--bg-surface);
+      border: 0.5px solid var(--border-default);
+      border-radius: 12px;
+      padding: 28px 36px;
+      min-width: 320px;
+    }
+    .loading-title { font-size: 15px; font-weight: 600; margin-bottom: 18px; color: var(--text-primary); }
+    .loading-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 13px; color: var(--text-secondary); }
+    .loading-icon { width: 16px; height: 16px; flex-shrink: 0; }
+    .check-icon { color: var(--success); }
+    .spin-icon {
+      color: var(--accent);
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Empty State ── */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--text-tertiary);
+    }
+    .empty-icon { margin-bottom: 4px; }
+    .empty-title { font-size: 15px; font-weight: 500; color: var(--text-secondary); }
+    .empty-subtitle { font-size: 13px; color: var(--text-tertiary); }
+
+    /* ── State Switcher (demo only) ── */
+    .demo-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 20px;
+      background: var(--bg-elevated);
+      border-bottom: 0.5px solid var(--border-default);
+      font-size: 11px;
+      color: var(--text-tertiary);
+      flex-shrink: 0;
+    }
+    .demo-bar strong { color: var(--text-secondary); }
+    .demo-btn {
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 0.5px solid var(--border-strong);
+      background: var(--bg-base);
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .demo-btn.active { background: var(--accent); color: #fff; border-color: transparent; }
+
+    /* Hidden */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Sidebar ── -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-label">Data</div>
+    <div class="sidebar-nav">
+      <button class="nav-item" onclick="setTab('messages')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        <span>Messages</span>
+      </button>
+      <button class="nav-item" onclick="setTab('photos')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <span>Photos</span>
+      </button>
+      <button class="nav-item" onclick="setTab('voicemail')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+        <span>Voicemail</span>
+      </button>
+      <button class="nav-item" onclick="setTab('calls')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 16.92 22 19.92 22 22 19.08 22 16.08 22 14.2 20.12 8.26 14.18 4.08 10 2 7.92 4.92 4.92"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        <span>Calls</span>
+      </button>
+      <button class="nav-item" onclick="setTab('contacts')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        <span>Contacts</span>
+      </button>
+      <button class="nav-item" onclick="setTab('notes')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <span>Notes</span>
+      </button>
+      <button class="nav-item active" id="nav-timeline" onclick="setTab('timeline')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>Timeline</span>
+      </button>
+    </div>
+    <button class="sidebar-collapse-btn" onclick="toggleSidebar()" title="Collapse sidebar">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" id="collapse-icon"><path d="M15 18l-6-6 6-6"/><line x1="20" y1="6" x2="20" y2="18"/></svg>
+    </button>
+  </nav>
+
+  <!-- ── Content ── -->
+  <div class="content">
+
+    <!-- Demo state switcher (not part of final UI) -->
+    <div class="demo-bar">
+      <strong>Mockup:</strong>
+      <button class="demo-btn active" id="btn-normal" onclick="setView('normal')">Normal</button>
+      <button class="demo-btn" id="btn-loading" onclick="setView('loading')">Loading</button>
+      <button class="demo-btn" id="btn-empty" onclick="setView('empty')">Empty</button>
+    </div>
+
+    <!-- Header -->
+    <div class="timeline-header">
+      <div style="display:flex; align-items:baseline; gap:10px;">
+        <span class="timeline-title">Timeline</span>
+        <span class="timeline-count" id="total-count">2,470 events</span>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span style="font-size:11px; color:var(--text-tertiary);" id="msg-load-note">Messages: 2,000 of 8,341 loaded</span>
+        <button style="font-size:11px; color:var(--text-accent); background:none; border:none; cursor:pointer; padding:0;" onclick="alert('Would load all messages from all conversations')">Load all</button>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar" id="filter-bar">
+      <!-- Row 1: Type toggles -->
+      <div class="filter-row">
+        <span class="filter-label">Type</span>
+        <div class="type-toggles">
+          <button class="type-pill active msg" id="pill-msg" onclick="toggleType('msg')">
+            <span class="pill-dot pill-dot-msg"></span>
+            Messages
+            <span class="pill-count">1,204</span>
+          </button>
+          <button class="type-pill active call" id="pill-call" onclick="toggleType('call')">
+            <span class="pill-dot pill-dot-call"></span>
+            Calls
+            <span class="pill-count">342</span>
+          </button>
+          <button class="type-pill active photo" id="pill-photo" onclick="toggleType('photo')">
+            <span class="pill-dot pill-dot-photo"></span>
+            Photos
+            <span class="pill-count">856</span>
+          </button>
+          <button class="type-pill active vm" id="pill-vm" onclick="toggleType('vm')">
+            <span class="pill-dot pill-dot-vm"></span>
+            Voicemail
+            <span class="pill-count">23</span>
+          </button>
+          <button class="type-pill active note" id="pill-note" onclick="toggleType('note')">
+            <span class="pill-dot pill-dot-note"></span>
+            Notes
+            <span class="pill-count">45</span>
+          </button>
+        </div>
+      </div>
+      <!-- Row 2: Contact + Date -->
+      <div class="filter-row">
+        <span class="filter-label">Contact</span>
+        <select class="filter-input filter-select" onchange="handleContactFilter(this.value)">
+          <option value="">All contacts</option>
+          <option>Jane Doe</option>
+          <option>John Smith</option>
+          <option>Mom</option>
+          <option>Dad</option>
+          <option>Alex Johnson</option>
+          <option>Sarah Williams</option>
+          <option>Mike Chen</option>
+        </select>
+        <span style="width:16px;"></span>
+        <span class="filter-label" style="width:auto;">Date</span>
+        <input type="date" class="filter-input filter-date" value="2026-01-01" />
+        <span class="date-sep">to</span>
+        <input type="date" class="filter-input filter-date" value="2026-03-28" />
+      </div>
+      <!-- Row 3: Search -->
+      <div class="filter-row">
+        <span class="filter-label">Search</span>
+        <input type="search" class="filter-input filter-search" placeholder="Search timeline…" oninput="handleSearch(this.value)" />
+      </div>
+    </div>
+
+    <!-- ── Normal View ── -->
+    <div id="view-normal" style="display:flex; flex-direction:column; flex:1; overflow:hidden; min-height:0;">
+
+      <!-- Timeline Body -->
+      <div class="timeline-body" id="timeline-body">
+        <!-- dynamically rendered by JS -->
+      </div>
+
+      <!-- Pagination -->
+      <div class="pagination">
+        <span class="pagination-info" id="page-info">Showing 1–100 of 2,470</span>
+        <div class="pagination-btns">
+          <button class="pagination-btn" id="btn-prev" disabled onclick="changePage(-1)">← Prev</button>
+          <button class="pagination-btn" id="btn-next" onclick="changePage(1)">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Loading View ── -->
+    <div id="view-loading" class="loading-state hidden">
+      <div class="loading-card">
+        <div class="loading-title">Loading Timeline…</div>
+        <div class="loading-row">
+          <svg class="loading-icon check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Calls loaded (342)
+        </div>
+        <div class="loading-row">
+          <svg class="loading-icon check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Notes loaded (45)
+        </div>
+        <div class="loading-row">
+          <svg class="loading-icon check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Voicemail loaded (23)
+        </div>
+        <div class="loading-row">
+          <svg class="loading-icon spin-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-opacity="0.3"/><path d="M12 2a10 10 0 0110 10"/></svg>
+          Messages loading…
+        </div>
+        <div class="loading-row">
+          <svg class="loading-icon spin-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-opacity="0.3"/><path d="M12 2a10 10 0 0110 10"/></svg>
+          Photos loading…
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Empty View ── -->
+    <div id="view-empty" class="empty-state hidden">
+      <svg class="empty-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="1"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <div class="empty-title">No timeline entries found</div>
+      <div class="empty-subtitle">Try adjusting your filters or date range</div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /app -->
+
+<script>
+// ── Sample data ──────────────────────────────────────────────────────
+const ENTRIES = [
+  // March 28
+  { id:'msg:1001', type:'msg', ts:'2026-03-28T15:42:00', contact:'Jane Doe', subtext:'Hey, are you coming to dinner tonight?', caption:'iMessage · Jane Doe', rightMeta:null, missed:false },
+  { id:'msg:1002', type:'msg', ts:'2026-03-28T15:38:00', contact:'Me → Jane Doe', subtext:'On my way! Be there in 20 min 🚗', caption:'iMessage · Jane Doe', rightMeta:null, missed:false },
+  { id:'call:201', type:'call', ts:'2026-03-28T14:15:00', contact:'John Smith', subtext:'+1 (555) 123-4567 · Phone', caption:null, rightMeta:'Incoming · Answered  ·  4m 32s', missed:false },
+  { id:'photo:301', type:'photo', ts:'2026-03-28T13:30:00', contact:null, subtext:'IMG_4521.HEIC', caption:'Photo · 4032 × 3024', rightMeta:null, missed:false },
+  { id:'msg:1003', type:'msg', ts:'2026-03-28T11:05:00', contact:'Mom', subtext:'Don\'t forget the dentist tomorrow at 2pm', caption:'SMS · Mom', rightMeta:null, missed:false },
+  { id:'call:202', type:'call', ts:'2026-03-28T10:03:00', contact:'Unknown', subtext:'+1 (555) 000-1111 · FaceTime Video', caption:null, rightMeta:'Incoming · Missed', missed:true },
+  { id:'photo:302', type:'photo', ts:'2026-03-28T09:14:00', contact:null, subtext:'IMG_4520.HEIC', caption:'Selfie · 1080 × 1920', rightMeta:null, missed:false },
+
+  // March 27
+  { id:'vm:101', type:'vm', ts:'2026-03-27T11:20:00', contact:'Mom', subtext:'Hi sweetie, just calling to check in about Sunday…', caption:'+1 (555) 987-6543 · Duration: 0:45', rightMeta:'0:45', missed:false },
+  { id:'note:401', type:'note', ts:'2026-03-27T09:05:00', contact:null, subtext:'Milk, eggs, bread, avocados, chicken, pasta…', caption:'Modified: Mar 27, 2026 10:32 AM', rightMeta:null, missed:false, noteTitle:'Grocery List' },
+  { id:'msg:1004', type:'msg', ts:'2026-03-27T08:30:00', contact:'Alex Johnson', subtext:'Can we reschedule the 3pm call?', caption:'iMessage · Alex Johnson', rightMeta:null, missed:false },
+  { id:'call:203', type:'call', ts:'2026-03-27T08:01:00', contact:'Sarah Williams', subtext:'+1 (555) 234-5678 · Phone', caption:null, rightMeta:'Outgoing · Answered  ·  12m 4s', missed:false },
+
+  // March 26
+  { id:'photo:303', type:'photo', ts:'2026-03-26T18:44:00', contact:null, subtext:'IMG_4515.MOV', caption:'Video · 1920 × 1080 · 0:28', rightMeta:null, missed:false },
+  { id:'msg:1005', type:'msg', ts:'2026-03-26T17:22:00', contact:'John Smith', subtext:'Lunch tomorrow? I\'m thinking Thai food', caption:'iMessage · John Smith', rightMeta:null, missed:false },
+  { id:'note:402', type:'note', ts:'2026-03-26T14:00:00', contact:null, subtext:'Ideas: new feature, refactor auth, fix login bug, update docs…', caption:'Modified: Mar 26, 2026 4:12 PM', rightMeta:null, missed:false, noteTitle:'Work Tasks' },
+  { id:'vm:102', type:'vm', ts:'2026-03-26T10:55:00', contact:'Dad', subtext:'Call me when you get a chance, nothing urgent.', caption:'+1 (555) 111-2222 · Duration: 0:22', rightMeta:'0:22', missed:false },
+  { id:'call:204', type:'call', ts:'2026-03-26T09:30:00', contact:'Dad', subtext:'+1 (555) 111-2222 · Phone', caption:null, rightMeta:'Outgoing · Answered  ·  8m 17s', missed:false },
+];
+
+// ── State ───────────────────────────────────────────────────────────
+let activeTypes = new Set(['msg','call','photo','vm','note']);
+let page = 0;
+const PAGE_SIZE = 100;
+let currentView = 'normal';
+let searchQuery = '';
+let contactFilter = '';
+
+function getFilteredEntries() {
+  return ENTRIES.filter(e => {
+    if (!activeTypes.has(e.type)) return false;
+    if (contactFilter && e.contact && !e.contact.toLowerCase().includes(contactFilter.toLowerCase())) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const haystack = [e.contact, e.subtext, e.noteTitle, e.caption].filter(Boolean).join(' ').toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+// ── Group by date ───────────────────────────────────────────────────
+function groupByDate(entries) {
+  const groups = [];
+  let currentDate = null;
+  let currentGroup = null;
+  for (const e of entries) {
+    const d = new Date(e.ts);
+    const dateKey = d.toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' });
+    if (dateKey !== currentDate) {
+      currentDate = dateKey;
+      currentGroup = { date: dateKey, entries: [] };
+      groups.push(currentGroup);
+    }
+    currentGroup.entries.push(e);
+  }
+  return groups;
+}
+
+// ── Render ──────────────────────────────────────────────────────────
+function formatTime(iso) {
+  return new Date(iso).toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+}
+
+function entryTypeClass(e) {
+  if (e.type === 'call' && e.missed) return 'call-missed';
+  return e.type;
+}
+
+function iconFor(type) {
+  switch(type) {
+    case 'msg':
+      return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>`;
+    case 'call':
+      return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>`;
+    case 'photo':
+      return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+    case 'vm':
+      return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 012 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/><path d="M12 2v4M8 6l4-4 4 4"/></svg>`;
+    case 'note':
+      return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
+  }
+}
+
+function badgeLabelFor(type) {
+  return { msg:'MSG', call:'CALL', photo:'PHOTO', vm:'VM', note:'NOTE' }[type];
+}
+
+function renderEntry(e) {
+  const tc = entryTypeClass(e);
+  const time = formatTime(e.ts);
+  const badge = badgeLabelFor(e.type);
+
+  let inner = '';
+
+  if (e.type === 'photo') {
+    inner = `
+      <div class="entry-meta">
+        <div class="entry-meta-left">
+          <span class="entry-badge ${tc}">${badge}</span>
+          <span class="entry-time">${time}</span>
+        </div>
+      </div>
+      <div class="entry-photo-row">
+        <div class="entry-thumb">${iconFor('photo')}</div>
+        <div class="entry-photo-info">
+          <div class="entry-contact">${e.subtext}</div>
+          <div class="entry-caption">${e.caption || ''}</div>
+        </div>
+      </div>`;
+  } else if (e.type === 'note') {
+    inner = `
+      <div class="entry-meta">
+        <div class="entry-meta-left">
+          <span class="entry-badge ${tc}">${badge}</span>
+          <span class="entry-time">${time}</span>
+        </div>
+      </div>
+      <div class="entry-contact">${e.noteTitle || 'Note'}</div>
+      <div class="entry-text">${e.subtext}</div>
+      <div class="entry-caption">${e.caption || ''}</div>`;
+  } else {
+    inner = `
+      <div class="entry-meta">
+        <div class="entry-meta-left">
+          <span class="entry-badge ${tc}">${badge}</span>
+          <span class="entry-time">${time}</span>
+          ${e.contact ? `<span style="font-weight:500; font-size:13px;">${e.contact}</span>` : ''}
+        </div>
+        ${e.rightMeta ? `<div class="entry-right-meta">${e.rightMeta}</div>` : ''}
+      </div>
+      ${e.subtext ? `<div class="entry-text">${e.subtext}</div>` : ''}
+      ${e.caption ? `<div class="entry-caption">${e.caption}</div>` : ''}`;
+  }
+
+  return `<div class="entry-card">
+    <div class="entry-accent-bar ${tc}"></div>
+    <div class="entry-body">${inner}</div>
+  </div>`;
+}
+
+function renderGroups(groups) {
+  let html = '';
+  for (const g of groups) {
+    const count = g.entries.length;
+    html += `
+      <div class="date-group-header">
+        <div class="date-group-line"></div>
+        <span class="date-group-label">${g.date}</span>
+        <span class="date-group-count">${count} event${count !== 1 ? 's' : ''}</span>
+        <div class="date-group-line"></div>
+      </div>
+      <div class="entry-list">
+        ${g.entries.map(renderEntry).join('')}
+      </div>`;
+  }
+  return html;
+}
+
+function render() {
+  const filtered = getFilteredEntries();
+  const total = filtered.length;
+  const start = page * PAGE_SIZE;
+  const end = Math.min(start + PAGE_SIZE, total);
+  const pageEntries = filtered.slice(start, end);
+  const groups = groupByDate(pageEntries);
+
+  document.getElementById('timeline-body').innerHTML = renderGroups(groups);
+  document.getElementById('page-info').textContent = total === 0
+    ? 'No results'
+    : `Showing ${start + 1}–${end} of ${total.toLocaleString()}`;
+  document.getElementById('total-count').textContent = `${total.toLocaleString()} events`;
+  document.getElementById('btn-prev').disabled = page === 0;
+  document.getElementById('btn-next').disabled = end >= total;
+}
+
+// ── Controls ─────────────────────────────────────────────────────────
+function toggleType(type) {
+  const pill = document.getElementById(`pill-${type}`);
+  if (activeTypes.has(type)) {
+    activeTypes.delete(type);
+    pill.classList.remove('active');
+  } else {
+    activeTypes.add(type);
+    pill.classList.add('active');
+  }
+  page = 0;
+  if (currentView === 'normal') render();
+}
+
+function changePage(dir) {
+  page += dir;
+  render();
+  document.getElementById('timeline-body').scrollTop = 0;
+}
+
+function handleSearch(val) {
+  searchQuery = val;
+  page = 0;
+  if (currentView === 'normal') render();
+}
+
+function handleContactFilter(val) {
+  contactFilter = val;
+  page = 0;
+  if (currentView === 'normal') render();
+}
+
+function setView(v) {
+  currentView = v;
+  ['normal','loading','empty'].forEach(n => {
+    document.getElementById(`view-${n}`).classList.toggle('hidden', n !== v);
+    document.getElementById(`btn-${n}`).classList.toggle('active', n === v);
+  });
+  document.getElementById('filter-bar').style.opacity = v === 'normal' ? '1' : '0.5';
+}
+
+function setTab(tab) {
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  // highlight the right button
+  const allBtns = document.querySelectorAll('.nav-item');
+  allBtns.forEach(b => { if (b.getAttribute('onclick') === `setTab('${tab}')`) b.classList.add('active'); });
+}
+
+let sidebarCollapsed = false;
+function toggleSidebar() {
+  sidebarCollapsed = !sidebarCollapsed;
+  document.getElementById('sidebar').classList.toggle('collapsed', sidebarCollapsed);
+  const icon = document.getElementById('collapse-icon');
+  if (sidebarCollapsed) {
+    icon.innerHTML = `<path d="M9 18l6-6-6-6"/><line x1="4" y1="6" x2="4" y2="18"/>`;
+  } else {
+    icon.innerHTML = `<path d="M15 18l-6-6 6-6"/><line x1="20" y1="6" x2="20" y2="18"/>`;
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>

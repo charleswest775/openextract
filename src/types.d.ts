@@ -8,6 +8,8 @@ declare global {
       call: (method: string, params?: any) => Promise<{ success: boolean; data?: any; error?: string }>;
       selectFolder: () => Promise<string | null>;
       saveFolder: () => Promise<string | null>;
+      saveFile: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<string | null>;
+      writeFile: (filePath: string, content: string) => Promise<void>;
       openExternal: (url: string) => void;
       openPath: (filePath: string) => Promise<string>;
       /** Subscribe to JSON-RPC notifications from the Python sidecar (e.g. backup.progress). Returns a cleanup function. */

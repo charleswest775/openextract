@@ -8,6 +8,10 @@ contextBridge.exposeInMainWorld('openextract', {
   // Native dialogs
   selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
   saveFolder: () => ipcRenderer.invoke('dialog:saveFolder'),
+  saveFile: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) =>
+    ipcRenderer.invoke('dialog:saveFile', options),
+  writeFile: (filePath: string, content: string) =>
+    ipcRenderer.invoke('fs:writeFile', filePath, content),
 
   // Open URL in system browser
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),

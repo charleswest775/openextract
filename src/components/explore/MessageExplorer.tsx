@@ -45,6 +45,8 @@ export default function MessageExplorer({ udid }: Props) {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [convoSearch, setConvoSearch] = useState('');
+  const [minMessageCount, setMinMessageCount] = useState(0);
+  const [convDateFilter, setConvDateFilter] = useState('');
   const [exporting, setExporting] = useState(false);
 
   const offsetRef = useRef(0);
@@ -139,12 +141,24 @@ export default function MessageExplorer({ udid }: Props) {
     }
   }, [hasMore, loading, loadMore]);
 
-  const filteredConversations = convoSearch
-    ? conversations.filter(c =>
-        c.display_name.toLowerCase().includes(convoSearch.toLowerCase()) ||
-        c.chat_identifier.toLowerCase().includes(convoSearch.toLowerCase())
-      )
-    : conversations;
+  const filteredConversations = conversations.filter((c) => {
+    if (convoSearch) {
+      const q = convoSearch.toLowerCase();
+      if (
+        !c.display_name.toLowerCase().includes(q) &&
+        !c.chat_identifier.toLowerCase().includes(q) &&
+        !c.last_message_preview.toLowerCase().includes(q)
+      ) return false;
+    }
+    if (minMessageCount > 0 && c.message_count < minMessageCount) return false;
+    if (convDateFilter) {
+      if (!c.last_message_date) return false;
+      const convDate = new Date(c.last_message_date);
+      const filterDate = new Date(convDateFilter + 'T00:00:00');
+      if (convDate < filterDate) return false;
+    }
+    return true;
+  });
 
   const activeConvo = conversations.find(c => c.chat_id === activeChat);
 
@@ -168,7 +182,7 @@ export default function MessageExplorer({ udid }: Props) {
     <div className="h-full flex">
       {/* Conversation list */}
       <div className="w-[280px] flex-shrink-0 border-r border-gray-200 flex flex-col">
-        <div className="p-3 border-b border-gray-200">
+        <div className="p-3 border-b border-gray-200 space-y-2">
           <div className="relative">
             <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
             <input
@@ -178,6 +192,35 @@ export default function MessageExplorer({ udid }: Props) {
               onChange={(e) => setConvoSearch(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 rounded-md border border-gray-200 focus:outline-none focus:border-emerald-400"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-400 whitespace-nowrap">Min messages</label>
+            <input
+              type="number"
+              min={0}
+              value={minMessageCount || ''}
+              placeholder="0"
+              onChange={(e) => setMinMessageCount(Math.max(0, parseInt(e.target.value) || 0))}
+              className="w-full px-2 py-1 text-xs bg-gray-50 rounded-md border border-gray-200 focus:outline-none focus:border-emerald-400 placeholder:text-gray-300"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-400 whitespace-nowrap">After</label>
+            <input
+              type="date"
+              value={convDateFilter}
+              onChange={(e) => setConvDateFilter(e.target.value)}
+              className="w-full px-2 py-1 text-xs bg-gray-50 rounded-md border border-gray-200 focus:outline-none focus:border-emerald-400"
+            />
+            {convDateFilter && (
+              <button
+                onClick={() => setConvDateFilter('')}
+                className="text-xs text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+                title="Clear date filter"
+              >
+                &times;
+              </button>
+            )}
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -208,6 +251,13 @@ export default function MessageExplorer({ udid }: Props) {
           ))}
           {filteredConversations.length === 0 && !loading && (
             <div className="p-4 text-sm text-gray-400 text-center">No conversations found</div>
+          )}
+          {filteredConversations.length > 0 && (
+            <div className="px-3 py-2 text-[10px] text-gray-300 text-center">
+              {filteredConversations.length !== conversations.length
+                ? `${filteredConversations.length} of ${conversations.length} conversations`
+                : `${conversations.length} conversations`}
+            </div>
           )}
         </div>
       </div>

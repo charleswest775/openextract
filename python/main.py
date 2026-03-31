@@ -8,6 +8,17 @@ import sys
 import json
 import time
 
+# ── Stdout guard ──────────────────────────────────────────────────────────────
+# JSON-RPC uses stdout as its transport channel.  Any non-JSON text printed to
+# stdout by third-party libraries (e.g. "WARN: decrypted N bytes…" from
+# iphone_backup_decrypt) corrupts the protocol and causes Electron to fail to
+# parse responses.  Fix: save the real stdout, then replace sys.stdout with
+# stderr so that all incidental library output is harmlessly redirected.  The
+# four places in this file that legitimately emit JSON-RPC write directly to
+# _rpc_out instead of relying on print().
+_rpc_out = sys.stdout
+sys.stdout = sys.stderr
+
 
 def _tlog(msg: str) -> None:
     """Append a timestamped line to python_log.txt."""
@@ -24,6 +35,7 @@ from photos import PhotoExtractor  # noqa: E402
 from voicemail import VoicemailExtractor  # noqa: E402
 from calls import CallExtractor  # noqa: E402
 from notes import NoteExtractor  # noqa: E402
+from browser_history import BrowserHistoryExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
 
 
@@ -36,6 +48,7 @@ class SidecarServer:
         self.voicemail_extractor = VoicemailExtractor()
         self.call_extractor = CallExtractor()
         self.note_extractor = NoteExtractor()
+        self.browser_history_extractor = BrowserHistoryExtractor()
         self.device_backup_manager = DeviceBackupManager()
 
         # Method dispatch table
@@ -66,6 +79,12 @@ class SidecarServer:
             "export_voicemails": self.export_voicemails,
             "export_calls": self.export_calls,
             "export_notes": self.export_notes,
+            # Browser history
+            "has_browser_history": self.has_browser_history,
+            "list_browser_history": self.list_browser_history,
+            "export_browser_history": self.export_browser_history,
+            # Utility
+            "write_file": self.write_file,
             # Aggregate stats
             "get_aggregate_stats": self.get_aggregate_stats,
             # Live device backup
@@ -88,12 +107,23 @@ class SidecarServer:
         the backup RPC call is still in progress.
         """
         notification = {"jsonrpc": "2.0", "method": method, "params": params}
-        print(json.dumps(notification), flush=True)
+        _rpc_out.write(json.dumps(notification) + "\n")
+        _rpc_out.flush()
 
     # ── RPC method handlers ───────────────────────────────────────────────────
 
     def ping(self, params):
         return {"status": "ok", "version": "0.1.0"}
+
+    def write_file(self, params):
+        """Write text content to a file path. Used by timeline export."""
+        import os
+        file_path = params["path"]
+        content = params["content"]
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return {"status": "ok", "path": file_path}
 
     def list_backups(self, params):
         custom_path = params.get("path")
@@ -293,6 +323,32 @@ class SidecarServer:
         backup = self.backup_manager.get_open_backup(udid)
         return self.note_extractor.export_notes(backup, note_ids, fmt, output_dir)
 
+    # ── Browser history ──────────────────────────────────────────────────────
+
+    def has_browser_history(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.browser_history_extractor.has_browser_history(backup)
+
+    def list_browser_history(self, params):
+        udid = params["udid"]
+        browser = params.get("browser", "all")
+        offset = params.get("offset", 0)
+        limit = params.get("limit", 0)
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.browser_history_extractor.list_browser_history(
+            backup, browser, offset, limit
+        )
+
+    def export_browser_history(self, params):
+        udid = params["udid"]
+        output_dir = params["output_dir"]
+        browser = params.get("browser", "all")
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.browser_history_extractor.export_browser_history_csv(
+            backup, output_dir, browser
+        )
+
     # ── Aggregate stats ──────────────────────────────────────────────────────
 
     def get_aggregate_stats(self, params):
@@ -392,7 +448,8 @@ class SidecarServer:
 
     def run(self):
         """Main loop: read JSON-RPC requests from stdin, write responses to stdout."""
-        print('{"status":"ready"}', flush=True)  # Signal to Electron that we're alive
+        _rpc_out.write('{"status":"ready"}\n')  # Signal to Electron that we're alive
+        _rpc_out.flush()
 
         for line in sys.stdin:
             line = line.strip()
@@ -405,11 +462,13 @@ class SidecarServer:
                     "id": None,
                     "error": {"code": -32700, "message": f"Parse error: {e}"},
                 }
-                print(json.dumps(response), flush=True)
+                _rpc_out.write(json.dumps(response) + "\n")
+                _rpc_out.flush()
                 continue
 
             response = self.handle_request(request)
-            print(json.dumps(response), flush=True)
+            _rpc_out.write(json.dumps(response) + "\n")
+            _rpc_out.flush()
 
 
 if __name__ == "__main__":

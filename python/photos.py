@@ -608,7 +608,7 @@ class PhotoExtractor:
             return {"error": "Photo not found"}
 
         # Skip video files early — PIL cannot open them
-        _VIDEO_EXTS = {".mov", ".mp4", ".m4v", ".avi", ".3gp", ".mkv", ".webm"}
+        _VIDEO_EXTS = {".mov", ".mp4", ".m4v", ".avi", ".mkv", ".3gp", ".m4a", ".webm"}
         ext = os.path.splitext(file_path)[1].lower()
         if ext in _VIDEO_EXTS:
             return {"error": "video", "is_video": True}
