@@ -28,7 +28,7 @@ export default function WorkspaceView({ data, onOpenSession, onGetMoreData, onBr
             className="bg-gradient-to-r from-emerald-500 to-emerald-400 text-white rounded-lg px-4 py-2.5 flex items-center gap-1.5 text-sm font-medium hover:opacity-90 transition-opacity"
           >
             <PlusIcon className="text-white" size={14} />
-            Get more data
+            Backup iPhone
           </button>
         </div>
 
