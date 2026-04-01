@@ -56,8 +56,15 @@
       "releaseType": "release"
     },
     "mac": {
-      "identity": null,
-      "target": "dmg",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+      "notarize": true,
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "category": "public.app-category.utilities",
       "extraResources": [
         {
@@ -67,6 +74,10 @@
       ]
     },
     "win": {
+      "signingHashAlgorithms": [
+        "sha256"
+      ],
+      "signDlls": true,
       "target": "nsis",
       "extraResources": [
         {
@@ -87,3 +98,4 @@
     }
   }
 }
+
