@@ -67,13 +67,8 @@ class VoicemailExtractor:
         except Exception as e:
             import traceback
             traceback.print_exc()
-            with open("C:\\dev\\openextract\\debug_voicemails.log", "a") as f:
-                f.write(f"ERROR: {str(e)}\n")
             return {"voicemails": [], "error": str(e)}
 
-        with open("C:\\dev\\openextract\\debug_voicemails.log", "a") as f:
-            f.write(f"DEBUG: Returning {len(voicemails)} voicemails. First: {voicemails[0] if voicemails else 'None'}\n")
-        
         return {"voicemails": voicemails}
 
     def get_audio(self, backup, voicemail_id: int) -> dict:
