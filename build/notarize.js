@@ -21,112 +21,123 @@ module.exports = async function notarizing(context) {
 
   const startTime = Date.now();
 
-  // First, zip the app for submission
+  // Zip the app for submission
   const zipPath = path.join(appOutDir, `${appName}.zip`);
   console.log('📁 Creating zip for notarization...');
   execSync(`ditto -c -k --keepParent "${appPath}" "${zipPath}"`, { stdio: 'inherit' });
 
-  // Submit to Apple notarization with --wait and --timeout
-  // Using xcrun notarytool directly to control timeout (20 minutes)
-  const cmd = [
+  // Submit to Apple WITHOUT --wait to avoid hanging
+  // Apple will process it asynchronously; macOS checks online for notarization status
+  const submitCmd = [
     'xcrun notarytool submit',
     `"${zipPath}"`,
     '--apple-id', `"${appleId}"`,
     '--password', `"${appPassword}"`,
     '--team-id', `"${teamId}"`,
-    '--wait',
-    '--timeout', '20m',
     '--output-format', 'json'
   ].join(' ');
 
-  console.log('🚀 Submitting to Apple notarization service (timeout: 20 minutes)...');
+  console.log('🚀 Submitting to Apple notarization service...');
 
+  let submissionId;
   try {
-    const result = execSync(cmd, {
+    const result = execSync(submitCmd, {
       encoding: 'utf8',
-      timeout: 25 * 60 * 1000, // 25 min Node timeout as safety net
+      timeout: 5 * 60 * 1000, // 5 min timeout for upload only
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
-    console.log('📋 Notarization response:', result);
+    console.log('📋 Submission response:', result);
 
-    let jsonResult;
     try {
-      jsonResult = JSON.parse(result);
+      const jsonResult = JSON.parse(result);
+      submissionId = jsonResult.id;
+      console.log(`✅ Submitted successfully! Submission ID: ${submissionId}`);
     } catch (e) {
-      console.log('⚠️  Could not parse JSON response, checking raw output...');
-    }
-
-    if (jsonResult && jsonResult.status === 'Accepted') {
-      const duration = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
-      console.log(`✅ Notarization accepted! (took ${duration} minutes)`);
-
-      // Staple the notarization ticket
-      console.log('📎 Stapling notarization ticket...');
-      execSync(`xcrun stapler staple "${appPath}"`, { stdio: 'inherit' });
-      console.log('✅ Stapling complete!');
-    } else if (jsonResult && jsonResult.status === 'Invalid') {
-      const logCmd = `xcrun notarytool log ${jsonResult.id} --apple-id "${appleId}" --password "${appPassword}" --team-id "${teamId}"`;
-      try {
-        const log = execSync(logCmd, { encoding: 'utf8' });
-        console.error('📋 Notarization log:', log);
-      } catch (e) {
-        console.error('Could not fetch notarization log');
-      }
-      throw new Error(`Notarization failed with status: ${jsonResult.status}`);
-    } else {
-      // Timeout or unknown status - check if it was accepted anyway
-      console.log('⚠️  Notarization did not complete within timeout, but submission was accepted by Apple.');
-      console.log('    The app may still be notarized. Attempting to staple...');
-      try {
-        execSync(`xcrun stapler staple "${appPath}"`, { stdio: 'inherit' });
-        console.log('✅ Stapling succeeded - app was notarized!');
-      } catch (e) {
-        console.log('⚠️  Stapling failed - notarization may still be in progress.');
-        console.log('    You can check status later and staple manually.');
-        // Don\'t throw - let the build succeed without notarization
-      }
+      console.log('⚠️  Could not parse JSON response');
     }
   } catch (error) {
-    const duration = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
-
-    if (error.status !== undefined || error.message.includes('timed out')) {
-      console.error(`❌ Notarization timed out after ${duration} minutes`);
-      console.error('   The submission is still being processed by Apple.');
-
-      // Try to staple in case it completed
-      try {
-        execSync(`xcrun stapler staple "${appPath}"`, { stdio: 'inherit' });
-        console.log('✅ Stapling succeeded despite timeout - app was notarized!');
-        return;
-      } catch (e) {
-        console.log('⚠️  Stapling failed - notarization still in progress.');
-      }
-
-      // Print stderr for debugging
-      if (error.stderr) {
-        console.error('stderr:', error.stderr.toString());
-      }
-      if (error.stdout) {
-        console.log('stdout:', error.stdout.toString());
-      }
-      throw new Error(`Notarization timed out after ${duration} minutes`);
-    }
-
-    console.error(`❌ Notarization failed after ${duration} minutes`);
-    if (error.stderr) {
-      console.error('stderr:', error.stderr.toString());
-    }
-    if (error.stdout) {
-      console.log('stdout:', error.stdout.toString());
-    }
+    console.error('❌ Submission failed!');
+    if (error.stderr) console.error('stderr:', error.stderr.toString());
+    if (error.stdout) console.log('stdout:', error.stdout.toString());
     throw error;
-  } finally {
-    // Clean up zip file
-    try {
-      require('fs').unlinkSync(zipPath);
-    } catch (e) {
-      // ignore cleanup errors
-    }
   }
+
+  // Now poll for completion with a 15-minute timeout
+  if (submissionId) {
+    console.log('⏳ Waiting for Apple to process notarization...');
+
+    const pollInterval = 30; // seconds
+    const maxWait = 15 * 60; // 15 minutes
+    let elapsed = 0;
+
+    while (elapsed < maxWait) {
+      // Wait before checking
+      execSync(`sleep ${pollInterval}`);
+      elapsed += pollInterval;
+
+      try {
+        const infoCmd = [
+          'xcrun notarytool info',
+          submissionId,
+          '--apple-id', `"${appleId}"`,
+          '--password', `"${appPassword}"`,
+          '--team-id', `"${teamId}"`,
+          '--output-format', 'json'
+        ].join(' ');
+
+        const infoResult = execSync(infoCmd, {
+          encoding: 'utf8',
+          timeout: 30000,
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
+
+        const info = JSON.parse(infoResult);
+        const status = info.status;
+        const mins = (elapsed / 60).toFixed(1);
+        console.log(`   [${mins}m] Status: ${status}`);
+
+        if (status === 'Accepted') {
+          const duration = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
+          console.log(`✅ Notarization accepted! (took ${duration} minutes)`);
+
+          // Staple the ticket
+          console.log('📎 Stapling notarization ticket...');
+          execSync(`xcrun stapler staple "${appPath}"`, { stdio: 'inherit' });
+          console.log('✅ Stapling complete!');
+
+          // Cleanup
+          try { require('fs').unlinkSync(zipPath); } catch (e) {}
+          return;
+        } else if (status === 'Invalid') {
+          // Fetch the log for details
+          try {
+            const logCmd = `xcrun notarytool log ${submissionId} --apple-id "${appleId}" --password "${appPassword}" --team-id "${teamId}"`;
+            const log = execSync(logCmd, { encoding: 'utf8' });
+            console.error('📋 Notarization log:', log);
+          } catch (e) {}
+          throw new Error('Notarization was rejected by Apple');
+        }
+        // Otherwise status is "In Progress" - keep polling
+      } catch (pollError) {
+        console.log(`   [${(elapsed / 60).toFixed(1)}m] Poll error: ${pollError.message}`);
+      }
+    }
+
+    // If we get here, notarization is still in progress after 15 minutes
+    const duration = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
+    console.log(`\n⏰ Notarization still in progress after ${duration} minutes.`);
+    console.log(`   Submission ID: ${submissionId}`);
+    console.log('   Apple will continue processing in the background.');
+    console.log('   macOS will check notarization status online when users open the app.');
+    console.log('   You can check status later with:');
+    console.log(`   xcrun notarytool info ${submissionId} --apple-id "${appleId}" --team-id "${teamId}"`);
+    console.log('\n   Continuing build without waiting for notarization to complete...');
+
+    // DON'T throw - let the build succeed
+    // The app will still pass Gatekeeper once Apple finishes processing
+  }
+
+  // Cleanup
+  try { require('fs').unlinkSync(zipPath); } catch (e) {}
 };
