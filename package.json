@@ -55,12 +55,13 @@
       "provider": "github",
       "releaseType": "release"
     },
+    "afterSign": "build/notarize.js",
     "mac": {
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.inherit.plist",
-      "notarize": true,
+      "notarize": false,
       "target": [
         "dmg",
         "zip"
