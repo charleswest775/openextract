@@ -22,6 +22,7 @@ export class PythonSidecar {
   private pending: Map<number, PendingRequest> = new Map();
   private buffer: string = '';
   private readonly TIMEOUT_MS = 300000; // 5 min — backups can take a while
+  private logPath: string;
 
   /**
    * Called for every JSON-RPC *notification* received from the sidecar.
@@ -30,16 +31,17 @@ export class PythonSidecar {
    */
   public notificationHandler: ((notification: SidecarNotification) => void) | null = null;
 
-  constructor(pythonPath: string, pythonArgs: string[]) {
+  constructor(pythonPath: string, pythonArgs: string[], logPath: string) {
     this.pythonPath = pythonPath;
     this.pythonArgs = pythonArgs;
+    this.logPath = logPath;
   }
 
   async start(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.process = spawn(this.pythonPath, this.pythonArgs, {
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, PYTHONUNBUFFERED: '1' },
+        env: { ...process.env, PYTHONUNBUFFERED: '1', OPENEXTRACT_LOG_PATH: this.logPath },
       });
 
       this.process.stdout.on('data', (data: Buffer) => {
@@ -51,19 +53,19 @@ export class PythonSidecar {
         const msg = data.toString().trim();
         if (msg) {
           console.error(`[Python] ${msg}`);
-          require('fs').appendFileSync('python_log.txt', `[STDERR] ${msg}\n`);
+          require('fs').appendFileSync(this.logPath, `[STDERR] ${msg}\n`);
         }
       });
 
       this.process.on('error', (err: Error) => {
         console.error('Failed to start Python sidecar:', err);
-        require('fs').appendFileSync('python_log.txt', `[ERROR STARTING] ${err.message}\n`);
+        require('fs').appendFileSync(this.logPath, `[ERROR STARTING] ${err.message}\n`);
         reject(err);
       });
 
       this.process.on('exit', (code: number) => {
         console.log(`Python sidecar exited with code ${code}`);
-        require('fs').appendFileSync('python_log.txt', `[EXIT] code ${code}\n`);
+        require('fs').appendFileSync(this.logPath, `[EXIT] code ${code}\n`);
         // Reject all pending requests
         for (const [id, req] of this.pending) {
           clearTimeout(req.timeout);

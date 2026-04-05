@@ -37,9 +37,12 @@ def _save_size_cache(cache: dict) -> None:
         pass
 
 
+_LOG_PATH = os.environ.get('OPENEXTRACT_LOG_PATH') or os.path.join(tempfile.gettempdir(), 'python_log.txt')
+
+
 def _tlog(msg: str) -> None:
     try:
-        with open("python_log.txt", "a", encoding="utf-8") as f:
+        with open(_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(f"[TIMING {time.strftime('%H:%M:%S')}] {msg}\n")
     except Exception:
         pass

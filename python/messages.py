@@ -8,6 +8,7 @@ import base64
 import os
 import plistlib
 import re
+import tempfile
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -21,10 +22,12 @@ _RE_MEDIA_FILE = re.compile(r'[\d_A-Fa-f\-]+(\.fullsizerender)*\.(jpeg|jpg|heic|
 _RE_JUNK_START = re.compile(r'^[ \n"\uFFFD\uFFFC]+')
 _RE_JUNK_END = re.compile(r'[ \n"\uFFFD\uFFFC]+$')
 
+_LOG_PATH = os.environ.get('OPENEXTRACT_LOG_PATH') or os.path.join(tempfile.gettempdir(), 'python_log.txt')
+
 
 def _tlog(msg: str) -> None:
     try:
-        with open("python_log.txt", "a", encoding="utf-8") as f:
+        with open(_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(f"[TIMING {time.strftime('%H:%M:%S')}] {msg}\n")
     except Exception:
         pass

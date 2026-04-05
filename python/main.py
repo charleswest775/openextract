@@ -4,9 +4,11 @@ OpenExtract Python Sidecar
 JSON-RPC server communicating over stdin/stdout with the Electron main process.
 """
 
+import os
 import sys
 import json
 import time
+import tempfile
 
 # ── Stdout guard ──────────────────────────────────────────────────────────────
 # JSON-RPC uses stdout as its transport channel.  Any non-JSON text printed to
@@ -20,10 +22,13 @@ _rpc_out = sys.stdout
 sys.stdout = sys.stderr
 
 
+_LOG_PATH = os.environ.get('OPENEXTRACT_LOG_PATH') or os.path.join(tempfile.gettempdir(), 'python_log.txt')
+
+
 def _tlog(msg: str) -> None:
-    """Append a timestamped line to python_log.txt."""
+    """Append a timestamped line to the log file."""
     try:
-        with open("python_log.txt", "a", encoding="utf-8") as f:
+        with open(_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(f"[TIMING {time.strftime('%H:%M:%S')}] {msg}\n")
     except Exception:
         pass
@@ -436,7 +441,7 @@ class SidecarServer:
             import traceback
             err_str = traceback.format_exc()
             try:
-                with open("python_log.txt", "a", encoding="utf-8") as f:
+                with open(_LOG_PATH, "a", encoding="utf-8") as f:
                     f.write(f"[RPC ERROR] {method}: {err_str}\n")
             except Exception:
                 pass
