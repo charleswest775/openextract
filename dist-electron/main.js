@@ -131,7 +131,8 @@ app.whenReady().then(async () => {
         return net.fetch(pathToFileURL(filePath).toString());
     });
     // Start the Python sidecar
-    sidecar = new sidecar_1.PythonSidecar(getPythonPath(), getPythonArgs());
+    const logPath = path.join(electron_1.app.getPath('userData'), 'python_log.txt');
+    sidecar = new sidecar_1.PythonSidecar(getPythonPath(), getPythonArgs(), logPath);
     sidecar.notificationHandler = (notification) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('sidecar:notification', notification);
@@ -153,7 +154,7 @@ app.whenReady().then(async () => {
             if (method === 'open_backup') {
                 const ts = new Date().toTimeString().slice(0, 8);
                 const status = result?.status ?? 'unknown';
-                fs.appendFileSync('python_log.txt', `[${ts}] [Electron] open_backup → status=${status} udid=${params?.udid} dir=${params?.backup_dir}\n`);
+                fs.appendFileSync(logPath, `[${ts}] [Electron] open_backup → status=${status} udid=${params?.udid} dir=${params?.backup_dir}\n`);
             }
             return { success: true, data: result };
         }
@@ -161,7 +162,7 @@ app.whenReady().then(async () => {
             console.error(`Sidecar call failed: ${method}`, error);
             if (method === 'open_backup') {
                 const ts = new Date().toTimeString().slice(0, 8);
-                fs.appendFileSync('python_log.txt', `[${ts}] [Electron] open_backup FAILED: ${error.message} | udid=${params?.udid} dir=${params?.backup_dir}\n`);
+                fs.appendFileSync(logPath, `[${ts}] [Electron] open_backup FAILED: ${error.message} | udid=${params?.udid} dir=${params?.backup_dir}\n`);
             }
             return { success: false, error: error.message };
         }

@@ -1,6 +1,6 @@
 {
   "name": "openextract",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Free, open-source iPhone backup extractor",
   "main": "dist-electron/main.js",
   "author": "OpenExtract Contributors",

@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PythonSidecar = void 0;
 const { spawn } = require('child_process');
 class PythonSidecar {
-    constructor(pythonPath, pythonArgs) {
+    constructor(pythonPath, pythonArgs, logPath) {
         this.process = null;
         this.requestId = 0;
         this.pending = new Map();
@@ -17,12 +17,13 @@ class PythonSidecar {
         this.notificationHandler = null;
         this.pythonPath = pythonPath;
         this.pythonArgs = pythonArgs;
+        this.logPath = logPath;
     }
     async start() {
         return new Promise((resolve, reject) => {
             this.process = spawn(this.pythonPath, this.pythonArgs, {
                 stdio: ['pipe', 'pipe', 'pipe'],
-                env: { ...process.env, PYTHONUNBUFFERED: '1' },
+                env: { ...process.env, PYTHONUNBUFFERED: '1', OPENEXTRACT_LOG_PATH: this.logPath },
             });
             this.process.stdout.on('data', (data) => {
                 this.buffer += data.toString();
@@ -32,17 +33,17 @@ class PythonSidecar {
                 const msg = data.toString().trim();
                 if (msg) {
                     console.error(`[Python] ${msg}`);
-                    require('fs').appendFileSync('python_log.txt', `[STDERR] ${msg}\n`);
+                    require('fs').appendFileSync(this.logPath, `[STDERR] ${msg}\n`);
                 }
             });
             this.process.on('error', (err) => {
                 console.error('Failed to start Python sidecar:', err);
-                require('fs').appendFileSync('python_log.txt', `[ERROR STARTING] ${err.message}\n`);
+                require('fs').appendFileSync(this.logPath, `[ERROR STARTING] ${err.message}\n`);
                 reject(err);
             });
             this.process.on('exit', (code) => {
                 console.log(`Python sidecar exited with code ${code}`);
-                require('fs').appendFileSync('python_log.txt', `[EXIT] code ${code}\n`);
+                require('fs').appendFileSync(this.logPath, `[EXIT] code ${code}\n`);
                 // Reject all pending requests
                 for (const [id, req] of this.pending) {
                     clearTimeout(req.timeout);
