@@ -145,7 +145,8 @@ app.whenReady().then(async () => {
   });
 
   // Start the Python sidecar
-  sidecar = new PythonSidecar(getPythonPath(), getPythonArgs());
+  const logPath = path.join(app.getPath('userData'), 'python_log.txt');
+  sidecar = new PythonSidecar(getPythonPath(), getPythonArgs(), logPath);
 
   sidecar.notificationHandler = (notification: any) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -170,7 +171,7 @@ app.whenReady().then(async () => {
       if (method === 'open_backup') {
         const ts = new Date().toTimeString().slice(0, 8);
         const status = (result as any)?.status ?? 'unknown';
-        fs.appendFileSync('python_log.txt',
+        fs.appendFileSync(logPath,
           `[${ts}] [Electron] open_backup → status=${status} udid=${params?.udid} dir=${params?.backup_dir}\n`);
       }
       return { success: true, data: result };
@@ -178,7 +179,7 @@ app.whenReady().then(async () => {
       console.error(`Sidecar call failed: ${method}`, error);
       if (method === 'open_backup') {
         const ts = new Date().toTimeString().slice(0, 8);
-        fs.appendFileSync('python_log.txt',
+        fs.appendFileSync(logPath,
           `[${ts}] [Electron] open_backup FAILED: ${error.message} | udid=${params?.udid} dir=${params?.backup_dir}\n`);
       }
       return { success: false, error: error.message };

@@ -7,14 +7,17 @@ Uses pymobiledevice3 for device communication and MobileBackup2 protocol.
 import asyncio
 import os
 import sys
+import tempfile
 import time
 from typing import Callable, Optional
 
+_LOG_PATH = os.environ.get('OPENEXTRACT_LOG_PATH') or os.path.join(tempfile.gettempdir(), 'python_log.txt')
+
 
 def _dev_log(msg: str) -> None:
-    """Append a timestamped line to python_log.txt (survives sidecar restarts)."""
+    """Append a timestamped line to the log file (survives sidecar restarts)."""
     try:
-        with open("python_log.txt", "a", encoding="utf-8") as f:
+        with open(_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
     except Exception:
         pass
