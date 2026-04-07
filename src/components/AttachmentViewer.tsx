@@ -3,6 +3,14 @@ import { Paperclip, Loader2 } from 'lucide-react';
 import { sidecarCall } from '../lib/ipc';
 import { Attachment } from '../hooks/useMessages';
 
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.heic', '.heif', '.webp', '.bmp', '.tiff', '.tif'];
+
+function isImageAttachment(attachment: Attachment): boolean {
+    if (attachment.mime_type?.startsWith('image/')) return true;
+    const name = (attachment.transfer_name || attachment.filename || '').toLowerCase();
+    return IMAGE_EXTENSIONS.some(ext => name.endsWith(ext));
+}
+
 interface Props {
     udid: string;
     attachment: Attachment;
@@ -14,8 +22,7 @@ export default function AttachmentViewer({ udid, attachment }: Props) {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        // Only fetch if it's an image
-        if (!attachment.mime_type?.startsWith('image/')) {
+        if (!isImageAttachment(attachment)) {
             return;
         }
 
@@ -37,7 +44,7 @@ export default function AttachmentViewer({ udid, attachment }: Props) {
         fetchAttachment();
     }, [udid, attachment]);
 
-    if (!attachment.mime_type?.startsWith('image/')) {
+    if (!isImageAttachment(attachment)) {
         return (
             <div className="flex items-center space-x-2 text-body italic text-text-secondary">
                 <Paperclip className="w-3.5 h-3.5 flex-shrink-0" />

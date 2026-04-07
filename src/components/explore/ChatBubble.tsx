@@ -1,4 +1,14 @@
+import { useState, useEffect } from 'react';
 import { formatTime } from '../../lib/dates';
+import { sidecarCall } from '../../lib/ipc';
+
+interface Attachment {
+  attachment_id: number;
+  filename: string;
+  mime_type: string;
+  transfer_name: string;
+  total_bytes: number;
+}
 
 interface Message {
   message_id: number;
@@ -11,21 +21,80 @@ interface Message {
   sender_handle: string;
   has_attachments: boolean;
   is_reaction: boolean;
-  attachments?: { attachment_id: number; filename: string; mime_type: string; transfer_name: string; total_bytes: number }[];
+  attachments?: Attachment[];
 }
 
 interface Props {
   message: Message;
   showSender?: boolean;
+  udid: string;
 }
 
-export default function ChatBubble({ message, showSender }: Props) {
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.heic', '.heif', '.webp', '.bmp', '.tiff', '.tif'];
+
+function isImageAttachment(a: Attachment): boolean {
+  if (a.mime_type?.startsWith('image/')) return true;
+  const name = (a.transfer_name || a.filename || '').toLowerCase();
+  return IMAGE_EXTENSIONS.some(ext => name.endsWith(ext));
+}
+
+function AttachmentItem({ udid, attachment, isMine }: { udid: string; attachment: Attachment; isMine: boolean }) {
+  const [data, setData] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isImageAttachment(attachment)) return;
+    setLoading(true);
+    sidecarCall<{ data: string; mime_type: string; filename: string }>(
+      'get_attachment',
+      { udid, attachment_id: attachment.attachment_id }
+    ).then((result) => {
+      setData(`data:${result.mime_type};base64,${result.data}`);
+    }).catch(() => {
+      setError(true);
+    }).finally(() => {
+      setLoading(false);
+    });
+  }, [udid, attachment]);
+
+  if (!isImageAttachment(attachment)) {
+    return (
+      <div className={`text-xs truncate ${isMine ? 'text-emerald-100' : 'text-gray-400'}`}>
+        📎 {attachment.transfer_name || attachment.filename}
+      </div>
+    );
+  }
+
+  if (loading) {
+    return <div className={`text-xs italic ${isMine ? 'text-emerald-100' : 'text-gray-400'}`}>Loading…</div>;
+  }
+
+  if (error || !data) {
+    return (
+      <div className={`text-xs italic ${isMine ? 'text-emerald-100' : 'text-gray-400'}`}>
+        {attachment.transfer_name || attachment.filename}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={data}
+      alt={attachment.transfer_name || 'Attachment'}
+      className="rounded-lg max-h-64 max-w-full object-contain mt-1"
+      onError={() => setError(true)}
+    />
+  );
+}
+
+export default function ChatBubble({ message, showSender, udid }: Props) {
   if (message.is_reaction) return null;
 
   const isMine = message.is_from_me;
 
   return (
-    <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-1`}>
+    <div className={`flex w-full ${isMine ? 'justify-end' : 'justify-start'} mb-1`}>
       <div className={`max-w-[70%] ${isMine ? 'items-end' : 'items-start'}`}>
         {showSender && !isMine && message.sender && (
           <div className="text-[11px] text-gray-400 mb-0.5 px-3">{message.sender}</div>
@@ -49,11 +118,9 @@ export default function ChatBubble({ message, showSender }: Props) {
             </div>
           )}
           {message.has_attachments && message.attachments && message.attachments.length > 0 && (
-            <div className={`mt-1 text-xs ${isMine ? 'text-emerald-100' : 'text-gray-400'}`}>
+            <div className="mt-1 space-y-1">
               {message.attachments.map((a) => (
-                <div key={a.attachment_id} className="truncate">
-                  {a.transfer_name || a.filename}
-                </div>
+                <AttachmentItem key={a.attachment_id} udid={udid} attachment={a} isMine={isMine} />
               ))}
             </div>
           )}

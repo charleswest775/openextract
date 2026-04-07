@@ -4,6 +4,7 @@ import {
   LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon,
   VoicemailIcon, GlobeIcon, ClockIcon, ChartIcon, ArrowLeftIcon, ExportIcon,
 } from '../shared/Icons';
+import BackupDashboard from './BackupDashboard';
 import MessageExplorer from './MessageExplorer';
 import PhotoExplorer from './PhotoExplorer';
 import ContactExplorer from './ContactExplorer';
@@ -15,7 +16,7 @@ import ExportPanel from './ExportPanel';
 import TimelineView from '../timeline/TimelineView';
 import type { HistoryVisit } from '../../lib/browserHistoryStats';
 
-type Tab = 'timeline' | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'export';
+type Tab = 'dashboard' | 'timeline' | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'export';
 
 interface Props {
   udid: string;
@@ -24,6 +25,7 @@ interface Props {
 }
 
 const allNavItems: { id: Tab; label: string; icon: typeof LinesIcon; comingSoon?: boolean }[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: ChartIcon },
   { id: 'timeline', label: 'Timeline', icon: ClockIcon },
   { id: 'messages', label: 'Messages', icon: LinesIcon },
   { id: 'photos', label: 'Photos', icon: CameraIcon },
@@ -36,7 +38,8 @@ const allNavItems: { id: Tab; label: string; icon: typeof LinesIcon; comingSoon?
 ];
 
 export default function ExploreLayout({ udid, session, onBack }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>('timeline');
+  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const handleNavigate = (tab: string) => setActiveTab(tab as Tab);
   const [hasBrowserHistory, setHasBrowserHistory] = useState(false);
   const [preloadedBrowserHistory, setPreloadedBrowserHistory] = useState<HistoryVisit[] | null>(null);
   const [browserHistoryPreloading, setBrowserHistoryPreloading] = useState(false);
@@ -120,6 +123,7 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
 
       {/* Content area */}
       <div className="flex-1 overflow-hidden">
+        {activeTab === 'dashboard' && <BackupDashboard udid={udid} onNavigate={handleNavigate} />}
         {activeTab === 'timeline' && <TimelineView udid={udid} />}
         {activeTab === 'messages' && <MessageExplorer udid={udid} />}
         {activeTab === 'photos' && <PhotoExplorer udid={udid} />}

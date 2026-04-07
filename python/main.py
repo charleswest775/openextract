@@ -42,6 +42,7 @@ from calls import CallExtractor  # noqa: E402
 from notes import NoteExtractor  # noqa: E402
 from browser_history import BrowserHistoryExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
+from stats import StatsComputer  # noqa: E402
 
 
 class SidecarServer:
@@ -55,6 +56,7 @@ class SidecarServer:
         self.note_extractor = NoteExtractor()
         self.browser_history_extractor = BrowserHistoryExtractor()
         self.device_backup_manager = DeviceBackupManager()
+        self.stats_computer = StatsComputer()
 
         # Method dispatch table
         self.methods = {
@@ -92,6 +94,7 @@ class SidecarServer:
             "write_file": self.write_file,
             # Aggregate stats
             "get_aggregate_stats": self.get_aggregate_stats,
+            "get_backup_stats": self.get_backup_stats,
             # Live device backup
             "backup.list_devices": self.backup_list_devices,
             "backup.start": self.backup_start,
@@ -353,6 +356,15 @@ class SidecarServer:
         return self.browser_history_extractor.export_browser_history_csv(
             backup, output_dir, browser
         )
+
+    # ── Backup stats dashboard ─────────────────────────────────────────────
+
+    def get_backup_stats(self, params):
+        """Return comprehensive statistics for a single backup."""
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        return self.stats_computer.compute(backup, contacts)
 
     # ── Aggregate stats ──────────────────────────────────────────────────────
 
