@@ -137,8 +137,14 @@ class StatsComputer:
         try:
             c = conn.cursor()
 
-            total = c.execute("SELECT COUNT(*) FROM message").fetchone()[0]
-            sent = c.execute("SELECT COUNT(*) FROM message WHERE is_from_me = 1").fetchone()[0]
+            total = c.execute(
+                "SELECT COUNT(DISTINCT message_id) FROM chat_message_join"
+            ).fetchone()[0]
+            sent = c.execute(
+                "SELECT COUNT(DISTINCT m.ROWID) FROM message m "
+                "JOIN chat_message_join cmj ON cmj.message_id = m.ROWID "
+                "WHERE m.is_from_me = 1"
+            ).fetchone()[0]
             received = total - sent
 
             # Attachment count
@@ -388,108 +394,43 @@ class StatsComputer:
     # ── Calls ─────────────────────────────────────────────────────────────────
 
     def _call_stats(self, backup, contacts: dict) -> dict:
-        db_path = backup.get_file(
-            "Library/CallHistoryDB/CallHistory.storedata", domain="HomeDomain"
-        )
-        if not db_path:
-            db_path = backup.get_file(
-                "Library/CallHistoryDB/CallHistory.storedata", domain="WirelessDomain"
-            )
-        conn = _safe_connect(db_path)
-        if not conn:
+        from calls import CallExtractor
+        extractor = CallExtractor()
+        result = extractor.list_calls(backup, contacts, offset=0, limit=999999)
+        calls = result.get("calls", [])
+        if not calls:
             return self._empty_call_stats()
 
-        try:
-            c = conn.cursor()
-            c.execute("PRAGMA table_info(ZCALLRECORD)")
-            columns = {row[1] for row in c.fetchall()}
+        total = result.get("total", len(calls))
+        incoming = sum(1 for c in calls if c["direction"] == "incoming")
+        outgoing = total - incoming
+        answered = sum(1 for c in calls if c["status"] == "answered")
+        missed = total - answered
 
-            if "ZORIGINATED" not in columns:
-                # Older iOS schema — skip detailed stats
-                try:
-                    total = c.execute("SELECT COUNT(*) FROM call").fetchone()[0]
-                except Exception:
-                    total = 0
-                result = self._empty_call_stats()
-                result["total"] = total
-                return result
+        durations = [float(c["duration"] or 0) for c in calls if c.get("duration")]
+        total_duration = sum(durations)
+        avg_duration = total_duration / len(durations) if durations else 0.0
+        longest = max(durations) if durations else 0.0
 
-            total = c.execute("SELECT COUNT(*) FROM ZCALLRECORD").fetchone()[0]
-            outgoing = c.execute("SELECT COUNT(*) FROM ZCALLRECORD WHERE ZORIGINATED = 1").fetchone()[0]
-            incoming = total - outgoing
-            answered = c.execute("SELECT COUNT(*) FROM ZCALLRECORD WHERE ZANSWERED = 1").fetchone()[0]
-            missed = total - answered
+        facetime_count = sum(1 for c in calls if "facetime" in (c.get("app") or "").lower())
 
-            dur_row = c.execute("SELECT SUM(ZDURATION), AVG(ZDURATION), MAX(ZDURATION) FROM ZCALLRECORD WHERE ZDURATION > 0").fetchone()
-            total_duration = float(dur_row[0] or 0)
-            avg_duration = float(dur_row[1] or 0)
-            longest = float(dur_row[2] or 0)
+        from collections import Counter
+        name_counts = Counter(c["contact_name"] for c in calls if c.get("contact_name"))
+        top_contacts = [{"name": name, "count": cnt} for name, cnt in name_counts.most_common(5)]
 
-            # FaceTime vs regular
-            facetime_count = 0
-            service_col = "ZSERVICE_PROVIDER" if "ZSERVICE_PROVIDER" in columns else None
-            if service_col:
-                try:
-                    facetime_count = c.execute(
-                        f"SELECT COUNT(*) FROM ZCALLRECORD WHERE LOWER({service_col}) LIKE '%facetime%'"
-                    ).fetchone()[0]
-                except Exception:
-                    pass
-
-            # Top 5 contacts
-            top_contacts = []
-            try:
-                rows = c.execute("""
-                    SELECT ZADDRESS, COUNT(*) AS cnt
-                    FROM ZCALLRECORD
-                    WHERE ZADDRESS IS NOT NULL AND ZADDRESS != ''
-                    GROUP BY ZADDRESS
-                    ORDER BY cnt DESC
-                    LIMIT 5
-                """).fetchall()
-                for row in rows:
-                    address = row[0] or ""
-                    name = self._resolve_call_contact(address, contacts)
-                    top_contacts.append({"name": name, "count": row[1]})
-            except Exception:
-                pass
-
-            return {
-                "total": total,
-                "incoming": incoming,
-                "outgoing": outgoing,
-                "answered": answered,
-                "missed": missed,
-                "total_duration_seconds": total_duration,
-                "avg_duration_seconds": round(avg_duration, 1),
-                "longest_call_seconds": longest,
-                "facetime_count": facetime_count,
-                "regular_count": total - facetime_count,
-                "top_contacts": top_contacts,
-            }
-        finally:
-            conn.close()
-
-    def _resolve_call_contact(self, address: str, contacts: dict) -> str:
-        """Resolve a phone/email to a contact name (same logic as CallExtractor)."""
-        if not address:
-            return "Unknown"
-        if address in contacts:
-            return contacts[address]
-        import re
-        clean = re.sub(r"[^\d+]", "", address)
-        if clean in contacts:
-            return contacts[clean]
-        digits = re.sub(r"[^\d]", "", address)
-        if len(digits) >= 10:
-            last10 = digits[-10:]
-            if last10 in contacts:
-                return contacts[last10]
-            if f"+1{last10}" in contacts:
-                return contacts[f"+1{last10}"]
-        if "@" in address and address.lower() in contacts:
-            return contacts[address.lower()]
-        return address
+        return {
+            "total": total,
+            "incoming": incoming,
+            "outgoing": outgoing,
+            "answered": answered,
+            "missed": missed,
+            "total_duration_seconds": total_duration,
+            "avg_duration_seconds": round(avg_duration, 1),
+            "longest_call_seconds": longest,
+            "facetime_count": facetime_count,
+            "regular_count": total - facetime_count,
+            "top_contacts": top_contacts,
+        }
 
     def _empty_call_stats(self) -> dict:
         return {

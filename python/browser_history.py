@@ -124,14 +124,36 @@ class BrowserHistoryExtractor:
                 all_visits.extend(firefox_visits)
                 browsers_found.append("firefox")
 
-        # Sort by visit_date descending
-        all_visits.sort(key=lambda v: v.get("visit_date") or "", reverse=True)
+        # Sort by visit_date ascending for the consolidation pass
+        all_visits.sort(key=lambda v: v.get("visit_date") or "")
 
-        total = len(all_visits)
+        # Consolidate identical URLs visited within 120 seconds of each other.
+        # Walk chronologically; for each URL track the ISO timestamp of the last
+        # kept visit.  If the gap is < 120 s, drop the duplicate.
+        consolidated = []
+        last_kept: dict = {}  # url -> datetime of last kept visit
+        for v in all_visits:
+            url = v.get("url") or ""
+            visit_date = v.get("visit_date")
+            if visit_date and url:
+                try:
+                    ts = datetime.fromisoformat(visit_date.replace("Z", "+00:00"))
+                    prev = last_kept.get(url)
+                    if prev is not None and (ts - prev).total_seconds() < 120:
+                        continue  # too close — drop duplicate
+                    last_kept[url] = ts
+                except Exception:
+                    pass
+            consolidated.append(v)
+
+        # Reverse to newest-first for display
+        consolidated.reverse()
+
+        total = len(consolidated)
         if limit:
-            paged = all_visits[offset:offset + limit]
+            paged = consolidated[offset:offset + limit]
         else:
-            paged = all_visits[offset:]
+            paged = consolidated[offset:]
 
         return {
             "visits": paged,

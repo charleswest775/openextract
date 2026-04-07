@@ -58,7 +58,7 @@ function LinkPreviewBubble({ message }: { message: Message }) {
   };
 
   return (
-    <div className={`flex flex-col ${isFromMe ? 'items-end' : 'items-start'} mb-1`}>
+    <div className={`flex flex-col w-full ${isFromMe ? 'items-end' : 'items-start'} mb-1`}>
       {!isFromMe && message.sender && (
         <span className="text-caption text-text-secondary ml-3 mb-0.5">{message.sender}</span>
       )}
@@ -118,7 +118,7 @@ export default function ChatBubble({ message, udid }: Props) {
   const hasText = message.text && message.text.trim().length > 0;
 
   return (
-    <div className={`flex flex-col ${isFromMe ? 'items-end' : 'items-start'} mb-1`}>
+    <div className={`flex flex-col w-full ${isFromMe ? 'items-end' : 'items-start'} mb-1`}>
       {!isFromMe && message.sender !== 'Unknown' && (
         <span className="text-caption text-text-secondary ml-3 mb-0.5">
           {message.sender}

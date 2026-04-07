@@ -499,8 +499,10 @@ export function useTimeline(udid: string): UseTimelineReturn {
       message: 0, call: 0, photo: 0, voicemail: 0, note: 0, browser: 0,
     };
     for (const e of rawEntries) c[e.type]++;
+    // When messages are capped, show the real total rather than the loaded subset
+    if (messageCap) c.message = messageCap.total;
     return c;
-  }, [rawEntries]);
+  }, [rawEntries, messageCap]);
 
   // ── Filtered + sorted entries ─────────────────────────────────────────────
   const filteredEntries = useMemo((): TimelineEntry[] => {

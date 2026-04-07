@@ -26,12 +26,13 @@ function formatDuration(seconds: number): string {
   const parts = [];
   if (h > 0) parts.push(`${h}h`);
   if (m > 0) parts.push(`${m}m`);
-  if (s > 0 || parts.length === 0) parts.push(`${s}s`);
+  if (s > 0 || parts.length === 0) parts.push(`${s % 1 === 0 ? s : s.toFixed(1)}s`);
   return parts.join(' ');
 }
 
 export default function CallExplorer({ udid }: Props) {
   const [calls, setCalls] = useState<Call[]>([]);
+  const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(false);
@@ -48,6 +49,7 @@ export default function CallExplorer({ udid }: Props) {
       const res = await window.openextract.call('list_calls', { udid, limit: 10000 });
       if (res.success && res.data) {
         setCalls(res.data.calls || []);
+        setTotal(res.data.total ?? res.data.calls?.length ?? 0);
         if (res.data.error) {
           setError(res.data.error);
         }
@@ -81,7 +83,7 @@ export default function CallExplorer({ udid }: Props) {
     <div className="h-full flex flex-col">
       <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
         <h2 className="text-sm font-medium text-gray-900">
-          Calls {calls.length > 0 && <span className="text-gray-400 font-normal">({calls.length})</span>}
+          Calls {total > 0 && <span className="text-gray-400 font-normal">({total.toLocaleString()})</span>}
         </h2>
         <div className="flex items-center gap-2">
           <div className="relative">

@@ -20,6 +20,7 @@ _RE_UUID = re.compile(r'\$?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa
 _RE_MEDIA_FILE = re.compile(r'[\d_A-Fa-f\-]+(\.fullsizerender)*\.(jpeg|jpg|heic|heif|png|gif|mov|mp4|m4a|caf|pdf|doc|docx)', re.IGNORECASE)
 _RE_JUNK_START = re.compile(r'^[ \n"\uFFFD\uFFFC]+')
 _RE_JUNK_END = re.compile(r'[ \n"\uFFFD\uFFFC]+$')
+_RE_APPLE_CONST = re.compile(r'^k[A-Z][A-Z0-9\-_]{10,}')
 
 
 def _tlog(msg: str) -> None:
@@ -163,6 +164,9 @@ def parse_attributed_body(data: bytes) -> tuple[str, str]:
                 if re.match(r'^\$?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$', obj, re.IGNORECASE):
                     continue
                 if re.search(r'[\d_A-Fa-f\-]+(\.fullsizerender)*\.(jpeg|jpg|heic|heif|png|gif|mov|mp4|m4a|caf|pdf|doc|docx)', obj, re.IGNORECASE):
+                    continue
+                # Skip Apple internal constant strings (e.g. "kUSD-CAD-AUD-HKD-...")
+                if _RE_APPLE_CONST.match(obj):
                     continue
                 if len(obj) > len(candidate):
                     candidate = obj
@@ -874,6 +878,19 @@ class MessageExtractor:
                 except Exception:
                     pass
 
+            # Infer mime_type from extension if still missing (common in older backups)
+            if not mime_type:
+                _ext_map = {
+                    ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                    ".png": "image/png", ".gif": "image/gif",
+                    ".heic": "image/heic", ".heif": "image/heif",
+                    ".webp": "image/webp", ".bmp": "image/bmp",
+                }
+                for ext, inferred in _ext_map.items():
+                    if filename_lower.endswith(ext):
+                        mime_type = inferred
+                        break
+
             data = base64.b64encode(raw_data).decode("ascii")
 
             return {
@@ -1145,7 +1162,7 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
             return {"error": f"Unsupported format: {fmt}"}
 
     def _export_merged_txt(self, messages, output_dir):
-        filepath = os.path.join(output_dir, "merged_conversations.txt")
+        filepath = os.path.join(output_dir, "all_conversations.txt")
         with open(filepath, "w", encoding="utf-8-sig") as f:
             for msg in messages:
                 date = msg["date"] or "Unknown date"
@@ -1158,7 +1175,7 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
 
     def _export_merged_csv(self, messages, output_dir):
         import csv
-        filepath = os.path.join(output_dir, "merged_conversations.csv")
+        filepath = os.path.join(output_dir, "all_conversations.csv")
         with open(filepath, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
             writer.writerow(["Date", "Conversation", "Direction", "Sender", "Text", "Is From Me", "Has Attachments"])
@@ -1172,7 +1189,7 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
         return {"files": [filepath], "message_count": len(messages)}
 
     def _export_merged_html(self, messages, output_dir):
-        filepath = os.path.join(output_dir, "merged_conversations.html")
+        filepath = os.path.join(output_dir, "all_conversations.html")
         with open(filepath, "w", encoding="utf-8") as f:
             f.write("""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Merged Conversations Export</title>

@@ -405,14 +405,14 @@ export default function MessageView({ udid }: Props) {
         {activeConversation ? (
           <>
             {/* Chat header */}
-            <div className="px-4 py-3 flex items-center justify-between flex-shrink-0" style={{ borderBottom: '0.5px solid var(--border-default)' }}>
-              <div>
-                <div className="text-body font-medium text-text-primary">{activeConversation.display_name}</div>
-                <div className="text-caption text-text-secondary">
+            <div className="px-4 py-3 flex items-center justify-between gap-3 flex-shrink-0" style={{ borderBottom: '0.5px solid var(--border-default)' }}>
+              <div className="min-w-0 overflow-hidden">
+                <div className="text-body font-medium text-text-primary truncate">{activeConversation.display_name}</div>
+                <div className="text-caption text-text-secondary truncate">
                   {activeConversation.service} &middot; {totalMessages} {filtersActive ? 'matching' : ''} messages
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <select
                   value={exportFormat}
                   onChange={(e) => setExportFormat(e.target.value as 'txt' | 'csv' | 'html')}
@@ -525,7 +525,7 @@ export default function MessageView({ udid }: Props) {
             </div>
 
             {/* Messages area */}
-            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-4 bg-surface">
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 bg-surface">
               {/* Top sentinel — IntersectionObserver triggers loadMore when this is visible */}
               <div ref={topSentinelRef} />
               {/* Spinner shown while loading older messages (not the initial load) */}
