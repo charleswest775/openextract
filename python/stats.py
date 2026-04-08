@@ -7,7 +7,7 @@ import sqlite3
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from messages import apple_date_to_iso, APPLE_EPOCH, NANOSECOND_THRESHOLD
+from messages import apple_date_to_iso, NANOSECOND_THRESHOLD
 
 
 # Seconds between Unix epoch (1970) and Apple epoch (2001)

@@ -8,7 +8,6 @@ import os
 import sys
 from datetime import datetime, timezone
 from urllib.parse import urlparse
-from typing import Optional
 
 from messages import apple_date_to_iso
 

@@ -74,7 +74,7 @@ const PhotoThumbnail = memo(function PhotoThumbnail({
           ) : skipThumbnail ? (
             <Play className="w-8 h-8 opacity-40" />
           ) : hasError ? (
-            <AlertTriangle className="w-5 h-5 opacity-30" title={`Could not load: ${photo.filename}`} />
+            <span title={`Could not load: ${photo.filename}`}><AlertTriangle className="w-5 h-5 opacity-30" /></span>
           ) : (
             <Image className="w-5 h-5 opacity-40" />
           )}
