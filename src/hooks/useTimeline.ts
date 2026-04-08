@@ -21,8 +21,8 @@ function appDisplayName(bundleId: string): string {
 
 // Per-conversation cap ensures every contact is represented in the timeline.
 // Global cap prevents extremely large backups from overwhelming the UI.
-const MESSAGES_PER_CONV = 50;
-const MAX_MESSAGES = 5000;
+const MESSAGES_PER_CONV = 500;
+const MAX_MESSAGES = 200000;
 const PAGE_SIZE = 100;
 
 // ── Phone-number normalizer ────────────────────────────────────────────────────
@@ -306,16 +306,21 @@ export function useTimeline(udid: string): UseTimelineReturn {
 
       for (const conv of sorted) {
         if (loaded >= MAX_MESSAGES) break;
-        // Cap per conversation so every contact is represented
-        const limit = Math.min(MESSAGES_PER_CONV, conv.message_count);
         try {
-          const { messages } = await sidecarCall<{ messages: Message[]; total: number; next_offset: number }>(
-            'get_messages',
-            { udid, chat_id: conv.chat_id, offset: 0, limit }
-          );
-          if (loadEpochRef.current !== epoch) return;
-          entries.push(...messages.filter(m => !m.is_reaction).map(m => normalizeMessage(m, conv)));
-          loaded += messages.length;
+          // Paginate through all messages in this conversation
+          let offset = 0;
+          const batchSize = 500;
+          while (true) {
+            const { messages, total } = await sidecarCall<{ messages: Message[]; total: number; next_offset: number }>(
+              'get_messages',
+              { udid, chat_id: conv.chat_id, offset, limit: batchSize }
+            );
+            if (loadEpochRef.current !== epoch) return;
+            entries.push(...messages.filter(m => !m.is_reaction).map(m => normalizeMessage(m, conv)));
+            loaded += messages.length;
+            offset += batchSize;
+            if (offset >= total || messages.length === 0) break;
+          }
         } catch {
           // Skip one failed conversation, continue with others
         }
@@ -336,7 +341,7 @@ export function useTimeline(udid: string): UseTimelineReturn {
     try {
       const res = await sidecarCall<{ calls: RawCall[] }>(
         'list_calls',
-        { udid, limit: 10000 }
+        { udid, limit: 999999 }
       );
       if (loadEpochRef.current !== epoch) return;
       // Calls may return an error field instead of crashing (e.g. unencrypted backup)
@@ -349,10 +354,10 @@ export function useTimeline(udid: string): UseTimelineReturn {
 
   const fetchPhotos = useCallback(async (epoch: number) => {
     try {
-      // Load up to 2000 photos for the timeline (same cap as messages)
+      // Load all photos for the timeline
       const res = await sidecarCall<{ photos: PhotoAsset[]; total: number }>(
         'list_photos',
-        { udid, offset: 0, limit: 2000 }
+        { udid, offset: 0, limit: 999999 }
       );
       if (loadEpochRef.current !== epoch) return;
       const normalized = res.photos.map(normalizePhoto).filter((e): e is TimelineEntry => e !== null);

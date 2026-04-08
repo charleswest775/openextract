@@ -356,7 +356,7 @@ class CallExtractor:
         
         try:
             os.makedirs(output_dir, exist_ok=True)
-            output_path = os.path.join(output_dir, "calls_export.csv")
+            output_path = os.path.join(output_dir, "call_history.csv")
             
             with open(output_path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)

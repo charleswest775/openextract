@@ -66,16 +66,16 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
   );
 
   return (
-    <div className="h-screen flex bg-white">
+    <div className="h-screen flex bg-base">
       {/* Sidebar */}
-      <div className="w-[200px] flex-shrink-0 border-r border-gray-200 flex flex-col">
+      <div className="w-[200px] flex-shrink-0 border-r border-border-default flex flex-col">
         {/* Session info */}
-        <div className="px-4 py-3 border-b border-gray-200">
-          <div className="text-sm font-medium text-gray-900 truncate">
+        <div className="px-4 py-3 border-b border-border-default">
+          <div className="text-sm font-medium text-text-primary truncate">
             {session?.name || 'Backup'}
           </div>
           {session?.iosVersion && (
-            <div className="text-xs text-gray-400">iOS {session.iosVersion}</div>
+            <div className="text-xs text-text-tertiary">iOS {session.iosVersion}</div>
           )}
         </div>
 
@@ -90,19 +90,19 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
                 onClick={() => !item.comingSoon && setActiveTab(item.id)}
                 className={`w-full px-4 py-2 flex items-center gap-2.5 text-left transition-colors ${
                   isActive
-                    ? 'bg-gray-100 font-medium border-l-2 border-emerald-500'
-                    : 'hover:bg-gray-50 border-l-2 border-transparent'
+                    ? 'bg-sidebar-active font-medium border-l-2 border-emerald-500'
+                    : 'hover:bg-surface border-l-2 border-transparent'
                 } ${item.comingSoon ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <Icon
-                  className={isActive ? 'text-emerald-600' : 'text-gray-400'}
+                  className={isActive ? 'text-emerald-600' : 'text-text-tertiary'}
                   size={16}
                 />
-                <span className={`text-sm ${isActive ? 'text-gray-900' : 'text-gray-600'}`}>
+                <span className={`text-sm ${isActive ? 'text-text-primary' : 'text-text-secondary'}`}>
                   {item.label}
                 </span>
                 {item.comingSoon && (
-                  <span className="text-[10px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded ml-auto">
+                  <span className="text-[10px] bg-elevated text-text-tertiary px-1.5 py-0.5 rounded ml-auto">
                     Soon
                   </span>
                 )}
@@ -114,7 +114,7 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
         {/* Back link */}
         <button
           onClick={onBack}
-          className="px-4 py-3 flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors border-t border-gray-200"
+          className="px-4 py-3 flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary hover:bg-surface transition-colors border-t border-border-default"
         >
           <ArrowLeftIcon size={14} />
           Home
