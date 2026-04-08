@@ -267,7 +267,7 @@ class TestStartBackup(unittest.TestCase):
         mb2.__aenter__ = AsyncMock(return_value=mb2)
         mb2.__aexit__ = AsyncMock(return_value=False)
         mb2.backup = AsyncMock()
-        mb2.change_backup_password = AsyncMock()
+        mb2.change_password = AsyncMock()
         return mb2
 
     def test_backup_success_returns_path(self):
@@ -343,7 +343,7 @@ class TestStartBackup(unittest.TestCase):
         self.assertIn(80, percents)
 
     def test_encrypted_backup_calls_configure(self):
-        """When encrypted=True, change_backup_password should be invoked."""
+        """When encrypted=True, change_password should be invoked."""
         lockdown = _make_lockdown_mock()
         mb2 = self._make_mb2_mock()
 
@@ -359,9 +359,9 @@ class TestStartBackup(unittest.TestCase):
                 notify=self.notify,
             )
 
-        # change_backup_password should have been called once (in _configure_encryption)
+        # change_password should have been called once (in _configure_encryption)
         # and backup() once.  We use a shared mb2 mock so both calls are visible.
-        self.assertTrue(mb2.change_backup_password.called or mb2.backup.called)
+        self.assertTrue(mb2.change_password.called or mb2.backup.called)
 
     def test_backup_error_propagates(self):
         """Exceptions from the backup service should propagate to the caller."""
