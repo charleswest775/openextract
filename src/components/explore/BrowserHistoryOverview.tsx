@@ -159,7 +159,7 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
                     if (!active || !payload?.length) return null;
                     return (
                       <div className="bg-white border border-gray-200 rounded shadow-sm px-3 py-2 text-xs">
-                        <div className="font-medium text-gray-700">{formatDate(label)}</div>
+                        <div className="font-medium text-gray-700">{formatDate(String(label))}</div>
                         <div className="text-emerald-600">{payload[0]?.value} visits</div>
                         {payload[1]?.value != null && (
                           <div className="text-indigo-400">{payload[1].value} avg</div>
