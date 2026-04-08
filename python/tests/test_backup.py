@@ -17,18 +17,26 @@ from unittest.mock import MagicMock, patch
 # real library being present in the test environment.
 # ---------------------------------------------------------------------------
 
+def _make_package(name):
+    """Create a module that Python treats as a package (has __path__)."""
+    mod = types.ModuleType(name)
+    mod.__path__ = []
+    return mod
+
+
 def _make_pymobiledevice3_stub():
     """Return a minimal stub package tree for pymobiledevice3."""
-    pkg = types.ModuleType("pymobiledevice3")
+    pkg = _make_package("pymobiledevice3")
     pkg.usbmux = types.ModuleType("pymobiledevice3.usbmux")
     pkg.lockdown = types.ModuleType("pymobiledevice3.lockdown")
-    pkg.services = types.ModuleType("pymobiledevice3.services")
+    pkg.services = _make_package("pymobiledevice3.services")
     pkg.services.mobilebackup2 = types.ModuleType("pymobiledevice3.services.mobilebackup2")
-    pkg.remote = types.ModuleType("pymobiledevice3.remote")
+    pkg.remote = _make_package("pymobiledevice3.remote")
     pkg.remote.utils = types.ModuleType("pymobiledevice3.remote.utils")
     pkg.remote.remote_service_discovery = types.ModuleType(
         "pymobiledevice3.remote.remote_service_discovery"
     )
+    pkg.exceptions = types.ModuleType("pymobiledevice3.exceptions")
 
     # Populate with MagicMocks so attribute access works
     pkg.usbmux.list_devices = MagicMock(return_value=[])
@@ -36,6 +44,10 @@ def _make_pymobiledevice3_stub():
     pkg.services.mobilebackup2.Mobilebackup2Service = MagicMock()
     pkg.remote.utils.get_rsds = MagicMock(return_value=[])
     pkg.remote.remote_service_discovery.RemoteServiceDiscoveryService = MagicMock()
+
+    # Exception classes used in device_backup.py
+    pkg.exceptions.ConnectionFailedToUsbmuxdError = type("ConnectionFailedToUsbmuxdError", (Exception,), {})
+    pkg.exceptions.ConnectionTerminatedError = type("ConnectionTerminatedError", (Exception,), {})
 
     return pkg
 
@@ -51,6 +63,7 @@ def _install_stub():
         "pymobiledevice3.remote",
         "pymobiledevice3.remote.utils",
         "pymobiledevice3.remote.remote_service_discovery",
+        "pymobiledevice3.exceptions",
     ]:
         if "." in name:
             parts = name.split(".")[1:]  # skip "pymobiledevice3"
