@@ -92,6 +92,7 @@ def _make_lockdown_mock(udid="abc-123", name="iPhone 15", ios_version="17.4"):
     m.udid = udid
     m.display_name = name
     m.product_version = ios_version
+    m.get_value = AsyncMock(return_value=False)
     return m
 
 
@@ -263,7 +264,10 @@ class TestStartBackup(unittest.TestCase):
         mb2 = MagicMock()
         mb2.__enter__ = MagicMock(return_value=mb2)
         mb2.__exit__ = MagicMock(return_value=False)
-        mb2.backup = MagicMock()
+        mb2.__aenter__ = AsyncMock(return_value=mb2)
+        mb2.__aexit__ = AsyncMock(return_value=False)
+        mb2.backup = AsyncMock()
+        mb2.change_backup_password = AsyncMock()
         return mb2
 
     def test_backup_success_returns_path(self):
