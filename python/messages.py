@@ -720,7 +720,7 @@ class MessageExtractor:
                             len(_rs.encode('utf-8')),
                             len(_rs.encode('utf-16-le')) // 2,
                         )
-                        if any(abs(l - _declared) <= 8 for l in _lens):
+                        if any(abs(length - _declared) <= 8 for length in _lens):
                             msg_text = _remainder
 
                 # Skip messages that are redundant or have no displayable content
