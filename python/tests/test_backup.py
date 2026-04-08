@@ -52,7 +52,14 @@ def _install_stub():
         "pymobiledevice3.remote.utils",
         "pymobiledevice3.remote.remote_service_discovery",
     ]:
-        sys.modules[name] = getattr(stub, name.split(".", 1)[1]) if "." in name else stub
+        if "." in name:
+            parts = name.split(".")[1:]  # skip "pymobiledevice3"
+            obj = stub
+            for part in parts:
+                obj = getattr(obj, part)
+            sys.modules[name] = obj
+        else:
+            sys.modules[name] = stub
     return stub
 
 
