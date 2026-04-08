@@ -9,7 +9,7 @@ module can be imported even when pymobiledevice3 is not installed.
 import sys
 import types
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 # ---------------------------------------------------------------------------
@@ -39,8 +39,8 @@ def _make_pymobiledevice3_stub():
     pkg.exceptions = types.ModuleType("pymobiledevice3.exceptions")
 
     # Populate with MagicMocks so attribute access works
-    pkg.usbmux.list_devices = MagicMock(return_value=[])
-    pkg.lockdown.create_using_usbmux = MagicMock()
+    pkg.usbmux.list_devices = AsyncMock(return_value=[])
+    pkg.lockdown.create_using_usbmux = AsyncMock()
     pkg.services.mobilebackup2.Mobilebackup2Service = MagicMock()
     pkg.remote.utils.get_rsds = MagicMock(return_value=[])
     pkg.remote.remote_service_discovery.RemoteServiceDiscoveryService = MagicMock()
@@ -117,8 +117,8 @@ class TestListDevices(unittest.TestCase):
         lockdown = _make_lockdown_mock("DEV-1", "Alice's iPhone", "17.4")
 
         with (
-            patch("pymobiledevice3.usbmux.list_devices", return_value=[usbmux_dev]),
-            patch("pymobiledevice3.lockdown.create_using_usbmux", return_value=lockdown),
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[usbmux_dev]),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
             patch("pymobiledevice3.remote.utils.get_rsds", return_value=[]),
         ):
             result = self.manager.list_devices()
@@ -136,8 +136,8 @@ class TestListDevices(unittest.TestCase):
         lockdown = _make_lockdown_mock("DEV-2", "Bob's iPhone", "16.7")
 
         with (
-            patch("pymobiledevice3.usbmux.list_devices", return_value=[usbmux_dev]),
-            patch("pymobiledevice3.lockdown.create_using_usbmux", return_value=lockdown),
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[usbmux_dev]),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
             patch("pymobiledevice3.remote.utils.get_rsds", return_value=[]),
         ):
             result = self.manager.list_devices()
@@ -163,7 +163,7 @@ class TestListDevices(unittest.TestCase):
         }.get(key, "")
 
         with (
-            patch("pymobiledevice3.usbmux.list_devices", return_value=[]),
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[]),
             patch("pymobiledevice3.remote.utils.get_rsds", return_value=[rsd_mock]),
             patch(
                 "pymobiledevice3.remote.remote_service_discovery.RemoteServiceDiscoveryService",
@@ -196,8 +196,8 @@ class TestListDevices(unittest.TestCase):
         rsd_service_mock.get_value = lambda key: ""
 
         with (
-            patch("pymobiledevice3.usbmux.list_devices", return_value=[usbmux_dev]),
-            patch("pymobiledevice3.lockdown.create_using_usbmux", return_value=lockdown),
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[usbmux_dev]),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
             patch("pymobiledevice3.remote.utils.get_rsds", return_value=[rsd_mock]),
             patch(
                 "pymobiledevice3.remote.remote_service_discovery.RemoteServiceDiscoveryService",
@@ -222,8 +222,8 @@ class TestListDevices(unittest.TestCase):
             return good_lockdown
 
         with (
-            patch("pymobiledevice3.usbmux.list_devices", return_value=[good_dev, bad_dev]),
-            patch("pymobiledevice3.lockdown.create_using_usbmux", side_effect=_create_lockdown),
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[good_dev, bad_dev]),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, side_effect=_create_lockdown),
             patch("pymobiledevice3.remote.utils.get_rsds", return_value=[]),
         ):
             result = self.manager.list_devices()
@@ -271,7 +271,7 @@ class TestStartBackup(unittest.TestCase):
         mb2 = self._make_mb2_mock()
 
         with (
-            patch("pymobiledevice3.lockdown.create_using_usbmux", return_value=lockdown),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
             patch("pymobiledevice3.services.mobilebackup2.Mobilebackup2Service", return_value=mb2),
         ):
             result = self.manager.start_backup(
@@ -291,7 +291,7 @@ class TestStartBackup(unittest.TestCase):
         mb2 = self._make_mb2_mock()
 
         with (
-            patch("pymobiledevice3.lockdown.create_using_usbmux", return_value=lockdown),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
             patch("pymobiledevice3.services.mobilebackup2.Mobilebackup2Service", return_value=mb2),
         ):
             self.manager.start_backup(
@@ -322,7 +322,7 @@ class TestStartBackup(unittest.TestCase):
         mb2.backup.side_effect = _fake_backup
 
         with (
-            patch("pymobiledevice3.lockdown.create_using_usbmux", return_value=lockdown),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
             patch("pymobiledevice3.services.mobilebackup2.Mobilebackup2Service", return_value=mb2),
         ):
             self.manager.start_backup(
@@ -344,7 +344,7 @@ class TestStartBackup(unittest.TestCase):
         mb2 = self._make_mb2_mock()
 
         with (
-            patch("pymobiledevice3.lockdown.create_using_usbmux", return_value=lockdown),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
             patch("pymobiledevice3.services.mobilebackup2.Mobilebackup2Service", return_value=mb2),
         ):
             self.manager.start_backup(
@@ -366,7 +366,7 @@ class TestStartBackup(unittest.TestCase):
         mb2.backup.side_effect = RuntimeError("Device disconnected")
 
         with (
-            patch("pymobiledevice3.lockdown.create_using_usbmux", return_value=lockdown),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
             patch("pymobiledevice3.services.mobilebackup2.Mobilebackup2Service", return_value=mb2),
         ):
             with self.assertRaises(RuntimeError, msg="Device disconnected"):
@@ -391,7 +391,7 @@ class TestStartBackup(unittest.TestCase):
             self.assertFalse(os.path.exists(target))
 
             with (
-                patch("pymobiledevice3.lockdown.create_using_usbmux", return_value=lockdown),
+                patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
                 patch(
                     "pymobiledevice3.services.mobilebackup2.Mobilebackup2Service",
                     return_value=mb2,
@@ -419,7 +419,7 @@ class TestStartBackup(unittest.TestCase):
         mb2.backup.side_effect = _fake_backup
 
         with (
-            patch("pymobiledevice3.lockdown.create_using_usbmux", return_value=lockdown),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
             patch("pymobiledevice3.services.mobilebackup2.Mobilebackup2Service", return_value=mb2),
         ):
             self.manager.start_backup(
