@@ -10,6 +10,8 @@ let sidecar: any = null;
 
 const isDev = !app.isPackaged;
 
+app.setName('OpenExtract');
+
 // Register custom scheme before app is ready — required for streaming/range requests
 protocol.registerSchemesAsPrivileged([
   {
