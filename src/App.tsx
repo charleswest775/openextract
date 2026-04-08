@@ -81,7 +81,7 @@ export default function App() {
   }, [pendingOpen, backup]);
 
   return (
-    <div className="h-screen flex flex-col bg-white text-gray-900">
+    <div className="h-screen flex flex-col bg-base text-text-primary">
       {screen === 'home' && (
         <HomeScreen
           onOpenBackup={async (session) => {

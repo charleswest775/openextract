@@ -14,13 +14,13 @@ interface Props {
 
 export default function WorkspaceView({ data, onOpenSession, onGetMoreData, onBrowseForBackup }: Props) {
   return (
-    <div className="h-screen flex flex-col bg-white">
+    <div className="h-screen flex flex-col bg-base">
       <AppHeader showVersion={false} showSettings={false} />
 
       <div className="flex-1 overflow-y-auto px-7 py-8">
         {/* Header row */}
         <div className="flex items-center justify-between mb-5">
-          <h1 className="text-lg font-medium text-gray-900">
+          <h1 className="text-lg font-medium text-text-primary">
             Your digital life, in your hands.
           </h1>
           <button
