@@ -3,3 +3,11 @@ Pillow>=10.0
 pillow-heif>=0.13.0
 debugpy>=1.8.0
 pymobiledevice3>=4.0.0
+# ios-backup-core is the shared iPhone-backup parsing library extracted from
+# this codebase. Until it is published to PyPI, install it from a sibling
+# checkout:  pip install -e ../../ios-backup-core
+# (Path is relative to this requirements.txt — `dev/openextract/python/` →
+#  `dev/ios-backup-core/`. In a git worktree the relative path won't resolve;
+#  install the lib separately from its absolute path in that case.)
+-e ../../ios-backup-core
+

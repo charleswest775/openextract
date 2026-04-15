@@ -8,6 +8,7 @@ const sidecar_1 = require("./sidecar");
 let mainWindow = null;
 let sidecar = null;
 const isDev = !app.isPackaged;
+app.setName('OpenExtract');
 // Register custom scheme before app is ready — required for streaming/range requests
 protocol.registerSchemesAsPrivileged([
     {
@@ -131,7 +132,7 @@ app.whenReady().then(async () => {
         return net.fetch(pathToFileURL(filePath).toString());
     });
     // Start the Python sidecar
-    const logPath = path.join(electron_1.app.getPath('userData'), 'python_log.txt');
+    const logPath = path.join(app.getPath('userData'), 'python_log.txt');
     sidecar = new sidecar_1.PythonSidecar(getPythonPath(), getPythonArgs(), logPath);
     sidecar.notificationHandler = (notification) => {
         if (mainWindow && !mainWindow.isDestroyed()) {

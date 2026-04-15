@@ -1,841 +1,99 @@
 """
-Message extraction from sms.db.
-Handles iMessage, SMS, MMS conversations with contact resolution.
+Message extraction adapter.
+
+Delegates raw extraction (list_conversations, get_messages, search_messages)
+to ``ios_backup_core.extractors.messages.MessageExtractor``. Keeps two pieces
+of openextract-only behaviour:
+
+  * ``get_attachment(backup, attachment_id)`` — the new library embeds
+    attachments inline in get_messages output but does not expose a per-id
+    extraction RPC. openextract's frontend has its own attachment-load flow,
+    so we keep the original implementation here.
+  * ``export_conversation`` / ``export_conversations`` (txt, csv, html) — file
+    export is out of scope for the library.
+
+Re-exports the utility constants/functions that the rest of the openextract
+sidecar imports from this module:
+
+    APPLE_EPOCH, NANOSECOND_THRESHOLD,
+    apple_date_to_iso, iso_to_apple_date, parse_attributed_body
 """
 
-import sqlite3
 import base64
+import csv
 import os
-import plistlib
-import re
-import tempfile
-import time
-from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from contacts import resolve_contact
+from ios_backup_core.extractors.messages import MessageExtractor as _CoreMessageExtractor
+from ios_backup_core.text import parse_attributed_body  # noqa: F401  (re-export)
+from ios_backup_core.timestamps import (
+    APPLE_EPOCH,           # noqa: F401  (re-export)
+    NANOSECOND_THRESHOLD,  # noqa: F401  (re-export)
+    apple_to_iso as apple_date_to_iso,
+    iso_to_apple as iso_to_apple_date,
+)
 
-# Pre-compiled regex patterns for message text cleanup (used per-message)
-_RE_KIMMSG = re.compile(r'__kIM\w+')
-_RE_UUID = re.compile(r'\$?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}', re.IGNORECASE)
-_RE_MEDIA_FILE = re.compile(r'[\d_A-Fa-f\-]+(\.fullsizerender)*\.(jpeg|jpg|heic|heif|png|gif|mov|mp4|m4a|caf|pdf|doc|docx)', re.IGNORECASE)
-_RE_JUNK_START = re.compile(r'^[ \n"\uFFFD\uFFFC]+')
-_RE_JUNK_END = re.compile(r'[ \n"\uFFFD\uFFFC]+$')
-_RE_APPLE_CONST = re.compile(r'^k[A-Z][A-Z0-9\-_]{10,}')
-
-_LOG_PATH = os.environ.get('OPENEXTRACT_LOG_PATH') or os.path.join(tempfile.gettempdir(), 'python_log.txt')
-
-
-def _tlog(msg: str) -> None:
-    try:
-        with open(_LOG_PATH, "a", encoding="utf-8") as f:
-            f.write(f"[TIMING {time.strftime('%H:%M:%S')}] {msg}\n")
-    except Exception:
-        pass
-
-# Apple Cocoa epoch: Jan 1, 2001
-APPLE_EPOCH = datetime(2001, 1, 1, tzinfo=timezone.utc)
-NANOSECOND_THRESHOLD = 1_000_000_000_000  # Dates above this are in nanoseconds
-
-# Cache of sms.db column sets, keyed by db_path. Schema never changes for a given backup.
-_pragma_cache: dict[str, dict] = {}
-# Set of db_paths for which we've already created performance indexes.
-_indexed_dbs: set[str] = set()
-
-# Direct balloon_bundle_id column value → message_type (checked before attributedBody parsing)
-_BUNDLE_ID_MAP: list[tuple[str, str]] = [
-    ('URLBalloonProvider',              'link'),
-    ('Maps',                            'location'),
-    ('maps.iMessage',                   'location'),
-    ('LocationShare',                   'location'),
-    ('findmy',                          'location'),
-    ('FindMy',                          'location'),
-    ('com.apple.pay',                   'payment'),
-    ('PassbookUI',                      'payment'),
-    ('DigitalTouch',                    'digital_touch'),
-    ('Handwriting',                     'handwriting'),
-    ('Fitness',                         'fitness'),
-    ('GameCenter',                      'game'),
-    ('GameKit',                         'game'),
-    # Generic iMessage extension balloon — unknown app share
-    ('MSMessageExtensionBalloonPlugin', 'app'),
+__all__ = [
+    "MessageExtractor",
+    "apple_date_to_iso",
+    "iso_to_apple_date",
+    "parse_attributed_body",
+    "APPLE_EPOCH",
+    "NANOSECOND_THRESHOLD",
 ]
-
-def _type_from_bundle_id(bundle_id: Optional[str]) -> Optional[str]:
-    """Map a balloon_bundle_id to a message_type, or None if not set.
-
-    Returns 'app' for any non-empty bundle_id that isn't specifically
-    recognised — this prevents garbled extension payload data from
-    leaking through as user-visible text.
-    """
-    if not bundle_id:
-        return None
-    for fragment, msg_type in _BUNDLE_ID_MAP:
-        if fragment in bundle_id:
-            return msg_type
-    return "app"
-
-# Fragments found in attributedBody $objects → message_type (fallback)
-_BALLOON_TYPE_MAP: list[tuple[str, str]] = [
-    ('Maps',                    'location'),
-    ('maps.iMessage',           'location'),
-    ('LocationShare',           'location'),
-    ('__kIMLocationShare',      'location'),
-    ('com.apple.pay',           'payment'),
-    ('PassbookUI',              'payment'),
-    ('DigitalTouch',            'digital_touch'),
-    ('Handwriting',             'handwriting'),
-    ('Fitness',                 'fitness'),
-    ('GameCenter',              'game'),
-    ('GameKit',                 'game'),
-    ('com.apple.audio',         'audio'),
-    ('AudioMessage',            'audio'),
-]
-
-_NS_CLASS_NAMES = frozenset([
-    "NSString", "NSMutableString", "NSAttributedString",
-    "NSMutableAttributedString", "NSObject",
-    "NSDictionary", "NSMutableDictionary",
-])
-
-
-def _detect_type_from_objects(objects: list) -> str:
-    """Scan bplist $objects for known Apple balloon/system message identifiers."""
-    for obj in objects:
-        if not isinstance(obj, str):
-            continue
-        for fragment, msg_type in _BALLOON_TYPE_MAP:
-            if fragment in obj:
-                return msg_type
-    return "text"
-
-
-def parse_attributed_body(data: bytes) -> tuple[str, str]:
-    """Extract plain text and message type from an NSAttributedString BLOB.
-
-    Returns (text, message_type) where message_type is one of:
-      'text', 'location', 'payment', 'audio', 'fitness',
-      'game', 'digital_touch', 'handwriting', 'system'
-    """
-    if not data:
-        return "", "text"
-
-    # 1. Try NSKeyedArchiver (bplist00)
-    if data.startswith(b'bplist00'):
-        try:
-            plist = plistlib.loads(data)
-            objects = plist.get("$objects", [])
-
-            # Detect system/service message type first
-            msg_type = _detect_type_from_objects(objects)
-            if msg_type != "text":
-                return "", msg_type
-
-            def _resolve(val):
-                if isinstance(val, plistlib.UID):
-                    idx = val.data
-                    return objects[idx] if idx < len(objects) else None
-                return val
-
-            # Primary: follow NSKeyedArchiver structure to the actual NS.string value.
-            # $top.root → root NSAttributedString dict → NS.string UID → plain text.
-            top = plist.get("$top", {})
-            root_ref = top.get("root")
-            if root_ref is not None:
-                root_obj = _resolve(root_ref)
-                if isinstance(root_obj, dict):
-                    ns_string_val = _resolve(root_obj.get("NS.string"))
-                    if isinstance(ns_string_val, str) and ns_string_val:
-                        return ns_string_val, "text"
-
-            # Fallback: longest clean string in $objects (skips internal keys / class names)
-            candidate = ""
-            for obj in objects:
-                if not isinstance(obj, str):
-                    continue
-                if obj in _NS_CLASS_NAMES:
-                    continue
-                # Skip NSKeyedArchiver structural strings
-                if obj.startswith('$') or obj == '$null':
-                    continue
-                # Skip NS/CF class name strings (e.g. "NSFont", "WNSValue", "CFString")
-                if re.match(r'^W?(NS|CF)[A-Z]', obj):
-                    continue
-                # Skip GUIDs and file attachment references
-                if "kIMFileTransferGUID" in obj or "kIMMessagePart" in obj:
-                    continue
-                if re.match(r'^\$?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$', obj, re.IGNORECASE):
-                    continue
-                if re.search(r'[\d_A-Fa-f\-]+(\.fullsizerender)*\.(jpeg|jpg|heic|heif|png|gif|mov|mp4|m4a|caf|pdf|doc|docx)', obj, re.IGNORECASE):
-                    continue
-                # Skip Apple internal constant strings (e.g. "kUSD-CAD-AUD-HKD-...")
-                if _RE_APPLE_CONST.match(obj):
-                    continue
-                if len(obj) > len(candidate):
-                    candidate = obj
-            if candidate:
-                return candidate, "text"
-        except Exception:
-            pass
-        # bplist00 data that couldn't be parsed shouldn't be raw-decoded (produces garbage)
-        return "", "text"
-
-    # 2. TypedStream / raw binary fallback — also check for system message clues
-    try:
-        raw = data.decode('utf-8', errors='replace')
-
-        # Quick system-type scan on raw text before cleaning
-        for fragment, msg_type in _BALLOON_TYPE_MAP:
-            if fragment in raw:
-                return "", msg_type
-
-        text = raw
-        # Strip TypedStream / NSKeyedArchiver structural noise.
-        # ORDER MATTERS: remove full GUIDs and __kIM keys BEFORE $\w+ cleanup,
-        # because $\w+ would consume the first GUID segment (e.g. "$19129343")
-        # leaving an unrecognisable "-A4D6-…" fragment behind.
-        text = re.sub(r'streamtyped', '', text)              # TypedStream magic word
-        text = re.sub(r'__kIM\w+', '', text)                 # __kIMFileTransferGUIDAttributeName …
-        text = re.sub(r'at_\d+_', '', text)                  # attachment ref prefix "at_0_"
-        # Full GUIDs (with or without leading $)
-        text = re.sub(r'\$?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}', '', text, flags=re.IGNORECASE)
-        # Partial GUIDs (tail segments left after splitting on control chars)
-        text = re.sub(r'(?<![.\w])[0-9A-Fa-f]{4,}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{8,}', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'\$\w+', '', text)                    # $classname, $classes, $top …
-        text = re.sub(r'W?(NS|CF)[A-Z][A-Za-z]*', '', text) # NSFont, CFString, WNSValue …
-        text = re.sub(r'Z?(NS|CF)\.\w+', '', text)          # NS.rangeval, ZNS.special …
-        text = re.sub(r'\b[A-Z][a-z]{3,}/', '', text)       # TypedStream class tags: Email/ DateTime/
-        text = re.sub(r'mailto:', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'[\d_A-Fa-f\-]+(\.fullsizerender)*\.(jpeg|jpg|heic|heif|png|gif|mov|mp4|m4a|caf|pdf|doc|docx)', '', text, flags=re.IGNORECASE)
-        for c in _NS_CLASS_NAMES:
-            text = text.replace(c, "")
-
-        parts = re.split(r'[\x00-\x08\x0b\x0c\x0e-\x1f]+', text)
-        candidate = ""
-        for p in parts:
-            p = p.strip().replace('\ufffc', '').replace('\ufffd', '').strip()
-            # Strip TypedStream string length-prefix artifact: '+' followed by one
-            # printable byte that encodes the declared length (e.g. "+I"=73, "+ "=32).
-            # Only strip when the declared length closely matches the remaining text.
-            m_prefix = re.match(r'^\+([\x20-\x7e])(.*)', p, re.DOTALL)
-            if m_prefix:
-                declared = ord(m_prefix.group(1))
-                remainder = m_prefix.group(2)
-                if abs(len(remainder.rstrip()) - declared) <= 3:
-                    p = remainder.lstrip()
-            # For strings containing an email address, use a regex to extract just
-            # the address and discard surrounding TypedStream noise (UEmail/, type bytes).
-            # Use lowercase-only TLD ([a-z]{2,}) so uppercase TypedStream type bytes
-            # (e.g. the 'U' in 'comUEmail') are not consumed as part of the TLD.
-            if '@' in p:
-                m_email = re.search(r'[\w._%+\-]+@[\w.\-]+\.[a-z]{2,}', p)
-                p = m_email.group(0) if m_email else ''
-            if p and len(p) > len(candidate) and len(p) > 3:
-                candidate = p
-
-        return candidate, "text"
-    except Exception:
-        pass
-
-    return "", "text"
-
-
-def parse_link_payload(data: bytes) -> dict:
-    """Extract URL, title, summary and site name from a URLBalloonProvider payload_data blob."""
-    if not data:
-        return {}
-    try:
-        plist = plistlib.loads(bytes(data))
-        objs = plist.get("$objects", [])
-
-        def resolve(val):
-            if isinstance(val, plistlib.UID):
-                return objs[val.data]
-            return val
-
-        root = resolve(objs[1])
-        if not isinstance(root, dict) or "richLinkMetadata" not in root:
-            return {}
-
-        meta = resolve(root["richLinkMetadata"])
-        if not isinstance(meta, dict):
-            return {}
-
-        result: dict = {}
-
-        # Resolve NSURL → string via NS.relative
-        for key in ("originalURL", "URL"):
-            if key in meta:
-                url_obj = resolve(meta[key])
-                if isinstance(url_obj, dict):
-                    rel = resolve(url_obj.get("NS.relative", ""))
-                    if rel and isinstance(rel, str):
-                        result["url"] = rel
-                        break
-                elif isinstance(url_obj, str):
-                    result["url"] = url_obj
-                    break
-
-        for key in ("title", "summary", "siteName"):
-            val = resolve(meta.get(key, ""))
-            if val and isinstance(val, str):
-                result[key.replace("N", "n").replace("S", "s") if key == "siteName" else key] = val
-
-        return result
-    except Exception:
-        return {}
-
-
-def apple_date_to_iso(apple_timestamp) -> Optional[str]:
-    """Convert Apple Cocoa timestamp to ISO 8601 string."""
-    if apple_timestamp is None or apple_timestamp == 0:
-        return None
-    try:
-        ts = float(apple_timestamp)
-        # Detect nanosecond timestamps (iOS 14+)
-        if ts > NANOSECOND_THRESHOLD:
-            ts = ts / 1_000_000_000
-        dt = APPLE_EPOCH + timedelta(seconds=ts)
-        return dt.isoformat()
-    except (ValueError, OverflowError):
-        return None
-
-
-def iso_to_apple_date(iso_str: str, nanoseconds: bool = False) -> Optional[float]:
-    """Convert ISO 8601 string to Apple Cocoa epoch timestamp.
-
-    Pass nanoseconds=True when the target DB stores timestamps as nanoseconds
-    (iOS 14+), which is detected by sampling a row before calling this.
-    """
-    if not iso_str:
-        return None
-    try:
-        from datetime import timezone
-        # Accept date-only strings like "2023-01-01"
-        if len(iso_str) == 10:
-            iso_str += "T00:00:00"
-        dt = datetime.fromisoformat(iso_str)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        delta = dt - APPLE_EPOCH.replace(tzinfo=timezone.utc)
-        seconds = delta.total_seconds()
-        return seconds * 1_000_000_000 if nanoseconds else seconds
-    except (ValueError, TypeError):
-        return None
-
-
-def _db_uses_nanoseconds(conn) -> bool:
-    """Return True if the message table stores timestamps in nanoseconds (iOS 14+)."""
-    row = conn.execute("SELECT date FROM message WHERE date > 0 LIMIT 1").fetchone()
-    if row and row[0] is not None:
-        return float(row[0]) > NANOSECOND_THRESHOLD
-    return False
 
 
 class MessageExtractor:
-    """Extracts messages and conversations from iOS sms.db."""
+    """Adapter wrapping the ios-backup-core MessageExtractor.
 
-    SMS_DB_PATH = "Library/SMS/sms.db"
+    Forwards list_conversations, get_messages, and search_messages directly
+    to the inner extractor. Keeps openextract's get_attachment and export
+    methods (txt/csv/html, separate/merged) inline because the library does
+    not provide them.
+    """
 
     def __init__(self):
-        # Persistent SQLite connections keyed by db_path.
-        # The sidecar processes one request at a time, so reuse is safe.
-        self._connections: dict[str, sqlite3.Connection] = {}
-        # Cache total message counts per (db_path, chat_id) to skip redundant COUNT queries
-        self._count_cache: dict[tuple, int] = {}
+        self._inner = _CoreMessageExtractor()
 
-    def _get_sms_db(self, backup) -> Optional[str]:
-        """Get path to the sms.db file from the backup."""
-        return backup.get_file(self.SMS_DB_PATH, domain="HomeDomain")
-
-    def _get_conn(self, db_path: str) -> sqlite3.Connection:
-        """Return a cached SQLite connection for db_path, creating it if needed."""
-        if db_path not in self._connections:
-            conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row
-            # Performance pragmas (set before indexes so cache is warm)
-            conn.execute("PRAGMA synchronous = OFF")
-            conn.execute("PRAGMA cache_size = -50000")  # 50MB cache
-            conn.execute("PRAGMA temp_store = MEMORY")
-            self._ensure_indexes(conn, db_path)
-            # Set query_only AFTER index creation so CREATE INDEX can succeed
-            conn.execute("PRAGMA query_only = TRUE")
-            self._connections[db_path] = conn
-        return self._connections[db_path]
-
-    def _ensure_indexes(self, conn, db_path: str) -> None:
-        """Create performance indexes on sms.db the first time it is opened.
-
-        Uses IF NOT EXISTS so this is idempotent — SQLite skips creation if the
-        index already exists (either from iOS or a prior run).  Errors are
-        silently ignored so a read-only filesystem won't break anything.
-        """
-        if db_path in _indexed_dbs:
-            return
-        try:
-            conn.executescript("""
-                CREATE INDEX IF NOT EXISTS _oe_cmj_chat
-                    ON chat_message_join (chat_id, message_id);
-                CREATE INDEX IF NOT EXISTS _oe_msg_date
-                    ON message (date);
-            """)
-            conn.commit()
-        except Exception:
-            pass  # Read-only filesystem or locked db — non-fatal
-        _indexed_dbs.add(db_path)
+    # ── Delegated raw-extraction methods ─────────────────────────────────────
 
     def list_conversations(self, backup, contacts: dict) -> dict:
-        """List all conversations with preview info."""
-        db_path = self._get_sms_db(backup)
-        if not db_path:
-            return {"conversations": [], "error": "sms.db not found"}
-
-        t0 = time.perf_counter()
-        conn = self._get_conn(db_path)
-        _tlog(f"list_conversations: _get_conn={time.perf_counter()-t0:.3f}s")
-
-        conversations = []
-        try:
-            t1 = time.perf_counter()
-            # CTE avoids a correlated subquery per-row for last message preview.
-            # ranked_msgs assigns ROW_NUMBER per chat ordered by date DESC so rn=1
-            # is the latest message; msg_counts aggregates totals separately.
-            rows = conn.execute("""
-                WITH ranked_msgs AS (
-                    SELECT
-                        cmj.chat_id,
-                        COALESCE(m.text, '[Message contents hidden]') AS text,
-                        m.date,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY cmj.chat_id ORDER BY m.date DESC
-                        ) AS rn
-                    FROM chat_message_join cmj
-                    JOIN message m ON m.ROWID = cmj.message_id
-                ),
-                last_msg AS (
-                    SELECT chat_id, text, date FROM ranked_msgs WHERE rn = 1
-                ),
-                msg_counts AS (
-                    SELECT chat_id, COUNT(*) AS message_count
-                    FROM chat_message_join
-                    GROUP BY chat_id
-                )
-                SELECT
-                    c.ROWID          AS chat_id,
-                    c.chat_identifier,
-                    c.display_name,
-                    c.service_name,
-                    mc.message_count,
-                    lm.date          AS last_message_date,
-                    lm.text          AS last_message_text
-                FROM chat c
-                JOIN last_msg   lm ON lm.chat_id = c.ROWID
-                JOIN msg_counts mc ON mc.chat_id = c.ROWID
-                ORDER BY lm.date DESC
-            """).fetchall()
-            _tlog(f"list_conversations: CTE query={time.perf_counter()-t1:.3f}s rows={len(rows)}")
-
-            # Batch-fetch participants for all chats to detect groups and
-            # build friendly names for group chats missing a display name.
-            # We query all chat_ids (not just those with "chat" in the
-            # identifier) because group chats can use hex UUID identifiers.
-            all_chat_ids = [row["chat_id"] for row in rows]
-            participants_map: dict[int, list[str]] = {}
-            if all_chat_ids:
-                placeholders = ",".join("?" * len(all_chat_ids))
-                part_rows = conn.execute(f"""
-                    SELECT chj.chat_id, h.id
-                    FROM chat_handle_join chj
-                    JOIN handle h ON h.ROWID = chj.handle_id
-                    WHERE chj.chat_id IN ({placeholders})
-                """, all_chat_ids).fetchall()
-                for pr in part_rows:
-                    participants_map.setdefault(pr["chat_id"], []).append(pr["id"])
-            _tlog(f"list_conversations: participants batch={len(all_chat_ids)} chats")
-
-            t2 = time.perf_counter()
-            for row in rows:
-                chat_identifier = row["chat_identifier"] or ""
-                display_name = row["display_name"] or ""
-                participant_count = len(participants_map.get(row["chat_id"], []))
-                is_group = participant_count > 1 or "chat" in chat_identifier.lower()
-
-                # Resolve contact/group name
-                if not display_name:
-                    if is_group and row["chat_id"] in participants_map:
-                        handles = participants_map[row["chat_id"]]
-                        resolved = [(resolve_contact(h, contacts), h) for h in handles]
-                        # Put resolved names first so a known contact leads the label
-                        resolved.sort(key=lambda x: (not x[0], x[1]))
-                        names = [name or handle for name, handle in resolved]
-                        if len(names) <= 3:
-                            display_name = ", ".join(names)
-                        else:
-                            display_name = f"{names[0]} + {len(names) - 1}"
-                    else:
-                        display_name = resolve_contact(chat_identifier, contacts)
-
-                conversations.append({
-                    "chat_id": row["chat_id"],
-                    "chat_identifier": chat_identifier,
-                    "display_name": display_name or chat_identifier,
-                    "service": row["service_name"] or "iMessage",
-                    "message_count": row["message_count"],
-                    "last_message_date": apple_date_to_iso(row["last_message_date"]),
-                    "last_message_preview": (row["last_message_text"] or "")[:100],
-                    "is_group": is_group,
-                })
-            _tlog(f"list_conversations: contact-resolve loop={time.perf_counter()-t2:.3f}s convs={len(conversations)}")
-        except Exception:
-            raise
-
-        return {"conversations": conversations}
+        return self._inner.list_conversations(backup, contacts)
 
     def get_messages(self, backup, chat_id: int, contacts: dict,
                      offset: int = 0, limit: int = 100,
                      date_from: Optional[str] = None,
                      date_to: Optional[str] = None) -> dict:
-        """Get paginated messages from a conversation."""
-        db_path = self._get_sms_db(backup)
-        if not db_path:
-            return {"messages": [], "error": "sms.db not found"}
+        return self._inner.get_messages(
+            backup, chat_id, contacts, offset, limit,
+            date_from=date_from, date_to=date_to,
+        )
 
-        t0 = time.perf_counter()
-        conn = self._get_conn(db_path)
-        _tlog(f"get_messages(chat={chat_id}): _get_conn={time.perf_counter()-t0:.3f}s")
+    def search_messages(self, backup, query: str, contacts: dict,
+                        chat_id: Optional[int] = None,
+                        date_from: Optional[str] = None,
+                        date_to: Optional[str] = None,
+                        limit: int = 500) -> dict:
+        return self._inner.search_messages(
+            backup, query, contacts, chat_id,
+            date_from=date_from, date_to=date_to, limit=limit,
+        )
 
-        messages = []
-        try:
-            # Probe which optional columns actually exist so we never query a
-            # missing column (which would crash both query tiers).
-            # Results are cached by db_path since schema never changes for a given backup.
-            if db_path not in _pragma_cache:
-                msg_cols = {r[1] for r in conn.execute("PRAGMA table_info(message)").fetchall()}
-                handle_cols = {r[1] for r in conn.execute("PRAGMA table_info(handle)").fetchall()}
-                _pragma_cache[db_path] = {
-                    'has_attributed_body':   'attributedBody'     in msg_cols,
-                    'has_payload_data':      'payload_data'       in msg_cols,
-                    'has_balloon_bundle_id': 'balloon_bundle_id'  in msg_cols,
-                    'has_audio_message':     'is_audio_message'   in msg_cols,
-                    'has_item_type':         'item_type'          in msg_cols,
-                    'has_share_status':      'share_status'       in msg_cols,
-                    'has_share_direction':   'share_direction'    in msg_cols,
-                    'has_uncanonicalized':   'uncanonicalized_id' in handle_cols,
-                    'uses_nanoseconds':      _db_uses_nanoseconds(conn),
-                }
-            schema = _pragma_cache[db_path]
-            has_attributed_body   = schema['has_attributed_body']
-            has_payload_data      = schema['has_payload_data']
-            has_balloon_bundle_id = schema['has_balloon_bundle_id']
-            has_audio_message     = schema['has_audio_message']
-            has_item_type         = schema['has_item_type']
-            has_share_status      = schema['has_share_status']
-            has_share_direction   = schema['has_share_direction']
-            has_uncanonicalized   = schema['has_uncanonicalized']
-
-            # Build SELECT list from confirmed-present columns only
-            select_parts = [
-                'm.ROWID AS message_id',
-                'm.text',
-                'm.date',
-                'm.is_from_me',
-                'm.cache_has_attachments',
-                'm.associated_message_type',
-                'h.id AS handle_id_str',
-            ]
-            if has_attributed_body:   select_parts.append('m.attributedBody')  # noqa: E701
-            if has_payload_data:      select_parts.append('m.payload_data')  # noqa: E701
-            if has_balloon_bundle_id: select_parts.append('m.balloon_bundle_id')  # noqa: E701
-            if has_audio_message:     select_parts.append('m.is_audio_message')  # noqa: E701
-            if has_item_type:         select_parts.append('m.item_type')  # noqa: E701
-            if has_share_status:      select_parts.append('m.share_status')  # noqa: E701
-            if has_share_direction:   select_parts.append('m.share_direction')  # noqa: E701
-            if has_uncanonicalized:   select_parts.append('h.uncanonicalized_id')  # noqa: E701
-
-            date_clauses = []
-            date_params: list = [chat_id]
-            if date_from or date_to:
-                ns = _pragma_cache[db_path]['uses_nanoseconds']
-                apple_from = iso_to_apple_date(date_from, nanoseconds=ns) if date_from else None
-                apple_to = iso_to_apple_date(date_to, nanoseconds=ns) if date_to else None
-                if apple_from is not None:
-                    date_clauses.append("m.date >= ?")
-                    date_params.append(apple_from)
-                if apple_to is not None:
-                    date_clauses.append("m.date <= ?")
-                    date_params.append(apple_to)
-            where_extra = (" AND " + " AND ".join(date_clauses)) if date_clauses else ""
-
-            t_q = time.perf_counter()
-            # Use a subquery to deduplicate message ROWIDs first (a single message can
-            # appear multiple times in chat_message_join, which would corrupt OFFSET
-            # pagination and cause messages from other conversations to bleed through).
-            rows = conn.execute(f"""
-                SELECT {', '.join(select_parts)}
-                FROM message m
-                LEFT JOIN handle h ON h.ROWID = m.handle_id
-                WHERE m.ROWID IN (
-                    SELECT DISTINCT cmj.message_id
-                    FROM chat_message_join cmj
-                    WHERE cmj.chat_id = ?{where_extra}
-                    ORDER BY cmj.message_id DESC
-                    LIMIT ? OFFSET ?
-                )
-                ORDER BY m.date DESC
-            """, (*date_params, limit, offset)).fetchall()
-            _tlog(f"get_messages: main query={time.perf_counter()-t_q:.3f}s rows={len(rows)}")
-
-            # Reverse so messages render top-to-bottom in chronological order
-            rows = list(rows)[::-1]
-
-            # Batch-fetch all attachment metadata for this page in a single query
-            # instead of one query per message (N+1 → 1).
-            t_att = time.perf_counter()
-            attachment_ids_needed = [
-                row["message_id"] for row in rows if bool(row["cache_has_attachments"])
-            ]
-            attachments_by_msg: dict[int, list] = {}
-            if attachment_ids_needed:
-                placeholders = ','.join('?' * len(attachment_ids_needed))
-                for att in conn.execute(f"""
-                    SELECT
-                        maj.message_id,
-                        a.ROWID AS attachment_id,
-                        a.filename,
-                        a.mime_type,
-                        a.transfer_name,
-                        a.total_bytes
-                    FROM attachment a
-                    JOIN message_attachment_join maj ON maj.attachment_id = a.ROWID
-                    WHERE maj.message_id IN ({placeholders})
-                """, attachment_ids_needed).fetchall():
-                    transfer_name = att["transfer_name"] or ""
-                    filename = att["filename"] or ""
-                    if transfer_name.endswith('.pluginPayloadAttachment'):
-                        continue
-                    if filename.endswith('.pluginPayloadAttachment'):
-                        continue
-                    mid = att["message_id"]
-                    attachments_by_msg.setdefault(mid, []).append({
-                        "attachment_id": att["attachment_id"],
-                        "filename": filename,
-                        "mime_type": att["mime_type"],
-                        "transfer_name": transfer_name,
-                        "total_bytes": att["total_bytes"],
-                    })
-
-            _tlog(f"get_messages: attachment batch={time.perf_counter()-t_att:.3f}s msgs_with_att={len(attachment_ids_needed)}")
-
-            # Pre-fetch the primary contact name for this chat — used as fallback for
-            # system notification messages that have no handle_id (e.g. location sharing)
-            chat_contact_name = ""
-            chat_handle_row = conn.execute("""
-                SELECT h.id FROM handle h
-                INNER JOIN chat_handle_join chj ON chj.handle_id = h.ROWID
-                WHERE chj.chat_id = ?
-                LIMIT 1
-            """, (chat_id,)).fetchone()
-            if chat_handle_row:
-                chat_contact_name = resolve_contact(chat_handle_row[0], contacts) or chat_handle_row[0]
-
-            t_loop = time.perf_counter()
-            for row in rows:
-                handle = row["handle_id_str"] or ""
-                sender_name = resolve_contact(handle, contacts) if handle else ""
-                if not sender_name and has_uncanonicalized and row["uncanonicalized_id"]:
-                    sender_name = resolve_contact(row["uncanonicalized_id"], contacts)
-                if not sender_name:
-                    sender_name = handle
-                # Fall back to the chat's primary contact for handle-less system messages
-                if not sender_name:
-                    sender_name = chat_contact_name
-
-                # Determine message type — balloon_bundle_id column is authoritative
-                bundle_type = _type_from_bundle_id(row["balloon_bundle_id"] if has_balloon_bundle_id else None)
-                is_audio    = bool(row["is_audio_message"]) if has_audio_message else False
-                item_type   = (row["item_type"]      or 0)  if has_item_type     else 0
-                share_status    = (row["share_status"]    or 0) if has_share_status    else 0
-                share_direction = (row["share_direction"] or 0) if has_share_direction else 0
-
-                msg_text = row["text"]
-                if bundle_type == "location":
-                    # FindMy map balloon — redundant with the text notifications that follow; skip it
-                    msg_type = "hidden"
-                elif bundle_type:
-                    msg_type = bundle_type
-                elif is_audio:
-                    msg_type = "audio"
-                elif item_type in (3, 4):
-                    # item_type 3/4 = location sharing events
-                    # share_direction: 0 = outgoing (you), 1 = incoming (them)
-                    # share_status:    0 = started,        1 = stopped
-                    if item_type == 4 and share_direction == 0 and share_status == 1:
-                        msg_type = "location_stopped_by_me"
-                    elif item_type == 4 and share_direction == 0:
-                        msg_type = "location_started_by_me"
-                    elif item_type == 4 and share_direction == 1 and share_status == 1:
-                        msg_type = "location_stopped_by_them"
-                    elif item_type == 4 and share_direction == 1:
-                        msg_type = "location_started_by_them"
-                    else:
-                        msg_type = "location"
-                else:
-                    msg_type = "text"
-
-                # Fall back to attributedBody for text content when text column is empty
-                if not msg_text and has_attributed_body and msg_type == "text":
-                    msg_text, msg_type = parse_attributed_body(row["attributedBody"])
-
-                if msg_text:
-                    # Clean up Apple object replacement characters and attachment identifiers
-                    msg_text = msg_text.replace('\ufffc', '').replace('\ufffd', '').strip()
-                    msg_text = _RE_KIMMSG.sub('', msg_text)
-                    msg_text = _RE_UUID.sub('', msg_text)
-                    msg_text = _RE_MEDIA_FILE.sub('', msg_text)
-
-                    # Remove junk wrapper quotes, spaces, or newlines left from stripping
-                    msg_text = _RE_JUNK_START.sub('', msg_text)
-                    msg_text = _RE_JUNK_END.sub('', msg_text)
-                    msg_text = msg_text.strip()
-
-                    # Strip TypedStream string-length prefix artifact from raw text column.
-                    # Format: '+' followed by one printable ASCII byte whose ordinal encodes
-                    # the declared string length, e.g. "+*I'll call you later" where
-                    # '*'=chr(42) declares length 42.
-                    # Apple stores NSString lengths in different units depending on context:
-                    #   - Python len()       : Unicode codepoints
-                    #   - UTF-8 byte count   : e.g. ASCII chars with a few CJK/emoji bumps
-                    #   - UTF-16 code units  : non-BMP emoji (😘) each cost 2 units here
-                    # Checking all three representations with a ±8 byte tolerance catches
-                    # the full range of real-world messages (emoji, accented chars, etc.)
-                    # while keeping false-positive risk low (ordinary "+word" text would
-                    # need to be within 8 chars of the ASCII value of the letter after +).
-                    _m = re.match(r'^\+([\x20-\x7e])(.*)', msg_text, re.DOTALL)
-                    if _m:
-                        _declared = ord(_m.group(1))
-                        _remainder = _m.group(2).lstrip()
-                        _rs = _remainder.rstrip()
-                        _lens = (
-                            len(_rs),
-                            len(_rs.encode('utf-8')),
-                            len(_rs.encode('utf-16-le')) // 2,
-                        )
-                        if any(abs(length - _declared) <= 8 for length in _lens):
-                            msg_text = _remainder
-
-                # Skip messages that are redundant or have no displayable content
-                if msg_type == "hidden":
-                    continue
-
-                if not msg_text and msg_type == "text":
-                    if bool(row["cache_has_attachments"]):
-                        msg_type = "attachment"
-                    else:
-                        msg_type = "system"
-                    msg_text = ""
-
-                link_preview = None
-                if msg_type == "link" and has_payload_data and row["payload_data"]:
-                    link_preview = parse_link_payload(row["payload_data"]) or None
-
-                # Look up pre-fetched attachments (batched above, no per-message query)
-                real_attachments = attachments_by_msg.get(row["message_id"], [])
-
-                msg = {
-                    "message_id": row["message_id"],
-                    "text": msg_text,
-                    "message_type": msg_type,
-                    "link_preview": link_preview,
-                    "date": apple_date_to_iso(row["date"]),
-                    "is_from_me": bool(row["is_from_me"]),
-                    "sender": "me" if row["is_from_me"] else sender_name,
-                    "sender_handle": handle,
-                    "has_attachments": bool(real_attachments),
-                    "attachments": real_attachments,
-                    "is_reaction": row["associated_message_type"] is not None and row["associated_message_type"] != 0,
-                }
-
-                messages.append(msg)
-
-            _tlog(f"get_messages: message loop={time.perf_counter()-t_loop:.3f}s out={len(messages)}")
-
-            # Get total count — use cache when no date filters are applied
-            t_cnt = time.perf_counter()
-            count_key = (db_path, chat_id)
-            if not date_from and not date_to and count_key in self._count_cache:
-                total = self._count_cache[count_key]
-                _tlog(f"get_messages: count cache hit total={total}")
-            else:
-                total = conn.execute(
-                    f"""SELECT COUNT(DISTINCT cmj.message_id) FROM chat_message_join cmj
-                        INNER JOIN message m ON m.ROWID = cmj.message_id
-                        WHERE cmj.chat_id = ?{where_extra}""",
-                    tuple(date_params)
-                ).fetchone()[0]
-                if not date_from and not date_to:
-                    self._count_cache[count_key] = total
-                _tlog(f"get_messages: count query={time.perf_counter()-t_cnt:.3f}s total={total}")
-
-        except Exception:
-            raise
-
-        return {
-            "messages": messages,
-            "total": total,
-            # next_offset is the raw DB row count fetched, not the filtered message count.
-            # The frontend must use this value (not len(messages)) to advance the SQL OFFSET
-            # on subsequent page loads — otherwise filtered-out rows shift the window and
-            # cause messages from other conversations to bleed into the view.
-            "next_offset": offset + len(rows),
-            "offset": offset,
-            "limit": limit,
-        }
-
-    def _get_message_attachments(self, conn, message_id: int) -> list:
-        """Get attachment metadata for a message, excluding iMessage plugin payloads."""
-        attachments = []
-        try:
-            rows = conn.execute("""
-                SELECT
-                    a.ROWID AS attachment_id,
-                    a.filename,
-                    a.mime_type,
-                    a.transfer_name,
-                    a.total_bytes
-                FROM attachment a
-                JOIN message_attachment_join maj ON maj.attachment_id = a.ROWID
-                WHERE maj.message_id = ?
-            """, (message_id,)).fetchall()
-
-            for row in rows:
-                # Skip iMessage app/link plugin payload blobs — they are internal
-                # data containers (e.g. URLBalloonProvider payload), not real files.
-                transfer_name = row["transfer_name"] or ""
-                if transfer_name.endswith('.pluginPayloadAttachment'):
-                    continue
-                filename = row["filename"] or ""
-                if filename.endswith('.pluginPayloadAttachment'):
-                    continue
-
-                attachments.append({
-                    "attachment_id": row["attachment_id"],
-                    "filename": filename,
-                    "mime_type": row["mime_type"],
-                    "transfer_name": transfer_name,
-                    "total_bytes": row["total_bytes"],
-                })
-        except Exception:
-            pass
-
-        return attachments
+    # ── openextract-only: per-id attachment extraction ───────────────────────
 
     def get_attachment(self, backup, attachment_id: int) -> dict:
-        """Extract and return an attachment file as base64."""
-        db_path = self._get_sms_db(backup)
+        """Extract and return an attachment file as base64.
+
+        ios-backup-core only embeds attachments in get_messages results; this
+        is the standalone per-attachment fetcher openextract's UI uses.
+        """
+        # Re-use the inner extractor's connection helper so we share the
+        # same PRAGMAs / index creation it sets up on first use.
+        db_path = self._inner._get_sms_db(backup)
         if not db_path:
             return {"error": "sms.db not found"}
 
-        conn = self._get_conn(db_path)
+        conn = self._inner._get_conn(db_path)
 
         try:
             row = conn.execute(
@@ -852,11 +110,9 @@ class MessageExtractor:
             if relative_path.startswith("~/"):
                 relative_path = relative_path[2:]
 
-            # Try to extract from backup
-            # Attachments are in MediaDomain
+            # Try MediaDomain first, then HomeDomain
             file_path = backup.get_file(relative_path, domain="MediaDomain")
             if not file_path:
-                # Also try HomeDomain
                 file_path = backup.get_file(relative_path, domain="HomeDomain")
 
             if not file_path or not os.path.exists(file_path):
@@ -881,7 +137,7 @@ class MessageExtractor:
                 except Exception:
                     pass
 
-            # Infer mime_type from extension if still missing (common in older backups)
+            # Infer mime_type from extension if still missing (older backups)
             if not mime_type:
                 _ext_map = {
                     ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -904,67 +160,7 @@ class MessageExtractor:
         except Exception:
             raise
 
-    def search_messages(self, backup, query: str, contacts: dict,
-                        chat_id: Optional[int] = None,
-                        date_from: Optional[str] = None,
-                        date_to: Optional[str] = None,
-                        limit: int = 500) -> dict:
-        """Search messages by text content, optionally filtered by chat and date range."""
-        db_path = self._get_sms_db(backup)
-        if not db_path:
-            return {"results": []}
-
-        conn = self._get_conn(db_path)
-
-        results = []
-        try:
-            sql = """
-                SELECT
-                    m.ROWID AS message_id,
-                    m.text,
-                    m.date,
-                    m.is_from_me,
-                    h.id AS handle_id_str,
-                    cmj.chat_id
-                FROM message m
-                LEFT JOIN handle h ON h.ROWID = m.handle_id
-                INNER JOIN chat_message_join cmj ON cmj.message_id = m.ROWID
-                WHERE m.text LIKE ?
-            """
-            params: list = [f"%{query}%"]
-
-            if chat_id:
-                sql += " AND cmj.chat_id = ?"
-                params.append(chat_id)
-
-            if date_from or date_to:
-                ns = _db_uses_nanoseconds(conn)
-                apple_from = iso_to_apple_date(date_from, nanoseconds=ns) if date_from else None
-                apple_to = iso_to_apple_date(date_to, nanoseconds=ns) if date_to else None
-                if apple_from is not None:
-                    sql += " AND m.date >= ?"
-                    params.append(apple_from)
-                if apple_to is not None:
-                    sql += " AND m.date <= ?"
-                    params.append(apple_to)
-
-            sql += f" ORDER BY m.date ASC LIMIT {int(limit)}"
-
-            rows = conn.execute(sql, params).fetchall()
-            for row in rows:
-                handle = row["handle_id_str"] or ""
-                results.append({
-                    "message_id": row["message_id"],
-                    "text": row["text"],
-                    "date": apple_date_to_iso(row["date"]),
-                    "is_from_me": bool(row["is_from_me"]),
-                    "sender": "me" if row["is_from_me"] else (resolve_contact(handle, contacts) or handle),
-                    "chat_id": row["chat_id"],
-                })
-        except Exception:
-            raise
-
-        return {"results": results, "query": query}
+    # ── openextract-only: conversation export to disk ────────────────────────
 
     def export_conversation(self, backup, chat_id: int, contacts: dict,
                             fmt: str, output_dir: str,
@@ -1027,7 +223,6 @@ class MessageExtractor:
         """Return the display text for a message, replacing binary attachment data with labels."""
         if msg.get("has_attachments"):
             label = self._attachment_label(msg)
-            # Append any real accompanying text (e.g. a caption sent with an image)
             text = (msg.get("text") or "").strip()
             return f"{text} {label}".strip() if text else label
         return msg.get("text") or ""
@@ -1044,7 +239,6 @@ class MessageExtractor:
         return {"file": filepath, "message_count": len(messages)}
 
     def _export_csv(self, messages, chat_id, output_dir):
-        import csv
         filename = f"conversation_{chat_id}.csv"
         filepath = os.path.join(output_dir, filename)
         with open(filepath, "w", newline="", encoding="utf-8-sig") as f:
@@ -1083,7 +277,7 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
             f.write("</body></html>")
         return {"file": filepath, "message_count": len(messages)}
 
-    # ── Multi-conversation export ──────────────────────────────────────────
+    # ── Multi-conversation export ────────────────────────────────────────────
 
     def export_conversations(self, backup, chat_ids: list, conversation_names: dict,
                              contacts: dict, fmt: str, output_dir: str,
@@ -1103,7 +297,6 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
                 date_from=date_from, date_to=date_to, query=query
             )
 
-        # Default: separate files
         files = []
         total_count = 0
         for chat_id in chat_ids:
@@ -1152,7 +345,6 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
                 msg["_conversation"] = conv_name
             all_messages.extend(msgs)
 
-        # Sort by timestamp
         all_messages.sort(key=lambda m: m.get("date") or "")
 
         if fmt == "txt":
@@ -1177,7 +369,6 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
         return {"files": [filepath], "message_count": len(messages)}
 
     def _export_merged_csv(self, messages, output_dir):
-        import csv
         filepath = os.path.join(output_dir, "all_conversations.csv")
         with open(filepath, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
