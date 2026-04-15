@@ -1,18 +1,42 @@
 """
-Backup discovery, validation, and management.
-Handles both encrypted and unencrypted iTunes/Finder backups.
+Backup discovery, validation, and multi-backup state.
+
+The actual file-access logic (manifest lookup, decryption, temp-file caching)
+lives in ``ios_backup_core.backup.LocalBackupAccessor``. ``OpenBackup`` is a
+thin subclass that re-exposes one private helper as a public method
+(``get_manifest_db``) for compatibility with openextract's photo extractor.
+
+What stays in openextract:
+  * BackupManager — multi-backup state across RPC calls, default-location
+    discovery (Mac / Windows / Linux), size-cache at ~/.openextract/, prewarm
+    of common DB files for encrypted backups.
+  * OpenBackup    — adapter that satisfies the BackupAccessor protocol
+    expected by ios-backup-core extractors AND retains the legacy
+    ``get_manifest_db`` public method that ``photos.py`` calls.
 """
 
 import os
 import sys
 import json
 import plistlib
-import sqlite3
 import tempfile
 import time
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
+
+from ios_backup_core.backup import (
+    LocalBackupAccessor,
+    open_local_backup,
+)
+
+# Re-export for any code paths still importing EncryptedBackup directly via
+# this module (none in main.py, but kept to avoid surprises).
+try:
+    from iphone_backup_decrypt import EncryptedBackup  # noqa: F401
+    HAS_DECRYPT = True
+except ImportError:
+    HAS_DECRYPT = False
 
 
 def _size_cache_path() -> str:
@@ -48,184 +72,57 @@ def _tlog(msg: str) -> None:
         pass
 
 
-# Files that must be decrypted before any data is accessible.
-# Pre-warming these during open_backup avoids 10-15s stalls on first use.
+# Files to pre-decrypt on open_backup() so the first list_conversations /
+# get_messages call doesn't stall for 10-15s on encrypted backups.
 _PREWARM_FILES = [
     ("Library/AddressBook/AddressBook.sqlitedb", "HomeDomain"),
     ("Library/SMS/sms.db",                       "HomeDomain"),
 ]
 
-# Try to import iphone_backup_decrypt for encrypted backups
-try:
-    from iphone_backup_decrypt import EncryptedBackup
-    HAS_DECRYPT = True
-except ImportError:
-    HAS_DECRYPT = False
 
+class OpenBackup(LocalBackupAccessor):
+    """An opened backup, satisfying ios-backup-core's BackupAccessor protocol.
 
-class OpenBackup:
-    """Represents an opened (and possibly decrypted) backup."""
+    Inherits ``get_file``, ``list_files``, ``_lookup_file_hash``,
+    ``_decrypted_backup``, ``_get_manifest_db``, ``cleanup``, and the
+    properties ``backup_dir``, ``udid``, ``info``, ``encrypted`` from
+    ``LocalBackupAccessor``. We override the four properties as plain
+    instance attributes so legacy openextract code that *sets* them (none
+    today, but keeping the option open) continues to work.
+
+    Adds ``get_manifest_db`` as a public alias for ``_get_manifest_db`` so
+    that ``photos._resolve_file`` can call it without reaching into private
+    API.
+    """
 
     def __init__(self, backup_dir: str, udid: str, info: dict, encrypted: bool,
                  decrypted_backup=None):
-        self.backup_dir = backup_dir
-        self.udid = udid
-        self.info = info
-        self.encrypted = encrypted
-        self._decrypted_backup = decrypted_backup  # EncryptedBackup instance
-        self._manifest_db_path: Optional[str] = None
-        self._manifest_conn: Optional[sqlite3.Connection] = None
-        self._temp_dir = tempfile.mkdtemp(prefix="openextract_")
-        self._file_cache: dict = {}
-
-    def get_file(self, relative_path: str, domain: str = "HomeDomain") -> Optional[str]:
-        """
-        Extract a file from the backup and return its path on disk.
-        For unencrypted backups, looks up the hash in Manifest.db.
-        For encrypted backups, uses iphone_backup_decrypt.
-        """
-        cache_key = f"{domain}:{relative_path}"
-        if cache_key in self._file_cache:
-            cached = self._file_cache[cache_key]
-            return cached if cached else None  # None means previously failed
-
-        output_path = os.path.join(
-            self._temp_dir,
-            relative_path.replace("/", "--").replace("\\", "--")
+        super().__init__(
+            backup_dir=backup_dir,
+            udid=udid,
+            info=info,
+            encrypted=encrypted,
+            decrypted_backup=decrypted_backup,
         )
-
-        if self.encrypted and self._decrypted_backup:
-            try:
-                self._decrypted_backup.extract_file(
-                    relative_path=relative_path,
-                    domain_like=domain,
-                    output_filename=output_path
-                )
-                if os.path.exists(output_path):
-                    self._file_cache[cache_key] = output_path
-                    return output_path
-            except Exception as e:
-                print(f"[backup.get_file] extract_file failed for {domain}:{relative_path}: {e}", file=sys.stderr, flush=True)
-                self._file_cache[cache_key] = None  # Cache failure to avoid retries
-                return None
-        else:
-            # Unencrypted: look up file hash in Manifest.db
-            file_hash = self._lookup_file_hash(relative_path, domain)
-            if file_hash:
-                source = os.path.join(self.backup_dir, file_hash[:2], file_hash)
-                if os.path.exists(source):
-                    # For unencrypted, we can read directly
-                    self._file_cache[cache_key] = source
-                    return source
-
-        self._file_cache[cache_key] = None  # Cache miss to avoid retries
-        return None
+        # The four legacy attributes (backup_dir, udid, info, encrypted) are
+        # inherited as @property descriptors from LocalBackupAccessor, which
+        # forward to self._backup_dir / _udid / _info / _encrypted. No setters
+        # exist on the base — attempting to assign here would raise
+        # ``AttributeError: property '...' of '...' object has no setter``.
+        # Read access works transparently through the descriptors.
 
     def get_manifest_db(self) -> Optional[str]:
-        """Get path to a readable copy of Manifest.db."""
-        if self._manifest_db_path and os.path.exists(self._manifest_db_path):
-            return self._manifest_db_path
+        """Public alias for the inherited private ``_get_manifest_db``.
 
-        manifest_path = os.path.join(self.backup_dir, "Manifest.db")
-        if os.path.exists(manifest_path):
-            self._manifest_db_path = manifest_path
-            return manifest_path
-
-        return None
-
-    def _get_manifest_conn(self) -> Optional[sqlite3.Connection]:
-        """Return a cached SQLite connection to Manifest.db."""
-        if self._manifest_conn is not None:
-            return self._manifest_conn
-        manifest = self.get_manifest_db()
-        if not manifest:
-            return None
-        try:
-            conn = sqlite3.connect(manifest)
-            conn.execute("PRAGMA query_only = TRUE")
-            conn.execute("PRAGMA synchronous = OFF")
-            conn.execute("PRAGMA cache_size = -10000")
-            conn.execute("PRAGMA temp_store = MEMORY")
-            self._manifest_conn = conn
-            return conn
-        except Exception:
-            return None
-
-    def _lookup_file_hash(self, relative_path: str, domain: str) -> Optional[str]:
-        """Look up the SHA1 hash for a file in Manifest.db."""
-        conn = self._get_manifest_conn()
-        if not conn:
-            return None
-
-        try:
-            cursor = conn.execute(
-                "SELECT fileID FROM Files WHERE relativePath = ? AND domain = ?",
-                (relative_path, domain)
-            )
-            row = cursor.fetchone()
-            return row[0] if row else None
-        except Exception:
-            return None
-
-    def list_files(self, domain: Optional[str] = None,
-                   path_like: Optional[str] = None) -> list:
-        """List files in the backup matching optional filters."""
-        if self.encrypted and self._decrypted_backup:
-            # For encrypted backups, query the library's decrypted manifest.
-            try:
-                query = "SELECT fileID, domain, relativePath FROM Files WHERE flags=1"
-                params = []
-                if domain:
-                    query += " AND domain = ?"
-                    params.append(domain)
-                if path_like:
-                    query += " AND relativePath LIKE ?"
-                    params.append(path_like)
-                with self._decrypted_backup.manifest_db_cursor() as cur:
-                    cur.execute(query, params)
-                    return [
-                        {"hash": row[0], "domain": row[1], "path": row[2]}
-                        for row in cur.fetchall()
-                    ]
-            except Exception as e:
-                print(f"[backup.list_files] encrypted manifest query failed: {e}", file=sys.stderr, flush=True)
-                return []
-
-        manifest = self.get_manifest_db()
-        if not manifest:
-            return []
-
-        try:
-            conn = sqlite3.connect(manifest)
-            query = "SELECT fileID, domain, relativePath FROM Files WHERE 1=1"
-            params = []
-
-            if domain:
-                query += " AND domain = ?"
-                params.append(domain)
-            if path_like:
-                query += " AND relativePath LIKE ?"
-                params.append(path_like)
-
-            cursor = conn.execute(query, params)
-            results = [
-                {"hash": row[0], "domain": row[1], "path": row[2]}
-                for row in cursor.fetchall()
-            ]
-            conn.close()
-            return results
-        except Exception:
-            return []
-
-    def cleanup(self):
-        """Clean up temporary files."""
-        import shutil
-        if os.path.exists(self._temp_dir):
-            shutil.rmtree(self._temp_dir, ignore_errors=True)
+        ``photos._resolve_file`` calls this to read the unencrypted
+        Manifest.db directly when looking up logical paths from a fileID
+        hash. Kept public to avoid reaching into private API there.
+        """
+        return self._get_manifest_db()
 
 
 class BackupManager:
-    """Discovers and manages iPhone backups."""
+    """Discovers iPhone backups and tracks opened ones across RPC calls."""
 
     def __init__(self):
         self._open_backups: dict[str, OpenBackup] = {}
@@ -381,8 +278,8 @@ class BackupManager:
             _tlog(f"open_backup fast-path: _read_backup_info returned {'OK' if backup_info else 'None'}")
 
             if not backup_info:
-                # _resolve_backup_path in device_backup should have already resolved
-                # the correct directory, but as a safety net scan one level deep.
+                # Safety net: scan one level deep in case the caller pointed
+                # at the parent directory rather than the backup itself.
                 try:
                     subdirs = [e.name for e in os.scandir(backup_dir) if e.is_dir()]
                     _tlog(f"open_backup fast-path fallback scan: subdirs={subdirs!r}")
@@ -432,38 +329,33 @@ class BackupManager:
         backup_dir = backup_info["backup_dir"]
         encrypted = backup_info["encrypted"]
 
-        decrypted_backup = None
-        if encrypted:
-            if not password:
-                return {
-                    "status": "password_required",
-                    "info": backup_info,
-                }
-            if not HAS_DECRYPT:
-                raise RuntimeError(
-                    "iphone_backup_decrypt is not installed. "
-                    "Run: pip install iphone-backup-decrypt"
-                )
-            try:
-                decrypted_backup = EncryptedBackup(
-                    backup_directory=backup_dir,
-                    passphrase=password
-                )
-                # Validate passphrase — EncryptedBackup.__init__ may succeed
-                # with a wrong password; the real check happens when accessing
-                # encrypted data.  Query the decrypted manifest to force
-                # keybag decryption now so we can surface a clear error.
-                with decrypted_backup.manifest_db_cursor() as cur:
-                    cur.execute("SELECT COUNT(*) FROM Files")
-            except Exception as e:
-                raise ValueError(f"Failed to decrypt backup: {e}")
+        # Surface the same "needs password" sentinel response openextract has
+        # always returned BEFORE delegating to ios-backup-core (which raises).
+        if encrypted and not password:
+            return {
+                "status": "password_required",
+                "info": backup_info,
+            }
 
+        # Delegate the actual opening (passphrase validation + EncryptedBackup
+        # construction for encrypted backups) to ios-backup-core. It raises
+        # ValueError on bad password and RuntimeError if the optional
+        # iphone-backup-decrypt extra is missing.
+        try:
+            accessor = open_local_backup(backup_dir, password=password)
+        except Exception as e:
+            # open_local_backup raises ValueError("Failed to decrypt backup: ...")
+            # — preserve the same surface error openextract emitted before.
+            raise
+
+        # Wrap the accessor in OpenBackup so we keep get_manifest_db() and the
+        # overridden plain-attribute properties for backward compatibility.
         backup = OpenBackup(
-            backup_dir=backup_dir,
+            backup_dir=accessor.backup_dir,
             udid=udid,
             info=backup_info,
             encrypted=encrypted,
-            decrypted_backup=decrypted_backup,
+            decrypted_backup=accessor._decrypted_backup,
         )
 
         self._open_backups[self._norm_udid(backup_info["udid"])] = backup
@@ -517,10 +409,10 @@ class BackupManager:
         if not HAS_DECRYPT:
             return {"valid": False, "error": "Decryption library not installed"}
 
+        # ios-backup-core's open_local_backup() validates the passphrase by
+        # querying the decrypted manifest, then raises ValueError on failure.
         try:
-            eb = EncryptedBackup(backup_directory=backup_dir, passphrase=password)
-            with eb.manifest_db_cursor() as cur:
-                cur.execute("SELECT COUNT(*) FROM Files")
+            open_local_backup(backup_dir, password=password)
             return {"valid": True}
         except Exception:
             return {"valid": False, "error": "Incorrect password"}

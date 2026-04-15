@@ -1,470 +1,209 @@
 """
-Photo extraction from CameraRollDomain.
-Handles photo listing, thumbnail generation, album browsing, and export.
-Reads Photos.sqlite for rich metadata; falls back to DCIM directory scan.
+Photo extraction adapter.
+
+Delegates ``list_albums`` directly to ``ios_backup_core.extractors.photos.PhotoExtractor``.
+For ``list_photos`` and ``get_photo_metadata`` the library returns assets with a
+``relative_path`` field but no ``file_hash``; openextract's frontend addresses
+photos by hash (so it can call ``get_photo``/``get_thumbnail``/``get_photo_path``
+later without re-reading Photos.sqlite). This adapter post-processes the
+library's output to add ``file_hash`` and filter iCloud-shared assets.
+
+Kept openextract-local because the library intentionally omits them as
+"UI concerns":
+  * ``get_thumbnail``  — PIL/pillow-heif thumbnail generation, in-memory cache
+  * ``get_photo``      — full-res JPEG re-encoding for HEIC, base64
+  * ``get_photo_path`` (handler in main.py uses ``_resolve_file``)
+  * ``export_photos``  — disk export (originals or transcoded JPEG, by-date subfolders)
+  * DCIM directory-scan fallback for backups where Photos.sqlite is missing
 """
 
-import os
-import sys
 import base64
-import io
-import sqlite3
-import shutil
 import datetime
+import io
 import json
+import os
+import shutil
+import sqlite3
+import sys
 from typing import Optional
+
+from ios_backup_core.extractors.photos import (
+    PhotoExtractor as _CorePhotoExtractor,
+    PHOTO_EXTENSIONS,
+    VIDEO_EXTENSIONS,
+    _build_dcim_path,
+)
 
 HAS_HEIF = False
 try:
     from PIL import Image
     HAS_PIL = True
-    # Register HEIC/HEIF support when pillow-heif is installed.
-    # This lets Pillow open .heic / .heif files that modern iPhones produce.
     try:
         from pillow_heif import register_heif_opener
         register_heif_opener()
         HAS_HEIF = True
     except Exception:
-        pass  # pillow-heif not installed or failed; HEIC thumbnails will fail
+        pass
 except ImportError:
     HAS_PIL = False
 
 print(f"[photos] PIL={HAS_PIL} HEIF={HAS_HEIF}", file=sys.stderr, flush=True)
 
-# Apple CoreData epoch: Jan 1, 2001 00:00:00 UTC
-_APPLE_EPOCH = datetime.datetime(2001, 1, 1, tzinfo=datetime.timezone.utc)
-
-# ZASSET.ZKIND → kind label
-_KIND_MAP = {
-    0: "photo",
-    1: "video",
-    2: "live_photo",
-    3: "live_photo",  # Some iOS versions use 3
-}
-
-PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".gif", ".tiff", ".bmp"}
-VIDEO_EXTENSIONS = {".mov", ".mp4", ".m4v", ".avi"}
-
-_MIME_MAP = {
-    ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-    ".png": "image/png", ".gif": "image/gif",
-    ".heic": "image/heic", ".heif": "image/heif",
-    ".mov": "video/quicktime", ".mp4": "video/mp4",
-    ".m4v": "video/mp4",
-}
-
-
-def _build_dcim_path(directory: str, filename: str) -> str:
-    """
-    Build the CameraRollDomain-relative path for a DCIM asset.
-
-    ZDIRECTORY in Photos.sqlite varies by iOS version:
-      - Modern iOS:  "106APPLE"          → Media/DCIM/106APPLE/IMG.HEIC
-      - Older iOS:   "DCIM/106APPLE"     → same result (strip leading DCIM/)
-
-    Always strip a leading "DCIM/" (or bare "DCIM") so we never produce a
-    doubled path like Media/DCIM/DCIM/106APPLE/….
-    """
-    directory = directory.lstrip("/")
-    if directory.upper() == "DCIM":
-        directory = ""
-    elif directory.upper().startswith("DCIM/"):
-        directory = directory[5:]
-    if directory:
-        return f"Media/DCIM/{directory}/{filename}"
-    return f"Media/DCIM/{filename}"
-
-
-def _apple_ts_to_iso(ts) -> Optional[str]:
-    """Convert Apple CoreData timestamp (seconds since 2001-01-01) to ISO 8601."""
-    if ts is None:
-        return None
-    try:
-        dt = _APPLE_EPOCH + datetime.timedelta(seconds=float(ts))
-        return dt.isoformat()
-    except Exception:
-        return None
-
 
 class PhotoExtractor:
-    """Extracts photos and videos from iOS backups."""
+    """Adapter wrapping the ios-backup-core PhotoExtractor."""
 
     def __init__(self):
-        # Simple in-memory thumbnail cache (file_hash:size → base64 string)
+        self._inner = _CorePhotoExtractor()
+        # In-memory thumbnail cache (file_hash:size → base64 string)
         self._thumb_cache: dict = {}
         self._thumb_fail_count: int = 0
 
-    # ─── Photos.sqlite helpers ────────────────────────────────────────────────
-
-    def _open_photos_db(self, backup) -> Optional[sqlite3.Connection]:
-        """Open Photos.sqlite from the backup. Returns a connection or None."""
-        # In CameraRollDomain, the relativePath includes the "Media/" prefix on real backups.
-        # Try both forms to handle different iOS versions.
-        db_path = backup.get_file("Media/PhotoData/Photos.sqlite", domain="CameraRollDomain")
-        if not db_path or not os.path.exists(db_path):
-            db_path = backup.get_file("PhotoData/Photos.sqlite", domain="CameraRollDomain")
-        if not db_path or not os.path.exists(db_path):
-            print("[photos] _open_photos_db: Photos.sqlite not found in backup", file=sys.stderr, flush=True)
-            return None
-        try:
-            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-            conn.row_factory = sqlite3.Row
-            return conn
-        except Exception:
-            try:
-                # Fallback without read-only URI (some SQLite builds)
-                conn = sqlite3.connect(db_path)
-                conn.row_factory = sqlite3.Row
-                return conn
-            except Exception:
-                return None
-
-    def _find_album_junction(self, conn: sqlite3.Connection):
-        """
-        Dynamically locate the junction table between ZGENERICALBUM and ZASSET.
-        Returns (table_name, albums_col, assets_col) or (None, None, None).
-
-        Strategy 1 (preferred): look up the GenericAlbum entity number in
-        Z_PRIMARYKEY, then directly look for Z_<N>ASSETS (exact name).
-        Strategy 2 (fallback): scan all Z_*ASSETS tables for one that has
-        both an *ALBUMS and an *ASSETS column.
-        """
-        try:
-            # Strategy 1: CoreData-canonical approach via Z_PRIMARYKEY
-            pk_rows = conn.execute(
-                "SELECT Z_ENT FROM Z_PRIMARYKEY WHERE Z_NAME = 'GenericAlbum'"
-            ).fetchall()
-            for (ent_num,) in pk_rows:
-                table = f"Z_{ent_num}ASSETS"
-                try:
-                    pragma = conn.execute(f"PRAGMA table_info('{table}')").fetchall()
-                    col_names = [col[1] for col in pragma]
-                    albums_col = next((c for c in col_names if c.endswith("ALBUMS")), None)
-                    assets_col = next((c for c in col_names if c.endswith("ASSETS")), None)
-                    if albums_col and assets_col:
-                        print(
-                            f"[photos] junction table found via Z_PRIMARYKEY: "
-                            f"{table} ({albums_col}, {assets_col})",
-                            file=sys.stderr, flush=True,
-                        )
-                        return table, albums_col, assets_col
-                except Exception:
-                    pass
-        except Exception:
-            pass  # Z_PRIMARYKEY may not exist on some iOS versions
-
-        # Strategy 2: pattern scan — use exact regex-like match to avoid the
-        # SQLite LIKE '_' wildcard ambiguity.  Collect all tables, then filter
-        # in Python.
-        try:
-            all_tables = [
-                row[0] for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                ).fetchall()
-            ]
-            import re as _re
-            for table in all_tables:
-                if not _re.match(r"^Z_\d+ASSETS$", table):
-                    continue
-                pragma = conn.execute(f"PRAGMA table_info('{table}')").fetchall()
-                col_names = [col[1] for col in pragma]
-                albums_col = next((c for c in col_names if c.endswith("ALBUMS")), None)
-                assets_col = next((c for c in col_names if c.endswith("ASSETS")), None)
-                if albums_col and assets_col:
-                    print(
-                        f"[photos] junction table found via pattern scan: "
-                        f"{table} ({albums_col}, {assets_col})",
-                        file=sys.stderr, flush=True,
-                    )
-                    return table, albums_col, assets_col
-            print(
-                f"[photos] _find_album_junction: no junction table found. "
-                f"Tables: {[t for t in all_tables if 'ASSET' in t.upper()]}",
-                file=sys.stderr, flush=True,
-            )
-        except Exception as e:
-            print(f"[photos] _find_album_junction error: {e}", file=sys.stderr, flush=True)
-
-        return None, None, None
-
-    def _asset_row_to_dict(self, row, album_ids: list, file_hash: str) -> dict:
-        """Convert a ZASSET sqlite3.Row to a PhotoAsset dict."""
-        filename = row["ZFILENAME"] or ""
-        kind_int = row["ZKIND"] if row["ZKIND"] is not None else 0
-        kind = _KIND_MAP.get(kind_int, "unknown")
-
-        return {
-            "uuid": row["ZUUID"] or "",
-            "filename": filename,
-            "file_hash": file_hash,
-            "kind": kind,
-            "date_created": _apple_ts_to_iso(row["ZDATECREATED"]),
-            "date_modified": _apple_ts_to_iso(row["ZDATEMODIFIED"]),
-            "width": row["ZWIDTH"] if row["ZWIDTH"] is not None else 0,
-            "height": row["ZHEIGHT"] if row["ZHEIGHT"] is not None else 0,
-            "duration": float(row["ZDURATION"]) if row["ZDURATION"] is not None else 0.0,
-            "favorite": bool(row["ZFAVORITE"]),
-            "hidden": bool(row["ZHIDDEN"]),
-            "has_adjustments": bool(row["ZHASADJUSTMENTS"]),
-            "burst_uuid": row["ZBURSTUUID"],
-            "latitude": float(row["ZLATITUDE"]) if row["ZLATITUDE"] is not None else None,
-            "longitude": float(row["ZLONGITUDE"]) if row["ZLONGITUDE"] is not None else None,
-            "album_ids": album_ids,
-        }
-
-    # ─── Public API ───────────────────────────────────────────────────────────
+    # ── Delegated raw-extraction methods ─────────────────────────────────────
 
     def list_albums(self, backup) -> dict:
-        """List all photo albums from Photos.sqlite."""
-        conn = self._open_photos_db(backup)
-        if not conn:
-            return {"albums": [], "source": "unavailable"}
-
-        try:
-            junc_table, albums_col, assets_col = self._find_album_junction(conn)
-
-            # Count total non-trashed assets for "All Photos" album
-            try:
-                total_row = conn.execute(
-                    "SELECT COUNT(*) FROM ZASSET WHERE ZTRASHEDSTATE = 0"
-                ).fetchone()
-                total_assets = total_row[0] if total_row else 0
-            except sqlite3.OperationalError:
-                total_row = conn.execute("SELECT COUNT(*) FROM ZASSET").fetchone()
-                total_assets = total_row[0] if total_row else 0
-
-            # Per-album asset counts via junction table
-            album_counts: dict = {}
-            if junc_table and albums_col and assets_col:
-                try:
-                    count_rows = conn.execute(
-                        f"SELECT {albums_col}, COUNT(*) FROM '{junc_table}' "
-                        f"WHERE {albums_col} IS NOT NULL GROUP BY {albums_col}"
-                    ).fetchall()
-                    album_counts = {r[0]: r[1] for r in count_rows}
-                except Exception:
-                    pass
-
-            # Fetch album rows
-            try:
-                rows = conn.execute(
-                    "SELECT Z_PK, ZTITLE, ZKIND FROM ZGENERICALBUM "
-                    "WHERE ZTITLE IS NOT NULL ORDER BY ZTITLE ASC"
-                ).fetchall()
-            except sqlite3.OperationalError:
-                conn.close()
-                return {"albums": [], "source": "unavailable"}
-
-            def album_kind(k):
-                if k in (None, 2):
-                    return "user"
-                if k == 3:
-                    return "smart"
-                if k == 1505:
-                    return "shared"
-                return "user"
-
-            albums = [{
-                "id": "__all__",
-                "title": "All Photos",
-                "asset_count": total_assets,
-                "kind": "smart",
-            }]
-            for row in rows:
-                albums.append({
-                    "id": str(row["Z_PK"]),
-                    "title": row["ZTITLE"],
-                    "asset_count": album_counts.get(row["Z_PK"], 0),
-                    "kind": album_kind(row["ZKIND"]),
-                })
-
-            conn.close()
-            return {"albums": albums, "source": "photos_sqlite"}
-
-        except Exception as e:
-            try:
-                conn.close()
-            except Exception:
-                pass
-            return {"albums": [], "error": str(e), "source": "error"}
+        return self._inner.list_albums(backup)
 
     def list_photos(self, backup, offset: int = 0, limit: int = 100,
                     album_id: Optional[str] = None) -> dict:
-        """
-        List photo assets with rich metadata.
-        Reads Photos.sqlite when available; falls back to DCIM directory scan.
-        """
-        conn = self._open_photos_db(backup)
-        if conn:
-            try:
-                result = self._list_photos_from_db(backup, conn, offset, limit, album_id)
-                conn.close()
-                return result
-            except Exception as e:
-                print(
-                    f"[photos] _list_photos_from_db raised exception (falling back to DCIM scan): {e}",
-                    file=sys.stderr, flush=True,
-                )
-                import traceback
-                traceback.print_exc(file=sys.stderr)
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-        print("[photos] list_photos: using DCIM fallback (no album filter)", file=sys.stderr, flush=True)
-        return self._list_photos_from_dcim(backup, offset, limit)
+        """List photo assets, post-processed to add file_hash for downstream RPCs."""
+        result = self._inner.list_photos(backup, offset, limit, album_id)
 
-    def _list_photos_from_db(self, backup, conn: sqlite3.Connection,
-                              offset: int, limit: int,
-                              album_id: Optional[str]) -> dict:
-        """Query Photos.sqlite for a page of assets."""
-        junc_table, albums_col, assets_col = self._find_album_junction(conn)
+        # If the library returned nothing because Photos.sqlite is unavailable
+        # (older iOS, corrupted backup), fall back to direct DCIM enumeration.
+        if result.get("source") == "unavailable" or (
+            not result.get("photos") and result.get("total", 0) == 0
+        ):
+            print("[photos] list_photos: using DCIM fallback (no album filter)",
+                  file=sys.stderr, flush=True)
+            return self._list_photos_from_dcim(backup, offset, limit)
 
-        # Introspect which columns actually exist in ZASSET on this iOS version.
-        # Older versions are missing ZDATEMODIFIED, ZTRASHEDSTATE, etc.
+        photos_out = []
+        for asset in result.get("photos", []):
+            adapted = self._add_file_hash(asset, backup)
+            if adapted is not None:
+                photos_out.append(adapted)
+
+        return {
+            "photos": photos_out,
+            "total": result.get("total", len(photos_out)),
+            "offset": result.get("offset", offset),
+            "limit": result.get("limit", limit),
+            "source": result.get("source", "photos_sqlite"),
+        }
+
+    def get_photo_metadata(self, backup, asset_uuid: str) -> dict:
+        """Return full metadata for a single asset by UUID, including album names.
+
+        Implemented locally because ios-backup-core only exposes per-asset
+        metadata via list_photos (slow scan). Mirrors the original openextract
+        query but reuses the library's _open_photos_db / _find_album_junction
+        / _asset_row_to_dict helpers so we don't duplicate the schema-probing
+        logic.
+        """
+        conn = self._inner._open_photos_db(backup)
+        if not conn:
+            return {"error": "Photos.sqlite not available"}
         try:
+            junc_table, albums_col, assets_col = self._inner._find_album_junction(conn)
+
             zasset_cols = {
                 col[1] for col in conn.execute("PRAGMA table_info('ZASSET')").fetchall()
             }
-        except Exception:
-            zasset_cols = set()
 
-        def col_or_null(name: str) -> str:
-            """Return 'a.NAME' if the column exists, else 'NULL AS NAME'."""
-            return f"a.{name}" if name in zasset_cols else f"NULL AS {name}"
+            def _col_or_null(name: str) -> str:
+                return f"a.{name}" if name in zasset_cols else f"NULL AS {name}"
 
-        # Build SELECT list — Z_PK is always required; everything else is optional.
-        asset_cols = ", ".join([
-            col_or_null("ZUUID"),
-            col_or_null("ZDIRECTORY"),
-            col_or_null("ZFILENAME"),
-            col_or_null("ZKIND"),
-            col_or_null("ZDATECREATED"),
-            col_or_null("ZDATEMODIFIED"),
-            col_or_null("ZWIDTH"),
-            col_or_null("ZHEIGHT"),
-            col_or_null("ZDURATION"),
-            col_or_null("ZFAVORITE"),
-            col_or_null("ZHIDDEN"),
-            col_or_null("ZHASADJUSTMENTS"),
-            col_or_null("ZBURSTUUID"),
-            col_or_null("ZLATITUDE"),
-            col_or_null("ZLONGITUDE"),
-            "a.Z_PK",
-        ])
+            meta_cols = ", ".join([
+                _col_or_null("ZUUID"), _col_or_null("ZDIRECTORY"),
+                _col_or_null("ZFILENAME"), _col_or_null("ZKIND"),
+                _col_or_null("ZDATECREATED"), _col_or_null("ZDATEMODIFIED"),
+                _col_or_null("ZWIDTH"), _col_or_null("ZHEIGHT"),
+                _col_or_null("ZDURATION"), _col_or_null("ZFAVORITE"),
+                _col_or_null("ZHIDDEN"), _col_or_null("ZHASADJUSTMENTS"),
+                _col_or_null("ZBURSTUUID"), _col_or_null("ZLATITUDE"),
+                _col_or_null("ZLONGITUDE"), "a.Z_PK",
+            ])
 
-        # Trashed-state filter (omit entirely if column absent)
-        has_trashed = "ZTRASHEDSTATE" in zasset_cols
-        has_date = "ZDATECREATED" in zasset_cols
+            row = conn.execute(
+                f"SELECT {meta_cols} FROM ZASSET a WHERE a.ZUUID = ?",
+                (asset_uuid,)
+            ).fetchone()
 
-        # Build query based on album filter
-        if album_id and album_id != "__all__":
-            if not junc_table:
-                print(
-                    f"[photos] list_photos album_id={album_id!r} but junction table not found — "
-                    "returning all photos",
-                    file=sys.stderr, flush=True,
-                )
-            else:
-                print(
-                    f"[photos] list_photos filtering by album_id={album_id!r} "
-                    f"via {junc_table}({albums_col}, {assets_col})",
-                    file=sys.stderr, flush=True,
-                )
+            if not row:
+                conn.close()
+                return {"error": "Asset not found"}
 
-        if album_id and album_id != "__all__" and junc_table and albums_col and assets_col:
-            where_parts = [f"j.{albums_col} = ?"]
-            if has_trashed:
-                where_parts.append("a.ZTRASHEDSTATE = 0")
-            where_clause = " AND ".join(where_parts)
-            order_clause = "a.ZDATECREATED DESC" if has_date else "a.Z_PK DESC"
-            query = (
-                f"SELECT {asset_cols} FROM ZASSET a "
-                f"INNER JOIN '{junc_table}' j ON j.{assets_col} = a.Z_PK "
-                f"WHERE {where_clause} "
-                f"ORDER BY {order_clause} LIMIT ? OFFSET ?"
-            )
-            count_query = (
-                f"SELECT COUNT(*) FROM ZASSET a "
-                f"INNER JOIN '{junc_table}' j ON j.{assets_col} = a.Z_PK "
-                f"WHERE {where_clause}"
-            )
-            params = [int(album_id), limit, offset]
-            count_params = [int(album_id)]
-        else:
-            where_clause = "a.ZTRASHEDSTATE = 0" if has_trashed else "1=1"
-            order_clause = "a.ZDATECREATED DESC" if has_date else "a.Z_PK DESC"
-            query = (
-                f"SELECT {asset_cols} FROM ZASSET a "
-                f"WHERE {where_clause} "
-                f"ORDER BY {order_clause} LIMIT ? OFFSET ?"
-            )
-            count_query = (
-                "SELECT COUNT(*) FROM ZASSET"
-                + (" WHERE ZTRASHEDSTATE = 0" if has_trashed else "")
-            )
-            params = [limit, offset]
-            count_params = []
+            album_ids: list[str] = []
+            if junc_table and albums_col and assets_col:
+                try:
+                    junc_rows = conn.execute(
+                        f"SELECT {albums_col} FROM '{junc_table}' WHERE {assets_col} = ?",
+                        (row["Z_PK"],)
+                    ).fetchall()
+                    album_ids = [str(r[0]) for r in junc_rows if r[0] is not None]
+                except Exception:
+                    pass
 
-        rows = conn.execute(query, params).fetchall()
-        total = conn.execute(count_query, count_params).fetchone()[0]
+            album_names = []
+            for aid in album_ids:
+                try:
+                    arow = conn.execute(
+                        "SELECT ZTITLE FROM ZGENERICALBUM WHERE Z_PK = ?", (int(aid),)
+                    ).fetchone()
+                    if arow and arow[0]:
+                        album_names.append(arow[0])
+                except Exception:
+                    pass
 
-        print(
-            f"[photos] _list_photos_from_db album_id={album_id!r} → "
-            f"rows={len(rows)} total={total} offset={offset}",
-            file=sys.stderr, flush=True,
-        )
-
-        # Build asset PK → album IDs map for this page
-        asset_pks = [row["Z_PK"] for row in rows]
-        album_map: dict = {pk: [] for pk in asset_pks}
-        if junc_table and albums_col and assets_col and asset_pks:
-            placeholders = ",".join("?" * len(asset_pks))
-            try:
-                junc_rows = conn.execute(
-                    f"SELECT {assets_col}, {albums_col} FROM '{junc_table}' "
-                    f"WHERE {assets_col} IN ({placeholders})",
-                    asset_pks
-                ).fetchall()
-                for jr in junc_rows:
-                    a_pk, alb_pk = jr[0], jr[1]
-                    if a_pk in album_map and alb_pk is not None:
-                        album_map[a_pk].append(str(alb_pk))
-            except Exception:
-                pass
-
-        # Resolve file_hash for each asset
-        photos = []
-        for row in rows:
             directory = row["ZDIRECTORY"] or ""
             filename = row["ZFILENAME"] or ""
-
-            # Skip iCloud shared photos — they exist in the DB but aren't
-            # extractable from a local backup.
-            if "PhotoCloudSharingData" in directory or "PhotoCloudSharingData" in filename:
-                continue
-
             dcim_path = _build_dcim_path(directory, filename)
-
             if backup.encrypted:
-                # Manifest.db is encrypted — cannot look up hash directly.
-                # Use a path-based synthetic key; _resolve_file() understands it.
                 file_hash = f"dcim:{dcim_path}"
             else:
-                file_hash = backup._lookup_file_hash(dcim_path, "CameraRollDomain")
-                if not file_hash:
-                    continue  # Cannot resolve — skip
+                file_hash = backup._lookup_file_hash(dcim_path, "CameraRollDomain") or ""
 
-            asset = self._asset_row_to_dict(row, album_map.get(row["Z_PK"], []), file_hash)
-            photos.append(asset)
+            asset = self._inner._asset_row_to_dict(row, album_ids, file_hash)
+            asset["album_names"] = album_names
+            conn.close()
+            return asset
 
-        return {
-            "photos": photos,
-            "total": total,
-            "offset": offset,
-            "limit": limit,
-            "source": "photos_sqlite",
-        }
+        except Exception as e:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            return {"error": str(e)}
+
+    # ── Adapter helpers ──────────────────────────────────────────────────────
+
+    def _add_file_hash(self, asset: dict, backup) -> Optional[dict]:
+        """Translate the library's relative_path-keyed asset into a hash-keyed one.
+
+        Returns None when the asset is unaddressable (no relative_path, iCloud
+        shared, or — for unencrypted backups — its hash isn't in Manifest.db).
+        """
+        rel = asset.get("relative_path")
+        filename = asset.get("filename") or ""
+        if not rel:
+            return None
+        if "PhotoCloudSharingData" in rel or "PhotoCloudSharingData" in filename:
+            return None
+
+        if backup.encrypted:
+            file_hash = f"dcim:{rel}"
+        else:
+            file_hash = backup._lookup_file_hash(rel, "CameraRollDomain")
+            if not file_hash:
+                return None
+
+        asset = dict(asset)
+        asset["file_hash"] = file_hash
+        # Drop relative_path — openextract's frontend addresses by hash and
+        # leaving the path adds ~50 bytes per asset to RPC payloads.
+        asset.pop("relative_path", None)
+        return asset
 
     def _list_photos_from_dcim(self, backup, offset: int, limit: int) -> dict:
         """Fallback: enumerate files directly from DCIM via Manifest.db."""
@@ -478,8 +217,6 @@ class PhotoExtractor:
                 kind = "video"
             else:
                 continue
-            # For encrypted backups, use a path-based key so _resolve_file can
-            # call backup.get_file() to decrypt on demand.
             file_hash = f"dcim:{f['path']}" if backup.encrypted else f["hash"]
             media_files.append({
                 "uuid": f["hash"],
@@ -510,82 +247,7 @@ class PhotoExtractor:
             "source": "dcim_scan",
         }
 
-    def get_photo_metadata(self, backup, asset_uuid: str) -> dict:
-        """Return full metadata for a single asset by UUID, including album names."""
-        conn = self._open_photos_db(backup)
-        if not conn:
-            return {"error": "Photos.sqlite not available"}
-        try:
-            junc_table, albums_col, assets_col = self._find_album_junction(conn)
-
-            zasset_cols = {
-                col[1] for col in conn.execute("PRAGMA table_info('ZASSET')").fetchall()
-            }
-
-            def _col_or_null(name: str) -> str:
-                return f"a.{name}" if name in zasset_cols else f"NULL AS {name}"
-
-            meta_cols = ", ".join([
-                _col_or_null("ZUUID"), _col_or_null("ZDIRECTORY"),
-                _col_or_null("ZFILENAME"), _col_or_null("ZKIND"),
-                _col_or_null("ZDATECREATED"), _col_or_null("ZDATEMODIFIED"),
-                _col_or_null("ZWIDTH"), _col_or_null("ZHEIGHT"),
-                _col_or_null("ZDURATION"), _col_or_null("ZFAVORITE"),
-                _col_or_null("ZHIDDEN"), _col_or_null("ZHASADJUSTMENTS"),
-                _col_or_null("ZBURSTUUID"), _col_or_null("ZLATITUDE"),
-                _col_or_null("ZLONGITUDE"), "a.Z_PK",
-            ])
-
-            row = conn.execute(
-                f"SELECT {meta_cols} FROM ZASSET a WHERE a.ZUUID = ?",
-                (asset_uuid,)
-            ).fetchone()
-
-            if not row:
-                conn.close()
-                return {"error": "Asset not found"}
-
-            album_ids = []
-            if junc_table and albums_col and assets_col:
-                try:
-                    junc_rows = conn.execute(
-                        f"SELECT {albums_col} FROM '{junc_table}' WHERE {assets_col} = ?",
-                        (row["Z_PK"],)
-                    ).fetchall()
-                    album_ids = [str(r[0]) for r in junc_rows if r[0] is not None]
-                except Exception:
-                    pass
-
-            album_names = []
-            for aid in album_ids:
-                try:
-                    arow = conn.execute(
-                        "SELECT ZTITLE FROM ZGENERICALBUM WHERE Z_PK = ?", (int(aid),)
-                    ).fetchone()
-                    if arow and arow[0]:
-                        album_names.append(arow[0])
-                except Exception:
-                    pass
-
-            directory = row["ZDIRECTORY"] or ""
-            filename = row["ZFILENAME"] or ""
-            dcim_path = _build_dcim_path(directory, filename)
-            if backup.encrypted:
-                file_hash = f"dcim:{dcim_path}"
-            else:
-                file_hash = backup._lookup_file_hash(dcim_path, "CameraRollDomain") or ""
-
-            asset = self._asset_row_to_dict(row, album_ids, file_hash)
-            asset["album_names"] = album_names
-            conn.close()
-            return asset
-
-        except Exception as e:
-            try:
-                conn.close()
-            except Exception:
-                pass
-            return {"error": str(e)}
+    # ── openextract-only: thumbnail / full / path / export ──────────────────
 
     def get_thumbnail(self, backup, file_hash: str, size: int = 200) -> dict:
         """Generate a thumbnail as base64 JPEG. Results are in-memory cached."""
@@ -667,9 +329,9 @@ class PhotoExtractor:
         """Return full-resolution photo as base64.
 
         Backup files are stored without extensions (named by SHA-1 hash), so
-        we cannot rely on os.path.splitext for format detection.  Instead we
-        try PIL first — it reads magic bytes and handles JPEG/PNG/HEIC (via
-        pillow-heif) transparently.  Non-image files (videos) fall through to
+        we cannot rely on os.path.splitext for format detection. Try PIL
+        first — it reads magic bytes and handles JPEG/PNG/HEIC (via
+        pillow-heif) transparently. Non-image files (videos) fall through to
         raw-bytes delivery with a mime_type detected from the file header.
         """
         file_path = self._resolve_file(backup, file_hash)
@@ -677,8 +339,6 @@ class PhotoExtractor:
             return {"error": "Photo not found"}
 
         try:
-            # ── Try PIL (format-agnostic, magic-byte based) ──────────────────
-            # This handles JPEG, PNG, HEIC/HEIF (via pillow-heif), GIF, TIFF…
             if HAS_PIL:
                 try:
                     img = Image.open(file_path)
@@ -694,9 +354,8 @@ class PhotoExtractor:
                         "converted": True,
                     }
                 except Exception:
-                    pass  # Not an image PIL recognises (e.g. video) → fall through
+                    pass  # Not an image PIL recognises (e.g. video) — fall through
 
-            # ── Fallback: raw bytes with magic-byte mime_type detection ───────
             with open(file_path, "rb") as f:
                 raw = f.read()
 
@@ -728,15 +387,14 @@ class PhotoExtractor:
             return {"error": f"Failed to read photo: {e}"}
 
     def export_photos(self, backup, output_dir: str, options: dict = None) -> dict:
-        """
-        Export photos with configurable format, folder structure, and metadata sidecars.
+        """Export photos with configurable format, folder structure, and metadata sidecars.
+
         Options:
-          include_videos (bool)         - default True
-          include_live_photo_videos (bool) - default True
-          format (str)                  - "original" | "jpeg"
-          jpeg_quality (int)            - 60-100, default 90
-          folder_structure (str)        - "flat" | "by_date" | "by_album"
-          export_originals_if_edited (bool) - default False
+          include_videos (bool)             - default True
+          include_live_photo_videos (bool)  - default True
+          format (str)                      - "original" | "jpeg"
+          jpeg_quality (int)                - 60-100, default 90
+          folder_structure (str)            - "flat" | "by_date"
           include_metadata_sidecar (bool)   - default False
         """
         if options is None:
@@ -751,7 +409,7 @@ class PhotoExtractor:
 
         os.makedirs(output_dir, exist_ok=True)
 
-        # Load all assets in batches
+        # Load all assets in batches via this adapter (so file_hash is populated)
         all_photos = []
         offset = 0
         batch = 200
@@ -817,7 +475,7 @@ class PhotoExtractor:
             "output_dir": output_dir,
         }
 
-    # ─── Private helpers ──────────────────────────────────────────────────────
+    # ── Private helpers ──────────────────────────────────────────────────────
 
     def _export_subfolder(self, photo: dict, folder_structure: str) -> str:
         """Return the relative subfolder path for a photo based on folder_structure."""
@@ -836,23 +494,23 @@ class PhotoExtractor:
         """Resolve a file hash (or path-based key) to an absolute path on disk.
 
         For unencrypted backups, files sit at backup_dir/XX/XXXX... and can
-        be read directly.  For encrypted backups the Manifest.db is also
-        encrypted, so _list_photos_from_db stores "dcim:<relative_path>"
-        as the file_hash. We detect that prefix here and call backup.get_file()
+        be read directly. For encrypted backups the Manifest.db is also
+        encrypted, so list_photos stores ``dcim:<relative_path>`` as the
+        file_hash. We detect that prefix here and call backup.get_file()
         directly instead of going through the manifest.
+
+        ``main.py:get_photo_path`` calls this method on the PhotoExtractor.
         """
         if file_hash.startswith("dcim:"):
-            # Path-based key written for encrypted backups — decrypt on demand.
             return backup.get_file(file_hash[len("dcim:"):], domain="CameraRollDomain")
 
         if not backup.encrypted:
-            # Plain backup — file is readable at the hash-based path
             source = os.path.join(backup.backup_dir, file_hash[:2], file_hash)
             if os.path.exists(source):
                 return source
 
-        # Look up the logical path by fileID hash then let backup.get_file() handle
-        # extraction / decryption into a temp file.
+        # Look up the logical path by fileID hash, then let backup.get_file()
+        # handle extraction / decryption into a temp file.
         if backup.encrypted and backup._decrypted_backup:
             try:
                 with backup._decrypted_backup.manifest_db_cursor() as cur:
