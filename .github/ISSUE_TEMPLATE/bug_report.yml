@@ -1,0 +1,87 @@
+name: Bug report
+description: OpenExtract isn't doing what you expected.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. A few boxes to fill — the more detail, the faster we can help.
+
+        **Do not include any actual backup contents, message text, contacts, or personal data in this report.** Screenshots with real data should be redacted; crash logs should be sanitized.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+      placeholder: |
+        I clicked "Extract messages" on an encrypted backup. The app showed "Done" but the output folder is empty.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The simpler the reproduction, the faster the fix.
+      placeholder: |
+        1. Open OpenExtract
+        2. Load backup at /path/to/backup
+        3. Enter password
+        4. Click "Extract messages"
+        5. Observe empty output
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Windows 11 23H2, macOS 14.3, Ubuntu 24.04, etc."
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: OpenExtract version
+      description: Found under About / Help in the app.
+      placeholder: "0.3.4"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: backup-type
+    attributes:
+      label: Backup type
+      options:
+        - Encrypted (password-protected)
+        - Unencrypted
+        - Unsure
+    validations:
+      required: true
+
+  - type: input
+    id: ios-version
+    attributes:
+      label: iOS version the backup was made from (if known)
+      placeholder: "iOS 17.4"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        From the app's Help → Open logs folder. Paste relevant excerpts — redact paths, device IDs, or anything identifying if you prefer.
+      render: shell
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmations
+      options:
+        - label: I'm running the latest release (or have confirmed the issue reproduces there).
+          required: true
+        - label: I have removed personal data from anything I'm sharing here.
+          required: true

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenExtract vs iMazing — the free, open-source alternative</title>
+
+  <meta name="description" content="A fair comparison of OpenExtract and iMazing for iPhone backup extraction. When to pick which, full feature matrix, honest trade-offs, and how to migrate." />
+  <link rel="canonical" href="https://www.openextract.app/vs-imazing" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="author" content="Charles West" />
+  <meta name="theme-color" content="#0d1b2a" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="OpenExtract" />
+  <meta property="og:title" content="OpenExtract vs iMazing — the free alternative" />
+  <meta property="og:description" content="Extracting data from an iPhone backup? See how the free, MIT-licensed OpenExtract compares to iMazing." />
+  <meta property="og:url" content="https://www.openextract.app/vs-imazing" />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="OpenExtract: free, open-source iPhone backup extractor." />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="OpenExtract vs iMazing — the free alternative" />
+  <meta name="twitter:description" content="Free, open-source iPhone backup extraction vs. paid iMazing. A fair comparison." />
+  <meta name="twitter:image" content="https://www.openextract.app/img/og-image.png" />
+
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/pages.css" />
+</head>
+<body>
+
+  <nav class="site-nav">
+    <a href="/" class="nav-logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 16 16"><path d="M8 1L2 5v6l6 4 6-4V5L8 1zm0 1.8l4.5 3v4.9L8 13.2 3.5 10.7V5.8L8 2.8z"/></svg>
+      </div>
+      OpenExtract
+    </a>
+    <ul class="nav-links">
+      <li><a href="/#features">Features</a></li>
+      <li><a href="/vs-imazing">vs iMazing</a></li>
+      <li><a href="/for/legal">For legal</a></li>
+      <li><a href="/#download" class="nav-cta">Download Free</a></li>
+    </ul>
+  </nav>
+
+  <main class="page">
+    <div class="page-eyebrow">Comparison</div>
+    <h1>OpenExtract vs iMazing</h1>
+    <p class="lede">A fair look at how the two tools compare for extracting data from iPhone backups — from someone who built one of them.</p>
+
+    <p>iMazing is a good piece of software. If you're reading this, you're probably deciding whether to pay for it or whether the free, open-source alternative covers what you actually need. This page is meant to help you answer that honestly — including the places where iMazing is the better tool.</p>
+
+    <h2>Quick verdict</h2>
+    <p><strong>Pick OpenExtract if</strong> you need to extract data from iPhone backups, don't need device-side management, care that your tool is free and auditable, or are on Linux.</p>
+    <p><strong>Pick iMazing if</strong> you need a broader iPhone management suite (transferring between devices, managing apps and music, live device browsing) in addition to backup extraction, want paid commercial support, or need certain forensic-workflow features that iMazing Forensics offers out of the box.</p>
+    <p>Many people end up using both: OpenExtract for extraction, a device-management tool for the day-to-day.</p>
+
+    <h2>At a glance</h2>
+    <table>
+      <thead>
+        <tr><th></th><th>OpenExtract</th><th>iMazing</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Price</td><td>Free, forever</td><td>Paid license per user/device</td></tr>
+        <tr><td>License</td><td>MIT (open source)</td><td>Proprietary (closed source)</td></tr>
+        <tr><td>Source code auditable</td><td>Yes</td><td>No</td></tr>
+        <tr><td>Platforms</td><td>Windows, macOS, Linux</td><td>Windows, macOS</td></tr>
+        <tr><td>Processing</td><td>100% local</td><td>100% local</td></tr>
+        <tr><td>Encrypted iPhone backups</td><td>Supported</td><td>Supported</td></tr>
+        <tr><td>Messages (SMS / iMessage)</td><td>Extract + export</td><td>Extract + export</td></tr>
+        <tr><td>Photos &amp; videos with EXIF</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Call history</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Contacts, calendar, notes</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Voicemails</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>WhatsApp / Signal / Telegram</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Health, Safari, keychain (encrypted)</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Export to PDF / CSV / HTML</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Live device management</td><td>No</td><td>Yes</td></tr>
+        <tr><td>Cross-device transfers</td><td>No</td><td>Yes</td></tr>
+        <tr><td>App / music / ringtone sync</td><td>No</td><td>Yes</td></tr>
+        <tr><td>Paid commercial support</td><td>No (community, GitHub issues)</td><td>Yes</td></tr>
+        <tr><td>Company behind it</td><td>Open-source project</td><td>DigiDNA (Switzerland)</td></tr>
+      </tbody>
+    </table>
+
+    <h2>What each tool is actually for</h2>
+    <p><strong>OpenExtract is a focused extraction tool.</strong> It opens an iPhone backup — the kind produced by iTunes, Finder, or iMazing itself — and lets you extract and export what's inside. That's the whole product. Messages, photos, call history, app data, voicemails; in; out; done.</p>
+    <p><strong>iMazing is a broader iPhone suite.</strong> Extraction is one of its features. It can also manage your device live — install apps, transfer music and ringtones, move data between iPhones, back up incrementally, inspect the file system. If you work with iPhones professionally in ways that go beyond reading a backup, iMazing does more than OpenExtract.</p>
+    <p>If all you need is "I have a backup, I want what's in it," the extraction side is what matters, and that's where the two tools converge most.</p>
+
+    <h2>Where OpenExtract wins</h2>
+    <p><strong>Price.</strong> OpenExtract is free forever, no trial, no paywall, no upsell. iMazing charges per user license. Over a team, over years, the cost difference adds up.</p>
+    <p><strong>Open source.</strong> OpenExtract is MIT licensed. Every line of code is on GitHub. If you want to know exactly what the tool is doing with your backup, you can read it. If you need to modify it for an unusual workflow, you can fork it. Closed-source software can't offer that — not as a criticism of iMazing specifically, just as a structural difference.</p>
+    <p><strong>Auditability for sensitive work.</strong> For legal professionals and investigators, being able to tell a court or a client "this tool is open-source and its behavior is verifiable" is different from "this tool is a black box, trust the vendor." Neither is wrong. They're different trust models.</p>
+    <p><strong>Linux support.</strong> iMazing is Windows and macOS. OpenExtract runs on Linux too, which matters for forensics workstations, hardened investigation environments, and anyone who doesn't run Microsoft or Apple on their primary machine.</p>
+    <p><strong>No account, no telemetry, no trial.</strong> There's no "register to unlock features." OpenExtract has no account system because there's nothing to account for — it runs entirely on your machine.</p>
+    <p><strong>Export formats designed for sharing.</strong> Export an iMessage thread to a multi-page PDF with timestamps preserved, or CSV for analysis, or HTML for archival — all without any watermark or trial-limitation.</p>
+
+    <h2>Where iMazing wins</h2>
+    <p>Being honest about this is important.</p>
+    <p><strong>Maturity.</strong> iMazing has been in development for well over a decade. That shows up in edge-case handling, device compatibility across years of iOS releases, and polish. OpenExtract is newer; you may hit edge cases that iMazing has already solved.</p>
+    <p><strong>Live device management.</strong> If your workflow involves more than reading backups — moving contacts to a new phone, managing app installations, transferring music — iMazing does this. OpenExtract does not.</p>
+    <p><strong>Paid commercial support.</strong> When something breaks and you need a fix by a deadline, a vendor with a support team is a different thing from a community with GitHub issues. For law firms and investigative teams with hard deadlines, that's worth money.</p>
+    <p><strong>iMazing Forensics Edition.</strong> DigiDNA sells a forensics-specific edition with chain-of-custody reporting, hash verification workflows, and features tuned to the expert-witness use case. OpenExtract's export is court-ready in the sense that formats are clean and metadata is preserved, but the formalized forensics workflow bundled in iMazing Forensics is more turnkey today. If you're building an expert report where the tooling itself is going to be scrutinized on the stand, this matters.</p>
+
+    <h2>Privacy, compared</h2>
+    <p>Both tools process backups locally. Neither sends your data to the cloud. The key difference is <strong>how you know that's true.</strong> With iMazing, you take the vendor's word for it — and DigiDNA's track record there is good. With OpenExtract, you can read the source code and see the network calls it makes (none, by design).</p>
+    <p>This isn't a knock on iMazing's privacy practices; it's a statement about what open source lets you verify independently.</p>
+
+    <h2>Migrating from iMazing to OpenExtract</h2>
+    <p>If you're already an iMazing user and want to try OpenExtract:</p>
+    <ol>
+      <li>You don't need to re-create your iPhone backup. OpenExtract reads the same iTunes/Finder backup format that iMazing does. If iMazing has been backing up your iPhone to your computer, those backups are already on your disk — in <code>~/Library/Application Support/MobileSync/Backup/</code> on macOS or <code>%APPDATA%\Apple Computer\MobileSync\Backup\</code> on Windows.</li>
+      <li>Install OpenExtract (free; <a href="/#download">download</a>).</li>
+      <li>Point OpenExtract at the backup folder.</li>
+      <li>Extract what you need.</li>
+    </ol>
+    <p>iMazing can also export a backup as a standalone folder if you want to hand it to OpenExtract without touching the Apple-default location.</p>
+
+    <h2>Frequently asked</h2>
+
+    <h3>Is OpenExtract a fork of iMazing?</h3>
+    <p>No. OpenExtract is an independent, open-source project. It reads the same Apple iPhone-backup format that iMazing and Apple's own tools read. The backup format is documented by Apple and understood publicly; any compliant tool can extract data from it.</p>
+
+    <h3>Can I use OpenExtract exports in court?</h3>
+    <p>OpenExtract exports to formats (PDF, CSV, HTML) that preserve timestamps and metadata. That's the starting point. Whether a specific export is admissible depends on your jurisdiction, chain of custody, and the claims you're making about the data — which is on you or your retained expert to establish, not the tool. For expert-witness work where the tool itself will be examined, read the "Where iMazing wins" section above about forensics workflow.</p>
+
+    <h3>Does OpenExtract support encrypted backups?</h3>
+    <p>Yes. Provide the backup password; OpenExtract will decrypt and extract. Encrypted backups contain significantly more data (health records, saved passwords, Safari history), which is usually what people want.</p>
+
+    <h3>Is OpenExtract safe?</h3>
+    <p>The source code is public (MIT license, <a href="https://github.com/charleswest775/openextract">github.com/charleswest775/openextract</a>). Installers are code-signed. It makes no network calls. You can verify all of that yourself.</p>
+
+    <h3>Can OpenExtract extract data from a phone that isn't mine?</h3>
+    <p>OpenExtract is built for working with your own backups. It requires a locally-stored iPhone backup to operate, and for encrypted backups, the backup password. Extracting data from someone else's device or backup without consent may be illegal where you are. This is a use-this-with-your-own-data tool.</p>
+
+    <h3>What about jailbreaking or bypassing Apple's security?</h3>
+    <p>OpenExtract does not jailbreak devices, bypass passcodes, or perform any device-side exploitation. It reads already-created iPhone backups in the format Apple's own tools produce. If you need to access a device without a backup, OpenExtract is not the tool.</p>
+
+    <hr />
+
+    <h2>Try OpenExtract</h2>
+    <p>Download the free, MIT-licensed installer for Windows, macOS, or Linux. No account, no trial, no data leaves your machine.</p>
+    <div class="cta-row">
+      <a class="btn primary" href="/#download">Download OpenExtract</a>
+      <a class="btn secondary" href="https://github.com/charleswest775/openextract">View on GitHub</a>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-logo">
+      <strong>OpenExtract</strong> &nbsp;·&nbsp; openextract.app &nbsp;·&nbsp; <span class="footer-mit">MIT</span>
+    </div>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/for/legal">For legal</a>
+      <a href="/for/investigators">For investigators</a>
+      <a href="/for/personal">For personal</a>
+      <a href="https://github.com/charleswest775/openextract">GitHub</a>
+    </nav>
+  </footer>
+
+</body>
+</html>

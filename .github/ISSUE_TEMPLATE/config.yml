@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/charleswest775/openextract/security/advisories/new
+    about: Report a security issue privately. Please do not open a public issue for vulnerabilities — see SECURITY.md.
+  - name: Question or discussion
+    url: https://github.com/charleswest775/openextract/discussions
+    about: Ask a question or discuss usage. Bug reports belong in issues; general questions belong here.

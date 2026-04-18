@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest a new capability or improvement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        OpenExtract aims to stay focused: extract data from iPhone backups well, everything else second. Feature requests that fit that focus get priority.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation where OpenExtract falls short today, before proposing a specific solution.
+      placeholder: |
+        When I have a backup with years of iMessage threads, exporting just the last three months requires manual filtering afterwards. I'd like to filter by date at extraction time.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like OpenExtract to do?
+      placeholder: |
+        Add a date-range picker to the message-extraction screen, applied before the extraction runs.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: Post-processing with grep, limiting the backup itself, etc.
+
+  - type: input
+    id: use-case
+    attributes:
+      label: Primary use case
+      placeholder: "Legal — filtering custody-dispute evidence to the relevant timeframe"

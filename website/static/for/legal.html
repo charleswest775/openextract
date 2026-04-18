@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenExtract for legal professionals — free iPhone text message evidence extraction</title>
+
+  <meta name="description" content="Extract iPhone text messages, call history, and contacts in court-ready formats. Used by family law attorneys, litigators, and paralegals. Free, open source, 100% local." />
+  <link rel="canonical" href="https://www.openextract.app/for/legal" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="author" content="Charles West" />
+  <meta name="theme-color" content="#0d1b2a" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="OpenExtract" />
+  <meta property="og:title" content="OpenExtract for legal professionals" />
+  <meta property="og:description" content="Free, open-source iPhone backup extraction for family law, civil litigation, and e-discovery work. Court-ready exports, metadata preserved." />
+  <meta property="og:url" content="https://www.openextract.app/for/legal" />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="OpenExtract for legal professionals" />
+  <meta name="twitter:description" content="Court-ready iPhone text message exports. Free, open source." />
+  <meta name="twitter:image" content="https://www.openextract.app/img/og-image.png" />
+
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/pages.css" />
+</head>
+<body>
+
+  <nav class="site-nav">
+    <a href="/" class="nav-logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 16 16"><path d="M8 1L2 5v6l6 4 6-4V5L8 1zm0 1.8l4.5 3v4.9L8 13.2 3.5 10.7V5.8L8 2.8z"/></svg>
+      </div>
+      OpenExtract
+    </a>
+    <ul class="nav-links">
+      <li><a href="/#features">Features</a></li>
+      <li><a href="/vs-imazing">vs iMazing</a></li>
+      <li><a href="/for/legal">For legal</a></li>
+      <li><a href="/#download" class="nav-cta">Download Free</a></li>
+    </ul>
+  </nav>
+
+  <main class="page">
+    <div class="page-eyebrow">For legal professionals</div>
+    <h1>OpenExtract for legal professionals</h1>
+    <p class="lede">Extract text messages, call history, and other iPhone data from a client's backup — formatted for exhibits, briefs, and production. Free and open source.</p>
+
+    <p>Most of the evidence that matters in family law, civil litigation, and increasingly in employment and harassment cases lives on someone's phone. When a client hands you their iPhone or a forensic image of their backup, you need the records out — timestamps intact, attachments included, readable in a binder and producible to opposing counsel.</p>
+    <p>That's the job OpenExtract was built for. It's free, MIT-licensed, and runs entirely on your own workstation. No cloud uploads, no vendor seeing your client's communications.</p>
+
+    <h2>What you can extract</h2>
+    <ul>
+      <li><strong>SMS and iMessage threads</strong>, with timestamps, sender/recipient info, and attachments preserved</li>
+      <li><strong>Call history</strong> — incoming, outgoing, missed, durations</li>
+      <li><strong>Contacts</strong> and <strong>calendar entries</strong> for establishing context</li>
+      <li><strong>Photos and videos</strong>, with EXIF metadata (GPS coordinates, original timestamps) intact</li>
+      <li><strong>Voicemails</strong> with transcription where iOS stored one</li>
+      <li><strong>Notes</strong>, <strong>Safari history</strong>, <strong>saved passwords</strong> (encrypted backups only)</li>
+      <li><strong>Third-party app data</strong> from WhatsApp, Signal, Telegram, and others</li>
+      <li><strong>Threads the user deleted from their device <em>after</em> a backup was made</strong> — the backup still contains them, and OpenExtract reads them out</li>
+    </ul>
+
+    <div class="callout">
+      <p>What OpenExtract does <em>not</em> do: forensic recovery of data that isn't in the backup. There is no SQLite free-page carving, no tombstoned-row reconstruction, no live-device acquisition. If a thread was deleted before the backup captured it, a specialist examiner with a vendor tool is the right next step — OpenExtract stays in its lane as a backup reader.</p>
+    </div>
+
+    <h2>What "court-ready" means here</h2>
+    <p>OpenExtract exports in three formats that are useful at different stages of a matter:</p>
+    <p><strong>PDF</strong> — what you hand a judge. Full message threads rendered chronologically, with timestamps, attachments in-line, and a header identifying the export. Good for exhibits. Multi-page, auto-paginated, easy to Bates-stamp downstream.</p>
+    <p><strong>CSV</strong> — what you hand an analyst or an expert. Rows, columns, every field accessible. Good for timeline analysis, communication-frequency graphs, and cross-referencing with other records.</p>
+    <p><strong>HTML</strong> — what you hand yourself while preparing. Browseable archive, searchable locally, links between messages and attachments preserved. Good for discovery review.</p>
+    <p>All exports preserve original timestamps and metadata. Timezone information is retained. Attachment files are exported separately and linked, so hash verification against originals is possible.</p>
+
+    <h2>Typical workflow</h2>
+    <ol>
+      <li><strong>Obtain the backup.</strong> Your client backs up their iPhone to their Mac (Finder) or Windows PC (iTunes / Apple Devices app), or you receive a forensic image from a retained expert. Encrypted backups are supported — just provide the password.</li>
+      <li><strong>Open the backup in OpenExtract.</strong> Point the application at the backup folder. On macOS this is typically <code>~/Library/Application Support/MobileSync/Backup/</code>; on Windows, <code>%APPDATA%\Apple Computer\MobileSync\Backup\</code>.</li>
+      <li><strong>Select the data you need.</strong> Specific contacts, date ranges, message categories. You don't have to export everything.</li>
+      <li><strong>Export.</strong> Choose PDF for exhibits, CSV for analysis, or both.</li>
+      <li><strong>Produce or use in brief.</strong> The output is yours. OpenExtract retains nothing.</li>
+    </ol>
+
+    <h2>Common use cases we hear about</h2>
+    <p><strong>Family law — divorce, custody, support.</strong> Text message threads between spouses or between a parent and child frequently become central exhibits. Extracting the complete thread (not screenshots) establishes authenticity, preserves timestamps, and captures context that isolated screenshots strip out.</p>
+    <p><strong>Civil litigation — breach of contract, fraud, tortious interference.</strong> Communication patterns between parties often establish what was known and when. A full export is more defensible than screenshots produced selectively.</p>
+    <p><strong>Employment and harassment.</strong> Preservation of text-based evidence before a phone is returned, wiped, or reissued. An OpenExtract-produced PDF is the kind of artifact that can be placed into a preservation letter or litigation hold.</p>
+    <p><strong>Estate matters and incapacity.</strong> Recovering communications and photos from a decedent's or incapacitated person's device when authorized by the estate or a guardian.</p>
+
+    <h2>Honest limitations</h2>
+    <p>OpenExtract is a free tool with real trade-offs you should be aware of:</p>
+    <ul>
+      <li><strong>It is not a chain-of-custody system.</strong> It extracts; it doesn't produce a formal chain-of-custody report, hash manifest, or examiner affidavit. If your matter requires that, retain a forensic examiner who uses dedicated forensics tooling — or supplement OpenExtract with a hash-manifest workflow.</li>
+      <li><strong>It is not an expert witness.</strong> If the tool's behavior will be scrutinized on the stand, retain an expert who can speak to the extraction methodology. The fact that OpenExtract is open-source is an advantage here — the expert can actually read the code — but the expert still needs to be retained.</li>
+      <li><strong>It works on backups, not live devices.</strong> If the device is passcode-locked and has never been backed up, OpenExtract has nothing to read. You'll need a forensic extraction or device-side workflow for that.</li>
+      <li><strong>It doesn't bypass iCloud or account security.</strong> Data is what's in the backup; it isn't what Apple holds server-side. For iCloud-only data, subpoena or court order to Apple is the appropriate path.</li>
+      <li><strong>No commercial support contract.</strong> Issues are filed on GitHub; response times are best-effort. If your matter has a deadline you'd bet a client relationship on, plan accordingly — either build in runway or keep a paid tool in your kit.</li>
+    </ul>
+
+    <h2>Privacy and client data</h2>
+    <p>OpenExtract processes backups locally on the workstation it's installed on. It makes no network calls. The source code is public and auditable at <a href="https://github.com/charleswest775/openextract">github.com/charleswest775/openextract</a> — you, your IT team, or an outside auditor can verify that.</p>
+    <p>For regulated environments (firms with information-governance or data-residency policies), this is often easier to clear than a SaaS tool that ships backups to a vendor's cloud.</p>
+
+    <h2>Pricing</h2>
+    <p>OpenExtract is free. MIT licensed. No per-user cost, no per-matter cost, no annual maintenance, no upgrade fees. You can install it on every workstation in the firm without procurement.</p>
+    <p>If you want to support the project, star it on GitHub or contribute improvements. There is no paid tier.</p>
+
+    <hr />
+
+    <h2>Get started</h2>
+    <p>Download OpenExtract for Windows, macOS, or Linux. Point it at a backup, extract what you need, produce to opposing counsel or attach to your brief.</p>
+    <div class="cta-row">
+      <a class="btn primary" href="/#download">Download OpenExtract</a>
+      <a class="btn secondary" href="https://github.com/charleswest775/openextract">View on GitHub</a>
+    </div>
+
+    <p class="meta-note">OpenExtract is software, not a law firm. Nothing on this page is legal advice. Admissibility of a given export in a given jurisdiction depends on facts and foundation not specific to this tool.</p>
+  </main>
+
+  <footer>
+    <div class="footer-logo">
+      <strong>OpenExtract</strong> &nbsp;·&nbsp; openextract.app &nbsp;·&nbsp; <span class="footer-mit">MIT</span>
+    </div>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/for/legal">For legal</a>
+      <a href="/for/investigators">For investigators</a>
+      <a href="/for/personal">For personal</a>
+      <a href="https://github.com/charleswest775/openextract">GitHub</a>
+    </nav>
+  </footer>
+
+</body>
+</html>
