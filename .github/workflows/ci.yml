@@ -50,8 +50,11 @@ jobs:
             https://github.com/charleswest775/ios-backup-core.git \
             "$GITHUB_WORKSPACE/../ios-backup-core"
 
+      # Run from python/ so pip resolves `-e ../../ios-backup-core` the same
+      # way it does locally (README tells devs to `cd python` first).
       - name: Install Python dependencies
-        run: pip install ruff pytest -r python/requirements.txt
+        working-directory: python
+        run: pip install ruff pytest -r requirements.txt
 
       - name: Python lint
         run: ruff check python/
