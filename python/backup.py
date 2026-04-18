@@ -343,7 +343,7 @@ class BackupManager:
         # iphone-backup-decrypt extra is missing.
         try:
             accessor = open_local_backup(backup_dir, password=password)
-        except Exception as e:
+        except Exception:
             # open_local_backup raises ValueError("Failed to decrypt backup: ...")
             # — preserve the same surface error openextract emitted before.
             raise

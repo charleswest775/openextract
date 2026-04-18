@@ -10,6 +10,7 @@ python/*.spec
 Thumbs.db
 .env
 .vite/
+*.tsbuildinfo
 
 # Python virtual environment
 .venv/
