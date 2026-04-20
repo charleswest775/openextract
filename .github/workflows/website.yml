@@ -1,9 +1,18 @@
 name: Deploy Website
 
 on:
+  # Deploy automatically when website files change on main
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
+  # Deploy after a successful Release (so updated download URLs ship)
   workflow_run:
     workflows: [Release]
     types: [completed]
+  # Manual trigger for forced redeploys
+  workflow_dispatch:
 
 concurrency:
   group: website-deploy
@@ -11,7 +20,9 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # For workflow_run events, only deploy on successful Release.
+    # For push / workflow_dispatch, always deploy.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -24,7 +35,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.workflow_run.head_branch }}
+          # For workflow_run, check out the branch that ran the Release.
+          # For push / workflow_dispatch, fall back to the default ref.
+          ref: ${{ github.event.workflow_run.head_branch || github.ref }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v6
