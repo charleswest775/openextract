@@ -83,13 +83,15 @@ function createWindow() {
     height: 750,
     minWidth: 800,
     minHeight: 600,
-    title: 'OpenExtract',
+    title: `OpenExtract v${app.getVersion()}`,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
+  mainWindow.on('page-title-updated', (e: any) => e.preventDefault());
 
   if (isDev) {
     mainWindow.loadURL('http://127.0.0.1:5179');
