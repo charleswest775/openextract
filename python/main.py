@@ -41,6 +41,7 @@ from voicemail import VoicemailExtractor  # noqa: E402
 from calls import CallExtractor  # noqa: E402
 from notes import NoteExtractor  # noqa: E402
 from browser_history import BrowserHistoryExtractor  # noqa: E402
+from message_recovery import MessageRecoveryExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
 from stats import StatsComputer  # noqa: E402
 
@@ -55,6 +56,7 @@ class SidecarServer:
         self.call_extractor = CallExtractor()
         self.note_extractor = NoteExtractor()
         self.browser_history_extractor = BrowserHistoryExtractor()
+        self.message_recovery_extractor = MessageRecoveryExtractor()
         self.device_backup_manager = DeviceBackupManager()
         self.stats_computer = StatsComputer()
 
@@ -90,6 +92,9 @@ class SidecarServer:
             "has_browser_history": self.has_browser_history,
             "list_browser_history": self.list_browser_history,
             "export_browser_history": self.export_browser_history,
+            # Record recovery
+            "recover_messages": self.recover_messages,
+            "export_recovered_messages": self.export_recovered_messages,
             # Utility
             "write_file": self.write_file,
             # Aggregate stats
@@ -355,6 +360,24 @@ class SidecarServer:
         backup = self.backup_manager.get_open_backup(udid)
         return self.browser_history_extractor.export_browser_history_csv(
             backup, output_dir, browser
+        )
+
+    # ── Record recovery ──────────────────────────────────────────────────────
+
+    def recover_messages(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        return self.message_recovery_extractor.recover_messages(backup, contacts)
+
+    def export_recovered_messages(self, params):
+        udid = params["udid"]
+        fmt = params.get("format", "html")
+        output_dir = params["output_dir"]
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        return self.message_recovery_extractor.export_recovered_messages(
+            backup, contacts, fmt, output_dir
         )
 
     # ── Backup stats dashboard ─────────────────────────────────────────────
