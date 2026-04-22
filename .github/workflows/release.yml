@@ -100,8 +100,23 @@ jobs:
       - name: TypeScript check (electron)
         run: npx tsc --noEmit -p tsconfig.electron.json
 
+      # python/requirements.txt installs ios-backup-core via `-e ../../ios-backup-core`.
+      # The expected layout is openextract/ and ios-backup-core/ as siblings on disk,
+      # so clone ios-backup-core one level above $GITHUB_WORKSPACE before pip runs.
+      # TODO: remove this step once ios-backup-core ships to PyPI and requirements.txt
+      # pins a versioned release instead of the editable path install.
+      - name: Clone ios-backup-core (sibling for editable install)
+        shell: bash
+        run: |
+          git clone --depth=1 \
+            https://github.com/charleswest775/ios-backup-core.git \
+            "$GITHUB_WORKSPACE/../ios-backup-core"
+
+      # Run from python/ so pip resolves `-e ../../ios-backup-core` the same
+      # way it does locally (README tells devs to `cd python` first).
       - name: Install Python dependencies
-        run: pip install ruff pytest -r python/requirements.txt
+        working-directory: python
+        run: pip install ruff pytest -r requirements.txt
 
       - name: Python lint
         run: ruff check python/
@@ -177,8 +192,17 @@ jobs:
       - name: Install Node dependencies
         run: npm install
 
+      # See preflight job for rationale on sibling-clone + working-directory.
+      - name: Clone ios-backup-core (sibling for editable install)
+        shell: bash
+        run: |
+          git clone --depth=1 \
+            https://github.com/charleswest775/ios-backup-core.git \
+            "$GITHUB_WORKSPACE/../ios-backup-core"
+
       - name: Install Python dependencies and PyInstaller
-        run: pip install pyinstaller -r python/requirements.txt
+        working-directory: python
+        run: pip install pyinstaller -r requirements.txt
 
       - name: Build Python sidecar
         run: npm run python:bundle
@@ -222,8 +246,17 @@ jobs:
       - name: Install Node dependencies
         run: npm install
 
+      # See preflight job for rationale on sibling-clone + working-directory.
+      - name: Clone ios-backup-core (sibling for editable install)
+        shell: bash
+        run: |
+          git clone --depth=1 \
+            https://github.com/charleswest775/ios-backup-core.git \
+            "$GITHUB_WORKSPACE/../ios-backup-core"
+
       - name: Install Python dependencies and PyInstaller
-        run: pip install pyinstaller -r python/requirements.txt
+        working-directory: python
+        run: pip install pyinstaller -r requirements.txt
 
       - name: Build Python sidecar
         run: npm run python:bundle
@@ -270,8 +303,17 @@ jobs:
       - name: Install Node dependencies
         run: npm install
 
+      # See preflight job for rationale on sibling-clone + working-directory.
+      - name: Clone ios-backup-core (sibling for editable install)
+        shell: bash
+        run: |
+          git clone --depth=1 \
+            https://github.com/charleswest775/ios-backup-core.git \
+            "$GITHUB_WORKSPACE/../ios-backup-core"
+
       - name: Install Python dependencies and PyInstaller
-        run: pip install pyinstaller -r python/requirements.txt
+        working-directory: python
+        run: pip install pyinstaller -r requirements.txt
 
       - name: Build Python sidecar
         run: npm run python:bundle
