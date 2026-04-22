@@ -1,5 +1,13 @@
 name: Release
 
+# The release pipeline never pushes directly to `main`. Branch protection
+# requires PRs, so instead we:
+#   1. Build a `release/vX.Y.Z` branch carrying the version bump + website
+#      URL updates, and push it (release/* is unprotected).
+#   2. Tag that branch and build artifacts from the tag.
+#   3. Open a PR from the release branch back to `main` so the bump and URL
+#      updates can be reviewed and merged by a human.
+
 on:
   workflow_dispatch:
     inputs:
@@ -18,13 +26,16 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      pull-requests: write
     outputs:
       tag: v${{ inputs.version }}
+      release_branch: release/v${{ inputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Configure git
         run: |
@@ -45,6 +56,15 @@ jobs:
             exit 1
           fi
 
+      # --- Build the release branch with all version-bump commits ---
+      - name: Create release branch
+        run: |
+          BRANCH="release/v${{ inputs.version }}"
+          # Reset any stale remote branch from a prior failed run so we start
+          # from a clean state on main.
+          git push origin --delete "$BRANCH" || true
+          git checkout -b "$BRANCH"
+
       - name: Bump package.json version if needed
         run: |
           CURRENT=$(node -p "require('./package.json').version")
@@ -52,13 +72,12 @@ jobs:
             npm version "${{ inputs.version }}" --no-git-tag-version
             git add package.json package-lock.json
             git commit -m "chore: bump version to ${{ inputs.version }}"
-            git push
             echo "Bumped version from $CURRENT to ${{ inputs.version }}"
           else
             echo "Version already matches ${{ inputs.version }}"
           fi
 
-      # --- Quality gates ---
+      # --- Quality gates (fail fast before touching remotes) ---
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
@@ -93,15 +112,13 @@ jobs:
       - name: Build verification
         run: npm run build
 
-      # --- Update website download URLs ---
+      # --- Update website download URLs on the release branch ---
       - name: Update website version and download URLs
         run: |
           VERSION="${{ inputs.version }}"
           FILE="website/static/index.html"
           if [ -f "$FILE" ]; then
-            # Update version badge (e.g. "v0.3.4" -> "v0.4.0")
             sed -i "s/v[0-9]\+\.[0-9]\+\.[0-9]\+/v${VERSION}/g" "$FILE"
-            # Update download URLs with bare version (e.g. "Setup-0.3.4.exe" -> "Setup-0.4.0.exe")
             sed -i "s/OpenExtract-Setup-[0-9]\+\.[0-9]\+\.[0-9]\+/OpenExtract-Setup-${VERSION}/g" "$FILE"
             sed -i "s/OpenExtract-[0-9]\+\.[0-9]\+\.[0-9]\+-arm64/OpenExtract-${VERSION}-arm64/g" "$FILE"
             sed -i "s/OpenExtract-[0-9]\+\.[0-9]\+\.[0-9]\+\.AppImage/OpenExtract-${VERSION}.AppImage/g" "$FILE"
@@ -110,14 +127,16 @@ jobs:
             else
               git add "$FILE"
               git commit -m "chore: update website download URLs to v${VERSION}"
-              git push
               echo "Website updated to v${VERSION}"
             fi
           else
             echo "No website/static/index.html found, skipping"
           fi
 
-      # --- Tag and draft release ---
+      # --- Push release branch (release/* is not protected) and tag ---
+      - name: Push release branch
+        run: git push --set-upstream origin "release/v${{ inputs.version }}"
+
       - name: Create and push tag
         run: |
           git tag "v${{ inputs.version }}"
@@ -271,15 +290,44 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      pull-requests: write
     steps:
-      - name: Checkout
+      - name: Checkout release branch
         uses: actions/checkout@v5
+        with:
+          ref: release/v${{ inputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish release (remove draft)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release edit "v${{ inputs.version }}" --draft=false
+
+      # Open a PR so main picks up the version bump + website URL updates.
+      # This is the only path for those changes to reach main under the
+      # required-PR-review branch protection policy.
+      - name: Open sync PR to main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Skip if the branch has no commits ahead of main (unchanged release).
+          AHEAD=$(git rev-list --count origin/main..HEAD)
+          if [ "$AHEAD" = "0" ]; then
+            echo "No commits ahead of main — nothing to sync."
+            exit 0
+          fi
+          # Reuse existing PR if one is already open from this branch.
+          EXISTING=$(gh pr list --head "release/v${{ inputs.version }}" --state open --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            echo "Sync PR already open: #$EXISTING"
+            exit 0
+          fi
+          gh pr create \
+            --base main \
+            --head "release/v${{ inputs.version }}" \
+            --title "chore: release v${{ inputs.version }}" \
+            --body "Auto-opened by the Release workflow after v${{ inputs.version }} artifacts were published. Merging this PR keeps \`main\` in sync: version bump in \`package.json\` and updated download URLs in \`website/static/index.html\`."
 
       - name: Summary
         env:
@@ -291,3 +339,6 @@ jobs:
           gh release view "v${{ inputs.version }}" --json assets --jq '.assets[] | "- \(.name) (\(.size / 1048576 | floor)MB)"' >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "[View release](https://github.com/${{ github.repository }}/releases/tag/v${{ inputs.version }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next step" >> $GITHUB_STEP_SUMMARY
+          echo "Merge the [sync PR](https://github.com/${{ github.repository }}/pulls?q=is%3Apr+is%3Aopen+head%3Arelease%2Fv${{ inputs.version }}) to update \`main\`." >> $GITHUB_STEP_SUMMARY
