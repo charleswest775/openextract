@@ -27,7 +27,6 @@ import csv
 import html
 import os
 import sqlite3
-from collections import defaultdict
 from typing import Optional
 
 from ios_backup_core.contacts import resolve_contact
