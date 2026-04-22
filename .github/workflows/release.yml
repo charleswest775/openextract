@@ -339,6 +339,13 @@ jobs:
         with:
           ref: release/v${{ inputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          # Full history + all branches so `origin/main..HEAD` resolves in the
+          # sync-PR step below. Default shallow checkout only fetches the ref
+          # we asked for, so origin/main is missing from the local repo.
+          fetch-depth: 0
+
+      - name: Fetch main for comparison
+        run: git fetch --no-tags origin main:refs/remotes/origin/main
 
       - name: Publish release (remove draft)
         env:
