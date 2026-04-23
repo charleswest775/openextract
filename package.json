@@ -16,7 +16,9 @@
     "python:install:dev": "cd python && ../.venv/Scripts/pip install -r requirements-dev.txt",
     "python:lint": ".venv/Scripts/ruff check python/",
     "python:test": ".venv/Scripts/pytest python/tests/ -v",
-    "python:bundle": "cd python && pyinstaller --onefile --name openextract-engine main.py"
+    "python:bundle": "cd python && pyinstaller --onefile --name openextract-engine main.py",
+    "test:fixtures": "python3 tests/fixtures/build_fixture.py",
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts"
   },
   "dependencies": {
     "benz-amr-recorder": "^1.1.5",
@@ -27,6 +29,7 @@
     "recharts": "^3.8.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
@@ -34,6 +37,7 @@
     "concurrently": "^8.2.2",
     "electron": "^30.1.0",
     "electron-builder": "^26.0.12",
+    "playwright": "^1.59.1",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.5.2",

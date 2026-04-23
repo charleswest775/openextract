@@ -50,3 +50,7 @@ temp_stdout.txt
 
 # Claude worktrees
 .claude/
+
+# Playwright E2E test output
+test-results/
+playwright-report/
