@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Device Name</key>
+	<string>E2E Encrypted iPhone</string>
+	<key>Display Name</key>
+	<string>E2E Encrypted iPhone</string>
+	<key>Last Backup Date</key>
+	<date>2024-01-01T12:00:00Z</date>
+	<key>Phone Number</key>
+	<string></string>
+	<key>Product Type</key>
+	<string>iPhone14,2</string>
+	<key>Product Version</key>
+	<string>17.0</string>
+	<key>Serial Number</key>
+	<string>E2ETEST0001</string>
+	<key>Unique Identifier</key>
+	<string>E2E000000000000000000000000000000000002</string>
+	<key>iTunes Version</key>
+	<string>12.0</string>
+</dict>
+</plist>

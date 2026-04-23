@@ -21,8 +21,11 @@ import sqlite3
 from datetime import datetime
 
 FIXTURE_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "synthetic_backup")
+ENCRYPTED_FIXTURE_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "synthetic_backup_encrypted")
 BACKUP_UDID = "e2e000000000000000000000000000000000001"
+ENCRYPTED_UDID = "e2e000000000000000000000000000000000002"
 BACKUP_DIR = os.path.join(FIXTURE_ROOT, BACKUP_UDID)
+ENCRYPTED_DIR = os.path.join(ENCRYPTED_FIXTURE_ROOT, ENCRYPTED_UDID)
 
 
 def write_manifest_db(path: str) -> None:
@@ -49,12 +52,12 @@ def write_manifest_db(path: str) -> None:
         conn.close()
 
 
-def write_info_plist(path: str) -> None:
+def write_info_plist(path: str, udid: str, device_name: str) -> None:
     plistlib.dump(
         {
-            "Unique Identifier": BACKUP_UDID.upper(),
-            "Device Name": "E2E Test iPhone",
-            "Display Name": "E2E Test iPhone",
+            "Unique Identifier": udid.upper(),
+            "Device Name": device_name,
+            "Display Name": device_name,
             "Product Type": "iPhone14,2",
             "Product Version": "17.0",
             "Serial Number": "E2ETEST0001",
@@ -66,29 +69,34 @@ def write_info_plist(path: str) -> None:
     )
 
 
-def write_manifest_plist(path: str) -> None:
+def write_manifest_plist(path: str, encrypted: bool) -> None:
     plistlib.dump(
         {
-            "IsEncrypted": False,
+            "IsEncrypted": encrypted,
             "Version": "10.0",
             "Date": datetime(2024, 1, 1, 12, 0, 0),
             "SystemDomainsVersion": "20.0",
-            "WasPasscodeSet": False,
+            "WasPasscodeSet": encrypted,
         },
         open(path, "wb"),
     )
 
 
+def build_backup(root_dir: str, backup_dir: str, udid: str, device_name: str, encrypted: bool) -> None:
+    if os.path.exists(root_dir):
+        shutil.rmtree(root_dir)
+    os.makedirs(backup_dir, exist_ok=True)
+    write_manifest_db(os.path.join(backup_dir, "Manifest.db"))
+    write_info_plist(os.path.join(backup_dir, "Info.plist"), udid, device_name)
+    write_manifest_plist(os.path.join(backup_dir, "Manifest.plist"), encrypted=encrypted)
+
+
 def main() -> None:
-    if os.path.exists(FIXTURE_ROOT):
-        shutil.rmtree(FIXTURE_ROOT)
-    os.makedirs(BACKUP_DIR, exist_ok=True)
+    build_backup(FIXTURE_ROOT, BACKUP_DIR, BACKUP_UDID, "E2E Test iPhone", encrypted=False)
+    print(f"Wrote unencrypted fixture to {BACKUP_DIR}")
 
-    write_manifest_db(os.path.join(BACKUP_DIR, "Manifest.db"))
-    write_info_plist(os.path.join(BACKUP_DIR, "Info.plist"))
-    write_manifest_plist(os.path.join(BACKUP_DIR, "Manifest.plist"))
-
-    print(f"Wrote fixture to {BACKUP_DIR}")
+    build_backup(ENCRYPTED_FIXTURE_ROOT, ENCRYPTED_DIR, ENCRYPTED_UDID, "E2E Encrypted iPhone", encrypted=True)
+    print(f"Wrote encrypted fixture to {ENCRYPTED_DIR}")
 
 
 if __name__ == "__main__":
