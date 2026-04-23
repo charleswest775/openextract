@@ -108,8 +108,12 @@ function getPythonPath() {
     // In test mode OPENEXTRACT_PYTHON_FROM_SOURCE=1 forces the sidecar to run
     // from python/main.py against a system Python, skipping the PyInstaller
     // binary. Lets E2E tests run without rebuilding the engine.
+    //
+    // Preference order: explicit OPENEXTRACT_TEST_PYTHON → project .venv →
+    // system python3. findVenvPython already falls back to the system
+    // interpreter when no .venv is found.
     if (isTestMode && process.env.OPENEXTRACT_PYTHON_FROM_SOURCE === '1') {
-        return process.env.OPENEXTRACT_TEST_PYTHON || (process.platform === 'win32' ? 'python.exe' : 'python3');
+        return process.env.OPENEXTRACT_TEST_PYTHON || findVenvPython();
     }
     if (isDev) {
         return findVenvPython();

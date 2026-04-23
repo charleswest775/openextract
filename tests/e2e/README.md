@@ -11,63 +11,72 @@ Selenium has no first-class Electron launcher; the historical answer
 drives both the Electron main process and any `BrowserWindow`, handles
 auto-waiting, and produces traces / videos for failed runs.
 
+## Quick start
+
+```bash
+# One-time: create venv, install Python + Playwright deps, build fixtures, build Electron.
+npm install
+npm run setup
+
+# Run the suite.
+npm run test:e2e                # macOS / Windows with a display
+npm run test:e2e:ci             # Linux / headless — wraps with xvfb-run + --no-sandbox
+```
+
+`npm run test:e2e` runs `npm run build` first (see `pretest:e2e`). When
+iterating on a single spec without touching product code, skip that with:
+
+```bash
+npm run test:e2e:fast -- -g "password dialog"
+```
+
 ## How the harness boots the app
 
 `tests/e2e/fixtures.ts` launches Electron against the **built** renderer
 (`dist/index.html`) and a Python sidecar running directly from source
-(`python/main.py`), not from the PyInstaller binary. Three env vars gate
-test-only behavior in the product code:
+(`python/main.py`), not from the PyInstaller binary. Each run gets a fresh
+`--user-data-dir` so persisted state doesn't leak between tests. Env vars
+gate test-only behavior in the product code:
 
 | Env var | Effect |
 |---|---|
 | `OPENEXTRACT_TEST_MODE=1` | Replaces native file/folder dialogs with env-var paths. Playwright can't click OS pickers. |
-| `OPENEXTRACT_PYTHON_FROM_SOURCE=1` | `electron/main.ts` spawns `python3 python/main.py` instead of the bundled engine binary. |
+| `OPENEXTRACT_PYTHON_FROM_SOURCE=1` | `electron/main.ts` spawns Python on `python/main.py` instead of the bundled engine binary. |
 | `OPENEXTRACT_TEST_OPEN_PATH` | Return value of `dialog:selectFolder`. Points at the fixture backup. |
 | `OPENEXTRACT_TEST_SAVE_PATH` | Return value of `dialog:saveFile` / `dialog:saveFolder`. |
-| `OPENEXTRACT_TEST_PYTHON` | Optional: override the `python3` interpreter (e.g. a venv path). |
+| `OPENEXTRACT_TEST_PYTHON` | Optional: override the Python interpreter. Defaults to the project `.venv`, falling back to `python3`. |
 | `OPENEXTRACT_E2E_NO_SANDBOX=1` | Adds `--no-sandbox` to Electron args. Needed when running as root in CI/containers. |
 
-## Running locally
+## Running individual specs
 
 ```bash
-# 1. Install Python sidecar deps (ios-backup-core must be a sibling checkout)
-npm run python:install
+# By file
+npx playwright test --config tests/e2e/playwright.config.ts tests/e2e/backup.spec.ts
 
-# 2. Build the renderer and Electron main bundle
-npm run build
-
-# 3. Regenerate fixtures if build_fixture.py changed (files are committed)
-npm run test:fixtures
-
-# 4. Run the E2E suite
-npm run test:e2e
+# By test name
+npx playwright test --config tests/e2e/playwright.config.ts -g "unencrypted"
 ```
 
-On Linux headless environments (including CI) wrap with `xvfb-run`:
+Traces land in `test-results/` on failure. Open them with:
 
 ```bash
-xvfb-run -a npm run test:e2e
-# In containers running as root, also:
-OPENEXTRACT_E2E_NO_SANDBOX=1 xvfb-run -a npm run test:e2e
+npx playwright show-trace test-results/<name>/trace.zip
 ```
 
-Trace files land in `test-results/` on failure. Open them with
-`npx playwright show-trace <trace.zip>`.
+## Test fixtures
 
-## Test fixture
-
-`tests/fixtures/synthetic_backup/` is a committed, reproducible iPhone-backup
-stub containing a valid `Manifest.db`, `Info.plist`, and `Manifest.plist`.
-It is deliberately empty of user data — just enough structure for
-`list_backups` and `open_backup` to recognize it as a backup. Regenerate
-with `npm run test:fixtures`.
+`tests/fixtures/synthetic_backup/` and `tests/fixtures/synthetic_backup_encrypted/`
+are committed, reproducible iPhone-backup stubs containing a valid
+`Manifest.db`, `Info.plist`, and `Manifest.plist`. They are deliberately empty
+of user data — just enough structure for `list_backups` and `open_backup`
+to recognize them. Regenerate with `npm run test:fixtures`.
 
 ## Adding a new spec
 
-1. Copy `smoke.spec.ts` as a template.
+1. Copy `smoke.spec.ts` or `backup.spec.ts` as a template.
 2. Import `{ test, expect }` from `./fixtures`.
 3. Use the `firstWindow` fixture to get a `Page` handle.
-4. Drive the UI with Playwright's built-in auto-waiting. Avoid `sleep`.
+4. To drive a non-default backup path, `test.use({ backupPath: ... })`.
 5. For sidecar assertions, call `firstWindow.evaluate(...)` and invoke
    `window.openextract.call(method, params)`.
 
