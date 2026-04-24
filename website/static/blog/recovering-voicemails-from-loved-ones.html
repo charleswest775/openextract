@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Recovering voicemails from people who have passed — OpenExtract Blog</title>
+  <meta name="description" content="Where iPhone voicemails are stored, how long they survive, and how to pull them out of a backup when the phone and the person are both gone." />
+  <link rel="canonical" href="https://www.openextract.app/blog/recovering-voicemails-from-loved-ones" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/blog/recovering-voicemails-from-loved-ones" />
+  <meta property="og:title" content="Recovering voicemails from people who have passed" />
+  <meta property="og:description" content="A quiet guide. Where the files live, how to find them, and how to keep them." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta property="article:published_time" content="2025-03-15" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script defer data-domain="openextract.app" src="https://plausible.io/js/script.outbound-links.file-downloads.tagged-events.js"></script>
+  <script>window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog" class="is-current">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="post-header">
+    <a class="post-back" href="/blog">← Blog</a>
+    <div class="post-meta">
+      <span class="blog-cat blog-cat--stories">Stories</span>
+      <span class="blog-date">2025-03-15 · 5 min read</span>
+    </div>
+    <h1>Recovering voicemails<br /><span class="it">from people who have passed</span>.</h1>
+    <p class="post-header__lede">A voice is different from a photo. It catches a breath, a laugh, the particular way someone said your name. This is a quiet guide for anyone who needs to keep one.</p>
+  </header>
+
+  <article class="post-body">
+    <p>We get emails about this every week. Someone's parent died. Their partner. A sibling. The phone is off, the account is inaccessible, but there's an old laptop in a drawer that used to sync with an iPhone, and somewhere inside it is a voicemail — a three-second "hi honey, call me when you can" — that is now the only recording of that voice in the world.</p>
+
+    <p>It's almost always still there. This post explains where.</p>
+
+    <h2>Voicemails survive in more places than you'd think</h2>
+
+    <p>Unlike messages or photos, voicemails on iPhone are small, standalone audio files. That makes them extraordinarily durable. They're copied to your computer whenever a backup runs, which happens automatically any time you plug the phone into a computer it's been paired with — and for most people, that's happened dozens or hundreds of times over the life of the phone.</p>
+
+    <p>So the places to look, in order:</p>
+
+    <ul>
+      <li><strong>The person's own Mac or PC.</strong> The laptop they plugged their phone into. Check <code>~/Library/Application Support/MobileSync/Backup/</code> on a Mac, or <code>%AppData%\Apple Computer\MobileSync\Backup\</code> on Windows.</li>
+      <li><strong>A partner's or family member's computer.</strong> If they ever plugged their phone in to charge, to do an initial setup, to grab photos — there's a backup on that machine.</li>
+      <li><strong>An external drive.</strong> Some people moved backups off their main drive. Look for folders named <code>Backup</code> with UUID-named subfolders.</li>
+    </ul>
+
+    <p>You don't need the phone. You don't need iCloud. You don't need the Apple ID password. You need the backup folder.</p>
+
+    <h2>Where voicemails actually live inside a backup</h2>
+
+    <p>Apple stores voicemails in a specific domain of the iPhone filesystem called <code>HomeDomain</code>, under the path <code>Library/Voicemail/</code>. Inside that folder:</p>
+
+    <pre class="code-block"><code><span class="code-dim">Library/Voicemail/</span>
+├── voicemail.db          <span class="code-dim"># SQLite index: who, when, how long</span>
+├── 1.amr                 <span class="code-dim"># older iOS — narrowband audio</span>
+├── 2.m4a                 <span class="code-dim"># newer iOS — AAC audio</span>
+├── 17.m4a
+└── ...</code></pre>
+
+    <p>The <code>voicemail.db</code> SQLite database has one row per voicemail with the timestamp, sender's phone number, duration in seconds, and a transcription if iOS was able to make one. The audio file is named by the voicemail's row ID — <code>1.m4a</code> for row 1, etc.</p>
+
+    <p>In the backup, these files are renamed to hex-encoded SHA-1 hashes (every file is — that's how iPhone backups work). <code>Manifest.db</code> maps the hex names back to their original paths. The query that finds voicemail audio looks like:</p>
+
+    <pre class="code-block"><code><span class="code-kw">SELECT</span> fileID, relativePath
+<span class="code-kw">FROM</span> Files
+<span class="code-kw">WHERE</span> domain = <span class="code-str">'HomeDomain'</span>
+  <span class="code-kw">AND</span> relativePath <span class="code-kw">LIKE</span> <span class="code-str">'Library/Voicemail/%'</span></code></pre>
+
+    <p>OpenExtract does this automatically. You don't see any of it unless you want to.</p>
+
+    <h2>What gets saved alongside the audio</h2>
+
+    <p>When OpenExtract exports voicemails, it pairs each <code>.m4a</code> or <code>.amr</code> file with a CSV of metadata — who left it, when, how long it was, and whatever iOS transcribed. That CSV matters. Years from now you won't remember whose number that was in 2017, but the CSV will.</p>
+
+    <p>For each voicemail you'll get:</p>
+
+    <ul>
+      <li><strong>The audio file</strong> — <code>.m4a</code> on any remotely modern iOS, playable in any music app, browser, or phone.</li>
+      <li><strong>The timestamp</strong> — down to the second, in your local time zone.</li>
+      <li><strong>The caller's number and name</strong> — if they were in contacts.</li>
+      <li><strong>iOS's transcription</strong> — useful when the audio is a message you can't bring yourself to play yet.</li>
+    </ul>
+
+    <h2>Encrypted backups and this particular case</h2>
+
+    <p>If the backup was encrypted and you don't have the password, voicemails are one of the few things you <em>can</em> still get. The voicemail audio files and index live in <code>HomeDomain</code>, which is encrypted per-file — so you'd still need the password to decrypt them. But metadata like call history is elsewhere and may be partially accessible.</p>
+
+    <p>If the password is unknown and the laptop belongs to someone who has passed, the practical step is to look for written passwords (a notebook, a keychain file, a sticky note). Apple has no backdoor and neither do we.</p>
+
+    <h2>What to do with them</h2>
+
+    <p>Something that has helped people we've heard from: back them up in <em>three places</em>. An external drive, a cloud archive you control (not iCloud — a plain folder in Google Drive or Dropbox), and a copy given to another family member. Voice memos deteriorate the way paper does, but more silently. The audio file itself doesn't degrade, but the <em>places</em> you store it do — drives fail, accounts close, phones get replaced.</p>
+
+    <p>Then you don't have to play them. You just have to know they exist.</p>
+
+    <h2>One more thing</h2>
+
+    <p>If you'd like a longer, more personal piece on what it feels like to hold this kind of data — years of messages, photos, voicemails — reconstructed from a backup, <a href="https://medium.com/@charles.west_98012/your-iphone-has-been-writing-your-diary-you-just-cant-read-it-yet-30cafde69261">this is a piece we wrote on Medium</a>. Not a how-to. A reflection.</p>
+
+    <p>If we can help with a specific case, <a href="https://github.com/charleswest775/openextract/issues">open an issue</a> and we'll write back. We mean it.</p>
+
+    <p class="post-body__sig">— OpenExtract</p>
+  </article>
+
+  <section class="post-more">
+    <div class="post-more__inner">
+      <div class="post-more__head">Keep reading</div>
+      <div class="post-more__grid">
+        <a class="post-more__link" href="/blog/what-is-in-an-iphone-backup">What's actually in an iPhone backup →</a>
+        <a class="post-more__link" href="/blog/encrypted-backups-are-better">Encrypted backups are better, actually →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Ready to get your data?</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

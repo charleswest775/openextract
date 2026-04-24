@@ -619,74 +619,6 @@ details.qa p {
 .snags { padding: 48px 56px 72px; max-width: 1100px; margin: 0 auto; }
 .snags h2 { font-size: 44px; letter-spacing: -0.02em; font-weight: 500; margin-bottom: 28px; line-height: 1.02; }
 
-/* ── What you can recover page ─────────────────────── */
-.quick-index { padding: 0 56px 40px; max-width: 1100px; margin: 0 auto; }
-.quick-index__inner {
-  background: white;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 24px;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-}
-.quick-index__item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--line-soft);
-  color: var(--ink);
-  font-size: 13px; font-weight: 500;
-}
-.quick-index__item .qi__ic { font-size: 18px; }
-
-.datatype-wrap { padding: 0 56px 48px; max-width: 1100px; margin: 0 auto; }
-.datatype-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 56px;
-  padding: 64px 0;
-  align-items: start;
-}
-.datatype-row + .datatype-row { border-top: 1px solid var(--line); }
-.datatype__head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
-.datatype__icon {
-  width: 56px; height: 56px; border-radius: 14px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 28px;
-}
-.datatype__count { font-size: 12px; color: var(--ink-dim); letter-spacing: 0.12em; text-transform: uppercase; font-family: var(--mono); }
-.datatype h2 { font-size: 44px; letter-spacing: -0.025em; font-weight: 500; margin-bottom: 14px; line-height: 1.02; }
-.datatype__hook { font-family: var(--serif); font-style: italic; font-size: 24px; font-weight: 400; margin-bottom: 18px; line-height: 1.3; }
-.datatype__desc { font-size: 16px; color: var(--ink-soft); line-height: 1.65; }
-.datatype__formats {
-  background: white; border: 1px solid var(--line); border-radius: 20px;
-  padding: 28px; margin-bottom: 16px;
-}
-.datatype__formats-head { font-size: 12px; color: var(--ink-dim); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px; font-family: var(--mono); }
-.datatype__formats-list { display: grid; gap: 10px; }
-.datatype__formats-item { display: flex; align-items: center; gap: 10px; font-size: 14px; }
-.datatype__formats-dot { width: 6px; height: 6px; border-radius: 99px; }
-.datatype__example {
-  background: var(--ink); color: var(--bg);
-  border-radius: 20px; padding: 24px;
-}
-.datatype__example-head { font-size: 12px; color: rgba(250,246,241,0.5); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px; font-family: var(--mono); }
-.datatype__example-title { font-size: 18px; font-weight: 500; margin-bottom: 4px; }
-.datatype__example-count { font-size: 13px; color: rgba(250,246,241,0.6); font-family: var(--mono); }
-
-.honest-note { padding: 48px 56px 16px; }
-.honest-note__inner {
-  max-width: 880px; margin: 0 auto;
-  background: var(--butter-30);
-  border: 1px solid var(--butter);
-  border-radius: 20px;
-  padding: 32px 36px;
-}
-.honest-note h3 { font-size: 24px; font-weight: 500; letter-spacing: -0.01em; margin-bottom: 12px; line-height: 1.2; }
-.honest-note p { font-size: 15px; color: var(--ink-soft); line-height: 1.65; margin-bottom: 10px; }
-.honest-note p:last-child { margin-bottom: 0; }
-
 /* ── vs-iMazing page ───────────────────────────────── */
 .verdict-wrap { padding: 16px 56px 56px; max-width: 1100px; margin: 0 auto; }
 .verdict-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -935,15 +867,13 @@ details.qa p {
   .verdict-grid,
   .wheres,
   .backup-card-grid__cards,
-  .datatype-row,
   .step-row,
   .inline-download__inner,
   .blog-featured__card,
   .blog-list__grid,
   .post-more__grid,
   .uc-related__grid,
-  .uc-picks__grid,
-  .quick-index__inner {
+  .uc-picks__grid {
     grid-template-columns: 1fr;
   }
   .step-row { gap: 24px; }
@@ -956,8 +886,8 @@ details.qa p {
 }
 @media (max-width: 720px) {
   .nav, .hero, .features, .how, .testimonials, .privacy, .faq, .final-cta,
-  .cta-strip, .footer, .page-head, .prose, .steps-wrap, .quick-index,
-  .datatype-wrap, .honest-note, .verdict-wrap, .matrix-wrap, .wheres,
+  .cta-strip, .footer, .page-head, .prose, .steps-wrap,
+  .verdict-wrap, .matrix-wrap, .wheres,
   .migrate, .vs-faq, .blog-featured, .blog-list, .post-header, .post-body,
   .post-more, .about-stats, .uc-steps, .uc-related, .uc-picks, .uc-switch-card,
   .uc-reasons, .inline-download, .backup-card-grid, .snags {
@@ -972,7 +902,7 @@ details.qa p {
   .page-head h1 { font-size: 44px; }
   .features__title, .how__title, .testimonials h2, .faq h2, .privacy h3,
   .matrix-wrap h2, .vs-faq h2, .wheres h3, .migrate h2,
-  .backup-card-grid h2, .snags h2, .datatype h2, .blog-featured h2,
+  .backup-card-grid h2, .snags h2, .blog-featured h2,
   .post-header h1 {
     font-size: 32px;
   }
@@ -983,7 +913,6 @@ details.qa p {
   .nav__links { display: none; }
   .nav { padding: 16px 24px; }
   .footer { grid-template-columns: 1fr; gap: 24px; }
-  .quick-index__inner { grid-template-columns: 1fr 1fr; }
   .step-row { grid-template-columns: 1fr; }
   .uc-step { grid-template-columns: 1fr; gap: 12px; }
   .about-stats__grid { grid-template-columns: 1fr 1fr; }

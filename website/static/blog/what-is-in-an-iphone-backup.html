@@ -32,7 +32,6 @@
     </a>
     <div class="nav__links">
       <a href="/how-it-works">How it works</a>
-      <a href="/what-you-can-recover">What you recover</a>
       <a href="/vs-imazing">vs iMazing</a>
       <a href="/blog" class="is-current">Blog</a>
       <a href="/about">About</a>
@@ -69,7 +68,7 @@
 ├── 02/
 └── ...up to ff/</code></pre>
 
-    <p>Every one of those hex-named files is <em>something</em> — a message database, a photo, a settings plist, a WhatsApp log. The filename is the SHA-1 of a path that used to exist on the phone. Without a map from hex-name to meaning, you can't do anything with it.</p>
+    <p>Every one of those hex-named files is <em>something</em> — a message database, a photo, a contact record, a settings plist. The filename is the SHA-1 of a path that used to exist on the phone. Without a map from hex-name to meaning, you can't do anything with it.</p>
 
     <h2>The map is Manifest.db</h2>
 
@@ -89,10 +88,10 @@
     <p>Every file lives in a <em>domain</em>, which is iOS's way of saying "which part of the system owns this." There are dozens. A few worth knowing:</p>
 
     <ul>
-      <li><strong>HomeDomain</strong> — user data that isn't app-scoped. Messages lives here. Notes, Health, Safari, Keychain.</li>
+      <li><strong>HomeDomain</strong> — user data that isn't app-scoped. Messages lives here. Notes, Safari, Keychain too.</li>
       <li><strong>MediaDomain</strong> — your Camera Roll. Photos, videos, Live Photo pairs.</li>
       <li><strong>CameraRollDomain</strong> — metadata about the above.</li>
-      <li><strong>AppDomain-bundle.id</strong> — per-app data. WhatsApp's database is <code>AppDomainGroup-group.net.whatsapp.WhatsApp.shared</code>.</li>
+      <li><strong>AppDomain-bundle.id</strong> — per-app data. Instagram's cache is <code>AppDomain-com.burbn.instagram</code>.</li>
       <li><strong>WirelessDomain</strong> — call history, voicemails.</li>
       <li><strong>SystemPreferencesDomain</strong> — device settings.</li>
     </ul>
@@ -105,8 +104,7 @@
       <li><strong>Face ID / Touch ID data.</strong> Never leaves the secure enclave, never touches a backup.</li>
       <li><strong>Apple Pay card numbers.</strong> Same story.</li>
       <li><strong>Keychain (if unencrypted backup).</strong> Saved passwords, Wi-Fi keys, Safari autofill — all absent from <em>unencrypted</em> backups. Present in encrypted ones. This is the main reason encrypted is better.</li>
-      <li><strong>Health data.</strong> Same — encrypted only.</li>
-      <li><strong>Apps marked "Don't back up."</strong> Developers can flag data as non-backup. Signal, for example, has some of this.</li>
+      <li><strong>Apps marked "Don't back up."</strong> Developers can flag data as non-backup. Some banking and 2FA apps do this on purpose.</li>
       <li><strong>iCloud-only data.</strong> Photos not yet downloaded from iCloud; messages stored only in Messages in iCloud; etc. A backup captures what was on the device at that moment.</li>
     </ul>
 
@@ -159,7 +157,6 @@
       <div class="footer__col-head">Product</div>
       <ul class="footer__list">
         <li><a href="/how-it-works">How it works</a></li>
-        <li><a href="/what-you-can-recover">What you recover</a></li>
         <li><a href="/vs-imazing">vs iMazing</a></li>
         <li><a href="/#download">Download</a></li>
       </ul>
