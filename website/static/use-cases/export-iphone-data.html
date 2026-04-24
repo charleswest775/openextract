@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>How to export data from your iPhone — free and without iCloud</title>
+  <meta name="description" content="Export messages, photos, contacts, call history, voicemails, and more from any iPhone backup. Free, open source, runs on your own computer." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/export-iphone-data" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/export-iphone-data" />
+  <meta property="og:title" content="Export data from your iPhone — free" />
+  <meta property="og:description" content="Not screenshots. Not AirDrop one-at-a-time. Real files, in real formats, for free." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script defer data-domain="openextract.app" src="https://plausible.io/js/script.outbound-links.file-downloads.tagged-events.js"></script>
+  <script>window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/what-you-can-recover">What you recover</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 4 min</div>
+    <h1>Get your data<br /><span class="it">off your iPhone</span>, properly.</h1>
+    <p class="page-head__lede">Not screenshots. Not AirDrop one-at-a-time. Not a $50 trial that watermarks the output. The real data, in real file formats, for free.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <p>iPhones are walled gardens on purpose. Apple would prefer you keep everything inside Apple — which is fine right up until you need to <em>leave</em> with your own data. Switching to Android, preserving messages from someone important, archiving photos with their real dates, exporting contacts to a different system: all of this should be easy, and Apple makes all of it hard.</p>
+      <p>OpenExtract does one job: it reads the backup files your computer already has, and gives you the contents back as normal files. It's free, open source, and nothing leaves your machine.</p>
+    </div>
+  </section>
+
+  <section class="uc-picks">
+    <h2>What to export</h2>
+    <div class="uc-picks__grid">
+      <a class="uc-pick" href="/use-cases/export-iphone-messages">
+        <div class="uc-pick__icon" style="background: var(--coral-22);">💬</div>
+        <div class="uc-pick__title">Text messages</div>
+        <div class="uc-pick__desc">Every iMessage and SMS thread as PDF, HTML, or CSV.</div>
+        <div class="uc-pick__cta uc-pick__cta--coral">Guide →</div>
+      </a>
+      <a class="uc-pick" href="/what-you-can-recover#photos">
+        <div class="uc-pick__icon" style="background: var(--sage-22);">📷</div>
+        <div class="uc-pick__title">Photos &amp; videos</div>
+        <div class="uc-pick__desc">Original files with EXIF, dates, and locations intact.</div>
+        <div class="uc-pick__cta uc-pick__cta--sage">Guide →</div>
+      </a>
+      <a class="uc-pick" href="/what-you-can-recover#contacts">
+        <div class="uc-pick__icon" style="background: var(--plum-22);">👤</div>
+        <div class="uc-pick__title">Contacts</div>
+        <div class="uc-pick__desc">vCard or CSV. Import into Google, Android, or another iPhone.</div>
+        <div class="uc-pick__cta uc-pick__cta--plum">Guide →</div>
+      </a>
+      <a class="uc-pick" href="/what-you-can-recover#voicemail">
+        <div class="uc-pick__icon" style="background: var(--butter-22);">🎙️</div>
+        <div class="uc-pick__title">Voicemails</div>
+        <div class="uc-pick__desc">.m4a audio files with timestamps and caller info.</div>
+        <div class="uc-pick__cta uc-pick__cta--butter">Guide →</div>
+      </a>
+      <a class="uc-pick" href="/what-you-can-recover#calls">
+        <div class="uc-pick__icon" style="background: var(--coral-22);">📞</div>
+        <div class="uc-pick__title">Call history</div>
+        <div class="uc-pick__desc">Who, when, how long — CSV ready for analysis.</div>
+        <div class="uc-pick__cta uc-pick__cta--coral">Guide →</div>
+      </a>
+      <a class="uc-pick" href="/what-you-can-recover#notes">
+        <div class="uc-pick__icon" style="background: var(--sage-22);">📝</div>
+        <div class="uc-pick__title">Notes, calendars, health</div>
+        <div class="uc-pick__desc">Notes with folders, events as .ics, HealthKit as XML/CSV.</div>
+        <div class="uc-pick__cta uc-pick__cta--sage">Guide →</div>
+      </a>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>The general flow</h2>
+      <ol>
+        <li>Make a backup on your computer (Finder on Mac, iTunes on Windows). Encrypted, if you want everything.</li>
+        <li><a href="/#download">Install OpenExtract</a> (free).</li>
+        <li>Open the backup. Pick what you want. Export. Files appear on your Desktop.</li>
+      </ol>
+      <p>That's it. If you want the long version, see <a href="/how-it-works">how it works</a>.</p>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Ready to get your data?</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/what-you-can-recover">What you recover</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

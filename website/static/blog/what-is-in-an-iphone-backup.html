@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>What's actually in an iPhone backup — OpenExtract Blog</title>
+  <meta name="description" content="A plain-English tour of iPhone backup format: Manifest.db, domains, why some data is there and some isn't." />
+  <link rel="canonical" href="https://www.openextract.app/blog/what-is-in-an-iphone-backup" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/blog/what-is-in-an-iphone-backup" />
+  <meta property="og:title" content="What's actually in an iPhone backup" />
+  <meta property="og:description" content="A tour of the file structure every iPhone writes to your computer, what's in the pile, and why some things are absent." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta property="article:published_time" content="2024-08-14" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script defer data-domain="openextract.app" src="https://plausible.io/js/script.outbound-links.file-downloads.tagged-events.js"></script>
+  <script>window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/what-you-can-recover">What you recover</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog" class="is-current">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="post-header">
+    <a class="post-back" href="/blog">← Blog</a>
+    <div class="post-meta">
+      <span class="blog-cat blog-cat--technical">Technical</span>
+      <span class="blog-date">2024-08-14 · 7 min read</span>
+    </div>
+    <h1>What's actually in<br /><span class="it">an iPhone backup</span>.</h1>
+    <p class="post-header__lede">No jargon that doesn't earn its keep. A tour of the file structure every iPhone writes to your computer, what's in the pile, and why some things are absent.</p>
+  </header>
+
+  <article class="post-body">
+    <p>When your iPhone makes a backup, it doesn't produce a single file. It produces <em>a folder</em> — typically tucked away somewhere you'd never think to look — filled with thousands of files with hex names that mean nothing. It looks like this:</p>
+
+    <pre class="code-block"><code><span class="code-dim">~/Library/Application Support/MobileSync/Backup/[uuid]/</span>
+├── Manifest.db
+├── Manifest.plist
+├── Info.plist
+├── Status.plist
+├── 00/
+│   ├── 0000d5edb0e7b... (10 KB)
+│   ├── 001c8f88a1c9e... (2.4 MB)
+│   └── ...thousands more
+├── 01/
+├── 02/
+└── ...up to ff/</code></pre>
+
+    <p>Every one of those hex-named files is <em>something</em> — a message database, a photo, a settings plist, a WhatsApp log. The filename is the SHA-1 of a path that used to exist on the phone. Without a map from hex-name to meaning, you can't do anything with it.</p>
+
+    <h2>The map is Manifest.db</h2>
+
+    <p>That's the whole secret. <code>Manifest.db</code> is a SQLite database. It's the index. Every file in the backup has a row: its original path on the phone, the domain it belonged to (MediaDomain, HomeDomain, AppDomain-com.burbn.instagram…), and the hex filename you'll find it under.</p>
+
+    <p>If you query it:</p>
+
+    <pre class="code-block"><code><span class="code-kw">SELECT</span>
+  fileID, domain, relativePath
+<span class="code-kw">FROM</span> Files
+<span class="code-kw">WHERE</span> relativePath LIKE <span class="code-str">'%sms.db'</span></code></pre>
+
+    <p>…you find out that <code>3d0d7e5fb2ce288813306e4d4636395e047a3d28</code> is your Messages database. Copy it out, open it as SQLite, and you're reading texts.</p>
+
+    <h2>Domains are the categories</h2>
+
+    <p>Every file lives in a <em>domain</em>, which is iOS's way of saying "which part of the system owns this." There are dozens. A few worth knowing:</p>
+
+    <ul>
+      <li><strong>HomeDomain</strong> — user data that isn't app-scoped. Messages lives here. Notes, Health, Safari, Keychain.</li>
+      <li><strong>MediaDomain</strong> — your Camera Roll. Photos, videos, Live Photo pairs.</li>
+      <li><strong>CameraRollDomain</strong> — metadata about the above.</li>
+      <li><strong>AppDomain-bundle.id</strong> — per-app data. WhatsApp's database is <code>AppDomainGroup-group.net.whatsapp.WhatsApp.shared</code>.</li>
+      <li><strong>WirelessDomain</strong> — call history, voicemails.</li>
+      <li><strong>SystemPreferencesDomain</strong> — device settings.</li>
+    </ul>
+
+    <h2>What's <em>not</em> in the backup</h2>
+
+    <p>Apple deliberately excludes certain things. Knowing what's missing is part of knowing what you can recover:</p>
+
+    <ul>
+      <li><strong>Face ID / Touch ID data.</strong> Never leaves the secure enclave, never touches a backup.</li>
+      <li><strong>Apple Pay card numbers.</strong> Same story.</li>
+      <li><strong>Keychain (if unencrypted backup).</strong> Saved passwords, Wi-Fi keys, Safari autofill — all absent from <em>unencrypted</em> backups. Present in encrypted ones. This is the main reason encrypted is better.</li>
+      <li><strong>Health data.</strong> Same — encrypted only.</li>
+      <li><strong>Apps marked "Don't back up."</strong> Developers can flag data as non-backup. Signal, for example, has some of this.</li>
+      <li><strong>iCloud-only data.</strong> Photos not yet downloaded from iCloud; messages stored only in Messages in iCloud; etc. A backup captures what was on the device at that moment.</li>
+    </ul>
+
+    <h2>The big picture</h2>
+
+    <p>That's the whole format. A SQLite index + thousands of hex-named blobs. Every tool that extracts iPhone backups — iMazing, iExplorer, forensic suites, OpenExtract — does roughly this:</p>
+
+    <ol>
+      <li>Parse <code>Manifest.db</code> to get the map.</li>
+      <li>If encrypted, use the password to derive keys per Apple's documented scheme (PBKDF2 + key-wrapping).</li>
+      <li>Locate the databases that matter: <code>sms.db</code>, <code>AddressBook.sqlitedb</code>, <code>CallHistory.storedata</code>, etc.</li>
+      <li>Query them with plain SQL.</li>
+      <li>Format the results in a way a human would want to read.</li>
+    </ol>
+
+    <p>None of it is magic. It's documented. The reason commercial tools charge $50 for it isn't that the work is hard — it's that the work is tedious, and polish-around-the-edges takes time. OpenExtract is our version of that polish, given away because nobody should have to pay to read their own texts.</p>
+
+    <p class="post-body__sig">— The OpenExtract team</p>
+  </article>
+
+  <section class="post-more">
+    <div class="post-more__inner">
+      <div class="post-more__head">Keep reading</div>
+      <div class="post-more__grid">
+        <a class="post-more__link" href="/blog/recovering-voicemails-from-loved-ones">Recovering voicemails from people who have passed →</a>
+        <a class="post-more__link" href="/blog/encrypted-backups-are-better">Encrypted backups are better, actually →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Ready to get your data?</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/what-you-can-recover">What you recover</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
