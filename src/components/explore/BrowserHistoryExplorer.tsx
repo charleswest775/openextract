@@ -2,6 +2,7 @@ import { useState, useEffect, Component } from 'react';
 import type { ReactNode } from 'react';
 import { saveFolder } from '../../lib/ipc';
 import { ExportIcon } from '../shared/Icons';
+import OrganicLoader from '../shared/OrganicLoader';
 import type { HistoryVisit } from '../../lib/browserHistoryStats';
 import BrowserHistoryOverview from './BrowserHistoryOverview';
 import BrowserHistoryTable from './BrowserHistoryTable';
@@ -141,8 +142,8 @@ export default function BrowserHistoryExplorer({ udid, preloadedVisits, preloade
       {/* Body */}
       <div className="flex-1 overflow-hidden">
         {isLoading ? (
-          <div className="h-full flex items-center justify-center text-sm text-gray-400">
-            Loading browser history…
+          <div className="h-full flex items-center justify-center text-accent">
+            <OrganicLoader size={96} />
           </div>
         ) : (
           <BrowserHistoryErrorBoundary>

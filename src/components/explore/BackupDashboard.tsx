@@ -1,5 +1,6 @@
 import { useBackupStats, type BackupStats } from '../../hooks/useBackupStats';
 import CountUp from '../shared/CountUp';
+import OrganicLoader from '../shared/OrganicLoader';
 import {
   LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon, VoicemailIcon,
   LockIcon, ClockIcon,
@@ -58,33 +59,11 @@ function SkeletonPulse({ className = '' }: { className?: string }) {
 
 function LoadingSkeleton() {
   return (
-    <div className="p-6 space-y-6 overflow-y-auto h-full">
-      {/* Hero skeleton */}
-      <div className="rounded-2xl bg-gray-50 border border-gray-200 p-6">
-        <SkeletonPulse className="h-7 w-64 mb-2" />
-        <SkeletonPulse className="h-4 w-96" />
+    <div className="h-full flex flex-col items-center justify-center gap-4 bg-base">
+      <div className="text-accent">
+        <OrganicLoader size={120} />
       </div>
-      {/* Cards skeleton */}
-      <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="rounded-xl bg-white border border-gray-200 p-4">
-            <SkeletonPulse className="h-4 w-4 mb-3" />
-            <SkeletonPulse className="h-8 w-20 mb-1" />
-            <SkeletonPulse className="h-3 w-16" />
-          </div>
-        ))}
-      </div>
-      {/* Insights skeleton */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="rounded-xl bg-white border border-gray-200 p-5">
-            <SkeletonPulse className="h-5 w-32 mb-4" />
-            <SkeletonPulse className="h-4 w-full mb-2" />
-            <SkeletonPulse className="h-4 w-3/4 mb-2" />
-            <SkeletonPulse className="h-4 w-1/2" />
-          </div>
-        ))}
-      </div>
+      <div className="hearth-eyebrow">Reading your backup</div>
     </div>
   );
 }
@@ -135,13 +114,13 @@ function StatCard({
   return (
     <button
       onClick={onClick}
-      className="rounded-xl bg-white border border-gray-200 p-4 text-left hover:shadow-md hover:border-gray-300 transition-all duration-200 group"
+      className="hearth-card p-4 text-left hover:border-[var(--border-strong)] transition-all duration-200 group"
     >
-      <Icon className="text-gray-400 group-hover:text-emerald-500 transition-colors" size={18} />
-      <div className="mt-2 text-2xl font-semibold text-gray-900 tabular-nums">
+      <Icon className="text-text-tertiary group-hover:text-accent transition-colors" size={18} />
+      <div className="mt-2 text-2xl text-text-primary tabular-nums" style={{ fontFamily: 'Fraunces, serif', fontWeight: 500, letterSpacing: '-0.02em' }}>
         <CountUp end={value} />
       </div>
-      <div className="text-xs text-gray-500 mt-0.5">{label}</div>
+      <div className="text-xs text-text-secondary mt-0.5">{label}</div>
     </button>
   );
 }
@@ -198,29 +177,28 @@ function DashboardContent({ stats, onNavigate }: { stats: BackupStats; onNavigat
   };
 
   return (
-    <div className="p-6 space-y-5 overflow-y-auto h-full">
-      {/* Hero Banner */}
-      <div className="rounded-2xl bg-gradient-to-br from-gray-50 via-white to-emerald-50/30 border border-gray-200 px-6 py-5">
-        <h1 className="text-xl font-semibold text-gray-900">
+    <div className="p-7 space-y-6 overflow-y-auto h-full">
+      {/* Hero */}
+      <div>
+        <div className="hearth-eyebrow mb-2">Overview</div>
+        <h1 className="text-4xl text-text-primary">
           {overview.device_name}
         </h1>
-        <div className="flex items-center gap-3 mt-1.5 text-sm text-gray-500 flex-wrap">
+        <div className="flex items-center gap-3 mt-3 text-sm text-text-secondary flex-wrap">
           {overview.ios_version && (
-            <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md text-xs font-medium">
-              iOS {overview.ios_version}
-            </span>
+            <span className="hearth-pill">iOS {overview.ios_version}</span>
           )}
           {overview.last_backup && (
-            <span className="flex items-center gap-1">
-              <ClockIcon size={12} className="text-gray-400" />
+            <span className="flex items-center gap-1.5 font-mono text-xs">
+              <ClockIcon size={12} className="text-text-tertiary" />
               {formatFullDate(overview.last_backup)}
             </span>
           )}
           {overview.size_gb > 0 && (
-            <span>{overview.size_gb.toFixed(1)} GB</span>
+            <span className="font-mono text-xs">{overview.size_gb.toFixed(1)} GB</span>
           )}
           {overview.encrypted && (
-            <span className="flex items-center gap-1 text-emerald-600">
+            <span className="flex items-center gap-1 text-accent">
               <LockIcon size={12} />
               Encrypted
             </span>

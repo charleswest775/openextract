@@ -401,12 +401,18 @@ export default function MessageExplorer({ udid }: Props) {
         {activeConvo ? (
           <>
             {/* Chat header */}
-            <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-3">
+            <div className="px-5 py-4 border-b border-rule flex items-center gap-3 bg-base">
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-serif text-lg flex-shrink-0"
+                style={{ background: `radial-gradient(circle at 35% 30%, oklch(85% 0.09 14), oklch(70% 0.10 14))` }}
+              >
+                {(activeConvo.display_name || activeConvo.chat_identifier || '?')[0]?.toUpperCase()}
+              </div>
               <div className="flex-1 min-w-0 overflow-hidden">
-                <div className="text-sm font-medium text-gray-900 truncate">
+                <div className="font-serif text-xl font-medium text-text-primary truncate tracking-tight">
                   {activeConvo.display_name || activeConvo.chat_identifier}
                 </div>
-                <div className="text-xs text-gray-400 truncate">
+                <div className="text-xs text-text-secondary truncate mt-0.5">
                   {totalMessages.toLocaleString()} messages
                   {activeConvo.is_group && ' · Group'}
                 </div>

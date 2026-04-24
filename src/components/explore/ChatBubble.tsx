@@ -60,19 +60,19 @@ function AttachmentItem({ udid, attachment, isMine }: { udid: string; attachment
 
   if (!isImageAttachment(attachment)) {
     return (
-      <div className={`text-xs truncate ${isMine ? 'text-emerald-100' : 'text-gray-400'}`}>
+      <div className={`text-xs truncate ${isMine ? 'text-white/75' : 'text-gray-400'}`}>
         📎 {attachment.transfer_name || attachment.filename}
       </div>
     );
   }
 
   if (loading) {
-    return <div className={`text-xs italic ${isMine ? 'text-emerald-100' : 'text-gray-400'}`}>Loading…</div>;
+    return <div className={`text-xs italic ${isMine ? 'text-white/75' : 'text-gray-400'}`}>Loading…</div>;
   }
 
   if (error || !data) {
     return (
-      <div className={`text-xs italic ${isMine ? 'text-emerald-100' : 'text-gray-400'}`}>
+      <div className={`text-xs italic ${isMine ? 'text-white/75' : 'text-gray-400'}`}>
         {attachment.transfer_name || attachment.filename}
       </div>
     );
@@ -100,17 +100,26 @@ export default function ChatBubble({ message, showSender, udid }: Props) {
           <div className="text-[11px] text-gray-400 mb-0.5 px-3">{message.sender}</div>
         )}
         <div
-          className={`rounded-2xl px-3.5 py-2 ${
+          className={`px-4 py-2.5 ${
             isMine
-              ? 'bg-emerald-500 text-white'
-              : 'bg-gray-100 text-gray-900'
+              ? 'text-white'
+              : 'text-text-primary'
           }`}
+          style={{
+            background: isMine ? 'var(--bubble-me)' : 'var(--bubble-them)',
+            borderRadius: 20,
+            borderBottomRightRadius: isMine ? 6 : 20,
+            borderBottomLeftRadius: isMine ? 20 : 6,
+            boxShadow: isMine
+              ? '0 4px 14px rgba(217,119,87,.2)'
+              : '0 1px 0 rgba(30,26,22,.04)',
+          }}
         >
           {message.text && (
             <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
           )}
           {message.link_preview?.url && (
-            <div className={`mt-1.5 text-xs ${isMine ? 'text-emerald-100' : 'text-gray-500'}`}>
+            <div className={`mt-1.5 text-xs ${isMine ? 'text-white/75' : 'text-gray-500'}`}>
               {message.link_preview.title && (
                 <div className="font-medium">{message.link_preview.title}</div>
               )}
@@ -125,7 +134,7 @@ export default function ChatBubble({ message, showSender, udid }: Props) {
             </div>
           )}
           {!message.text && !message.has_attachments && (
-            <p className={`text-xs italic ${isMine ? 'text-emerald-100' : 'text-gray-400'}`}>
+            <p className={`text-xs italic ${isMine ? 'text-white/75' : 'text-gray-400'}`}>
               [{message.message_type}]
             </p>
           )}

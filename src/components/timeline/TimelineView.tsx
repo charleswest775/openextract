@@ -7,6 +7,7 @@ import TimelineEntryCard from './TimelineEntryCard';
 import { formatDate } from '../../lib/dates';
 import { saveFolder } from '../../lib/ipc';
 import { formatTimeline, FORMAT_FILTERS, ExportFormat } from '../../lib/timelineExport';
+import OrganicLoader from '../shared/OrganicLoader';
 
 interface Props {
   udid: string;
@@ -101,20 +102,21 @@ export default function TimelineView({ udid }: Props) {
 
       {/* Header */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 20px 12px',
-        borderBottom: '0.5px solid var(--border-default)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16,
+        padding: '20px 28px 14px',
+        borderBottom: '1px solid var(--border-default)',
         flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-          <span className="text-title font-semibold">Timeline</span>
-          {!loading && (
-            <span className="text-body text-text-secondary">
-              {totalFiltered.toLocaleString()} event{totalFiltered !== 1 ? 's' : ''}
-            </span>
-          )}
+        <div>
+          <div className="hearth-eyebrow mb-1.5">
+            Timeline
+            {!loading && ` · ${totalFiltered.toLocaleString()} event${totalFiltered !== 1 ? 's' : ''}`}
+          </div>
+          <h1 className="hearth-title text-3xl">
+            Everything, <span className="font-serif-italic text-accent">in order.</span>
+          </h1>
           {loading && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-tertiary)' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>
               <Loader2 size={11} className="animate-spin" />
               Loading…
             </span>
@@ -216,7 +218,10 @@ export default function TimelineView({ udid }: Props) {
             padding: '24px 32px',
             minWidth: 280,
           }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Loading Timeline…</div>
+            <div className="flex justify-center mb-3 text-accent">
+              <OrganicLoader size={72} />
+            </div>
+            <div className="hearth-eyebrow text-center mb-4">Loading timeline</div>
             {ALL_TYPES.map(type => {
               const isLoading = loadingTypes.has(type);
               const hasError = !!errors[type];

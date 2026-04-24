@@ -19,6 +19,9 @@
     "python:bundle": "cd python && pyinstaller --onefile --name openextract-engine main.py"
   },
   "dependencies": {
+    "@fontsource/fraunces": "^5.2.9",
+    "@fontsource/geist": "^5.2.8",
+    "@fontsource/ibm-plex-mono": "^5.2.7",
     "benz-amr-recorder": "^1.1.5",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.577.0",

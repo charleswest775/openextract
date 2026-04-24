@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { sidecarCall, saveFolder } from '../../lib/ipc';
 import { SearchIcon, ExportIcon } from '../shared/Icons';
+import OrganicLoader from '../shared/OrganicLoader';
 
 interface PhotoAsset {
   uuid: string;
@@ -235,16 +236,21 @@ export default function PhotoExplorer({ udid }: Props) {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h2 className="text-sm font-medium text-gray-900">
-            Photos {total > 0 && <span className="text-gray-400 font-normal">({total.toLocaleString()})</span>}
-          </h2>
+      {/* Hearth header */}
+      <div className="flex items-end justify-between gap-4 bg-base" style={{ padding: '20px 28px 14px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 }}>
+        <div className="min-w-0 flex-1">
+          <div className="hearth-eyebrow mb-1.5">
+            Photos{total > 0 && ` · ${total.toLocaleString()} recovered`}
+          </div>
+          <h1 className="hearth-title text-3xl">
+            Albums <span className="font-serif-italic text-accent">across the years.</span>
+          </h1>
+        </div>
+        <div className="flex items-center gap-2">
           <select
             value={kindFilter}
             onChange={(e) => setKindFilter(e.target.value)}
-            className="text-xs bg-gray-50 border border-gray-200 rounded px-2 py-1"
+            className="text-xs bg-surface border border-rule rounded-full px-3 py-1.5"
           >
             <option value="all">All types</option>
             <option value="photo">Photos</option>
@@ -252,24 +258,19 @@ export default function PhotoExplorer({ udid }: Props) {
             <option value="live_photo">Live Photos</option>
             <option value="screenshot">Screenshots</option>
           </select>
-        </div>
-        <div className="flex items-center gap-2">
           <div className="relative">
-            <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" size={13} />
             <input
               type="text"
               placeholder="Search photos..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-1.5 text-sm bg-gray-50 rounded-md border border-gray-200 focus:outline-none focus:border-emerald-400 w-40"
+              className="pl-9 pr-3 py-1.5 text-sm bg-surface rounded-full border border-rule focus:outline-none focus:border-accent w-40"
             />
           </div>
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
-          >
-            <ExportIcon className="text-gray-500" size={16} />
+          <button onClick={handleExport} disabled={exporting} className="hearth-ghost-btn">
+            <ExportIcon size={13} />
+            Export
           </button>
         </div>
       </div>
@@ -355,7 +356,9 @@ export default function PhotoExplorer({ udid }: Props) {
             })}
           </div>
           {loading && (
-            <div className="text-center py-4 text-sm text-gray-400">Loading...</div>
+            <div className="flex justify-center py-8 text-accent">
+              <OrganicLoader size={56} />
+            </div>
           )}
           {!loading && filteredPhotos.length === 0 && (
             <div className="text-center py-8 text-sm text-gray-400">No photos found</div>

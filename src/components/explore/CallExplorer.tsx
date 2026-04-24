@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { sidecarCall, saveFolder } from '../../lib/ipc';
 import { SearchIcon, ExportIcon } from '../shared/Icons';
 import { formatDateTime } from '../../lib/dates';
+import OrganicLoader from '../shared/OrganicLoader';
 
 interface Call {
   call_id: number;
@@ -81,23 +82,28 @@ export default function CallExplorer({ udid }: Props) {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-        <h2 className="text-sm font-medium text-gray-900">
-          Calls {total > 0 && <span className="text-gray-400 font-normal">({total.toLocaleString()})</span>}
-        </h2>
+      <div className="flex items-end justify-between gap-4 bg-base" style={{ padding: '20px 28px 14px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 }}>
+        <div>
+          <div className="hearth-eyebrow mb-1.5">
+            Calls{total > 0 && ` · ${total.toLocaleString()} records`}
+          </div>
+          <h1 className="hearth-title text-3xl">
+            Every call, <span className="font-serif-italic text-accent">inbound and out.</span>
+          </h1>
+        </div>
         <div className="flex items-center gap-2">
           <div className="relative">
-            <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" size={13} />
             <input
               type="text"
               placeholder="Search calls..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-1.5 text-sm bg-gray-50 rounded-md border border-gray-200 focus:outline-none focus:border-emerald-400 w-48"
+              className="pl-9 pr-3 py-1.5 text-sm bg-surface rounded-full border border-rule focus:outline-none focus:border-accent w-48"
             />
           </div>
-          <button onClick={handleExport} disabled={exporting} className="p-1.5 rounded-md hover:bg-gray-100 transition-colors" title="Export">
-            <ExportIcon className="text-gray-500" size={16} />
+          <button onClick={handleExport} disabled={exporting} className="hearth-ghost-btn" title="Export">
+            <ExportIcon size={13} /> Export CSV
           </button>
         </div>
       </div>
@@ -139,7 +145,11 @@ export default function CallExplorer({ udid }: Props) {
             ))}
           </tbody>
         </table>
-        {loading && <div className="text-center py-8 text-sm text-gray-400">Loading calls...</div>}
+        {loading && (
+          <div className="flex justify-center py-12 text-accent">
+            <OrganicLoader size={72} />
+          </div>
+        )}
         {!loading && filtered.length === 0 && (
           <div className="text-center py-8 text-sm text-gray-400">
             {error || 'No calls found'}

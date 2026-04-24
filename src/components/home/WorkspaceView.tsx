@@ -19,17 +19,18 @@ export default function WorkspaceView({ data, onOpenSession, onGetMoreData, onBr
 
       <div className="flex-1 overflow-y-auto px-7 py-8">
         {/* Header row */}
-        <div className="flex items-center justify-between mb-5">
-          <h1 className="text-lg font-medium text-text-primary">
-            Your digital life, in your hands.
-          </h1>
-          <button
-            onClick={onGetMoreData}
-            className="bg-gradient-to-r from-emerald-500 to-emerald-400 text-white rounded-lg px-4 py-2.5 flex items-center gap-1.5 text-sm font-medium hover:opacity-90 transition-opacity"
-          >
-            <PlusIcon className="text-white" size={14} />
-            Backup iPhone
-          </button>
+        <div className="mb-6">
+          <div className="hearth-eyebrow mb-2">Your archive</div>
+          <div className="flex items-end justify-between gap-6">
+            <h1 className="text-4xl text-text-primary max-w-xl">
+              Your digital life,<br/>
+              <span className="font-serif-italic text-accent">in your hands.</span>
+            </h1>
+            <button onClick={onGetMoreData} className="hearth-primary-btn">
+              <PlusIcon className="text-white" size={14} />
+              Backup iPhone
+            </button>
+          </div>
         </div>
 
         <RecentSessionList
