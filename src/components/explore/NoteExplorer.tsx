@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { sidecarCall, saveFolder } from '../../lib/ipc';
 import { SearchIcon, ExportIcon } from '../shared/Icons';
+import OrganicLoader from '../shared/OrganicLoader';
 import { formatDate } from '../../lib/dates';
 
 interface Note {
@@ -75,7 +76,11 @@ export default function NoteExplorer({ udid }: Props) {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {loading && <div className="text-center py-4 text-sm text-gray-400">Loading...</div>}
+          {loading && (
+            <div className="flex justify-center py-8 text-accent">
+              <OrganicLoader size={56} />
+            </div>
+          )}
           {filtered.map((note) => (
             <button
               key={note.note_id}
@@ -99,18 +104,30 @@ export default function NoteExplorer({ udid }: Props) {
       <div className="flex-1 flex flex-col">
         {selected ? (
           <>
-            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <div className="px-7 py-5 border-b border-rule flex items-end justify-between bg-base">
               <div>
-                <div className="text-sm font-medium text-gray-900">{selected.title || 'Untitled'}</div>
-                <div className="text-xs text-gray-400">Modified {formatDate(selected.modified)}</div>
+                <div className="hearth-eyebrow mb-1.5">
+                  {formatDate(selected.modified)}
+                </div>
+                <div className="font-serif text-2xl text-text-primary" style={{ fontWeight: 500, letterSpacing: '-0.02em' }}>
+                  {selected.title || 'Untitled'}
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => handleExport('txt')} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">TXT</button>
-                <button onClick={() => handleExport('pdf')} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">PDF</button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => handleExport('txt')} className="hearth-ghost-btn">TXT</button>
+                <button onClick={() => handleExport('pdf')} className="hearth-ghost-btn">PDF</button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="max-w-2xl text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+            <div className="flex-1 overflow-y-auto px-10 py-8">
+              <div
+                className="whitespace-pre-wrap text-text-primary"
+                style={{
+                  fontFamily: 'Fraunces, Newsreader, Georgia, serif',
+                  fontSize: 16,
+                  lineHeight: 1.7,
+                  maxWidth: 680,
+                }}
+              >
                 {selected.body}
               </div>
             </div>

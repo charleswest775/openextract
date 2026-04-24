@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import BenzAMRRecorder from 'benz-amr-recorder';
 import { saveFolder } from '../../lib/ipc';
 import { ExportIcon } from '../shared/Icons';
+import OrganicLoader from '../shared/OrganicLoader';
 import { formatDateTime, formatDuration } from '../../lib/dates';
 
 interface Voicemail {
@@ -165,16 +166,26 @@ export default function VoicemailExplorer({ udid }: Props) {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-        <h2 className="text-sm font-medium text-gray-900">
-          Voicemail {voicemails.length > 0 && <span className="text-gray-400 font-normal">({voicemails.length})</span>}
-        </h2>
-        <button onClick={handleExport} disabled={exporting} className="p-1.5 rounded-md hover:bg-gray-100 transition-colors" title="Export all">
-          <ExportIcon className="text-gray-500" size={16} />
+      <div className="flex items-end justify-between gap-4 bg-base" style={{ padding: '20px 28px 14px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 }}>
+        <div>
+          <div className="hearth-eyebrow mb-1.5">
+            Voicemail{voicemails.length > 0 && ` · ${voicemails.length}`}
+          </div>
+          <h1 className="hearth-title text-3xl">
+            Voices you <span className="font-serif-italic text-accent">saved.</span>
+          </h1>
+        </div>
+        <button onClick={handleExport} disabled={exporting} className="hearth-ghost-btn" title="Export all">
+          <ExportIcon size={13} />
+          Export audio
         </button>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {loading && <div className="text-center py-8 text-sm text-gray-400">Loading voicemails...</div>}
+        {loading && (
+          <div className="flex justify-center py-12 text-accent">
+            <OrganicLoader size={72} />
+          </div>
+        )}
         {!loading && voicemails.length === 0 && (
           <div className="text-center py-8 text-sm text-gray-400">No voicemails found</div>
         )}

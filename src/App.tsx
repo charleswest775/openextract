@@ -36,6 +36,7 @@ export default function App() {
   const [pendingOpen, setPendingOpen] = useState<PendingOpen | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
+  const [openError, setOpenError] = useState<string | null>(null);
 
   const openAndNavigate = useCallback(async (
     udid: string,
@@ -44,6 +45,7 @@ export default function App() {
     session: RecentSession | undefined,
     backupInfo: BackupInfo | undefined,
   ) => {
+    setOpenError(null);
     const result = await backup.openBackup(udid, password, backupDir);
 
     if (result.status === 'password_required') {
@@ -56,6 +58,13 @@ export default function App() {
       setScreen('explore');
       setPendingOpen(null);
       setPasswordError(null);
+      return;
+    }
+
+    if (result.status.startsWith('error:')) {
+      setOpenError(result.status.slice(6));
+    } else {
+      setOpenError(`Could not open backup (status: ${result.status}).`);
     }
   }, [backup]);
 
@@ -89,12 +98,19 @@ export default function App() {
           }}
           onCreateBackup={() => setScreen('create-backup')}
           onBrowseForBackup={async () => {
+            setOpenError(null);
             const path = await window.openextract.selectFolder();
             if (!path) return;
-            const found = await backup.listBackups(path, true);
-            if (found.length >= 1) {
+            try {
+              const found = await backup.listBackups(path, true);
+              if (found.length === 0) {
+                setOpenError(`No iPhone backups found in ${path}. Pick the parent folder that contains a UDID-named subfolder (e.g. MobileSync/Backup).`);
+                return;
+              }
               const b = found[0];
               await openAndNavigate(b.udid, undefined, b.backup_dir, undefined, b);
+            } catch (e: any) {
+              setOpenError(e?.message || 'Failed to read backup folder.');
             }
           }}
         />
@@ -120,6 +136,33 @@ export default function App() {
             return 'open';
           }}
         />
+      )}
+
+      {openError && screen === 'home' && (
+        <div
+          role="alert"
+          className="fixed left-1/2 -translate-x-1/2 bottom-6 z-40 max-w-md w-[90%] px-4 py-3 rounded-xl flex items-start gap-3 text-sm"
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-strong)',
+            color: 'var(--text-primary)',
+            boxShadow: '0 10px 28px rgba(30,26,22,0.18)',
+          }}
+        >
+          <span
+            className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs mt-0.5"
+            style={{ background: 'var(--error)' }}
+          >!</span>
+          <div className="flex-1 min-w-0">
+            <div className="font-medium mb-0.5">Couldn't open backup</div>
+            <div className="text-xs text-text-secondary break-words">{openError}</div>
+          </div>
+          <button
+            onClick={() => setOpenError(null)}
+            className="text-text-tertiary hover:text-text-primary flex-shrink-0"
+            aria-label="Dismiss"
+          >×</button>
+        </div>
       )}
 
       {pendingOpen && (

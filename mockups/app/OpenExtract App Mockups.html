@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OpenExtract — App UI Directions</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; padding: 0; }
+    body { font-family: 'Geist', system-ui, sans-serif; background: #0e0e10; color: #e8e8ea; }
+    * { box-sizing: border-box; }
+    button { font-family: inherit; cursor: pointer; }
+
+    /* Variant chrome */
+    .chrome {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 22px;
+      background: #0b0b0d;
+      border-bottom: 1px solid #1f1f22;
+    }
+    .chrome-brand {
+      display: flex; align-items: baseline; gap: 10px;
+      font-family: 'Geist', sans-serif;
+    }
+    .chrome-brand .mark {
+      font-size: 13px; font-weight: 600; letter-spacing: -0.01em;
+    }
+    .chrome-brand .sub {
+      font-size: 11px; color: #8a8a92; letter-spacing: 0.02em;
+    }
+    .chrome-tabs {
+      display: flex; gap: 4px;
+      background: #161619; border: 1px solid #24242a; border-radius: 999px;
+      padding: 3px;
+    }
+    .chrome-tab {
+      background: transparent; border: 0; color: #8a8a92;
+      padding: 7px 14px; border-radius: 999px;
+      font-size: 12px; font-weight: 500; letter-spacing: 0.01em;
+      transition: color .18s, background .18s;
+    }
+    .chrome-tab:hover { color: #d7d7dc; }
+    .chrome-tab.active { background: #2a2a30; color: #fff; }
+    .chrome-tab .swatch {
+      display: inline-block; width: 8px; height: 8px; border-radius: 2px;
+      margin-right: 8px; vertical-align: middle;
+      transform: translateY(-1px);
+    }
+    .chrome-sub {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 11px; color: #8a8a92;
+    }
+    .chrome-sub .screen-switch {
+      display: flex; gap: 2px; background: #161619; border: 1px solid #24242a;
+      border-radius: 8px; padding: 2px;
+    }
+    .chrome-sub .screen-switch button {
+      background: transparent; border: 0; color: #8a8a92;
+      padding: 5px 10px; border-radius: 6px; font-size: 11px;
+    }
+    .chrome-sub .screen-switch button.active { background: #2a2a30; color: #fff; }
+
+    /* Stage — the canvas behind the app window */
+    .stage {
+      min-height: calc(100vh - 57px);
+      display: flex; align-items: flex-start; justify-content: center;
+      padding: 28px;
+    }
+    .stage-inner {
+      width: 1360px; max-width: 100%;
+    }
+    .app-frame {
+      width: 100%;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04);
+      aspect-ratio: 16 / 10.2;
+    }
+
+    /* Variant-bg colors for the stage behind each frame */
+    .stage[data-variant="almanac"] { background: #1a1613; }
+    .stage[data-variant="hearth"]  { background: #1a1410; }
+    .stage[data-variant="studio"]  { background: #0d0b10; }
+    .stage[data-variant="linen"]   { background: #111112; }
+    .stage[data-variant="ledger"]    { background: #10141a; }
+    .stage[data-variant="garden"]    { background: #141612; }
+    .stage[data-variant="porcelain"] { background: #0d1018; }
+    .stage[data-variant="atelier"]   { background: #181612; }
+
+    /* Universal mac traffic lights */
+    .tl { display: flex; gap: 7px; }
+    .tl span { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+    .tl .r { background: #ff5f57; }
+    .tl .y { background: #febc2e; }
+    .tl .g { background: #28c840; }
+
+    /* Hide scrollbars inside variants for cleaner mockups */
+    .variant-root ::-webkit-scrollbar { width: 0; height: 0; }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="app-mockups/data.jsx"></script>
+  <script type="text/babel" src="app-mockups/icons.jsx"></script>
+  <script type="text/babel" src="app-mockups/almanac.jsx"></script>
+  <script type="text/babel" src="app-mockups/hearth.jsx"></script>
+  <script type="text/babel" src="app-mockups/studio.jsx"></script>
+  <script type="text/babel" src="app-mockups/linen.jsx"></script>
+  <script type="text/babel" src="app-mockups/shared-screens.jsx"></script>
+  <script type="text/babel" src="app-mockups/ledger.jsx"></script>
+  <script type="text/babel" src="app-mockups/garden.jsx"></script>
+  <script type="text/babel" src="app-mockups/porcelain.jsx"></script>
+  <script type="text/babel" src="app-mockups/atelier.jsx"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const VARIANTS = [
+      { id: "almanac",   name: "Almanac",   desc: "Field journal · warm paper",    swatch: "#c85a3a" },
+      { id: "hearth",    name: "Hearth",    desc: "Photo album · dusk palette",    swatch: "#d97757" },
+      { id: "studio",    name: "Studio",    desc: "Editorial · deep plum + peach", swatch: "#f0a07a" },
+      { id: "linen",     name: "Linen",     desc: "Quiet minimal · muted blue",    swatch: "#4a6b8c" },
+      { id: "ledger",    name: "Ledger",    desc: "Cool off-white · teal",         swatch: "#2d7d7a" },
+      { id: "garden",    name: "Garden",    desc: "Soft pastels · organic",        swatch: "#8aa87a" },
+      { id: "porcelain", name: "Porcelain", desc: "Near-white · ultramarine",      swatch: "#2848c8" },
+      { id: "atelier",   name: "Atelier",   desc: "Greige · architectural",        swatch: "#7a6a52" },
+    ];
+    const SCREENS = [
+      { id: "backup",    label: "Backup" },
+      { id: "timeline",  label: "Timeline" },
+      { id: "messages",  label: "Messages" },
+      { id: "photos",    label: "Photos" },
+      { id: "voicemail", label: "Voicemail" },
+      { id: "calls",     label: "Calls" },
+      { id: "contacts",  label: "Contacts" },
+      { id: "notes",     label: "Notes" },
+    ];
+
+    const App = () => {
+      const [variant, setVariant] = React.useState("hearth");
+      const [screen, setScreen]   = React.useState("backup");
+      const current = VARIANTS.find(v => v.id === variant);
+
+      const Root = ({
+        almanac:   window.AlmanacRoot,
+        hearth:    window.HearthRoot,
+        studio:    window.StudioRoot,
+        linen:     window.LinenRoot,
+        ledger:    window.LedgerRoot,
+        garden:    window.GardenRoot,
+        porcelain: window.PorcelainRoot,
+        atelier:   window.AtelierRoot,
+      })[variant];
+
+      return (
+        <div>
+          <header className="chrome" data-screen-label={`00 Switcher · ${current.name}`}>
+            <div className="chrome-brand">
+              <div className="mark">OpenExtract</div>
+              <div className="sub">· 4 UI directions · app screens</div>
+            </div>
+            <div className="chrome-tabs">
+              {VARIANTS.map(v => (
+                <button key={v.id}
+                        className={`chrome-tab ${v.id === variant ? "active" : ""}`}
+                        onClick={() => setVariant(v.id)}>
+                  <span className="swatch" style={{ background: v.swatch }}></span>
+                  {v.name}
+                </button>
+              ))}
+            </div>
+            <div className="chrome-sub">
+              <span>{current.desc}</span>
+              <div className="screen-switch">
+                {SCREENS.map(s => (
+                  <button key={s.id}
+                          className={s.id === screen ? "active" : ""}
+                          onClick={() => setScreen(s.id)}>
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </header>
+
+          <div className="stage" data-variant={variant} data-screen-label={`${current.name} · ${screen}`}>
+            <div className="stage-inner">
+              <div className="app-frame variant-root">
+                {Root ? <Root screen={screen} /> : <div style={{ padding: 40 }}>Loading {variant}…</div>}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

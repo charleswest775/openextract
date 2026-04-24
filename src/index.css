@@ -2,62 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===== Titanium Design System — Light Mode (Default) ===== */
+/* ===== Hearth Design System ===== */
+/* Warm off-white #fbf6f1, soft terracotta & sage, organic round cards.
+   Fraunces display, Geist body, IBM Plex Mono for captions/times. */
 :root {
-  --bg-base: #ffffff;
-  --bg-surface: #f5f5f7;
-  --bg-elevated: #e8e8ed;
-  --bg-sidebar: rgba(245, 245, 247, 0.85);
-  --bg-sidebar-active: rgba(0, 0, 0, 0.06);
+  --bg-base: #fbf6f1;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f2e9dd; /* sand */
+  --bg-sidebar: #fbf6f1;
+  --bg-sidebar-active: #ffffff;
 
-  --text-primary: #1d1d1f;
-  --text-secondary: #6e6e73;
-  --text-tertiary: #aeaeb2;
-  --text-accent: #0071e3;
+  --text-primary: #1e1a16;
+  --text-secondary: #655a4f;
+  --text-tertiary: #97897a;
+  --text-accent: #d97757;
 
-  --border-subtle: rgba(0, 0, 0, 0.04);
-  --border-default: rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.14);
+  --border-subtle: rgba(236, 225, 209, 0.6);
+  --border-default: #ece1d1;
+  --border-strong: #d9c8ad;
 
-  --accent: #0071e3;
-  --accent-hover: #0077ed;
-  --accent-subtle: rgba(0, 113, 227, 0.08);
+  --accent: #d97757;         /* terracotta */
+  --accent-hover: #c26547;
+  --accent-subtle: rgba(217, 119, 87, 0.1);
+  --accent-wash: #f7e6d8;
 
-  --success: #30d158;
-  --warning: #ff9f0a;
-  --error: #ff3b30;
+  --sage: #7a9a7a;
+  --cream: #f0d894;
 
-  color-scheme: light dark;
-}
+  --success: #7a9a7a;
+  --warning: #d4a245;
+  --error: #c85a3a;
 
-/* ===== Titanium Design System — Dark Mode ===== */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-base: #1c1c1e;
-    --bg-surface: #2c2c2e;
-    --bg-elevated: #3a3a3c;
-    --bg-sidebar: rgba(28, 28, 30, 0.85);
-    --bg-sidebar-active: rgba(255, 255, 255, 0.08);
+  /* Messages bubbles */
+  --bubble-me: #d97757;
+  --bubble-them: #f2e9dd;
 
-    --text-primary: #f5f5f7;
-    --text-secondary: #aeaeb2;
-    --text-tertiary: #636366;
-    --text-accent: #0a84ff;
-
-    --border-subtle: rgba(255, 255, 255, 0.04);
-    --border-default: rgba(255, 255, 255, 0.08);
-    --border-strong: rgba(255, 255, 255, 0.14);
-
-    --accent: #0a84ff;
-    --accent-hover: #409cff;
-    --accent-subtle: rgba(10, 132, 255, 0.15);
-  }
+  color-scheme: light;
 }
 
 /* ===== Base Styles ===== */
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   font-size: 13px;
   line-height: 1.5;
   letter-spacing: -0.003em;
@@ -94,4 +80,296 @@ body {
 ::selection {
   background: var(--accent-subtle);
   color: var(--text-primary);
+}
+
+/* ===== Hearth display typography ===== */
+/* Big page titles use Fraunces serif. Small heads stay in Geist.
+   Tailwind's `text-xl` is 20px, `text-2xl` 24px, etc.
+   Classes with text-xl or larger get Fraunces; smaller stay in Geist. */
+.text-xl, .text-2xl, .text-3xl, .text-4xl, .text-5xl, .text-6xl,
+h1.text-lg, h1.text-base, h2.text-lg {
+  font-family: 'Fraunces', 'Newsreader', Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+}
+/* Italic Fraunces for emphatic words inside serif titles */
+.font-serif-italic {
+  font-family: 'Fraunces', 'Newsreader', Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* ===== Hearth component utilities ===== */
+.hearth-eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.hearth-title {
+  font-family: 'Fraunces', 'Newsreader', Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  line-height: 1.05;
+}
+
+.hearth-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(30, 26, 22, 0.04);
+}
+
+.hearth-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.hearth-ghost-btn {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.hearth-ghost-btn:hover {
+  background: var(--bg-elevated);
+}
+
+.hearth-primary-btn {
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(217, 119, 87, 0.22);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.hearth-primary-btn:hover {
+  background: var(--accent-hover);
+}
+.hearth-primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ===== Organic loaders (20 variants) =====
+   SVG + CSS blob animations. Uses currentColor so Hearth accent cascades. */
+
+/* 01 Breathing blob */
+@keyframes ol-blob-breathe { 0%,100% { transform: scale(1) rotate(0deg); } 50% { transform: scale(1.08) rotate(180deg); } }
+@keyframes ol-blob-morph {
+  0%,100% { d: path("M 50 0 C 78 0 100 22 100 50 C 100 78 78 100 50 100 C 22 100 0 78 0 50 C 0 22 22 0 50 0 Z"); }
+  33%     { d: path("M 50 2 C 82 6 96 28 98 54 C 100 82 74 102 48 98 C 18 94 2 74 4 46 C 6 20 24 -2 50 2 Z"); }
+  66%     { d: path("M 52 4 C 80 0 102 26 96 56 C 92 84 70 98 44 96 C 16 94 -2 70 4 44 C 10 18 28 8 52 4 Z"); }
+}
+.ol-l01-wrap { animation: ol-blob-breathe 3.2s ease-in-out infinite; transform-origin: 50% 50%; }
+.ol-l01 path { animation: ol-blob-morph 3.2s ease-in-out infinite; }
+
+/* 02 Orbiting pair */
+@keyframes ol-l02-spin { to { transform: rotate(360deg); } }
+@keyframes ol-l02-squish-a { 0%,100% { rx: 22; ry: 28; } 50% { rx: 30; ry: 20; } }
+@keyframes ol-l02-squish-b { 0%,100% { rx: 30; ry: 20; } 50% { rx: 22; ry: 28; } }
+.ol-l02-wrap { animation: ol-l02-spin 2s linear infinite; transform-origin: 50% 50%; }
+.ol-l02 ellipse:nth-child(1) { animation: ol-l02-squish-a 1s ease-in-out infinite; }
+.ol-l02 ellipse:nth-child(2) { animation: ol-l02-squish-b 1s ease-in-out infinite; }
+
+/* 03 Three-dot metaball */
+@keyframes ol-l03-pulse-a { 0%,100% { r: 10; transform: translate(60px,100px); } 50% { r: 18; transform: translate(72px,100px); } }
+@keyframes ol-l03-pulse-b { 0%,100% { r: 14; transform: translate(100px,100px); } 50% { r: 8;  transform: translate(100px,100px); } }
+@keyframes ol-l03-pulse-c { 0%,100% { r: 10; transform: translate(140px,100px); } 50% { r: 18; transform: translate(128px,100px); } }
+.ol-l03 circle:nth-child(1) { animation: ol-l03-pulse-a 1.4s ease-in-out infinite; transform-box: fill-box; }
+.ol-l03 circle:nth-child(2) { animation: ol-l03-pulse-b 1.4s ease-in-out infinite; }
+.ol-l03 circle:nth-child(3) { animation: ol-l03-pulse-c 1.4s ease-in-out infinite; transform-box: fill-box; }
+
+/* 04 Wobbling ring */
+@keyframes ol-l04-spin { to { transform: rotate(360deg); } }
+@keyframes ol-l04-wobble {
+  0%,100% { d: path("M 100 25 C 140 25 175 60 175 100 C 175 140 140 175 100 175 C 60 175 25 140 25 100 C 25 60 60 25 100 25 Z"); }
+  50%     { d: path("M 100 28 C 145 24 172 62 172 104 C 176 142 136 178 98 174 C 58 174 28 136 28 96 C 24 58 60 30 100 28 Z"); }
+}
+.ol-l04-wrap { animation: ol-l04-spin 4s linear infinite; transform-origin: 50% 50%; }
+.ol-l04 path { animation: ol-l04-wobble 2s ease-in-out infinite; }
+
+/* 05 Jelly drop */
+@keyframes ol-l05-drop {
+  0%   { transform: translateY(-10px) scale(1,1); }
+  40%  { transform: translateY(40px) scale(1.15,0.85); }
+  60%  { transform: translateY(40px) scale(0.85,1.15); }
+  100% { transform: translateY(-10px) scale(1,1); }
+}
+.ol-l05-wrap { animation: ol-l05-drop 1.6s ease-in-out infinite; transform-origin: 50% 50%; }
+
+/* 06 Tadpole trail */
+@keyframes ol-l06-rotate { to { transform: rotate(360deg); } }
+.ol-l06-wrap { animation: ol-l06-rotate 1.4s linear infinite; transform-origin: 50% 50%; }
+
+/* 07 Amoeba split */
+@keyframes ol-l07-a { 0%,100% { transform: translateX(0); } 50% { transform: translateX(-18px); } }
+@keyframes ol-l07-b { 0%,100% { transform: translateX(0); } 50% { transform: translateX(18px); } }
+@keyframes ol-l07-stretch { 0%,100% { rx: 26; ry: 26; } 50% { rx: 22; ry: 30; } }
+.ol-l07 .a { animation: ol-l07-a 1.8s ease-in-out infinite, ol-l07-stretch 1.8s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+.ol-l07 .b { animation: ol-l07-b 1.8s ease-in-out infinite, ol-l07-stretch 1.8s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+
+/* 08 Ink ripple */
+@keyframes ol-l08-ripple { 0% { r: 10; opacity: 1; } 100% { r: 80; opacity: 0; } }
+.ol-l08 circle:nth-child(1) { animation: ol-l08-ripple 2s ease-out infinite; }
+.ol-l08 circle:nth-child(2) { animation: ol-l08-ripple 2s ease-out infinite .4s; }
+.ol-l08 circle:nth-child(3) { animation: ol-l08-ripple 2s ease-out infinite .8s; }
+.ol-l08 .core { animation: ol-l09-morph 3s ease-in-out infinite; }
+
+/* 09 Lava blob */
+@keyframes ol-l09-morph {
+  0%,100% { d: path("M 100 40 C 130 40 150 60 150 90 C 150 130 125 160 100 160 C 75 160 50 130 50 90 C 50 60 70 40 100 40 Z"); }
+  50%     { d: path("M 100 42 C 140 46 154 76 144 106 C 138 140 110 162 96 158 C 70 158 46 128 58 94 C 66 66 78 40 100 42 Z"); }
+}
+.ol-l09 path { animation: ol-l09-morph 2.4s ease-in-out infinite; }
+
+/* 10 Four-lobed flower */
+@keyframes ol-l10-spin { to { transform: rotate(360deg); } }
+@keyframes ol-l10-pulse {
+  0%,100% { d: path("M 100 30 Q 140 60 170 100 Q 140 140 100 170 Q 60 140 30 100 Q 60 60 100 30 Z"); }
+  50%     { d: path("M 100 50 Q 150 50 150 100 Q 150 150 100 150 Q 50 150 50 100 Q 50 50 100 50 Z"); }
+}
+.ol-l10-wrap { animation: ol-l10-spin 6s linear infinite; transform-origin: 50% 50%; }
+.ol-l10 path { animation: ol-l10-pulse 2s ease-in-out infinite; }
+
+/* 11 Comma drift */
+@keyframes ol-l11-drift { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes ol-l11-wag {
+  0%,100% { d: path("M 100 40 C 140 40 150 70 140 100 C 130 130 120 150 100 160 C 80 150 70 130 60 100 C 50 70 60 40 100 40 Z"); }
+  50%     { d: path("M 100 40 C 145 45 155 75 140 100 C 125 130 125 155 100 160 C 75 155 75 130 60 100 C 45 75 55 35 100 40 Z"); }
+}
+.ol-l11-wrap { animation: ol-l11-drift 2.4s ease-in-out infinite; transform-origin: 50% 50%; }
+.ol-l11 path { animation: ol-l11-wag 1.2s ease-in-out infinite; }
+
+/* 12 Breathing cluster */
+@keyframes ol-l12-a { 0%,100% { transform: translate(0,0); } 50% { transform: translate(6px,-4px); } }
+@keyframes ol-l12-b { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-5px,5px); } }
+@keyframes ol-l12-c { 0%,100% { transform: translate(0,0); } 50% { transform: translate(4px,6px); } }
+@keyframes ol-l12-d { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-6px,-3px); } }
+@keyframes ol-l12-breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+.ol-l12-wrap { animation: ol-l12-breathe 2.4s ease-in-out infinite; transform-origin: 50% 50%; }
+.ol-l12 circle:nth-child(1) { animation: ol-l12-a 1.6s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+.ol-l12 circle:nth-child(2) { animation: ol-l12-b 1.8s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+.ol-l12 circle:nth-child(3) { animation: ol-l12-c 2.0s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+.ol-l12 circle:nth-child(4) { animation: ol-l12-d 2.2s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+
+/* 13 Rolling pebble */
+@keyframes ol-l13-roll { 0% { transform: translateX(-60px) rotate(0deg); } 100% { transform: translateX(60px) rotate(720deg); } }
+@keyframes ol-l13-wob {
+  0%,100% { d: path("M 0 -35 C 25 -35 40 -20 38 5 C 35 30 15 38 -5 36 C -30 32 -40 12 -36 -10 C -32 -28 -20 -38 0 -35 Z"); }
+  50%     { d: path("M 2 -38 C 30 -32 42 -12 34 10 C 28 34 6 42 -12 34 C -34 24 -42 4 -36 -18 C -30 -34 -18 -40 2 -38 Z"); }
+}
+.ol-l13-wrap { animation: ol-l13-roll 2.4s ease-in-out infinite alternate; }
+.ol-l13 path { animation: ol-l13-wob 1.2s ease-in-out infinite; }
+
+/* 14 Infinity flow */
+@keyframes ol-l14-dash { to { stroke-dashoffset: -400; } }
+.ol-l14 path { stroke-dasharray: 60 340; animation: ol-l14-dash 2s linear infinite; }
+
+/* 15 Dripping blob */
+@keyframes ol-l15-drip {
+  0%   { d: path("M 100 40 C 130 40 150 60 150 90 C 150 120 125 140 100 140 C 75 140 50 120 50 90 C 50 60 70 40 100 40 Z"); }
+  50%  { d: path("M 100 40 C 130 40 150 60 150 95 C 150 125 120 155 100 170 C 80 155 50 125 50 95 C 50 60 70 40 100 40 Z"); }
+  100% { d: path("M 100 40 C 130 40 150 60 150 90 C 150 120 125 140 100 140 C 75 140 50 120 50 90 C 50 60 70 40 100 40 Z"); }
+}
+@keyframes ol-l15-drop {
+  0%   { transform: translateY(0); opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { transform: translateY(40px); opacity: 1; }
+  100% { transform: translateY(60px); opacity: 0; }
+}
+.ol-l15 path { animation: ol-l15-drip 2s ease-in-out infinite; }
+.ol-l15 circle { animation: ol-l15-drop 2s ease-in infinite; }
+
+/* 16 Soft bar wave */
+@keyframes ol-l16-wave { 0%,100% { transform: scaleY(.4); } 50% { transform: scaleY(1); } }
+.ol-l16 rect { transform-origin: center; transform-box: fill-box; animation: ol-l16-wave 1.2s ease-in-out infinite; }
+.ol-l16 rect:nth-child(1) { animation-delay: 0s; }
+.ol-l16 rect:nth-child(2) { animation-delay: .12s; }
+.ol-l16 rect:nth-child(3) { animation-delay: .24s; }
+.ol-l16 rect:nth-child(4) { animation-delay: .36s; }
+.ol-l16 rect:nth-child(5) { animation-delay: .48s; }
+
+/* 17 Spiral tail */
+@keyframes ol-l17-rotate { to { transform: rotate(360deg); } }
+@keyframes ol-l17-dash {
+  0%   { stroke-dasharray: 1 200; stroke-dashoffset: 0; }
+  50%  { stroke-dasharray: 120 200; stroke-dashoffset: -40; }
+  100% { stroke-dasharray: 1 200; stroke-dashoffset: -200; }
+}
+.ol-l17-wrap { animation: ol-l17-rotate 1.6s linear infinite; transform-origin: 50% 50%; }
+.ol-l17 path { animation: ol-l17-dash 1.6s ease-in-out infinite; }
+
+/* 18 Two-tone bean */
+@keyframes ol-l18-spin { to { transform: rotate(360deg); } }
+@keyframes ol-l18-squish {
+  0%,100% { d: path("M 60 100 C 60 70 80 50 110 50 C 150 50 160 80 150 110 C 140 140 110 150 90 145 C 65 140 60 125 60 100 Z"); }
+  50%     { d: path("M 55 100 C 55 65 85 45 115 55 C 150 65 155 90 145 115 C 135 140 100 155 80 145 C 60 135 55 120 55 100 Z"); }
+}
+.ol-l18-wrap { animation: ol-l18-spin 2.4s linear infinite; transform-origin: 50% 50%; }
+.ol-l18 path { animation: ol-l18-squish 1.6s ease-in-out infinite; }
+
+/* 19 Bouncing caterpillar */
+@keyframes ol-l19-bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+.ol-l19 circle { animation: ol-l19-bounce 1.2s ease-in-out infinite; }
+.ol-l19 circle:nth-child(1) { animation-delay: 0s; }
+.ol-l19 circle:nth-child(2) { animation-delay: .1s; }
+.ol-l19 circle:nth-child(3) { animation-delay: .2s; }
+.ol-l19 circle:nth-child(4) { animation-delay: .3s; }
+.ol-l19 circle:nth-child(5) { animation-delay: .4s; }
+
+/* 20 Gooey orbit */
+@keyframes ol-l20-orbit-a { to { transform: rotate(360deg); } }
+@keyframes ol-l20-orbit-b { to { transform: rotate(-360deg); } }
+@keyframes ol-l20-pulse { 0%,100% { r: 16; } 50% { r: 22; } }
+.ol-l20-a { animation: ol-l20-orbit-a 3s linear infinite; transform-origin: 50% 50%; }
+.ol-l20-b { animation: ol-l20-orbit-b 2s linear infinite; transform-origin: 50% 50%; }
+.ol-l20 .core { animation: ol-l20-pulse 1.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  [class*="ol-l"] { animation-duration: 6s !important; }
+}
+
+.hearth-dark-btn {
+  background: var(--text-primary);
+  color: var(--bg-base);
+  border: 0;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
 }

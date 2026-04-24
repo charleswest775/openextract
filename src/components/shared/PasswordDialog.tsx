@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { LockIcon } from './Icons';
+import OrganicLoader from './OrganicLoader';
 
 interface Props {
   deviceName?: string;
@@ -61,9 +62,16 @@ export default function PasswordDialog({ deviceName, error, loading, onSubmit, o
             <button
               type="submit"
               disabled={!password.trim() || loading}
-              className="flex-1 px-4 py-2.5 text-sm text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2.5 text-sm text-white bg-accent rounded-lg hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
             >
-              {loading ? 'Unlocking...' : 'Unlock'}
+              {loading ? (
+                <>
+                  <OrganicLoader size={20} color="#fff" />
+                  <span>Unlocking…</span>
+                </>
+              ) : (
+                'Unlock'
+              )}
             </button>
           </div>
         </form>

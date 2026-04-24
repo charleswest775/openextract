@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { sidecarCall, saveFolder } from '../../lib/ipc';
 import { SearchIcon, ExportIcon, ContactIcon } from '../shared/Icons';
+import OrganicLoader from '../shared/OrganicLoader';
 
 interface Contact {
   id: number;
@@ -67,28 +68,37 @@ export default function ContactExplorer({ udid }: Props) {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-        <h2 className="text-sm font-medium text-gray-900">
-          Contacts {contacts.length > 0 && <span className="text-gray-400 font-normal">({contacts.length})</span>}
-        </h2>
+      <div className="flex items-end justify-between gap-4 bg-base" style={{ padding: '20px 28px 14px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 }}>
+        <div>
+          <div className="hearth-eyebrow mb-1.5">
+            Contacts{contacts.length > 0 && ` · ${contacts.length} total`}
+          </div>
+          <h1 className="hearth-title text-3xl">
+            The people who <span className="font-serif-italic text-accent">mattered.</span>
+          </h1>
+        </div>
         <div className="flex items-center gap-2">
           <div className="relative">
-            <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" size={13} />
             <input
               type="text"
               placeholder="Search contacts..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-1.5 text-sm bg-gray-50 rounded-md border border-gray-200 focus:outline-none focus:border-emerald-400 w-48"
+              className="pl-9 pr-3 py-1.5 text-sm bg-surface rounded-full border border-rule focus:outline-none focus:border-accent w-48"
             />
           </div>
-          <button onClick={exportCSV} className="p-1.5 rounded-md hover:bg-gray-100 transition-colors" title="Export CSV">
-            <ExportIcon className="text-gray-500" size={16} />
+          <button onClick={exportCSV} className="hearth-ghost-btn" title="Export CSV">
+            <ExportIcon size={13} /> Export vCard
           </button>
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-4">
-        {loading && <div className="text-center py-8 text-sm text-gray-400">Loading contacts...</div>}
+        {loading && (
+          <div className="flex justify-center py-12 text-accent">
+            <OrganicLoader size={72} />
+          </div>
+        )}
         {!loading && filtered.length === 0 && (
           <div className="text-center py-8 text-sm text-gray-400">No contacts found</div>
         )}
