@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>How it works — OpenExtract</title>
+  <meta name="description" content="Step-by-step guide to extracting messages, photos, and contacts from your iPhone backup using OpenExtract. Free, open source, 100% local." />
+  <link rel="canonical" href="https://www.openextract.app/how-it-works" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/how-it-works" />
+  <meta property="og:title" content="How OpenExtract works — four steps, no phone needed" />
+  <meta property="og:description" content="You don't need the phone. You don't need your Apple ID. You just need a backup on a computer you own." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script defer data-domain="openextract.app" src="https://plausible.io/js/script.outbound-links.file-downloads.tagged-events.js"></script>
+  <script>window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works" class="is-current">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 5 minute read</div>
+    <h1>Four steps,<br /><span class="it">no phone needed.</span></h1>
+    <p class="page-head__lede">You don't need the phone. You don't need your Apple ID. You don't need an internet connection. You just need a backup that's already on a computer you own.</p>
+  </header>
+
+  <section class="steps-wrap">
+    <div class="step-row">
+      <div class="step-num" style="color: var(--coral);">01</div>
+      <div class="step-body">
+        <h2>Find your backup</h2>
+        <p>If you've ever plugged an iPhone into this computer and hit sync, a backup is already here. OpenExtract scans the usual spots automatically:</p>
+        <div class="step-files">
+          <div>~/Library/Application Support/MobileSync/Backup/  (macOS)</div>
+          <div>%APPDATA%\Apple Computer\MobileSync\Backup\  (Windows)</div>
+        </div>
+      </div>
+      <div class="step-note">
+        <div class="step-note__head">Worth knowing</div>
+        <p>On Linux, or if your backup lives on an external drive, just point OpenExtract at any folder and it'll find Manifest.db.</p>
+      </div>
+    </div>
+
+    <div class="step-row">
+      <div class="step-num" style="color: var(--butter);">02</div>
+      <div class="step-body">
+        <h2>Unlock if encrypted</h2>
+        <p>If you ticked "Encrypt local backup" when you made it (good call — encrypted backups contain more data, including saved passwords and Safari history), type your backup password. It goes to the decryption code on your laptop and nowhere else.</p>
+      </div>
+      <div class="step-note">
+        <div class="step-note__head">Worth knowing</div>
+        <p>Forgotten the password? There's no backdoor. OpenExtract will tell you which backup is encrypted so you can try known passwords, but it can't brute-force one.</p>
+      </div>
+    </div>
+
+    <div class="step-row">
+      <div class="step-num" style="color: var(--sage);">03</div>
+      <div class="step-body">
+        <h2>Browse what's in there</h2>
+        <p>You get a dashboard: message threads, photo albums, voicemails, contacts, notes, call history. Open any conversation, play any voicemail, preview any photo.</p>
+      </div>
+      <div class="step-note">
+        <div class="step-note__head">Worth knowing</div>
+        <p>It's all read-only. Nothing you click modifies your backup.</p>
+      </div>
+    </div>
+
+    <div class="step-row">
+      <div class="step-num" style="color: var(--plum);">04</div>
+      <div class="step-body">
+        <h2>Export what you want</h2>
+        <p>Tick what you need. Pick a format. Everything lands in a neatly organized folder on your Desktop.</p>
+        <div class="step-files">
+          <div>Messages → PDF, HTML, CSV, or .txt</div>
+          <div>Photos → originals (HEIC/JPEG/MOV) with EXIF preserved</div>
+          <div>Contacts → vCard or CSV</div>
+          <div>Call history → CSV</div>
+          <div>Voicemails → .m4a files with timestamps</div>
+        </div>
+      </div>
+      <div class="step-note">
+        <div class="step-note__head">Worth knowing</div>
+        <p>You can hand the folder to someone else, print it, archive it, or import pieces of it into another tool. It's just files.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">You're at step 0</div>
+        <h3>Grab it and try.<br /><span class="it">About two minutes.</span></h3>
+        <p>If you don't have a backup yet, plug your iPhone in, open Finder (or iTunes on Windows), and click "Back up now." Then come back here.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="https://github.com/charleswest775/openextract/releases">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon · 48 MB</span>
+        </a>
+        <a class="dl-row" href="https://github.com/charleswest775/openextract/releases">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11 · 56 MB</span>
+        </a>
+        <a class="dl-row" href="https://github.com/charleswest775/openextract/releases">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">AppImage · 46 MB</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="backup-card-grid">
+    <h2>What if I don't have a backup?</h2>
+    <p class="backup-card-grid__lede">Make one now. It's what the official Apple tools are actually decent at.</p>
+    <div class="backup-card-grid__cards">
+      <div class="backup-card">
+        <div class="backup-card__title">On a Mac (macOS 10.15+)</div>
+        <ol>
+          <li>Plug your iPhone in.</li>
+          <li>Open Finder. Click your iPhone in the sidebar.</li>
+          <li>Tick "Encrypt local backup" and set a password you'll remember. This is worth doing — encrypted backups get you saved passwords and Safari history.</li>
+          <li>Click "Back up now." Wait.</li>
+          <li>Come back here.</li>
+        </ol>
+      </div>
+      <div class="backup-card">
+        <div class="backup-card__title">On a PC (Windows)</div>
+        <ol>
+          <li>Install iTunes if you don't have it. Or Apple Devices from the Microsoft Store.</li>
+          <li>Plug your iPhone in, open iTunes.</li>
+          <li>Click the iPhone icon near the top.</li>
+          <li>Pick "This computer," tick "Encrypt local backup," set a password.</li>
+          <li>"Back up now." Wait.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="snags">
+    <h2>Common snags</h2>
+    <details class="qa">
+      <summary>OpenExtract says "no backups found."</summary>
+      <p>Your backup lives somewhere non-default (external drive, different user account). Use File → Open backup folder and browse to it. Any folder with a Manifest.db file will work.</p>
+    </details>
+    <details class="qa">
+      <summary>It's asking for a password I don't remember.</summary>
+      <p>There's no workaround. Apple designed encrypted backups so no tool can get in without the password. If you have an older unencrypted backup lying around, try that instead.</p>
+    </details>
+    <details class="qa">
+      <summary>The photo dates are wrong after export.</summary>
+      <p>Check your OS — both macOS and Windows sometimes hide EXIF dates in favor of "date modified." Open the photo's info panel; the original capture date will be there.</p>
+    </details>
+    <details class="qa">
+      <summary>My messages only go back a year.</summary>
+      <p>iOS may have been set to auto-delete old messages. Check Settings → Messages → Keep Messages. For everything in the backup to show, the backup must have been made while the messages still existed on the phone.</p>
+    </details>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Ready to get your data?</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

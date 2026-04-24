@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>What "open source" actually means for a tool like this — OpenExtract Blog</title>
+  <meta name="description" content="Open source isn't a security marketing line. It's a different trust model: you don't have to believe the vendor, because you can read the code. Here's what that actually changes for OpenExtract." />
+  <link rel="canonical" href="https://www.openextract.app/blog/open-source-trust-model" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/blog/open-source-trust-model" />
+  <meta property="og:title" content="What &quot;open source&quot; actually means for a tool like this" />
+  <meta property="og:description" content="The MIT license changes the trust model. Here's what that means in practice when you hand a tool your backup." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta property="article:published_time" content="2026-02-14" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script defer data-domain="openextract.app" src="https://plausible.io/js/script.outbound-links.file-downloads.tagged-events.js"></script>
+  <script>window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog" class="is-current">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="post-header">
+    <a class="post-back" href="/blog">← Blog</a>
+    <div class="post-meta">
+      <span class="blog-cat blog-cat--principles">Principles</span>
+      <span class="blog-date">2026-02-14 · 4 min read</span>
+    </div>
+    <h1>What "open source"<br /><span class="it">actually means for a tool like this</span>.</h1>
+    <p class="post-header__lede">Most security promises are "trust us." Open source flips that: you don't have to trust us — you can read the code. Here's what that changes when the tool in question is reading your iPhone backup.</p>
+  </header>
+
+  <article class="post-body">
+    <p>Every tool that touches your backup asks for a kind of faith. You download a binary, you point it at the most private folder on your computer, and you hope. You hope it doesn't quietly upload anything. You hope it doesn't stash a copy. You hope it isn't phoning home with a list of your contacts.</p>
+
+    <p>With closed-source tools, that's all you can do. The binary is opaque. You can watch its network traffic with packet inspection, but you can't see why it's doing what it's doing. You're trusting a company, and companies can change owners, leadership, or priorities overnight.</p>
+
+    <p>Open source changes the unit of trust. Instead of trusting a company, you trust code you can read.</p>
+
+    <h2>What the MIT license actually says</h2>
+
+    <p>OpenExtract is MIT-licensed, which is roughly the most permissive open-source license that exists. In plain English, it says:</p>
+
+    <ul>
+      <li>You can use it for anything, including commercial purposes.</li>
+      <li>You can read every line of source code.</li>
+      <li>You can modify it however you like.</li>
+      <li>You can redistribute it, including modified versions.</li>
+      <li>Our only ask: include the copyright and license notice in copies.</li>
+    </ul>
+
+    <p>What it does <em>not</em> do — and this is worth being clear about — is automatically guarantee that the binary you download from our release page matches the source code on GitHub. That's a separate property called <em>reproducible builds</em>, and it requires its own discipline. We're working toward it; we're not fully there yet. For the strongest guarantee today, the option is to clone the repo and build from source yourself. It's one command.</p>
+
+    <h2>What you can actually verify</h2>
+
+    <p>Here are things you can check <em>right now</em>, in under five minutes, about OpenExtract's source code:</p>
+
+    <ul>
+      <li><strong>Whether it makes network calls.</strong> Search the repo for <code>urllib</code>, <code>requests</code>, <code>socket</code>, <code>fetch</code>, <code>http</code>. Every network-capable API in Python and Electron has a recognizable name. If none of them appear in the runtime code, the program cannot reach the network.</li>
+      <li><strong>Whether it has a telemetry toggle.</strong> Search for <code>analytics</code>, <code>telemetry</code>, <code>track</code>, <code>report</code>. No hidden variants.</li>
+      <li><strong>Whether the sidecar writes to disk anywhere unexpected.</strong> The Python sidecar that parses your backup runs as a subprocess. You can read the entire file list of paths it writes to — it's a finite, inspectable set.</li>
+      <li><strong>What happens to your password.</strong> Grep for where the backup password enters the code, and follow it. It enters PBKDF2 and is discarded. It isn't stored, isn't logged, isn't hashed-then-saved-for-convenience.</li>
+    </ul>
+
+    <p>You don't have to take our word for any of it. If we'd wired in a data-harvesting pipeline, it would be a visible commit in the public history, attributable to a specific author, at a specific time.</p>
+
+    <h2>"I can't read code" — the second-order trust</h2>
+
+    <p>Most people can't audit a codebase. That's fine. The point of open source isn't that every user personally reads the source; it's that <em>anyone can</em>, and the resulting social pressure is real. Security researchers, hobbyists, competitors, and critics all have access. A vulnerability or a data-harvesting line would be identified publicly — often within days of being committed.</p>
+
+    <p>What you're trusting when you use open-source software isn't the original author. It's the visibility. Something harmful added to OpenExtract would be in the public diff, findable by grep, publishable on any blog, within the reach of any security team.</p>
+
+    <h2>Data as a mirror you can inspect</h2>
+
+    <p>There's an interesting parallel between why open-source software matters and why extracting your own data matters. Both are about owning a mirror you can inspect. With closed software, you're told what the tool does — you can't check. With a locked-up iPhone backup, you're told what your data says about you — you can't check that either.</p>
+
+    <p>We wrote a separate piece about what happens when you can finally check the second one: when you get your own messages out and look at the patterns in the record. It's called <a href="https://medium.com/@charles.west_98012/the-fortress-of-nothing-matters-65a7b01aeaf6">The Fortress of Nothing Matters</a>, and it's on Medium. Not a how-to. A reflection on what an inspectable mirror reveals.</p>
+
+    <p>The same logic applies to software. A tool you can inspect is a tool that can't lie to you about what it's doing.</p>
+
+    <h2>Our commitments, in plain form</h2>
+
+    <p>Because MIT-license-plus-public-repo is still abstract, these are the concrete commitments we hold ourselves to:</p>
+
+    <ul>
+      <li><strong>Zero network calls at runtime.</strong> The extractor doesn't call home, doesn't check for updates automatically, doesn't send crash reports without opt-in. If you want to verify, the repo is <code>charleswest775/openextract</code>.</li>
+      <li><strong>No account, ever.</strong> No email capture. No license server. The installer doesn't know who you are.</li>
+      <li><strong>No analytics on the desktop app.</strong> The website uses Plausible (cookieless, privacy-respecting). The app itself is silent.</li>
+      <li><strong>Every change is public.</strong> The commit history is the source of truth. We don't rewrite it.</li>
+      <li><strong>If this ever changes</strong> — if somebody takes over, if the project gets sold, if a new funding model pressures us — it will be in the diff. You'll see it. You can fork.</li>
+    </ul>
+
+    <h2>The right to fork</h2>
+
+    <p>This is the last and maybe most important thing. If OpenExtract ever becomes something you don't like, you don't have to stop using it. You can fork it — clone the repo, strip whatever you disagree with, maintain your own version indefinitely. The MIT license makes that legal. Git makes it easy. This is the structural guarantee closed-source software can never match.</p>
+
+    <h2>The one-line takeaway</h2>
+
+    <p>With closed software, you trust the vendor. With open-source software, you trust the record. Records are harder to corrupt than promises.</p>
+
+    <p class="post-body__sig">— OpenExtract</p>
+  </article>
+
+  <section class="post-more">
+    <div class="post-more__inner">
+      <div class="post-more__head">Keep reading</div>
+      <div class="post-more__grid">
+        <a class="post-more__link" href="/blog/what-is-in-an-iphone-backup">What's actually in an iPhone backup →</a>
+        <a class="post-more__link" href="/blog/switching-to-android-with-your-data">Switching to Android without losing your iPhone data →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Ready to get your data?</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

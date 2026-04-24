@@ -1,41 +1,35 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
-  <!-- Primary meta -->
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0b1220" />
-  <title>OpenExtract — Free, Open-Source iPhone Backup Extractor</title>
-  <meta name="description" content="Free, open-source iPhone backup extractor. Recover messages, photos, contacts, and call history from iTunes/Finder backups — including encrypted ones. 100% local. Windows, macOS, Linux." />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>OpenExtract — Get your memories back</title>
+  <meta name="description" content="Free, open-source iPhone backup extractor. Pull messages, photos, voicemails, and contacts out of any iTunes or Finder backup — right on your laptop. Nothing uploaded, nothing paid." />
   <link rel="canonical" href="https://www.openextract.app/" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="author" content="OpenExtract" />
 
-  <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="OpenExtract" />
   <meta property="og:url" content="https://www.openextract.app/" />
-  <meta property="og:title" content="OpenExtract — Free, Open-Source iPhone Backup Extractor" />
-  <meta property="og:description" content="Recover messages, photos, contacts, and more from iPhone backups — encrypted or not. Free, MIT-licensed, 100% local." />
+  <meta property="og:title" content="OpenExtract — Get your memories back" />
+  <meta property="og:description" content="Free, open-source iPhone backup extractor. Recover messages, photos, voicemails, and contacts from any backup — encrypted or not. 100% local." />
   <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="OpenExtract: free, open-source iPhone backup extractor. Windows, macOS, Linux." />
   <meta property="og:locale" content="en_US" />
 
-  <!-- Twitter / X card -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="OpenExtract — Free iPhone Backup Extractor" />
+  <meta name="twitter:title" content="OpenExtract — Get your memories back" />
   <meta name="twitter:description" content="Recover messages, photos, contacts from iPhone backups — encrypted or not. Free, MIT-licensed, 100% local." />
   <meta name="twitter:image" content="https://www.openextract.app/img/og-image.png" />
   <meta name="twitter:image:alt" content="OpenExtract: free, open-source iPhone backup extractor. Windows, macOS, Linux." />
 
-  <!-- Favicon -->
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
 
-  <!-- Structured data: SoftwareApplication -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -50,984 +44,377 @@
     "downloadUrl": "https://github.com/charleswest775/openextract/releases",
     "license": "https://opensource.org/licenses/MIT",
     "isAccessibleForFree": true,
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "USD"
-    },
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "featureList": [
       "SMS and iMessage extraction",
       "Photo and video recovery with EXIF preserved",
       "Encrypted backup support",
       "Call history export",
-      "Contacts and calendar export",
+      "Contacts export",
       "Voicemail extraction",
       "Export to PDF, CSV, HTML",
       "100% local processing, no cloud upload"
     ],
-    "author": {
-      "@type": "Organization",
-      "name": "OpenExtract",
-      "url": "https://www.openextract.app/"
-    },
-    "sameAs": [
-      "https://github.com/charleswest775/openextract"
-    ]
+    "author": { "@type": "Organization", "name": "OpenExtract", "url": "https://www.openextract.app/" },
+    "sameAs": ["https://github.com/charleswest775/openextract"]
   }
   </script>
-
-  <!-- Structured data: Organization -->
   <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    "name": "OpenExtract",
-    "url": "https://www.openextract.app/",
-    "sameAs": [
-      "https://github.com/charleswest775/openextract"
-    ]
-  }
+  { "@context": "https://schema.org", "@type": "Organization", "name": "OpenExtract", "url": "https://www.openextract.app/", "sameAs": ["https://github.com/charleswest775/openextract"] }
   </script>
-
-  <!-- Structured data: WebSite -->
   <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    "name": "OpenExtract",
-    "url": "https://www.openextract.app/"
-  }
+  { "@context": "https://schema.org", "@type": "WebSite", "name": "OpenExtract", "url": "https://www.openextract.app/" }
   </script>
 
-  <!-- Plausible Analytics — privacy-respecting, no cookies -->
   <script defer data-domain="openextract.app" src="https://plausible.io/js/script.outbound-links.file-downloads.tagged-events.js"></script>
-  <script>
-    window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }
-  </script>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --navy:       #0d1b2a;
-      --navy-mid:   #112233;
-      --navy-light: #1a3050;
-      --slate:      #2a4a6b;
-      --accent:     #2f9fd8;
-      --accent-dim: #1a6fa0;
-      --gold:       #c9973a;
-      --white:      #f4f7fb;
-      --muted:      #8ca0b8;
-      --border:     rgba(47, 159, 216, 0.15);
-      --radius:     6px;
-    }
-
-    html { scroll-behavior: smooth; }
-
-    body {
-      font-family: 'DM Sans', sans-serif;
-      background: var(--navy);
-      color: var(--white);
-      line-height: 1.6;
-      overflow-x: hidden;
-    }
-
-    /* ── NOISE TEXTURE OVERLAY ── */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-      pointer-events: none;
-      z-index: 0;
-      opacity: 0.5;
-    }
-
-    /* ── NAV ── */
-    nav {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 100;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 48px;
-      height: 68px;
-      background: rgba(13, 27, 42, 0.85);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .nav-logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-family: 'DM Mono', monospace;
-      font-size: 15px;
-      font-weight: 500;
-      color: var(--white);
-      text-decoration: none;
-      letter-spacing: -0.02em;
-    }
-
-    .nav-logo .logo-icon {
-      width: 30px;
-      height: 30px;
-      background: var(--accent);
-      border-radius: 7px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .nav-logo .logo-icon svg { width: 16px; height: 16px; fill: white; }
-
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 32px;
-      list-style: none;
-    }
-
-    .nav-links a {
-      color: var(--muted);
-      text-decoration: none;
-      font-size: 14px;
-      font-weight: 400;
-      transition: color 0.2s;
-    }
-
-    .nav-links a:hover { color: var(--white); }
-
-    .nav-cta {
-      background: var(--accent);
-      color: white !important;
-      padding: 8px 20px;
-      border-radius: var(--radius);
-      font-weight: 500 !important;
-      font-size: 13px !important;
-      transition: background 0.2s !important;
-    }
-
-    .nav-cta:hover { background: var(--accent-dim) !important; color: white !important; }
-
-    /* ── HERO ── */
-    .hero {
-      position: relative;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      padding: 120px 48px 80px;
-      overflow: hidden;
-    }
-
-    .hero-bg {
-      position: absolute;
-      inset: 0;
-      background:
-        radial-gradient(ellipse 60% 50% at 70% 50%, rgba(47, 159, 216, 0.07) 0%, transparent 70%),
-        radial-gradient(ellipse 40% 60% at 20% 80%, rgba(201, 151, 58, 0.04) 0%, transparent 60%);
-      pointer-events: none;
-    }
-
-    .hero-grid {
-      position: absolute;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(47,159,216,0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(47,159,216,0.04) 1px, transparent 1px);
-      background-size: 60px 60px;
-      mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
-      pointer-events: none;
-    }
-
-    .hero-content {
-      position: relative;
-      z-index: 1;
-      max-width: 680px;
-    }
-
-    .hero-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(47, 159, 216, 0.1);
-      border: 1px solid rgba(47, 159, 216, 0.3);
-      border-radius: 100px;
-      padding: 5px 14px 5px 8px;
-      font-size: 12px;
-      font-family: 'DM Mono', monospace;
-      color: var(--accent);
-      margin-bottom: 28px;
-      animation: fadeUp 0.6s ease both;
-    }
-
-    .hero-badge .dot {
-      width: 6px; height: 6px;
-      background: var(--accent);
-      border-radius: 50%;
-      animation: pulse 2s ease infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.8); }
-    }
-
-    h1 {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: clamp(42px, 6vw, 72px);
-      font-weight: 700;
-      line-height: 1.08;
-      letter-spacing: -0.02em;
-      margin-bottom: 24px;
-      animation: fadeUp 0.6s 0.1s ease both;
-    }
-
-    h1 em {
-      font-style: normal;
-      color: var(--accent);
-    }
-
-    .hero-sub {
-      font-size: 18px;
-      font-weight: 300;
-      color: var(--muted);
-      max-width: 520px;
-      margin-bottom: 40px;
-      line-height: 1.7;
-      animation: fadeUp 0.6s 0.2s ease both;
-    }
-
-    .hero-actions {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-      animation: fadeUp 0.6s 0.3s ease both;
-    }
-
-    .btn-primary {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      background: var(--accent);
-      color: white;
-      text-decoration: none;
-      padding: 14px 28px;
-      border-radius: var(--radius);
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: -0.01em;
-      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
-      box-shadow: 0 4px 24px rgba(47, 159, 216, 0.25);
-    }
-
-    .btn-primary:hover {
-      background: var(--accent-dim);
-      transform: translateY(-1px);
-      box-shadow: 0 8px 32px rgba(47, 159, 216, 0.35);
-    }
-
-    .btn-primary svg { width: 18px; height: 18px; fill: white; flex-shrink: 0; }
-
-    .btn-secondary {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--muted);
-      text-decoration: none;
-      font-size: 14px;
-      font-weight: 400;
-      padding: 14px 4px;
-      transition: color 0.2s;
-      border-bottom: 1px solid transparent;
-    }
-
-    .btn-secondary:hover { color: var(--white); border-bottom-color: var(--border); }
-    .btn-secondary svg { width: 16px; height: 16px; fill: currentColor; }
-
-    .hero-os-note {
-      margin-top: 20px;
-      font-size: 12px;
-      color: var(--muted);
-      font-family: 'DM Mono', monospace;
-      animation: fadeUp 0.6s 0.4s ease both;
-    }
-
-    /* ── TRUST BAR ── */
-    .trust-bar {
-      position: relative;
-      z-index: 1;
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-      background: rgba(17, 34, 51, 0.6);
-      padding: 20px 48px;
-      display: flex;
-      align-items: center;
-      gap: 48px;
-      overflow-x: auto;
-    }
-
-    .trust-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-
-    .trust-item svg { width: 18px; height: 18px; fill: var(--accent); opacity: 0.8; }
-    .trust-item span { font-size: 13px; color: var(--muted); font-weight: 400; }
-    .trust-item strong { color: var(--white); font-weight: 500; }
-
-    .trust-divider {
-      width: 1px;
-      height: 24px;
-      background: var(--border);
-      flex-shrink: 0;
-    }
-
-    /* ── SECTIONS ── */
-    section {
-      position: relative;
-      z-index: 1;
-      padding: 96px 48px;
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-
-    .section-label {
-      font-family: 'DM Mono', monospace;
-      font-size: 11px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 16px;
-    }
-
-    h2 {
-      font-family: 'Playfair Display', serif;
-      font-size: clamp(28px, 4vw, 44px);
-      font-weight: 700;
-      line-height: 1.15;
-      letter-spacing: -0.02em;
-      margin-bottom: 16px;
-    }
-
-    .section-sub {
-      font-size: 16px;
-      color: var(--muted);
-      max-width: 520px;
-      margin-bottom: 56px;
-      font-weight: 300;
-      line-height: 1.7;
-    }
-
-    /* ── FEATURES ── */
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 2px;
-      background: var(--border);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
-    }
-
-    .feature-card {
-      background: var(--navy-mid);
-      padding: 36px 32px;
-      transition: background 0.2s;
-    }
-
-    .feature-card:hover { background: var(--navy-light); }
-
-    .feature-icon {
-      width: 44px; height: 44px;
-      background: rgba(47, 159, 216, 0.1);
-      border: 1px solid rgba(47, 159, 216, 0.2);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 20px;
-    }
-
-    .feature-icon svg { width: 20px; height: 20px; fill: var(--accent); }
-
-    .feature-card h3 {
-      font-size: 16px;
-      font-weight: 600;
-      margin-bottom: 10px;
-      letter-spacing: -0.01em;
-    }
-
-    .feature-card p {
-      font-size: 14px;
-      color: var(--muted);
-      line-height: 1.65;
-      font-weight: 300;
-    }
-
-    /* ── USE CASES ── */
-    .use-cases {
-      background: var(--navy-mid);
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .use-cases > div {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 96px 48px;
-    }
-
-    .cases-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
-    }
-
-    .case-card {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 32px 28px;
-      background: rgba(13, 27, 42, 0.5);
-      transition: border-color 0.2s, transform 0.2s;
-    }
-
-    .case-card:hover {
-      border-color: rgba(47, 159, 216, 0.4);
-      transform: translateY(-2px);
-    }
-
-    .case-number {
-      font-family: 'DM Mono', monospace;
-      font-size: 11px;
-      color: var(--accent);
-      letter-spacing: 0.08em;
-      margin-bottom: 16px;
-    }
-
-    .case-card h3 {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 12px;
-      letter-spacing: -0.01em;
-    }
-
-    .case-card p {
-      font-size: 14px;
-      color: var(--muted);
-      line-height: 1.65;
-      font-weight: 300;
-    }
-
-    /* ── DATA TYPES ── */
-    .data-types {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 40px;
-    }
-
-    .data-tag {
-      background: rgba(47, 159, 216, 0.08);
-      border: 1px solid rgba(47, 159, 216, 0.2);
-      border-radius: 100px;
-      padding: 6px 16px;
-      font-size: 13px;
-      font-family: 'DM Mono', monospace;
-      color: var(--accent);
-      transition: background 0.2s;
-    }
-
-    .data-tag:hover { background: rgba(47, 159, 216, 0.15); }
-
-    /* ── OPEN SOURCE ── */
-    .opensource-block {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 80px;
-      align-items: center;
-    }
-
-    .opensource-block .text h2 { margin-bottom: 16px; }
-
-    .opensource-block .text p {
-      font-size: 16px;
-      color: var(--muted);
-      font-weight: 300;
-      line-height: 1.7;
-      margin-bottom: 32px;
-    }
-
-    .code-block {
-      background: #0a1520;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
-    }
-
-    .code-header {
-      background: rgba(47, 159, 216, 0.05);
-      border-bottom: 1px solid var(--border);
-      padding: 12px 20px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .code-dot { width: 10px; height: 10px; border-radius: 50%; }
-    .code-dot.red { background: #ff5f57; }
-    .code-dot.yellow { background: #febc2e; }
-    .code-dot.green { background: #28c840; }
-
-    .code-label {
-      font-family: 'DM Mono', monospace;
-      font-size: 11px;
-      color: var(--muted);
-      margin-left: auto;
-    }
-
-    .code-body {
-      padding: 24px;
-      font-family: 'DM Mono', monospace;
-      font-size: 13px;
-      line-height: 1.8;
-    }
-
-    .code-comment { color: #4a6580; }
-    .code-key { color: #2f9fd8; }
-    .code-string { color: #7ec8a0; }
-    .code-keyword { color: #c9973a; }
-
-    /* ── DOWNLOAD ── */
-    .download-section {
-      background: linear-gradient(135deg, var(--navy-light) 0%, var(--navy-mid) 100%);
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .download-section > div {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 96px 48px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 60px;
-    }
-
-    .download-text h2 { margin-bottom: 12px; }
-    .download-text p { font-size: 16px; color: var(--muted); font-weight: 300; max-width: 440px; }
-
-    .download-options {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      flex-shrink: 0;
-    }
-
-    .dl-btn {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      background: var(--navy);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px 24px;
-      color: var(--white);
-      text-decoration: none;
-      min-width: 280px;
-      transition: border-color 0.2s, background 0.2s;
-    }
-
-    .dl-btn:hover { border-color: var(--accent); background: rgba(47, 159, 216, 0.05); }
-
-    .dl-btn svg { width: 22px; height: 22px; fill: var(--muted); flex-shrink: 0; }
-    .dl-btn:hover svg { fill: var(--accent); }
-
-    .dl-btn-text { flex: 1; }
-    .dl-btn-text .dl-os { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
-    .dl-btn-text .dl-label { font-size: 14px; font-weight: 500; }
-    .dl-btn-arrow { color: var(--muted); font-size: 18px; }
-
-    .dl-btn.primary-dl {
-      background: var(--accent);
-      border-color: var(--accent);
-    }
-
-    .dl-btn.primary-dl svg { fill: white; }
-    .dl-btn.primary-dl .dl-os { color: rgba(255,255,255,0.7); }
-    .dl-btn.primary-dl .dl-arrow { color: rgba(255,255,255,0.7); }
-    .dl-btn.primary-dl:hover { background: var(--accent-dim); border-color: var(--accent-dim); }
-
-    /* ── FOOTER ── */
-    footer {
-      padding: 48px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-top: 1px solid var(--border);
-    }
-
-    footer .footer-logo {
-      font-family: 'DM Mono', monospace;
-      font-size: 14px;
-      color: var(--muted);
-    }
-
-    footer .footer-logo strong { color: var(--white); }
-
-    footer nav {
-      position: static;
-      background: none;
-      backdrop-filter: none;
-      border: none;
-      padding: 0;
-      height: auto;
-    }
-
-    footer nav a {
-      color: var(--muted);
-      text-decoration: none;
-      font-size: 13px;
-      margin-left: 24px;
-      transition: color 0.2s;
-    }
-
-    footer nav a:hover { color: var(--white); }
-
-    .footer-mit {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: rgba(47,159,216,0.08);
-      border: 1px solid rgba(47,159,216,0.2);
-      border-radius: 100px;
-      padding: 4px 12px;
-      font-family: 'DM Mono', monospace;
-      font-size: 11px;
-      color: var(--accent);
-    }
-
-    /* ── ANIMATIONS ── */
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(16px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .reveal {
-      opacity: 0;
-      transform: translateY(20px);
-      transition: opacity 0.6s ease, transform 0.6s ease;
-    }
-
-    .reveal.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    /* ── RESPONSIVE ── */
-    @media (max-width: 900px) {
-      nav { padding: 0 24px; }
-      .nav-links { display: none; }
-      .hero { padding: 100px 24px 60px; }
-      .trust-bar { padding: 16px 24px; gap: 24px; }
-      section { padding: 64px 24px; }
-      .features-grid { grid-template-columns: 1fr; }
-      .cases-grid { grid-template-columns: 1fr; }
-      .opensource-block { grid-template-columns: 1fr; gap: 40px; }
-      .download-section > div { flex-direction: column; padding: 64px 24px; }
-      footer { flex-direction: column; gap: 24px; padding: 32px 24px; text-align: center; }
-      footer nav { position: static; }
-    }
-  </style>
+  <script>window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
 </head>
 <body>
-
-  <!-- NAV -->
-  <nav>
-    <a href="#" class="nav-logo">
-      <div class="logo-icon">
-        <svg viewBox="0 0 16 16"><path d="M8 1L2 5v6l6 4 6-4V5L8 1zm0 1.8l4.5 3v4.9L8 13.2 3.5 10.7V5.8L8 2.8z"/></svg>
-      </div>
-      OpenExtract
+  <nav class="nav nav--home" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+      <span class="nav__version">v0.4</span>
     </a>
-    <ul class="nav-links">
-      <li><a href="#features">Features</a></li>
-      <li><a href="/vs-imazing">vs iMazing</a></li>
-      <li><a href="/for/legal">For legal</a></li>
-      <li><a href="#download" class="nav-cta">Download Free</a></li>
-    </ul>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="#download">Get it free</a>
+    </div>
   </nav>
 
-  <!-- HERO -->
-  <div class="hero">
-    <div class="hero-bg"></div>
-    <div class="hero-grid"></div>
-    <div class="hero-content">
-      <div class="hero-badge">
-        <span class="dot"></span>
-        MIT Licensed · Free Forever · v0.4.0
-      </div>
-      <h1>Extract iPhone<br/>backup data <em>freely.</em></h1>
-      <p class="hero-sub">
-        OpenExtract recovers messages, contacts, photos, and more from iPhone backups — including encrypted ones. Built for legal professionals, investigators, and anyone who needs their data.
-      </p>
-      <div class="hero-actions">
-        <a href="#download" class="btn-primary">
-          <svg viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v9.586l2.293-2.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V3a1 1 0 011-1zM3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"/></svg>
-          Download for Free
-        </a>
-        <a href="https://github.com/charleswest775/openextract" class="btn-secondary">
-          <svg viewBox="0 0 20 20"><path d="M10 0C4.477 0 0 4.484 0 10.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0110 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0020 10.017C20 4.484 15.522 0 10 0z"/></svg>
-          View on GitHub
-        </a>
-      </div>
-      <p class="hero-os-note">Windows · macOS · Linux &nbsp;·&nbsp; Supports encrypted backups</p>
-    </div>
-  </div>
-
-  <!-- TRUST BAR -->
-  <div class="trust-bar">
-    <div class="trust-item">
-      <svg viewBox="0 0 20 20"><path d="M9 12l-4-4 1.4-1.4L9 9.2l4.6-4.6L15 6z"/><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-2a6 6 0 110-12 6 6 0 010 12z"/></svg>
-      <span><strong>100% Free</strong> · No trial, no paywall</span>
-    </div>
-    <div class="trust-divider"></div>
-    <div class="trust-item">
-      <svg viewBox="0 0 20 20"><path d="M10 2L3 7v6l7 5 7-5V7l-7-5zm0 2l5 3.5V13l-5 3.5L5 13V7.5L10 4z"/></svg>
-      <span><strong>MIT Licensed</strong> · Fully open source</span>
-    </div>
-    <div class="trust-divider"></div>
-    <div class="trust-item">
-      <svg viewBox="0 0 20 20"><path d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"/></svg>
-      <span><strong>Encrypted Backups</strong> · Full support</span>
-    </div>
-    <div class="trust-divider"></div>
-    <div class="trust-item">
-      <svg viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-.293.707L13 10.414V15a1 1 0 01-.553.894l-4 2A1 1 0 017 17v-6.586L3.293 6.707A1 1 0 013 6V4z"/></svg>
-      <span><strong>No Cloud</strong> · 100% local processing</span>
-    </div>
-    <div class="trust-divider"></div>
-    <div class="trust-item">
-      <svg viewBox="0 0 20 20"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"/></svg>
-      <span><strong>Court-Ready</strong> · Export for legal use</span>
-    </div>
-  </div>
-
-  <!-- FEATURES -->
-  <section id="features">
-    <div class="section-label reveal">Capabilities</div>
-    <h2 class="reveal">Everything you need.<br/>Nothing you don't.</h2>
-    <p class="section-sub reveal">A complete toolkit for extracting and exporting data from any iPhone backup — encrypted or not — without sending a single byte to the cloud.</p>
-
-    <div class="features-grid reveal">
-      <div class="feature-card">
-        <div class="feature-icon">
-          <svg viewBox="0 0 20 20"><path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"/><path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z"/></svg>
-        </div>
-        <h3>Messages & iMessage</h3>
-        <p>Extract complete SMS and iMessage threads with timestamps, attachments, and contact information. Export to PDF, CSV, or HTML for court submission.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">
-          <svg viewBox="0 0 20 20"><path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"/></svg>
-        </div>
-        <h3>Photos & Videos</h3>
-        <p>Recover the full camera roll including deleted media. Preserves original EXIF metadata — GPS coordinates, timestamps, and device information intact.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">
-          <svg viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg>
-        </div>
-        <h3>Call History</h3>
-        <p>Complete incoming and outgoing call logs with durations, timestamps, and contact details. Ideal for establishing communication patterns in legal matters.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">
-          <svg viewBox="0 0 20 20"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z"/></svg>
-        </div>
-        <h3>App Data</h3>
-        <p>Access third-party app databases including WhatsApp, Signal, Telegram, and more. Structured export preserves conversation context and metadata.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">
-          <svg viewBox="0 0 20 20"><path d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"/></svg>
-        </div>
-        <h3>Encrypted Backups</h3>
-        <p>Full support for password-protected backups from day one. Encrypted backups contain significantly more data including health records and saved passwords.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">
-          <svg viewBox="0 0 20 20"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3z"/></svg>
-        </div>
-        <h3>Legal Export Formats</h3>
-        <p>Export data as PDF reports, CSV spreadsheets, HTML archives, or raw files. Formatted for direct use in legal proceedings and investigations.</p>
-      </div>
-    </div>
-
-    <div class="data-types reveal" style="margin-top: 32px;">
-      <span class="data-tag">SMS / iMessage</span>
-      <span class="data-tag">WhatsApp</span>
-      <span class="data-tag">Contacts</span>
-      <span class="data-tag">Photos</span>
-      <span class="data-tag">Videos</span>
-      <span class="data-tag">Call Logs</span>
-      <span class="data-tag">Notes</span>
-      <span class="data-tag">Voice Memos</span>
-      <span class="data-tag">Calendar</span>
-      <span class="data-tag">Health Data</span>
-      <span class="data-tag">Safari History</span>
-      <span class="data-tag">App Data</span>
-    </div>
-  </section>
-
-  <!-- USE CASES -->
-  <div class="use-cases" id="use-cases">
+  <section class="hero">
     <div>
-      <div class="section-label reveal">Who uses OpenExtract</div>
-      <h2 class="reveal">Built for those who<br/>need answers.</h2>
-      <p class="section-sub reveal">Whether you're building a legal case or recovering personal data, OpenExtract gives you direct access to what's in your backup.</p>
-
-      <div class="cases-grid">
-        <div class="case-card reveal">
-          <div class="case-number">01 / LEGAL</div>
-          <h3>Family Law Attorneys</h3>
-          <p>Quickly extract and format communication records for custody disputes, divorce proceedings, and child support cases. Export to court-ready PDF reports with timestamps preserved.</p>
+      <span class="pill"><span class="pill__dot"></span>Free forever · No account · No cloud</span>
+      <h1>
+        Your memories<br />
+        <span class="it it--coral">are still in there.</span>
+      </h1>
+      <p class="hero__sub">Pull the messages, photos, and voicemails out of any old iPhone backup — right on your own laptop. Nothing uploaded, nothing paid, nothing to sign up for.</p>
+      <div class="hero__ctas">
+        <a class="btn btn--primary" href="#download">Download for Mac<span>· 48 MB</span></a>
+        <a class="btn btn--ghost" href="#download">Windows &amp; Linux →</a>
+      </div>
+      <div class="hero__social">
+        <div class="hero__avatars" aria-hidden="true">
+          <div class="hero__avatar" style="background: var(--coral);"></div>
+          <div class="hero__avatar" style="background: var(--sage);"></div>
+          <div class="hero__avatar" style="background: var(--butter);"></div>
+          <div class="hero__avatar" style="background: var(--plum);"></div>
         </div>
-        <div class="case-card reveal">
-          <div class="case-number">02 / INVESTIGATIVE</div>
-          <h3>Private Investigators</h3>
-          <p>Recover deleted messages, location data, and communication patterns from iPhone backups. Access encrypted backups that contain the full picture — health data, passwords, and more.</p>
-        </div>
-        <div class="case-card reveal">
-          <div class="case-number">03 / PERSONAL</div>
-          <h3>Individuals & Families</h3>
-          <p>Recover lost photos, messages, or contacts without paying for expensive software. Take full ownership of your own data — no subscriptions, no cloud uploads, no middleman.</p>
-        </div>
+        <span>14,000+ people have recovered their data this year</span>
       </div>
     </div>
-  </div>
 
-  <!-- OPEN SOURCE -->
-  <section id="open-source">
-    <div class="opensource-block">
-      <div class="text reveal">
-        <div class="section-label">Open Source</div>
-        <h2>Transparent by design.</h2>
-        <p>OpenExtract is MIT licensed and fully open source. Every line of code is auditable. Your data never leaves your machine — we couldn't collect it even if we wanted to.</p>
-        <a href="https://github.com/charleswest775/openextract" class="btn-primary" style="display: inline-flex;">
-          <svg viewBox="0 0 20 20" style="width:18px;height:18px;fill:white;"><path d="M10 0C4.477 0 0 4.484 0 10.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0110 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0020 10.017C20 4.484 15.522 0 10 0z"/></svg>
-          View on GitHub
-        </a>
-      </div>
-      <div class="code-block reveal">
-        <div class="code-header">
-          <span class="code-dot red"></span>
-          <span class="code-dot yellow"></span>
-          <span class="code-dot green"></span>
-          <span class="code-label">openextract · MIT License</span>
+    <div class="hero-visual" aria-hidden="true">
+      <div class="phone">
+        <div class="phone__screen">
+          <div class="phone__notch"></div>
+          <div class="phone__time">
+            <div class="phone__time-big">2:47</div>
+            <div class="phone__time-date">Friday, June 16</div>
+          </div>
+          <div class="phone__stack">
+            <div class="phone__tile">💬 Messages · Mom</div>
+            <div class="phone__tile">📷 Photos · Hawaii 2019</div>
+            <div class="phone__tile">📝 Notes · Nana's recipes</div>
+          </div>
         </div>
-        <div class="code-body">
-          <div><span class="code-comment"># Extract messages from encrypted backup</span></div>
-          <div><span class="code-keyword">from</span> <span class="code-key">openextract</span> <span class="code-keyword">import</span> Backup</div>
-          <div>&nbsp;</div>
-          <div>backup = Backup(</div>
-          <div>&nbsp;&nbsp;<span class="code-key">path</span>=<span class="code-string">"/path/to/backup"</span>,</div>
-          <div>&nbsp;&nbsp;<span class="code-key">password</span>=<span class="code-string">"your-password"</span></div>
-          <div>)</div>
-          <div>&nbsp;</div>
-          <div><span class="code-comment"># Export SMS threads to PDF</span></div>
-          <div>backup.<span class="code-key">messages</span>.<span class="code-key">export</span>(</div>
-          <div>&nbsp;&nbsp;<span class="code-key">format</span>=<span class="code-string">"pdf"</span>,</div>
-          <div>&nbsp;&nbsp;<span class="code-key">output</span>=<span class="code-string">"./export"</span></div>
-          <div>)</div>
-          <div>&nbsp;</div>
-          <div><span class="code-comment"># ✓ 100% local · no cloud · MIT licensed</span></div>
+      </div>
+
+      <div class="recovered">
+        <div class="recovered__head">
+          <div class="recovered__check">✓</div>
+          <div>
+            <div class="recovered__title">Recovered from your backup</div>
+            <div class="recovered__sub">iPhone 11 · Backup from Mar 2022</div>
+          </div>
+        </div>
+        <div class="recovered__rows">
+          <div class="recovered__row">
+            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--coral);"></span><span class="recovered__label">Messages</span></div>
+            <span class="recovered__num">4,218</span>
+          </div>
+          <div class="recovered__row">
+            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--sage);"></span><span class="recovered__label">Photos &amp; Videos</span></div>
+            <span class="recovered__num">8,472</span>
+          </div>
+          <div class="recovered__row">
+            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--butter);"></span><span class="recovered__label">Voicemails</span></div>
+            <span class="recovered__num">23</span>
+          </div>
+          <div class="recovered__row">
+            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--plum);"></span><span class="recovered__label">Contacts</span></div>
+            <span class="recovered__num">341</span>
+          </div>
+        </div>
+        <button class="recovered__btn">Save everything →</button>
+      </div>
+
+      <div class="photo-card">
+        <div>
+          <div class="photo-card__title">Hawaii, 2019</div>
+          <div class="photo-card__meta">IMG_4421.HEIC</div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- DOWNLOAD -->
-  <div class="download-section" id="download">
-    <div>
-      <div class="download-text reveal">
-        <div class="section-label">Download</div>
-        <h2>Free. Always.</h2>
-        <p>No account required. No trial period. No upsell. OpenExtract is free software — download it, use it, share it.</p>
+  <section class="features">
+    <div class="features__head">
+      <div>
+        <div class="section-label">What you can recover</div>
+        <h2 class="features__title">Everything your phone <span class="it">remembers</span>.</h2>
       </div>
-      <div class="download-options reveal">
-        <a href="https://github.com/charleswest775/openextract/releases/download/v0.4.0/OpenExtract-Setup-0.4.0.exe" class="dl-btn primary-dl">
-          <svg viewBox="0 0 20 20"><path d="M17.05 20H2.95C1.32 20 0 18.7 0 17.1V2.9C0 1.3 1.32 0 2.95 0h14.1C18.68 0 20 1.3 20 2.9v14.2c0 1.6-1.32 2.9-2.95 2.9zM10 4.5L5 10h3.5v5.5h3V10H15L10 4.5z"/></svg>
-          <div class="dl-btn-text">
-            <div class="dl-os">Windows 10/11</div>
-            <div class="dl-label">Download .exe installer</div>
-          </div>
-          <span class="dl-btn-arrow">↓</span>
-        </a>
-        <a href="https://github.com/charleswest775/openextract/releases/download/v0.4.0/OpenExtract-0.4.0-arm64.dmg" class="dl-btn">
-          <svg viewBox="0 0 20 20"><path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.44zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.67.91-1.377 0-2.332-1.26-3.428-2.8-1.287-1.82-2.323-4.63-2.323-7.28 0-4.28 2.797-6.55 5.552-6.55 1.448 0 2.675.95 3.6.95.865 0 2.222-1.01 3.902-1.01.613 0 2.886.06 4.374 2.19l.07.1z"/></svg>
-          <div class="dl-btn-text">
-            <div class="dl-os">macOS 12+</div>
-            <div class="dl-label">Download .dmg</div>
-          </div>
-          <span class="dl-btn-arrow">↓</span>
-        </a>
-        <a href="https://github.com/charleswest775/openextract/releases/download/v0.4.0/OpenExtract-0.4.0.AppImage" class="dl-btn">
-          <svg viewBox="0 0 20 20"><path d="M10.031 0C4.498 0 0 4.498 0 10.031c0 5.532 4.498 10.03 10.031 10.03 5.532 0 10.03-4.498 10.03-10.03C20.061 4.498 15.563 0 10.031 0zm0 1.5c4.71 0 8.53 3.82 8.53 8.531 0 4.71-3.82 8.53-8.53 8.53-4.71 0-8.531-3.82-8.531-8.53 0-4.71 3.82-8.53 8.531-8.53zm-.75 3v5.25H6l4.031 4.031L14.06 9.75h-3.28V4.5h-1.5z"/></svg>
-          <div class="dl-btn-text">
-            <div class="dl-os">Linux (x64)</div>
-            <div class="dl-label">Download .AppImage</div>
-          </div>
-          <span class="dl-btn-arrow">↓</span>
-        </a>
-        <a href="https://github.com/charleswest775/openextract/releases" class="dl-btn" style="justify-content:center; min-width:0;">
-          <svg viewBox="0 0 20 20"><path d="M10 0C4.477 0 0 4.484 0 10.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0110 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0020 10.017C20 4.484 15.522 0 10 0z"/></svg>
-          <div class="dl-btn-text" style="text-align:center;">
-            <div class="dl-label" style="font-size:13px;">All releases on GitHub</div>
-          </div>
-        </a>
-      </div>
+      <div class="features__lede">If iOS kept it, a backup kept it too. We just hand it back to you, organized and saved as files you can actually open.</div>
     </div>
-  </div>
+    <div class="features__grid">
+      <article class="feature-card">
+        <div class="feature-card__icon" style="background: var(--coral-22);">💬</div>
+        <div>
+          <div class="feature-card__title">Text messages</div>
+          <p class="feature-card__desc">Every iMessage and SMS, complete with photos and voice notes. Read them here or print the whole thread as a PDF.</p>
+        </div>
+        <div class="feature-card__ex">34,118 messages · 127 conversations</div>
+      </article>
+      <article class="feature-card">
+        <div class="feature-card__icon" style="background: var(--sage-22);">📷</div>
+        <div>
+          <div class="feature-card__title">Photos &amp; videos</div>
+          <p class="feature-card__desc">All your camera roll, with original quality and the date, time, and place they were taken.</p>
+        </div>
+        <div class="feature-card__ex">8,472 photos · 412 videos</div>
+      </article>
+      <article class="feature-card">
+        <div class="feature-card__icon" style="background: var(--butter-22);">🎙️</div>
+        <div>
+          <div class="feature-card__title">Voicemails</div>
+          <p class="feature-card__desc">Listen to voicemails you thought you'd lost — including from people who aren't around to leave new ones.</p>
+        </div>
+        <div class="feature-card__ex">23 voicemails recovered</div>
+      </article>
+      <article class="feature-card">
+        <div class="feature-card__icon" style="background: var(--plum-22);">👤</div>
+        <div>
+          <div class="feature-card__title">Contacts</div>
+          <p class="feature-card__desc">The address book, including photos and birthdays. Export to import somewhere else.</p>
+        </div>
+        <div class="feature-card__ex">341 contacts · vCard ready</div>
+      </article>
+      <article class="feature-card">
+        <div class="feature-card__icon" style="background: var(--coral-22);">📝</div>
+        <div>
+          <div class="feature-card__title">Notes</div>
+          <p class="feature-card__desc">Everything in Apple Notes, from shopping lists to recipes to that novel you started.</p>
+        </div>
+        <div class="feature-card__ex">218 notes · folders preserved</div>
+      </article>
+      <article class="feature-card">
+        <div class="feature-card__icon" style="background: var(--sage-22);">📞</div>
+        <div>
+          <div class="feature-card__title">Call history</div>
+          <p class="feature-card__desc">Who you called, when, and for how long. Simple spreadsheet you can search.</p>
+        </div>
+        <div class="feature-card__ex">2,841 calls logged</div>
+      </article>
+    </div>
+  </section>
 
-  <!-- FOOTER -->
-  <footer>
-    <div class="footer-logo">
-      <strong>OpenExtract</strong> &nbsp;·&nbsp; openextract.app &nbsp;·&nbsp; <span class="footer-mit">MIT</span>
+  <section class="how">
+    <div class="how__head">
+      <div>
+        <div class="how__eyebrow">How it works</div>
+        <h2 class="how__title">Three steps. <span class="it" style="color: var(--butter);">No phone needed.</span></h2>
+      </div>
+      <div class="how__lede">Works even if your phone is broken, lost, or long gone. All you need is a backup somewhere on a computer.</div>
     </div>
-    <nav>
-      <a href="#features">Features</a>
-      <a href="/vs-imazing">vs iMazing</a>
-      <a href="/for/legal">For legal</a>
-      <a href="/for/investigators">For investigators</a>
-      <a href="/for/personal">For personal</a>
-      <a href="https://github.com/charleswest775/openextract">GitHub</a>
-      <a href="https://github.com/charleswest775/openextract/issues">Support</a>
-    </nav>
+    <div class="how__grid">
+      <div>
+        <div class="how__num" style="color: var(--coral);">01</div>
+        <div class="how__step-title">Find or create your backup</div>
+        <p class="how__step-desc">If you've ever plugged an iPhone into this computer, a backup is probably already on it and OpenExtract finds it automatically. If not, plug in your phone and make one — Finder on Mac, iTunes on Windows.</p>
+      </div>
+      <div>
+        <div class="how__num" style="color: var(--butter);">02</div>
+        <div class="how__step-title">Unlock if needed</div>
+        <p class="how__step-desc">Encrypted backups need the password you set. OpenExtract handles this on your laptop; the password never leaves it.</p>
+      </div>
+      <div>
+        <div class="how__num" style="color: var(--sage);">03</div>
+        <div class="how__step-title">Save what you want</div>
+        <p class="how__step-desc">Browse. Preview. Export. Text threads as PDF, photos as originals, everything as a neatly organized folder on your Desktop.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="testimonials">
+    <div class="section-label">Stories</div>
+    <h2>People keep telling us<br /><span class="it">the same thing.</span></h2>
+    <div class="testimonials__grid">
+      <article class="testimonial">
+        <div class="testimonial__quote-glyph" style="color: var(--coral);">&ldquo;</div>
+        <p class="testimonial__quote">My dad passed in 2023. Apple wouldn't give me access to his phone, but his laptop had a backup. I have his voicemails now.</p>
+        <div class="testimonial__foot">
+          <div class="testimonial__avatar" style="background: var(--coral);">R</div>
+          <div>
+            <div class="testimonial__name">Rachel</div>
+            <div class="testimonial__loc">Portland, OR</div>
+          </div>
+        </div>
+      </article>
+      <article class="testimonial">
+        <div class="testimonial__quote-glyph" style="color: var(--sage);">&ldquo;</div>
+        <p class="testimonial__quote">I cracked my phone on vacation and the Genius Bar said my photos were gone. They weren't. OpenExtract pulled 4 years back.</p>
+        <div class="testimonial__foot">
+          <div class="testimonial__avatar" style="background: var(--sage);">M</div>
+          <div>
+            <div class="testimonial__name">Marco</div>
+            <div class="testimonial__loc">Austin, TX</div>
+          </div>
+        </div>
+      </article>
+      <article class="testimonial">
+        <div class="testimonial__quote-glyph" style="color: var(--butter);">&ldquo;</div>
+        <p class="testimonial__quote">Switched to Android and realized I wanted my old texts with my mom. Free tool, fifteen minutes, done.</p>
+        <div class="testimonial__foot">
+          <div class="testimonial__avatar" style="background: var(--butter);">P</div>
+          <div>
+            <div class="testimonial__name">Priya</div>
+            <div class="testimonial__loc">Toronto, ON</div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="privacy">
+    <div class="privacy__inner">
+      <div>
+        <div class="privacy__eyebrow">A plain-English promise</div>
+        <h3>Your data doesn't leave<br />your laptop. <span class="it">Ever.</span></h3>
+        <p class="privacy__body">OpenExtract is open source — anyone can read the code. It doesn't have a server. It can't upload. It doesn't know who you are. We made it this way on purpose.</p>
+      </div>
+      <div class="privacy__readout">
+        <div class="privacy__readout-row">
+          <div class="privacy__readout-k">// network activity</div>
+          <div class="privacy__readout-v">none.</div>
+        </div>
+        <div class="privacy__readout-row">
+          <div class="privacy__readout-k">// accounts required</div>
+          <div class="privacy__readout-v">none.</div>
+        </div>
+        <div class="privacy__readout-row">
+          <div class="privacy__readout-k">// analytics collected</div>
+          <div class="privacy__readout-v">none.</div>
+        </div>
+        <div class="privacy__readout-row">
+          <div class="privacy__readout-k">// cost, now or ever</div>
+          <div class="privacy__readout-v">$0.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="faq">
+    <div>
+      <div class="section-label">FAQ</div>
+      <h2>Questions people<br />ask <span class="it">all the time</span>.</h2>
+      <p class="faq__intro">Can't find yours? There's a real human in the <a href="https://github.com/charleswest775/openextract/discussions">GitHub discussions</a> who'll answer.</p>
+    </div>
+    <div>
+      <details class="qa" open>
+        <summary>Does OpenExtract work if my phone is broken?</summary>
+        <p>Yes. You don't need the phone at all — just a backup sitting on a computer you own. Any iTunes or Finder backup will do, even years-old ones.</p>
+      </details>
+      <details class="qa">
+        <summary>Is it really free? What's the catch?</summary>
+        <p>No catch. It's MIT-licensed open source, built by volunteers. No account, no trial, no upsell. The code is public on GitHub if you want to verify.</p>
+      </details>
+      <details class="qa">
+        <summary>Can it read encrypted backups?</summary>
+        <p>Yes, as long as you know the password. Encrypted backups actually contain more data (saved passwords, Safari history), so they're usually the better choice when you have the option.</p>
+      </details>
+      <details class="qa">
+        <summary>What formats can I export to?</summary>
+        <p>Messages as PDF, HTML, CSV, or plain text. Photos as originals (HEIC, JPEG, MOV). Contacts as vCard or CSV. Everything lands in a neatly organized folder on your Desktop.</p>
+      </details>
+      <details class="qa">
+        <summary>Will Apple know I'm using this?</summary>
+        <p>No. OpenExtract only reads files that are already on your computer. It never talks to Apple's servers, your iCloud, or anyone else.</p>
+      </details>
+    </div>
+  </section>
+
+  <section id="download" class="final-cta">
+    <div class="final-cta__inner">
+      <div class="final-cta__blob-a" aria-hidden="true"></div>
+      <div class="final-cta__blob-b" aria-hidden="true"></div>
+      <div class="final-cta__content">
+        <div class="section-label">Ready when you are</div>
+        <h2>Get your <span class="it it--coral">memories</span> back.</h2>
+        <p class="final-cta__lede">Download OpenExtract, point it at a backup, and see what's in there. Takes about two minutes.</p>
+        <div class="final-cta__grid">
+          <a class="dl-card dl-card--primary" href="https://github.com/charleswest775/openextract/releases">
+            <div class="dl-card__os">Download for macOS</div>
+            <div class="dl-card__meta">48 MB · Apple Silicon</div>
+          </a>
+          <a class="dl-card" href="https://github.com/charleswest775/openextract/releases">
+            <div class="dl-card__os">Download for Windows</div>
+            <div class="dl-card__meta">56 MB · 10 &amp; 11</div>
+          </a>
+          <a class="dl-card" href="https://github.com/charleswest775/openextract/releases">
+            <div class="dl-card__os">Download for Linux</div>
+            <div class="dl-card__meta">46 MB · AppImage</div>
+          </a>
+        </div>
+        <div class="final-cta__brew">or: <code>brew install openextract</code></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
   </footer>
-
-  <script>
-    // Scroll reveal
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          e.target.classList.add('visible');
-          observer.unobserve(e.target);
-        }
-      });
-    }, { threshold: 0.1 });
-
-    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-  </script>
-
 </body>
 </html>

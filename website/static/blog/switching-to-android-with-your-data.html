@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Switching to Android without losing your iPhone data — OpenExtract Blog</title>
+  <meta name="description" content="Apple makes leaving hard on purpose. A practical, honest guide to taking your messages, photos, contacts, and call history with you when you switch to Android." />
+  <link rel="canonical" href="https://www.openextract.app/blog/switching-to-android-with-your-data" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/blog/switching-to-android-with-your-data" />
+  <meta property="og:title" content="Switching to Android without losing your iPhone data" />
+  <meta property="og:description" content="The list of things Apple won't help you take with you — and how to take them anyway." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta property="article:published_time" content="2025-09-22" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script defer data-domain="openextract.app" src="https://plausible.io/js/script.outbound-links.file-downloads.tagged-events.js"></script>
+  <script>window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog" class="is-current">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="post-header">
+    <a class="post-back" href="/blog">← Blog</a>
+    <div class="post-meta">
+      <span class="blog-cat blog-cat--guide">Guide</span>
+      <span class="blog-date">2025-09-22 · 6 min read</span>
+    </div>
+    <h1>Switching to Android<br /><span class="it">without losing your iPhone data</span>.</h1>
+    <p class="post-header__lede">Apple's off-ramp is narrow by design. Here's the honest list of what officially transfers, what doesn't, and how to keep everything you care about — in formats that outlive whichever phone comes next.</p>
+  </header>
+
+  <article class="post-body">
+    <p>Apple ships an app called "Move to iOS" that helps Android users come to iPhone. There is no corresponding "Move to Android" app from Apple. This is not an oversight.</p>
+
+    <p>The practical effect: when you switch to Android, Apple helps you take approximately none of the following — your iMessage threads, your call history, your voicemails, your Safari history, your Notes with formatting, anything in Messages in iCloud, anything in iCloud Backup. Google's own "Switch to Android" tool handles contacts, calendar events, and photos. The rest is on you.</p>
+
+    <p>That's what OpenExtract is for. This is the workflow.</p>
+
+    <h2>Step zero: make a final backup, encrypted</h2>
+
+    <p>Before you swap SIMs, plug the iPhone into a computer and make one last encrypted backup. Finder on Mac, iTunes (or the Apple Devices app) on Windows. Tick "Encrypt local backup" and set a password you'll remember for five years. Click "Back Up Now."</p>
+
+    <p>If you want the longer version of why encryption here, we wrote <a href="/blog/encrypted-backups-are-better">a short piece on that</a>. The one-line version: encrypted backups contain more data, and you'll want the extra data.</p>
+
+    <p>This single backup becomes your time capsule. Everything below is "how to get things out of it."</p>
+
+    <h2>What transfers natively, and what doesn't</h2>
+
+    <p>A quick matrix. "Transfers" means some official tool moves it for you. "Doesn't" means you need to handle it yourself:</p>
+
+    <ul>
+      <li><strong>Contacts</strong> — transfers. Google Contacts imports vCards natively; Android phones sync from your Google account automatically.</li>
+      <li><strong>Photos &amp; videos</strong> — transfers. Google Photos, or a USB copy from the Mac.</li>
+      <li><strong>Email and calendar</strong> — transfers. Most people use Gmail/Google Calendar anyway.</li>
+      <li><strong>Messages (iMessage / SMS)</strong> — doesn't. Android cannot import iMessage threads. Not in 2025. Not with any official tool.</li>
+      <li><strong>Call history</strong> — doesn't. Android has no import path for a foreign call log.</li>
+      <li><strong>Voicemails</strong> — doesn't. Voicemails live on the carrier's network or in your phone's own storage; they don't cross.</li>
+      <li><strong>Notes with formatting</strong> — partially. Plain text transfers if you sync Notes to Google via an intermediate app. Rich formatting and attachments usually don't.</li>
+      <li><strong>Safari history, saved passwords</strong> — doesn't. Chrome won't accept a Safari history import.</li>
+      <li><strong>Health and activity data</strong> — doesn't. Android's Health Connect can import some formats, but there's no direct pipe from iPhone.</li>
+    </ul>
+
+    <h2>The realistic strategy: import what you can, archive what you can't</h2>
+
+    <p>This is the shift in thinking that helps. The things Android <em>does</em> import (contacts, photos, calendar) — you move those. The things Android <em>doesn't</em> import — you don't try to force into Android's native apps. You <em>archive</em> them into formats that outlive any phone, and you keep the archive.</p>
+
+    <p>That means: your iMessage threads become a PDF or an HTML folder you can read on any device for the rest of your life. Your call history becomes a CSV. Your voicemails become a folder of <code>.m4a</code> files with a CSV index. These aren't "transferred" to Android — they're lifted out of Apple's walled garden entirely.</p>
+
+    <h2>The workflow, concretely</h2>
+
+    <p>With the encrypted backup sitting on your computer, here's the full sequence.</p>
+
+    <h2>1. Contacts → Google</h2>
+
+    <p>In OpenExtract, export contacts as vCard (<code>.vcf</code>). Open <a href="https://contacts.google.com">contacts.google.com</a>, click "Import," upload the file. Done. Your new Android phone will sync them down automatically on first setup.</p>
+
+    <h2>2. Photos → Google Photos or a local archive</h2>
+
+    <p>You have two choices. If you're comfortable in Google's ecosystem, install Google Photos on the iPhone <em>before</em> you swap, turn on auto-backup, wait for it to finish. Or: export photos from the backup via OpenExtract — you'll get the original HEIC/JPEG/MOV files with all EXIF metadata preserved, including timestamps and GPS. Copy them wherever you want.</p>
+
+    <p>The second route is better if you care about keeping original files without re-compression. Google Photos sometimes re-encodes.</p>
+
+    <h2>3. Messages → PDF and HTML archive</h2>
+
+    <p>Export messages with OpenExtract as PDF (for threads you might print or share) and HTML (for full browsability with inline attachments). You can't put these into Android's Messages app — that app has no import mechanism — but you can keep the archive anywhere: a folder in Dropbox, Google Drive, your Desktop, a USB drive in a drawer. The archive is searchable. The archive doesn't expire.</p>
+
+    <p>If there are specific threads you want to <em>continue</em> on Android via SMS, that's a separate migration — the other party sends the next message, your Android phone receives it, the new thread begins. The archive is about the old threads.</p>
+
+    <h2>4. Call history → CSV</h2>
+
+    <p>Export call history from OpenExtract. You'll get a CSV with one row per call: timestamp, number, duration, direction (in/out/missed). Useful for: billing disputes, legal records, rebuilding a contact list from who you actually talked to, a surprising amount of nostalgia.</p>
+
+    <h2>5. Voicemails → folder of audio files</h2>
+
+    <p>Export voicemails. You'll get the original audio files (<code>.m4a</code> on newer iOS) plus a CSV with caller, duration, and timestamp. If any of these are important (a message from someone who's no longer around, a recording of a specific moment), treat them like photos — back them up in at least two places.</p>
+
+    <p>We wrote <a href="/blog/recovering-voicemails-from-loved-ones">more about voicemails here</a>.</p>
+
+    <h2>6. Notes → plain text</h2>
+
+    <p>Export notes from OpenExtract. You'll get plain text files organized by the folder structure you had on iPhone. If you want them on Android, paste them into Google Keep, Obsidian, or whatever note app you're moving to. The plain text is the durable form; the rich formatting was always going to be lossy.</p>
+
+    <h2>7. Safari history → CSV (if you care)</h2>
+
+    <p>Most people don't bother. But if you want to preserve "that recipe site I found in 2019," export Safari history from an encrypted backup. It's a CSV with URL, title, visit time. Searchable forever.</p>
+
+    <h2>On the psychology of leaving</h2>
+
+    <p>A thing we've noticed from talking to people doing this: the anxiety is almost never about the data itself. It's about what the data represents — years of conversations, a relationship, a period of life. Android can't hold it the same way, and that feels like losing it.</p>
+
+    <p>You're not. You're relocating it into formats that belong to you instead of to Apple. The threads still exist. The voicemails still play. What changes is the container.</p>
+
+    <p>If you're interested in a more reflective piece on what your own extracted data can reveal — patterns in the record that memory edits out — <a href="https://medium.com/@charles.west_98012/the-fortress-of-nothing-matters-65a7b01aeaf6">we wrote about that on Medium</a>. Not a how-to. A second read on your own archive, once you have it.</p>
+
+    <h2>The one-line takeaway</h2>
+
+    <p>Make one encrypted backup before you switch. Then you have all the time in the world to decide what to move, what to archive, and what to let go.</p>
+
+    <p class="post-body__sig">— OpenExtract</p>
+  </article>
+
+  <section class="post-more">
+    <div class="post-more__inner">
+      <div class="post-more__head">Keep reading</div>
+      <div class="post-more__grid">
+        <a class="post-more__link" href="/blog/encrypted-backups-are-better">Encrypted backups are better, actually →</a>
+        <a class="post-more__link" href="/blog/recovering-voicemails-from-loved-ones">Recovering voicemails from people who have passed →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Ready to get your data?</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

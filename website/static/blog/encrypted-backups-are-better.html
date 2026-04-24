@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Encrypted backups are better, actually — OpenExtract Blog</title>
+  <meta name="description" content="A counterintuitive take on iPhone backup encryption: ticking that box gives you more data, not less. What the encryption scheme actually does and why you should use it." />
+  <link rel="canonical" href="https://www.openextract.app/blog/encrypted-backups-are-better" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/blog/encrypted-backups-are-better" />
+  <meta property="og:title" content="Encrypted backups are better, actually" />
+  <meta property="og:description" content="Tick the box. You get more data, not less. A short, opinionated explainer." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta property="article:published_time" content="2025-06-08" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script defer data-domain="openextract.app" src="https://plausible.io/js/script.outbound-links.file-downloads.tagged-events.js"></script>
+  <script>window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog" class="is-current">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="post-header">
+    <a class="post-back" href="/blog">← Blog</a>
+    <div class="post-meta">
+      <span class="blog-cat blog-cat--guide">Guide</span>
+      <span class="blog-date">2025-06-08 · 4 min read</span>
+    </div>
+    <h1>Encrypted backups are<br /><span class="it">better, actually</span>.</h1>
+    <p class="post-header__lede">A small, counterintuitive truth about iPhone backups: ticking the "Encrypt local backup" box gives you <em>more</em> data to recover later, not less. Here's why — and what the encryption is actually doing under the hood.</p>
+  </header>
+
+  <article class="post-body">
+    <p>When people see the word <em>encrypted</em> next to a backup option, the instinct is to assume it means more protection and less access. As in: if I encrypt this, I'll lock myself out of my own stuff.</p>
+
+    <p>It's the opposite. Encrypted iPhone backups contain <em>more</em> data than unencrypted ones, on purpose. Apple treats the encryption password as a signal that you're serious about controlling your data, and rewards that signal by including sensitive categories it otherwise withholds.</p>
+
+    <h2>What you get only when encrypted</h2>
+
+    <p>The list of data that appears in encrypted backups and is <em>absent</em> from unencrypted ones:</p>
+
+    <ul>
+      <li><strong>Saved passwords.</strong> Every Wi-Fi password, every website login saved to iCloud Keychain. Without encryption, Apple strips these out of the backup entirely.</li>
+      <li><strong>Safari history and autofill.</strong> Browsing history, saved form data, credit-card autofill entries. Unencrypted backups have none of this.</li>
+      <li><strong>Home Wi-Fi settings.</strong> Every network your phone has ever joined, including passwords.</li>
+      <li><strong>Call history details.</strong> Encrypted backups preserve more of the metadata around calls — things like FaceTime session IDs that unencrypted ones drop.</li>
+    </ul>
+
+    <p>If you've ever set up a new iPhone and had to re-enter every Wi-Fi password at every friend's house, that's why: your last backup was unencrypted, so Wi-Fi credentials were missing from it.</p>
+
+    <h2>What the encryption is actually doing</h2>
+
+    <p>When you tick "Encrypt local backup" and set a password, iOS does the following (simplified; the real scheme has more moving parts):</p>
+
+    <ol>
+      <li>Derives a key from your password using PBKDF2 — a key-stretching algorithm that takes your password and hashes it a couple million times to make brute-force attacks slow. On recent iOS versions this is PBKDF2-SHA256 with 10,000,000 iterations.</li>
+      <li>Generates a random per-file key for every file in the backup.</li>
+      <li>Wraps each per-file key with the password-derived key, using AES key-wrap.</li>
+      <li>Writes the wrapped keys into <code>Manifest.plist</code> alongside the metadata.</li>
+      <li>Encrypts the file contents with the per-file keys using AES.</li>
+    </ol>
+
+    <p>The important property: <em>the password never leaves your computer</em>. Neither the phone nor Apple nor OpenExtract stores it anywhere. The password is only used to derive keys at the moment you open the backup.</p>
+
+    <h2>The password protects the data, not the tool</h2>
+
+    <p>A common misunderstanding: people think "I need a tool that supports encrypted backups" means the tool holds some special decryption capability. It doesn't. Any tool that supports encrypted iPhone backups works the same way: you type the password, the tool runs the standard PBKDF2 + AES key-wrap derivation Apple documents, and the backup decrypts. The math is identical whether the tool is open source or closed, free or paid.</p>
+
+    <p>This matters because it means the security of your data doesn't depend on choosing the right vendor. It depends on choosing a strong password and remembering it. (Which, to be honest, is a much higher bar than most people realize.)</p>
+
+    <h2>The practical part</h2>
+
+    <p>Enabling an encrypted backup is two clicks:</p>
+
+    <ul>
+      <li><strong>On a Mac</strong> (macOS Catalina or later): Open Finder, click your iPhone in the sidebar, tick "Encrypt local backup," set a password, click "Back Up Now."</li>
+      <li><strong>On Windows</strong>: Open iTunes (or the Apple Devices app on Windows 11), select your iPhone, tick "Encrypt local backup," set a password, click "Back Up Now."</li>
+    </ul>
+
+    <p>Once you've turned encryption on, <em>every future backup</em> from that computer is encrypted with the same password until you turn it off. You don't have to do it again.</p>
+
+    <h2>The one real tradeoff</h2>
+
+    <p>There is no recovery. If you forget the password, Apple has no way to reset it, and neither does any third-party tool. We're not able to help you either. (We mean this literally — there is no clever workaround we're holding back. There's no backdoor.)</p>
+
+    <p>So: pick a password you will genuinely remember, or write it somewhere permanent. A physical password manager, a notebook in a safe, a key in a sealed envelope. This is the kind of password you'll need in ten years, not next Tuesday.</p>
+
+    <h2>The one-line takeaway</h2>
+
+    <p>Tick the box. Pick a password. Write it down. Your future self — the one trying to recover something important from an old backup — will be grateful.</p>
+
+    <p class="post-body__sig">— OpenExtract</p>
+  </article>
+
+  <section class="post-more">
+    <div class="post-more__inner">
+      <div class="post-more__head">Keep reading</div>
+      <div class="post-more__grid">
+        <a class="post-more__link" href="/blog/what-is-in-an-iphone-backup">What's actually in an iPhone backup →</a>
+        <a class="post-more__link" href="/blog/open-source-trust-model">What "open source" actually means for a tool like this →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Ready to get your data?</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
