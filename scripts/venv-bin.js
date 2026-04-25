@@ -29,5 +29,5 @@ if (!existsSync(exe)) {
   process.exit(1);
 }
 
-const result = spawnSync(exe, toolArgs, { stdio: 'inherit' });
+const result = spawnSync(exe, toolArgs, { stdio: 'inherit', shell: isWindows });
 process.exit(result.status ?? 1);

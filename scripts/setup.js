@@ -17,16 +17,33 @@ const pip = path.join(venvDir, isWindows ? 'Scripts' : 'bin', isWindows ? 'pip.e
 
 function run(cmd, args, opts = {}) {
   console.log(`\n$ ${cmd} ${args.join(' ')}`);
-  const result = spawnSync(cmd, args, { stdio: 'inherit', cwd: REPO_ROOT, ...opts });
+  // shell:true lets npm/npx/py resolve via PATHEXT on Windows where the
+  // executable might be a .cmd or .bat shim.
+  const result = spawnSync(cmd, args, { stdio: 'inherit', cwd: REPO_ROOT, shell: isWindows, ...opts });
   if (result.status !== 0) {
     console.error(`\n[setup] command failed: ${cmd} ${args.join(' ')}`);
     process.exit(result.status ?? 1);
   }
 }
 
+// Pick the first interpreter that responds to `--version`. On Windows the
+// `py` launcher (installed with python.org's Python) is the most reliable;
+// `python` works if "Add to PATH" was checked at install time. On POSIX we
+// just prefer python3 over python.
+function findHostPython() {
+  const candidates = isWindows ? [['py', ['-3']], ['python', []]] : [['python3', []], ['python', []]];
+  for (const [cmd, baseArgs] of candidates) {
+    const probe = spawnSync(cmd, [...baseArgs, '--version'], { shell: isWindows });
+    if (probe.status === 0) return { cmd, baseArgs };
+  }
+  console.error('[setup] no Python interpreter found. Install Python 3.11+ from python.org and re-run.');
+  process.exit(1);
+}
+
 // 1. venv
 if (!existsSync(venvDir)) {
-  run(isWindows ? 'python' : 'python3', ['-m', 'venv', '.venv']);
+  const { cmd, baseArgs } = findHostPython();
+  run(cmd, [...baseArgs, '-m', 'venv', '.venv']);
 }
 
 // 2. Sidecar deps — ios-backup-core comes from a sibling checkout.

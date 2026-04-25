@@ -30,6 +30,15 @@ iterating on a single spec without touching product code, skip that with:
 npm run test:e2e:fast -- -g "password dialog"
 ```
 
+### Windows notes
+
+- `npm run setup` works in PowerShell or `cmd`. It auto-detects the `py`
+  launcher and falls back to `python` on PATH.
+- Use `npm run test:e2e`, **not** `test:e2e:ci` — the latter is the
+  Linux/CI wrapper and uses POSIX-only `xvfb-run`.
+- If `npm run setup` fails at the `python` step, install Python 3.11+
+  from python.org with "Add to PATH" checked.
+
 ## How the harness boots the app
 
 `tests/e2e/fixtures.ts` launches Electron against the **built** renderer
