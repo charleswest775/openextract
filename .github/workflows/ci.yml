@@ -14,117 +14,54 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: '20', cache: 'npm' }
+      - run: npm install
+      - run: npx tsc --noEmit
+      - run: npx tsc --noEmit -p tsconfig.electron.json
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: python/requirements*.txt
-
-      - name: Install Node dependencies
-        run: npm install
-
-      - name: TypeScript check (renderer)
-        run: npx tsc --noEmit
-
-      - name: TypeScript check (electron)
-        run: npx tsc --noEmit -p tsconfig.electron.json
-
-      # python/requirements.txt installs ios-backup-core via `-e ../../ios-backup-core`.
-      # The expected layout is openextract/ and ios-backup-core/ as siblings on disk,
-      # so clone ios-backup-core one level above $GITHUB_WORKSPACE before pip runs.
-      # TODO: remove this step once ios-backup-core ships to PyPI and requirements.txt
-      # pins a versioned release instead of the editable path install.
-      - name: Clone ios-backup-core (sibling for editable install)
-        run: |
-          git clone --depth=1 \
-            https://github.com/charleswest775/ios-backup-core.git \
-            "$GITHUB_WORKSPACE/../ios-backup-core"
-
-      # Run from python/ so pip resolves `-e ../../ios-backup-core` the same
-      # way it does locally (README tells devs to `cd python` first).
-      - name: Install Python dependencies
-        working-directory: python
-        run: pip install ruff pytest -r requirements.txt
-
-      - name: Python lint
-        run: ruff check python/
-
-      - name: Python tests
-        run: pytest python/tests/ -v
-
-      - name: Build verification
-        run: npm run build
-
-  e2e:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+  regression:
     needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: '20', cache: 'npm' }
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
           cache-dependency-path: python/requirements*.txt
-
-      - name: Install Node dependencies
-        run: npm install
-
-      # See the check job for why this sibling clone is required. Kept in
-      # sync with that job until ios-backup-core ships to PyPI.
-      - name: Clone ios-backup-core (sibling for editable install)
-        run: |
-          git clone --depth=1 \
-            https://github.com/charleswest775/ios-backup-core.git \
-            "$GITHUB_WORKSPACE/../ios-backup-core"
-
-      - name: Install Python sidecar dependencies
-        working-directory: python
-        run: pip install -r requirements.txt
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
-          path: ~/.cache/ms-playwright
+          path: |
+            ~/.cache/ms-playwright
+            ~/Library/Caches/ms-playwright
+            ~\AppData\Local\ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - name: Install Playwright browser bundle
-        run: npx playwright install --with-deps chromium
+      - name: Install Node deps
+        run: npm install
 
-      - name: Regenerate test fixtures
-        run: python3 tests/fixtures/build_fixture.py
+      - name: Install xvfb (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y xvfb
 
-      - name: Run Playwright E2E suite
-        env:
-          OPENEXTRACT_E2E_NO_SANDBOX: '1'
-          # CI Python is on PATH, not in a project .venv; point the test-mode
-          # sidecar spawn at it explicitly so findVenvPython doesn't miss.
-          OPENEXTRACT_TEST_PYTHON: python3
-        run: xvfb-run -a npm run test:e2e
+      - name: Run regression
+        run: npm run regression
 
       - name: Upload Playwright traces on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-traces
+          name: traces-${{ matrix.os }}
           path: test-results/
           retention-days: 14

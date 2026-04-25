@@ -12,18 +12,8 @@
     "build": "npm run build:renderer && npm run build:electron",
     "preview": "vite preview",
     "package": "npm run build && electron-builder",
-    "python:install": "node scripts/venv-bin.js pip install -r python/requirements.txt",
-    "python:install:dev": "node scripts/venv-bin.js pip install -r python/requirements-dev.txt",
-    "python:lint": "node scripts/venv-bin.js ruff check python/",
-    "python:test": "node scripts/venv-bin.js pytest python/tests/ -v",
     "python:bundle": "cd python && pyinstaller --onefile --name openextract-engine main.py",
-    "setup": "node scripts/setup.js",
-    "test:fixtures": "node scripts/venv-bin.js python tests/fixtures/build_fixture.py",
-    "pretest:e2e": "npm run build",
-    "pretest:e2e:ci": "npm run build",
-    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
-    "test:e2e:fast": "playwright test --config tests/e2e/playwright.config.ts",
-    "test:e2e:ci": "OPENEXTRACT_E2E_NO_SANDBOX=1 xvfb-run -a playwright test --config tests/e2e/playwright.config.ts"
+    "regression": "node scripts/regression.js"
   },
   "dependencies": {
     "benz-amr-recorder": "^1.1.5",
