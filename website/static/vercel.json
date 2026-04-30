@@ -1,3 +1,20 @@
 {
-  "cleanUrls": true
+  "cleanUrls": true,
+  "redirects": [
+    {
+      "source": "/download/mac",
+      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.5.0/OpenExtract-0.5.0-arm64.dmg",
+      "permanent": false
+    },
+    {
+      "source": "/download/windows",
+      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.5.0/OpenExtract-Setup-0.5.0.exe",
+      "permanent": false
+    },
+    {
+      "source": "/download/linux",
+      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.5.0/OpenExtract-0.5.0.AppImage",
+      "permanent": false
+    }
+  ]
 }
