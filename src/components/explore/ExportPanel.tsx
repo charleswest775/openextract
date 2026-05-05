@@ -1,18 +1,19 @@
 import { useState } from 'react';
 import { saveFolder, sidecarCall } from '../../lib/ipc';
-import { ExportIcon, LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon, GlobeIcon } from '../shared/Icons';
+import { ExportIcon, LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon, GlobeIcon, ContactIcon } from '../shared/Icons';
 
 interface Props {
   udid: string;
 }
 
-type ExportType = 'messages' | 'photos' | 'calls' | 'voicemail' | 'notes' | 'browser_history';
+type ExportType = 'messages' | 'photos' | 'calls' | 'voicemail' | 'notes' | 'browser_history' | 'contacts';
 
 const exportOptions: { id: ExportType; label: string; description: string; icon: typeof LinesIcon }[] = [
   { id: 'messages', label: 'Messages', description: 'Export all messages as CSV', icon: LinesIcon },
   { id: 'photos', label: 'Photos', description: 'Export all photos and videos', icon: CameraIcon },
   { id: 'calls', label: 'Call History', description: 'Export call log as CSV', icon: CallIcon },
   { id: 'voicemail', label: 'Voicemail', description: 'Export voicemail audio and transcripts', icon: VoicemailIcon },
+  { id: 'contacts', label: 'Contacts', description: 'Export address book as CSV', icon: ContactIcon },
   { id: 'notes', label: 'Notes', description: 'Export all notes as TXT', icon: NoteIcon },
   { id: 'browser_history', label: 'Browser History', description: 'Export browsing history as CSV', icon: GlobeIcon },
 ];
@@ -29,6 +30,8 @@ export default function ExportPanel({ udid }: Props) {
         await exportNotes();
       } else if (type === 'messages') {
         await exportMessages();
+      } else if (type === 'contacts') {
+        await exportContacts();
       } else {
         await exportToFolder(type);
       }
@@ -100,6 +103,35 @@ export default function ExportPanel({ udid }: Props) {
     }
     window.openextract.incrementExportCount();
     setStatus(`Messages exported successfully`);
+  }
+
+  async function exportContacts() {
+    type Contact = {
+      first_name: string; last_name: string; display_name: string;
+      organization: string; phones: string[]; emails: string[]; note: string;
+    };
+    const result = await sidecarCall<{ contacts: Contact[] }>('list_contacts', { udid });
+    const contacts = result.contacts || [];
+    if (contacts.length === 0) {
+      setStatus('No contacts found in this backup');
+      return;
+    }
+    const filePath = await window.openextract.saveFile({
+      title: 'Export Contacts',
+      defaultPath: 'Contacts.csv',
+      filters: [{ name: 'CSV Files', extensions: ['csv'] }],
+    });
+    if (!filePath) return;
+    const rows: string[] = ['"First Name","Last Name","Display Name","Organization","Phone Numbers","Email Addresses","Notes"'];
+    for (const c of contacts) {
+      rows.push([
+        c.first_name, c.last_name, c.display_name, c.organization,
+        (c.phones || []).join('; '), (c.emails || []).join('; '), c.note,
+      ].map(v => csvEscape(v || '')).join(','));
+    }
+    await window.openextract.writeFile(filePath, rows.join('\n'));
+    window.openextract.incrementExportCount();
+    setStatus(`${contacts.length} contacts exported successfully`);
   }
 
   function csvEscape(value: string): string {
