@@ -128,24 +128,51 @@ jobs:
         run: npm run build
 
       # --- Update website download URLs on the release branch ---
+      # Touches two files:
+      #   - website/static/index.html: nav version pill + installer filename refs.
+      #     Nav copy may be `v0.4` (no patch) or `v0.4.0`; both should bump cleanly.
+      #   - website/static/vercel.json: /download/{mac,windows,linux} redirects
+      #     point at the GitHub release asset for this version. If we don't update
+      #     vercel.json, the website keeps serving the previous version's binaries.
       - name: Update website version and download URLs
         run: |
           VERSION="${{ inputs.version }}"
-          FILE="website/static/index.html"
-          if [ -f "$FILE" ]; then
-            sed -i "s/v[0-9]\+\.[0-9]\+\.[0-9]\+/v${VERSION}/g" "$FILE"
-            sed -i "s/OpenExtract-Setup-[0-9]\+\.[0-9]\+\.[0-9]\+/OpenExtract-Setup-${VERSION}/g" "$FILE"
-            sed -i "s/OpenExtract-[0-9]\+\.[0-9]\+\.[0-9]\+-arm64/OpenExtract-${VERSION}-arm64/g" "$FILE"
-            sed -i "s/OpenExtract-[0-9]\+\.[0-9]\+\.[0-9]\+\.AppImage/OpenExtract-${VERSION}.AppImage/g" "$FILE"
-            if git diff --quiet "$FILE"; then
-              echo "No website changes needed"
-            else
-              git add "$FILE"
-              git commit -m "chore: update website download URLs to v${VERSION}"
-              echo "Website updated to v${VERSION}"
+          STAGED=0
+
+          INDEX="website/static/index.html"
+          if [ -f "$INDEX" ]; then
+            # nav version pill — match vX.Y or vX.Y.Z so a 2-segment value still bumps.
+            sed -i "s/v[0-9]\+\.[0-9]\+\(\.[0-9]\+\)\?/v${VERSION}/g" "$INDEX"
+            sed -i "s/OpenExtract-Setup-[0-9]\+\.[0-9]\+\.[0-9]\+/OpenExtract-Setup-${VERSION}/g" "$INDEX"
+            sed -i "s/OpenExtract-[0-9]\+\.[0-9]\+\.[0-9]\+-arm64/OpenExtract-${VERSION}-arm64/g" "$INDEX"
+            sed -i "s/OpenExtract-[0-9]\+\.[0-9]\+\.[0-9]\+\.AppImage/OpenExtract-${VERSION}.AppImage/g" "$INDEX"
+            if ! git diff --quiet "$INDEX"; then
+              git add "$INDEX"
+              STAGED=1
+              echo "index.html updated to v${VERSION}"
             fi
           else
-            echo "No website/static/index.html found, skipping"
+            echo "No $INDEX found, skipping"
+          fi
+
+          VERCEL="website/static/vercel.json"
+          if [ -f "$VERCEL" ]; then
+            # Redirects embed the version in both the path segment and the filename,
+            # so a single regex over X.Y.Z occurrences swaps both at once.
+            sed -i "s/[0-9]\+\.[0-9]\+\.[0-9]\+/${VERSION}/g" "$VERCEL"
+            if ! git diff --quiet "$VERCEL"; then
+              git add "$VERCEL"
+              STAGED=1
+              echo "vercel.json updated to v${VERSION}"
+            fi
+          else
+            echo "No $VERCEL found, skipping"
+          fi
+
+          if [ "$STAGED" = "1" ]; then
+            git commit -m "chore: update website download URLs to v${VERSION}"
+          else
+            echo "No website changes needed"
           fi
 
       # --- Push release branch (release/* is not protected) and tag ---
