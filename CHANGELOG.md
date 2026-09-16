@@ -17,3 +17,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Photo extraction from CameraRollDomain
 - Voicemail, call history, contacts, and notes extractors
 - Export to TXT, CSV, and HTML formats
+- Export of messages to HTML now exports not only images (embedded) but also videos (saved in separate folder besides exported file)
