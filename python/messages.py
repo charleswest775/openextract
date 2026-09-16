@@ -194,7 +194,7 @@ class MessageExtractor:
         elif fmt == "csv":
             return self._export_csv(all_messages, chat_id, output_dir)
         elif fmt == "html":
-            return self._export_html(all_messages, chat_id, output_dir)
+            return self._export_html(all_messages, chat_id, output_dir, backup=backup)
         else:
             return {"error": f"Unsupported format: {fmt}"}
 
@@ -227,6 +227,52 @@ class MessageExtractor:
             return f"{text} {label}".strip() if text else label
         return msg.get("text") or ""
 
+    def _reduce_image_size(self, base64_data: str, mime_type: str) -> str:
+        """reduce image quality to save size for export through converting to 75% qualtiy JPEG"""
+        try:
+            import io
+            from PIL import Image
+
+            original_size = len(base64_data)
+
+            # Decode base64
+            img_data = base64.b64decode(base64_data)
+
+            # Handle HEIC/HEIF images
+            if mime_type in ("image/heic", "image/heif"):
+                try:
+                    import pillow_heif
+                    pillow_heif.register_heif_opener()
+                except ImportError:
+                    print("pillow-heif not available, skipping HEIC conversion")
+                    return base64_data
+
+            img = Image.open(io.BytesIO(img_data))
+
+            # Convert RGBA to RGB for JPEG compatibility
+            if img.mode == "RGBA":
+                img = img.convert("RGB")
+
+            # Compress with quality 75 (default for pillow.save(), but give explicit for self-documentation)
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=75, optimize=True)
+
+            # Re-encode to base64
+            reduced_data = base64.b64encode(buf.getvalue()).decode("ascii")
+            reduced_size = len(reduced_data)
+
+            # Only use compressed if it's actually smaller
+            if reduced_size < original_size:
+                print(f"Image compression: {original_size} -> {reduced_size} bytes ({100 * (1 - reduced_size / original_size):.1f}% reduction)")
+                return reduced_data
+            else:
+                print(f"Image compression skipped: {original_size} -> {reduced_size} bytes (no reduction)")
+                return base64_data
+        except Exception as e:
+            print(f"Image compression failed: {e}")
+            # Return original data if compression fails
+            return base64_data
+
     def _export_txt(self, messages, chat_id, output_dir):
         filename = f"conversation_{chat_id}.txt"
         filepath = os.path.join(output_dir, filename)
@@ -251,7 +297,7 @@ class MessageExtractor:
                 ])
         return {"file": filepath, "message_count": len(messages)}
 
-    def _export_html(self, messages, chat_id, output_dir):
+    def _export_html(self, messages, chat_id, output_dir, *, backup):
         filename = f"conversation_{chat_id}.html"
         filepath = os.path.join(output_dir, filename)
         with open(filepath, "w", encoding="utf-8") as f:
@@ -264,16 +310,44 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
 .received { background: #E9E9EB; color: black; float: left; border-bottom-left-radius: 4px; }
 .meta { font-size: 11px; color: #888; clear: both; text-align: center; margin: 12px 0 4px; }
 .sender { font-size: 11px; color: #666; margin-bottom: 2px; }
+.msg img { max-width: 100%; border-radius: 8px; margin-top: 8px; }
 </style></head><body>
 """)
             for msg in messages:
                 css_class = "sent" if msg["is_from_me"] else "received"
-                text = msg["text"] or "[Attachment]"
                 date = msg["date"] or ""
                 f.write(f'<div class="meta">{date}</div>\n')
                 if not msg["is_from_me"]:
                     f.write(f'<div class="sender">{msg["sender"]}</div>\n')
-                f.write(f'<div class="msg {css_class}">{text}</div>\n')
+                f.write(f'<div class="msg {css_class}">')
+
+                # Add text if present
+                if msg.get("text"):
+                    f.write(msg["text"])
+
+                # Add image attachments as base64
+                if msg.get("has_attachments"):
+                    attachments = msg.get("attachments") or []
+                    for att in attachments:
+                        mime_type = att.get("mime_type") or ""
+                        if mime_type.startswith("image/"):
+                            att_result = self.get_attachment(backup, att["attachment_id"])
+                            if "data" in att_result:
+                                # Compress image to reduce file size (converts HEIC to JPEG)
+                                compressed_data = self._reduce_image_size(att_result["data"], att_result["mime_type"])
+                                # Use JPEG mime type since we convert everything to JPEG for compression
+                                output_mime = "image/jpeg" if att_result["mime_type"] in ("image/heic", "image/heif") else att_result["mime_type"]
+                                f.write(f'<img src="data:{output_mime};base64,{compressed_data}" alt="{att_result["filename"]}" title="{att_result["filename"]}">')
+                            elif "error" not in att_result:
+                                # Fallback to label if attachment exists but can't be loaded
+                                label = self._attachment_label(msg)
+                                f.write(f" {label}")
+                        else:
+                            # Non-image attachment: show label
+                            label = self._attachment_label(msg)
+                            f.write(f" {label}")
+
+                f.write('</div>\n')
             f.write("</body></html>")
         return {"file": filepath, "message_count": len(messages)}
 
@@ -352,7 +426,7 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
         elif fmt == "csv":
             return self._export_merged_csv(all_messages, output_dir)
         elif fmt == "html":
-            return self._export_merged_html(all_messages, output_dir)
+            return self._export_merged_html(all_messages, output_dir, backup=backup)
         else:
             return {"error": f"Unsupported format: {fmt}"}
 
@@ -382,7 +456,7 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
                 ])
         return {"files": [filepath], "message_count": len(messages)}
 
-    def _export_merged_html(self, messages, output_dir):
+    def _export_merged_html(self, messages, output_dir, *, backup):
         filepath = os.path.join(output_dir, "all_conversations.html")
         with open(filepath, "w", encoding="utf-8") as f:
             f.write("""<!DOCTYPE html>
@@ -395,18 +469,46 @@ body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 0 auto;
 .meta { font-size: 11px; color: #888; clear: both; text-align: center; margin: 12px 0 4px; }
 .sender { font-size: 11px; color: #666; margin-bottom: 2px; }
 .conv-label { font-size: 10px; color: #999; font-style: italic; }
+.msg img { max-width: 100%; border-radius: 8px; margin-top: 8px; }
 </style></head><body>
 <h2>Merged Conversations</h2>
 """)
             for msg in messages:
                 css_class = "sent" if msg["is_from_me"] else "received"
-                text = msg["text"] or "[Attachment]"
                 date = msg["date"] or ""
                 conv = msg["_conversation"]
                 direction = "to" if msg["is_from_me"] else "from"
                 f.write(f'<div class="meta">{date} <span class="conv-label">({direction} {conv})</span></div>\n')
                 if not msg["is_from_me"]:
                     f.write(f'<div class="sender">{msg["sender"]}</div>\n')
-                f.write(f'<div class="msg {css_class}">{text}</div>\n')
+                f.write(f'<div class="msg {css_class}">')
+
+                # Add text if present
+                if msg.get("text"):
+                    f.write(msg["text"])
+
+                # Add image attachments as base64
+                if msg.get("has_attachments"):
+                    attachments = msg.get("attachments") or []
+                    for att in attachments:
+                        mime_type = att.get("mime_type") or ""
+                        if mime_type.startswith("image/"):
+                            att_result = self.get_attachment(backup, att["attachment_id"])
+                            if "data" in att_result:
+                                # Compress image to reduce file size (converts HEIC to JPEG)
+                                compressed_data = self._reduce_image_size(att_result["data"], att_result["mime_type"])
+                                # Use JPEG mime type since we convert everything to JPEG for compression
+                                output_mime = "image/jpeg" if att_result["mime_type"] in ("image/heic", "image/heif") else att_result["mime_type"]
+                                f.write(f'<img src="data:{output_mime};base64,{compressed_data}" alt="{att_result["filename"]}">')
+                            elif "error" not in att_result:
+                                # Fallback to label if attachment exists but can't be loaded
+                                label = self._attachment_label(msg)
+                                f.write(f" {label}")
+                        else:
+                            # Non-image attachment: show label
+                            label = self._attachment_label(msg)
+                            f.write(f" {label}")
+
+                f.write('</div>\n')
             f.write("</body></html>")
         return {"files": [filepath], "message_count": len(messages)}
