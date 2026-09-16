@@ -166,7 +166,8 @@ class MessageExtractor:
                             fmt: str, output_dir: str,
                             date_from: Optional[str] = None,
                             date_to: Optional[str] = None,
-                            query: Optional[str] = None) -> dict:
+                            query: Optional[str] = None,
+                            display_name: Optional[str] = None) -> dict:
         """Export a conversation to the specified format, with optional date/search filters."""
         if query:
             # Search-filtered export — fetch matching messages directly
@@ -190,11 +191,11 @@ class MessageExtractor:
                 offset += 500
 
         if fmt == "txt":
-            return self._export_txt(all_messages, chat_id, output_dir)
+            return self._export_txt(all_messages, chat_id, output_dir, display_name)
         elif fmt == "csv":
-            return self._export_csv(all_messages, chat_id, output_dir)
+            return self._export_csv(all_messages, chat_id, output_dir, display_name)
         elif fmt == "html":
-            return self._export_html(all_messages, chat_id, output_dir)
+            return self._export_html(all_messages, chat_id, output_dir, display_name)
         else:
             return {"error": f"Unsupported format: {fmt}"}
 
@@ -227,8 +228,44 @@ class MessageExtractor:
             return f"{text} {label}".strip() if text else label
         return msg.get("text") or ""
 
-    def _export_txt(self, messages, chat_id, output_dir):
-        filename = f"conversation_{chat_id}.txt"
+    def _get_filename_for_message_export(self, display_name, messages) -> str:
+        """generate safe unique file name out of display_name and messages date range"""
+
+        from datetime import datetime
+        import re
+
+        if display_name is None:
+            return ""
+
+        filename = ""
+
+        # Sanitize the display_name for safe usage as a filename, replacing spaces and special characters (Unicode safe)
+        sanit_name = str(display_name)
+        sanit_name = re.sub(r'[\s]', '_', sanit_name)
+        sanit_name = re.sub(r'[\W]', '_', sanit_name)
+        sanit_name = sanit_name.strip('_')
+        # some arbitrary length limit
+        sanit_name = sanit_name[:50]
+        if sanit_name:
+            filename = f"{sanit_name}"
+
+        # add from and to date, to get distinct file names for other ranges if exporting more often
+        try:
+            # just in case one date field should not be filled for whatever reason
+            date_format = "%y%m%d%H%M%S-%f"
+            from_date =  datetime.fromisoformat(messages[0]["date"]).astimezone().strftime(date_format)
+            to_date =  datetime.fromisoformat(messages[-1]["date"]).astimezone().strftime(date_format)
+            filename = f"{sanit_name}--{from_date}--{to_date}"
+        except ValueError:
+            pass
+
+        return filename
+
+    def _export_txt(self, messages, chat_id, output_dir, display_name = ""):
+        if not display_name:
+            filename = f"conversation_{chat_id}.txt"
+        else:
+            filename = self._get_filename_for_message_export(display_name, messages) + ".txt"
         filepath = os.path.join(output_dir, filename)
         with open(filepath, "w", encoding="utf-8-sig") as f:
             for msg in messages:
@@ -238,8 +275,11 @@ class MessageExtractor:
                 f.write(f"[{date}] {sender}: {text}\n")
         return {"file": filepath, "message_count": len(messages)}
 
-    def _export_csv(self, messages, chat_id, output_dir):
-        filename = f"conversation_{chat_id}.csv"
+    def _export_csv(self, messages, chat_id, output_dir, display_name = ""):
+        if not display_name:
+            filename = f"conversation_{chat_id}.csv"
+        else:
+            filename = self._get_filename_for_message_export(display_name, messages) + ".csv"
         filepath = os.path.join(output_dir, filename)
         with open(filepath, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
@@ -251,21 +291,28 @@ class MessageExtractor:
                 ])
         return {"file": filepath, "message_count": len(messages)}
 
-    def _export_html(self, messages, chat_id, output_dir):
-        filename = f"conversation_{chat_id}.html"
+    def _export_html(self, messages, chat_id, output_dir, display_name = ""):
+        if not display_name:
+            filename = f"conversation_{chat_id}.html"
+        else:
+            filename = self._get_filename_for_message_export(display_name, messages) + ".html"
         filepath = os.path.join(output_dir, filename)
+        title = f"Conversation Export: {display_name}" if display_name else "Conversation Export"
         with open(filepath, "w", encoding="utf-8") as f:
-            f.write("""<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Conversation Export</title>
+            f.write(f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>{title}</title>
 <style>
-body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
-.msg { margin: 8px 0; padding: 10px 14px; border-radius: 18px; max-width: 75%; clear: both; }
-.sent { background: #007AFF; color: white; float: right; border-bottom-right-radius: 4px; }
-.received { background: #E9E9EB; color: black; float: left; border-bottom-left-radius: 4px; }
-.meta { font-size: 11px; color: #888; clear: both; text-align: center; margin: 12px 0 4px; }
-.sender { font-size: 11px; color: #666; margin-bottom: 2px; }
+body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5; }}
+.msg {{ margin: 8px 0; padding: 10px 14px; border-radius: 18px; max-width: 75%; clear: both; }}
+.sent {{ background: #007AFF; color: white; float: right; border-bottom-right-radius: 4px; }}
+.received {{ background: #E9E9EB; color: black; float: left; border-bottom-left-radius: 4px; }}
+.meta {{ font-size: 11px; color: #888; clear: both; text-align: center; margin: 12px 0 4px; }}
+.sender {{ font-size: 11px; color: #666; margin-bottom: 2px; }}
+.conv-title {{ font-size: 18px; color: #333; margin-bottom: 20px; text-align: center; }}
 </style></head><body>
 """)
+            if display_name:
+                f.write(f'<h1 class="conv-title">{display_name}</h1>\n')
             for msg in messages:
                 css_class = "sent" if msg["is_from_me"] else "received"
                 text = msg["text"] or "[Attachment]"
@@ -302,7 +349,8 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
         for chat_id in chat_ids:
             result = self.export_conversation(
                 backup, chat_id, contacts, fmt, output_dir,
-                date_from=date_from, date_to=date_to, query=query
+                date_from=date_from, date_to=date_to, query=query,
+                display_name=conversation_names.get(chat_id)
             )
             if "error" not in result:
                 files.append(result["file"])

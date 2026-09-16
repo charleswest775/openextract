@@ -278,11 +278,13 @@ class SidecarServer:
         date_from = params.get("date_from")
         date_to = params.get("date_to")
         query = params.get("query")
+        display_name = params.get("display_name")
         backup = self.backup_manager.get_open_backup(udid)
         contacts = self.contact_resolver.load_contacts(backup)
         return self.message_extractor.export_conversation(
             backup, chat_id, contacts, fmt, output_dir,
-            date_from=date_from, date_to=date_to, query=query
+            date_from=date_from, date_to=date_to, query=query,
+            display_name=display_name
         )
 
     def export_conversations(self, params):
