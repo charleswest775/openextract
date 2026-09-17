@@ -124,6 +124,8 @@ class MessageExtractor:
             mime_type = row["mime_type"]
             filename_lower = (row["filename"] or "").lower()
             if mime_type in ("image/heic", "image/heif") or filename_lower.endswith(".heic") or filename_lower.endswith(".heif"):
+
+                # convert HEIC to JPG
                 try:
                     import io
                     import pillow_heif
@@ -227,7 +229,8 @@ class MessageExtractor:
             return f"{text} {label}".strip() if text else label
         return msg.get("text") or ""
 
-    def _reduce_image_size(self, base64_data: str, mime_type: str, filename: str) -> str:
+    @staticmethod
+    def reduce_image_size(base64_data: str, mime_type: str, filename: str) -> str:
         """reduce image quality to save size for export through converting to 75% qualtiy JPEG"""
         try:
             import io
@@ -268,10 +271,12 @@ class MessageExtractor:
             else:
                 print(f"Image size reducing skipped '{filename}': {original_size} -> {reduced_size} bytes (no reduction)")
                 return base64_data
+
         except Exception as e:
-            print(f"Image compression failed: {e}")
+            print(f"Image compression failed '{filename}': {e}")
             # Return original data if compression fails
             return base64_data
+
 
     def _export_txt(self, messages, chat_id, output_dir):
         filename = f"conversation_{chat_id}.txt"
@@ -328,70 +333,116 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
                 if msg.get("text"):
                     f.write(msg["text"])
 
-                # Add image and video attachments
+                # insert image and video attachments
                 if msg.get("has_attachments"):
-                    attachments = msg.get("attachments") or []
-                    for att in attachments:
-                        mime_type = att.get("mime_type") or ""
-                        if mime_type.startswith("image/"):
-                            att_result = self.get_attachment(backup, att["attachment_id"])
-                            if "data" in att_result:
-                                # Compress image to reduce file size (also converts HEIC to JPEG)
-                                compressed_data = self._reduce_image_size(att_result["data"], att_result["mime_type"], att_result["filename"])
-                                output_mime = "image/jpeg" if att_result["mime_type"] in ("image/heic", "image/heif") else att_result["mime_type"]
-                                f.write(f'<img src="data:{output_mime};base64,{compressed_data}" alt="{att_result["filename"]}" title="{att_result["filename"]}">')
-                            elif "error" not in att_result:
-                                # Fallback to label if attachment exists but can't be loaded
-                                label = self._attachment_label(msg)
-                                f.write(f" {label}")
-                        elif mime_type.startswith("video/"):
-                            # Handle video files (MOV, etc.)
-                            att_result = self.get_attachment(backup, att["attachment_id"])
-                            if "data" in att_result:
-                                # Create attachments folder in output directory
-                                attachments_folder = os.path.join(output_dir, f"{os.path.splitext(filename)[0]}_files")
-                                os.makedirs(attachments_folder, exist_ok=True)
-
-                                # Save video to attachments folder
-                                filename = att_result["filename"] # as we come from a file system, should have no problems with filename
-                                video_path = os.path.join(attachments_folder, filename)
-                                with open(video_path, "wb") as vf:
-                                    vf.write(base64.b64decode(att_result["data"]))
-
-                                # Extract 1st frame as poster image
-                                poster_data = None
-                                try:
-                                    import cv2
-                                    cap = cv2.VideoCapture(video_path)
-                                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # 1st frame (0-indexed)
-                                    ret, frame = cap.read()
-                                    if ret:
-                                        # Encode frame to JPEG in memory
-                                        ret, buffer = cv2.imencode('.jpg', frame)
-                                        if ret:
-                                            poster_data = base64.b64encode(buffer).decode('ascii')
-                                    cap.release()
-                                except ImportError:
-                                    pass  # OpenCV not available, skip poster
-                                except Exception as e:
-                                    print(f"Failed to extract video frame: {e}")
-
-                                # Embed with video tag
-                                relative_path = os.path.relpath(video_path, output_dir)
-                                poster_attr = f' poster="data:image/jpeg;base64,{poster_data}"' if poster_data else ''
-                                f.write(f'<video controls src="{relative_path}" type="{mime_type}" title="{att_result["filename"]}"{poster_attr}></video>')
-                                f.write(f'<a href="{relative_path}">Download {att_result["filename"]}</a>')
-                            elif "error" in att_result:
-                                label = self._attachment_label(msg)
-                                f.write(f" {label}")
-                        else:
-                            # Non-image, non-video attachment: show label
-                            label = self._attachment_label(msg)
-                            f.write(f" {label}")
+                    self._embed_attachements(f, backup, msg, output_dir)
 
                 f.write('</div>\n')
             f.write("</body></html>")
         return {"file": filepath, "message_count": len(messages)}
+
+
+    def _embed_attachements(self, file, backup, msg, output_dir:str):
+
+        for att in msg.get("attachments"):
+
+            mime_type = att.get("mime_type") or ""
+
+            if mime_type.startswith("image/"):
+                # embed image as data
+
+                att_result = self.get_attachment(backup, att["attachment_id"])
+
+                if "data" in att_result:
+                    # Compress image to reduce file size (also converts HEIC to JPEG)
+
+                    compressed_data = self.reduce_image_size(att_result["data"], att_result["mime_type"], att_result["filename"])
+                    output_mime = "image/jpeg" if att_result["mime_type"] in ("image/heic", "image/heif") else att_result["mime_type"]
+                    file.write(f'<img src="data:{output_mime};base64,{compressed_data}" alt="{att_result["filename"]}" title="{att_result["filename"]}">')
+
+                elif "error" not in att_result:
+                    # Fallback to label if attachment exists but can't be loaded
+                    label = self._attachment_label(msg)
+                    file.write(f" {label}")
+
+            elif mime_type.startswith("video/"):
+                # save video files externally and embed with poster image
+
+                att_result = self.get_attachment(backup, att["attachment_id"])
+
+                if "data" in att_result:
+
+                    # Create attachments folder in output directory
+                    attachments_folder = os.path.join(output_dir, f"{os.path.splitext(filename)[0]}_files")
+                    os.makedirs(attachments_folder, exist_ok=True)
+
+                    # Save video to attachments folder
+                    filename = att_result["filename"]  # as we come from a file system, should have no problems with filename
+                    video_path = os.path.join(attachments_folder, filename)
+                    with open(video_path, "wb") as video_file:
+                        video_file.write(base64.b64decode(att_result["data"]))
+
+                    # Extract 1st frame as poster image from data and get as b64 encoded jpg
+                    poster_data = self.get_video_frame_as_b64_jpg(att_result["data"])
+
+                    # Embed with video tag
+                    relative_path = os.path.relpath(video_path, output_dir)
+                    poster_attr = f' poster="data:image/jpeg;base64,{poster_data}"' if poster_data else ''
+                    file.write(f'<video controls src="{relative_path}" type="{mime_type}" title="{att_result["filename"]}"{poster_attr}></video>')
+                    file.write(f'<a href="{relative_path}">Download {att_result["filename"]}</a>')
+
+                elif "error" in att_result:
+                    label = self._attachment_label(msg)
+                    file.write(f" {label}")
+            else:
+                # Non-image, non-video attachment: show label
+                label = self._attachment_label(msg)
+                file.write(f" {label}")
+
+    @staticmethod
+    def get_video_frame_as_b64_jpg(data: bytes | str) -> str:
+        """
+        get the 1st frame of the video data as b64 encoded jpg
+
+        Parameters:
+            data (bytes | str): video data as bytes, or b64 encoded video data as string
+            filename (str): filename of the video data, to get proper reader
+
+        Returns:
+            str: b64 encoded jpg of the 1st frame of the video data
+        """
+        import av
+        import io
+
+        # check if data is b64 encoded, and decode if necessary
+        if isinstance(data, str):
+            data = base64.b64decode(data)
+
+        if not isinstance(data, bytes):
+            raise ValueError("data must be bytes or b64 encoded string")
+
+        b64_jpg = None
+
+        video_stream = io.BytesIO(data)
+        try:
+            container = av.open(video_stream, mode='r')
+        except av.error.InvalidDataError:
+            raise Warning("Invalid video data")
+
+        video_stream = container.streams.video[0]
+
+
+        for video_frame in container.decode(video_stream):
+            frame = video_frame
+
+        img = frame.to_image() # Pillow.Image
+        img = img.rotate(frame.rotation) # some files have rotation side data set
+        buff = io.BytesIO()
+        img.save(buff, format='JPEG')
+        b64_jpg = base64.b64encode(buff.getvalue()).decode('ascii')
+
+        return b64_jpg
+
 
     # ── Multi-conversation export ────────────────────────────────────────────
 
@@ -537,61 +588,7 @@ body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 0 auto;
 
                 # Add image and video attachments
                 if msg.get("has_attachments"):
-                    attachments = msg.get("attachments") or []
-                    for att in attachments:
-                        mime_type = att.get("mime_type") or ""
-                        if mime_type.startswith("image/"):
-                            att_result = self.get_attachment(backup, att["attachment_id"])
-                            if "data" in att_result:
-                                # Compress image to reduce file size (converts HEIC to JPEG)
-                                compressed_data = self._reduce_image_size(att_result["data"], att_result["mime_type"], att_result["filename"])
-                                # Use JPEG mime type since we convert everything to JPEG for compression
-                                output_mime = "image/jpeg" if att_result["mime_type"] in ("image/heic", "image/heif") else att_result["mime_type"]
-                                f.write(f'<img src="data:{output_mime};base64,{compressed_data}" alt="{att_result["filename"]}" title="{att_result["filename"]}">')
-                            elif "error" not in att_result:
-                                # Fallback to label if attachment exists but can't be loaded
-                                label = self._attachment_label(msg)
-                                f.write(f" {label}")
-                        elif mime_type.startswith("video/") or mime_type == "video/quicktime":
-                            # Handle video files (MOV, etc.)
-                            att_result = self.get_attachment(backup, att["attachment_id"])
-                            if "data" in att_result:
-                                # Save video to external folder, because embedding could easily get really huge, and converting takes much too long
-                                safe_filename = att_result["filename"].replace("/", "_").replace("\\", "_")
-                                video_path = os.path.join(attachments_folder, safe_filename)
-                                with open(video_path, "wb") as vf:
-                                    vf.write(base64.b64decode(att_result["data"]))
-
-                                # Extract 1st frame as poster image
-                                poster_data = None
-                                try:
-                                    import cv2
-                                    cap = cv2.VideoCapture(video_path)
-                                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # 1st frame (0-indexed)
-                                    ret, frame = cap.read()
-                                    if ret:
-                                        # Encode frame to JPEG in memory
-                                        ret, buffer = cv2.imencode('.jpg', frame)
-                                        if ret:
-                                            poster_data = base64.b64encode(buffer).decode('ascii')
-                                    cap.release()
-                                except ImportError:
-                                    pass  # OpenCV not available, skip poster
-                                except Exception as e:
-                                    print(f"Failed to extract video frame: {e}")
-
-                                # Embed with video tag
-                                relative_path = os.path.relpath(video_path, output_dir)
-                                poster_attr = f' poster="data:image/jpeg;base64,{poster_data}"' if poster_data else ''
-                                f.write(f'<video controls src="{relative_path}" type="{mime_type}" title="{att_result["filename"]}"{poster_attr}></video>')
-                                f.write(f'<a href="{relative_path}">Download {att_result["filename"]}</a>')
-                            elif "error" not in att_result:
-                                label = self._attachment_label(msg)
-                                f.write(f" {label}")
-                        else:
-                            # Non-image, non-video attachment: show label
-                            label = self._attachment_label(msg)
-                            f.write(f" {label}")
+                    self._embed_attachements(f, backup, msg, output_dir)
 
                 f.write('</div>\n')
             f.write("</body></html>")
