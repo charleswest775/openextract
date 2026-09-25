@@ -21,6 +21,7 @@ sidecar imports from this module:
 
 import base64
 import csv
+import html
 import os
 from typing import Optional
 
@@ -244,43 +245,37 @@ class MessageExtractor:
         return msg.get("text") or ""
 
     def _get_filename_for_message_export(self, display_name, messages) -> str:
-        """generate safe unique file name out of display_name and messages date range"""
+        """Build a filesystem-safe base filename from the conversation name and the
+        date range of ``messages`` (which must be sorted oldest-first).
 
+        Returns "" when nothing usable can be built, so callers can fall back to
+        ``conversation_<chat_id>``.
+        """
         from datetime import datetime
         import re
 
-        if display_name is None:
+        if not display_name:
             return ""
 
-        filename = ""
+        # Collapse runs of whitespace/punctuation into a single underscore (Unicode safe).
+        sanit_name = re.sub(r'\W+', '_', str(display_name)).strip('_')[:50]
 
-        # Sanitize the display_name for safe usage as a filename, replacing spaces and special characters (Unicode safe)
-        sanit_name = str(display_name)
-        sanit_name = re.sub(r'[\s]', '_', sanit_name)
-        sanit_name = re.sub(r'[\W]', '_', sanit_name)
-        sanit_name = sanit_name.strip('_')
-        # some arbitrary length limit
-        sanit_name = sanit_name[:50]
-        if sanit_name:
-            filename = f"{sanit_name}"
-
-        # add from and to date, to get distinct file names for other ranges if exporting more often
+        # Add from and to date, to get distinct file names for other ranges if exporting more often.
+        # Empty exports (e.g. a date filter with no matches) or missing dates just skip this.
+        date_part = ""
         try:
-            # just in case one date field should not be filled for whatever reason
             date_format = "%y%m%d%H%M%S-%f"
-            from_date =  datetime.fromisoformat(messages[0]["date"]).astimezone().strftime(date_format)
-            to_date =  datetime.fromisoformat(messages[-1]["date"]).astimezone().strftime(date_format)
-            filename = f"{sanit_name}--{from_date}--{to_date}"
-        except ValueError:
+            from_date = datetime.fromisoformat(messages[0]["date"]).astimezone().strftime(date_format)
+            to_date = datetime.fromisoformat(messages[-1]["date"]).astimezone().strftime(date_format)
+            date_part = f"{from_date}--{to_date}"
+        except (IndexError, KeyError, TypeError, ValueError):
             pass
 
-        return filename
+        return "--".join(p for p in (sanit_name, date_part) if p)
 
     def _export_txt(self, messages, chat_id, output_dir, display_name = ""):
-        if not display_name:
-            filename = f"conversation_{chat_id}.txt"
-        else:
-            filename = self._get_filename_for_message_export(display_name, messages) + ".txt"
+        base = self._get_filename_for_message_export(display_name, messages)
+        filename = f"{base or f'conversation_{chat_id}'}.txt"
         filepath = os.path.join(output_dir, filename)
         with open(filepath, "w", encoding="utf-8-sig") as f:
             for msg in messages:
@@ -291,10 +286,8 @@ class MessageExtractor:
         return {"file": filepath, "message_count": len(messages)}
 
     def _export_csv(self, messages, chat_id, output_dir, display_name = ""):
-        if not display_name:
-            filename = f"conversation_{chat_id}.csv"
-        else:
-            filename = self._get_filename_for_message_export(display_name, messages) + ".csv"
+        base = self._get_filename_for_message_export(display_name, messages)
+        filename = f"{base or f'conversation_{chat_id}'}.csv"
         filepath = os.path.join(output_dir, filename)
         with open(filepath, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
@@ -307,12 +300,11 @@ class MessageExtractor:
         return {"file": filepath, "message_count": len(messages)}
 
     def _export_html(self, messages, chat_id, output_dir, display_name = ""):
-        if not display_name:
-            filename = f"conversation_{chat_id}.html"
-        else:
-            filename = self._get_filename_for_message_export(display_name, messages) + ".html"
+        base = self._get_filename_for_message_export(display_name, messages)
+        filename = f"{base or f'conversation_{chat_id}'}.html"
         filepath = os.path.join(output_dir, filename)
-        title = f"Conversation Export: {display_name}" if display_name else "Conversation Export"
+        safe_name = html.escape(display_name) if display_name else ""
+        title = f"Conversation Export: {safe_name}" if safe_name else "Conversation Export"
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>{title}</title>
@@ -326,8 +318,8 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
 .conv-title {{ font-size: 18px; color: #333; margin-bottom: 20px; text-align: center; }}
 </style></head><body>
 """)
-            if display_name:
-                f.write(f'<h1 class="conv-title">{display_name}</h1>\n')
+            if safe_name:
+                f.write(f'<h1 class="conv-title">{safe_name}</h1>\n')
             for msg in messages:
                 css_class = "sent" if msg["is_from_me"] else "received"
                 text = msg["text"] or "[Attachment]"
