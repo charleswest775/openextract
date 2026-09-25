@@ -144,6 +144,7 @@ export default function MessageExplorer({ udid }: Props) {
     try {
       await sidecarCall('export_conversation', {
         udid, chat_id: activeChat, format, output_dir: outputDir,
+        display_name: activeConvo?.display_name,
       });
       window.openextract.incrementExportCount();
     } finally {
