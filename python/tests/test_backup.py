@@ -48,6 +48,7 @@ def _make_pymobiledevice3_stub():
     # Exception classes used in device_backup.py
     pkg.exceptions.ConnectionFailedToUsbmuxdError = type("ConnectionFailedToUsbmuxdError", (Exception,), {})
     pkg.exceptions.ConnectionTerminatedError = type("ConnectionTerminatedError", (Exception,), {})
+    pkg.exceptions.PasswordRequiredError = type("PasswordRequiredError", (Exception,), {})
 
     return pkg
 
@@ -381,6 +382,56 @@ class TestStartBackup(unittest.TestCase):
                     password=None,
                     notify=self.notify,
                 )
+
+    def _run_backup_with(self, mb2):
+        lockdown = _make_lockdown_mock()
+        with (
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
+            patch("pymobiledevice3.services.mobilebackup2.Mobilebackup2Service", return_value=mb2),
+            patch("device_backup.time.sleep") as sleep,
+        ):
+            result = self.manager.start_backup(
+                udid="abc-123",
+                output_dir="/tmp/test_backup",
+                encrypted=False,
+                password=None,
+                notify=self.notify,
+            )
+        return result, sleep
+
+    def test_backup_lock_error_retried_once(self):
+        """macOS error 208 (backup lock held by a daemon) is retried once."""
+        mb2 = self._make_mb2_mock()
+        mb2.backup.side_effect = [
+            Exception("Device link error: {'ErrorCode': 208, 'ErrorDescription': 'locked'}"),
+            None,
+        ]
+        result, sleep = self._run_backup_with(mb2)
+        self.assertTrue(result["success"])
+        self.assertEqual(mb2.backup.await_count, 2)
+        sleep.assert_called_once()
+
+    def test_backup_lock_error_not_retried_twice(self):
+        mb2 = self._make_mb2_mock()
+        lock_err = Exception("Device link error: {'ErrorCode': 208}")
+        mb2.backup.side_effect = [lock_err, lock_err]
+        with self.assertRaises(Exception):
+            self._run_backup_with(mb2)
+        self.assertEqual(mb2.backup.await_count, 2)
+
+    def test_unrelated_error_mentioning_208_not_retried(self):
+        mb2 = self._make_mb2_mock()
+        mb2.backup.side_effect = RuntimeError("copied 208 files then disconnected")
+        with self.assertRaises(RuntimeError):
+            self._run_backup_with(mb2)
+        self.assertEqual(mb2.backup.await_count, 1)
+
+    def test_locked_device_raises_passcode_required(self):
+        mb2 = self._make_mb2_mock()
+        mb2.__aenter__.side_effect = _stub.exceptions.PasswordRequiredError("device is locked")
+        with self.assertRaises(RuntimeError) as ctx:
+            self._run_backup_with(mb2)
+        self.assertTrue(str(ctx.exception).startswith("PASSCODE_REQUIRED:"))
 
     def test_output_dir_created(self):
         """start_backup should create output_dir if it does not exist."""

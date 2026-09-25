@@ -6,6 +6,7 @@ Uses pymobiledevice3 for device communication and MobileBackup2 protocol.
 
 import asyncio
 import os
+import re
 import sys
 import tempfile
 import time
@@ -21,6 +22,17 @@ def _dev_log(msg: str) -> None:
             f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
     except Exception:
         pass
+
+
+# macOS daemons (AMPDevicesAgent, SecureBackupDaemon) can briefly hold the
+# device's backup lock right after the user enters their passcode, which
+# surfaces from pymobiledevice3's device-link loop as ErrorCode 208.
+_BACKUP_LOCK_ERROR_RE = re.compile(r"Device link error:.*'ErrorCode': 208\b")
+_BACKUP_LOCK_RETRY_DELAY_S = 3
+
+
+def _is_backup_lock_error(exc: Exception) -> bool:
+    return bool(_BACKUP_LOCK_ERROR_RE.search(str(exc)))
 
 
 class DeviceBackupManager:
@@ -158,7 +170,7 @@ class DeviceBackupManager:
         try:
             from pymobiledevice3.lockdown import create_using_usbmux
             from pymobiledevice3.services.mobilebackup2 import Mobilebackup2Service
-            from pymobiledevice3.exceptions import ConnectionTerminatedError
+            from pymobiledevice3.exceptions import ConnectionTerminatedError, PasswordRequiredError
         except ImportError:
             raise RuntimeError(
                 "pymobiledevice3 is not installed. Run: pip install pymobiledevice3"
@@ -251,8 +263,25 @@ class DeviceBackupManager:
 
             _tracked_notify("finalizing", 100, files_done, files_total)
 
+        def _run_with_lock_retry():
+            try:
+                asyncio.run(_run_backup())
+            except Exception as e:
+                if not _is_backup_lock_error(e):
+                    raise
+                _dev_log(f"backup lock held by another process (error 208), retrying in "
+                         f"{_BACKUP_LOCK_RETRY_DELAY_S}s: {e}")
+                time.sleep(_BACKUP_LOCK_RETRY_DELAY_S)
+                asyncio.run(_run_backup())
+
         try:
-            asyncio.run(_run_backup())
+            _run_with_lock_retry()
+        except PasswordRequiredError as e:
+            # Raised by lockdown StartService when the device is locked.
+            raise RuntimeError(
+                "PASSCODE_REQUIRED: Your iPhone is locked. Unlock it with your "
+                "passcode, keep it unlocked while the backup starts, then click Retry."
+            ) from e
         except ConnectionTerminatedError as e:
             # iOS often closes the backup channel immediately after all data has been
             # transferred — this is normal end-of-backup behaviour and does NOT mean
@@ -350,7 +379,7 @@ class DeviceBackupManager:
         the connection while waiting for the user to enter their passcode.
         """
         from pymobiledevice3.services.mobilebackup2 import Mobilebackup2Service
-        from pymobiledevice3.exceptions import ConnectionTerminatedError
+        from pymobiledevice3.exceptions import ConnectionTerminatedError, PasswordRequiredError
 
         # Check whether backup encryption is already configured on the device.
         # If it is, the backup will use the stored password and no password
@@ -370,9 +399,10 @@ class DeviceBackupManager:
                     new=password,
                 )
             print("[encryption] change_password succeeded", file=sys.stderr, flush=True)
-        except ConnectionTerminatedError:
+        except (ConnectionTerminatedError, PasswordRequiredError):
             # iOS terminated the connection while waiting for the user to enter
-            # their passcode on the device to authorise enabling encryption.
+            # their passcode on the device to authorise enabling encryption,
+            # or refused to start the backup service because the device is locked.
             raise RuntimeError(
                 "PASSCODE_REQUIRED: Your iPhone is prompting for your passcode "
                 "to allow the backup. Check your iPhone screen, enter your "
