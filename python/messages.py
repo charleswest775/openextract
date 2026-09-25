@@ -162,6 +162,19 @@ class MessageExtractor:
 
     # ── openextract-only: conversation export to disk ────────────────────────
 
+    @staticmethod
+    def _sort_messages_chronologically(messages: list) -> list:
+        """Oldest-first order for exports.
+
+        ``get_messages`` returns pages of the *newest* remaining rows (each page
+        is chronological within itself). Concatenating those pages without a
+        final sort puts newer days before older ones — see GitHub issue #82.
+        """
+        return sorted(
+            messages,
+            key=lambda m: (m.get("date") or "", m.get("message_id") or 0),
+        )
+
     def export_conversation(self, backup, chat_id: int, contacts: dict,
                             fmt: str, output_dir: str,
                             date_from: Optional[str] = None,
@@ -188,6 +201,8 @@ class MessageExtractor:
                 if offset + 500 >= batch["total"]:
                     break
                 offset += 500
+
+        all_messages = self._sort_messages_chronologically(all_messages)
 
         if fmt == "txt":
             return self._export_txt(all_messages, chat_id, output_dir)
@@ -317,7 +332,7 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
                 backup, query, contacts, chat_id,
                 date_from=date_from, date_to=date_to, limit=100000
             )
-            return result["results"]
+            all_messages = result["results"]
         else:
             all_messages = []
             offset = 0
@@ -330,7 +345,7 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
                 if offset + 500 >= batch["total"]:
                     break
                 offset += 500
-            return all_messages
+        return self._sort_messages_chronologically(all_messages)
 
     def _export_merged(self, backup, chat_ids, conversation_names, contacts,
                        fmt, output_dir, date_from=None, date_to=None, query=None):
