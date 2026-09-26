@@ -203,6 +203,13 @@ app.whenReady().then(async () => {
     shell.openExternal(url);
   });
 
+  // Used after the user grants macOS Full Disk Access, which only takes effect
+  // for newly launched processes (#84).
+  ipcMain.handle('app:relaunch', () => {
+    app.relaunch();
+    app.exit(0);
+  });
+
   ipcMain.handle('shell:openPath', (_event: any, filePath: string) => {
     return shell.openPath(filePath);
   });

@@ -16,6 +16,9 @@ contextBridge.exposeInMainWorld('openextract', {
   // Open URL in system browser
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
 
+  // Quit and reopen the app (e.g. after granting macOS Full Disk Access)
+  relaunch: () => ipcRenderer.invoke('app:relaunch'),
+
   // Open a local file in the system default app (e.g. video player)
   openPath: (filePath: string) => ipcRenderer.invoke('shell:openPath', filePath),
 

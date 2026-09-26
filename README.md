@@ -47,6 +47,12 @@ This will launch Vite (React dev server) and Electron together. The app will aut
 - **macOS:** `~/Library/Application Support/MobileSync/Backup/`
 - **Windows:** `%APPDATA%\Apple Computer\MobileSync\Backup\`
 
+> **macOS:** the MobileSync folder is protected by macOS privacy controls, so OpenExtract
+> needs **Full Disk Access** to read it (System Settings → Privacy & Security → Full Disk
+> Access → turn on OpenExtract, then quit and reopen it). The app will prompt you with a
+> shortcut to that setting if access is missing. When running from source with `npm run dev`,
+> grant Full Disk Access to your terminal app instead.
+
 ### Creating a Backup
 
 If you don't have a backup yet:

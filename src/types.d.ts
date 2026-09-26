@@ -12,6 +12,7 @@ declare global {
       writeFile: (filePath: string, content: string) => Promise<void>;
       openExternal: (url: string) => void;
       openPath: (filePath: string) => Promise<string>;
+      relaunch: () => Promise<void>;
       /** Subscribe to JSON-RPC notifications from the Python sidecar (e.g. backup.progress). Returns a cleanup function. */
       onNotification: (callback: (notification: { method: string; params: Record<string, any> }) => void) => () => void;
       /** App state persistence */

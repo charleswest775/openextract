@@ -155,10 +155,41 @@ class BackupManager:
 
         return [d for d in dirs if os.path.isdir(d)]
 
+    @staticmethod
+    def _permission_error(path: str) -> RuntimeError:
+        """User-facing error for a folder the OS won't let us read."""
+        if sys.platform == "darwin":
+            # ~/Library/Application Support/MobileSync is protected by macOS
+            # privacy controls (TCC); reading it needs Full Disk Access (#84).
+            return RuntimeError(
+                "FULL_DISK_ACCESS_REQUIRED: macOS is blocking OpenExtract from reading "
+                f"{path}. Open System Settings → Privacy & Security → Full Disk Access, "
+                "turn on OpenExtract, then quit and reopen OpenExtract."
+            )
+        return RuntimeError(
+            f"OpenExtract doesn't have permission to read {path}. "
+            "Check the folder's permissions and try again."
+        )
+
+    def _ensure_readable(self, path: str) -> None:
+        """Raise a clear error if *path* exists but can't be listed.
+
+        Without this, a blocked folder looks exactly like one with no backup in it,
+        because os.path.exists() returns False on permission errors.
+        """
+        try:
+            with os.scandir(path):
+                pass
+        except PermissionError:
+            raise self._permission_error(path) from None
+
     def list_backups(self, custom_path: Optional[str] = None) -> dict:
         """Discover all iPhone backups on the system."""
+        if custom_path and os.path.isdir(custom_path):
+            self._ensure_readable(custom_path)
         backups = []
         search_dirs = []
+        permission_denied = []
 
         if custom_path and os.path.isdir(custom_path):
             # Check if this IS a backup folder (has Manifest.db)
@@ -180,9 +211,10 @@ class BackupManager:
                     if info:
                         backups.append(info)
             except PermissionError:
-                continue
+                permission_denied.append(search_dir)
 
-        return {"backups": backups, "search_dirs": search_dirs}
+        return {"backups": backups, "search_dirs": search_dirs,
+                "permission_denied": permission_denied}
 
     def _read_backup_info(self, backup_dir: str) -> Optional[dict]:
         """Read metadata from a backup directory."""
@@ -273,6 +305,7 @@ class BackupManager:
         # UDID mismatch because pymobiledevice3 may format UDIDs differently
         # from what iTunes writes into Info.plist.
         if backup_dir and os.path.isdir(backup_dir):
+            self._ensure_readable(backup_dir)
             _tlog("open_backup fast-path: dir exists, reading backup info")
             backup_info = self._read_backup_info(backup_dir)
             _tlog(f"open_backup fast-path: _read_backup_info returned {'OK' if backup_info else 'None'}")
@@ -306,10 +339,12 @@ class BackupManager:
             _tlog(f"open_backup: backup_dir supplied but is not a directory: {backup_dir!r}")
 
         # Slow path: scan all default locations
+        blocked = []
         if not backup_info:
             _tlog(f"open_backup slow-path: scanning default backup locations for udid={udid!r}")
             all_backups = self.list_backups()
             _tlog(f"open_backup slow-path: found {len(all_backups['backups'])} backup(s) in default dirs")
+            blocked = all_backups["permission_denied"]
             for b in all_backups["backups"]:
                 if self._norm_udid(b["udid"]) == norm_udid:
                     backup_info = b
@@ -318,6 +353,9 @@ class BackupManager:
 
         if not backup_info:
             _tlog(f"open_backup FAILED: backup not found for udid={udid!r} backup_dir={backup_dir!r}")
+            if blocked:
+                # Most likely it's in a folder we weren't allowed to read.
+                raise self._permission_error(blocked[0])
             raise ValueError(f"Backup not found: {udid}")
 
         # Ensure udid is always present — _read_backup_info falls back to the
@@ -386,6 +424,7 @@ class BackupManager:
         """
         # Resolve the backup directory (same logic as open_backup fast-path)
         if backup_dir and os.path.isdir(backup_dir):
+            self._ensure_readable(backup_dir)
             info = self._read_backup_info(backup_dir)
             if not info:
                 for entry in os.scandir(backup_dir):
