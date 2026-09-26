@@ -54,3 +54,6 @@ temp_stdout.txt
 # Playwright E2E test output
 test-results/
 playwright-report/
+
+# Type declarations emitted by the composite electron tsconfig
+dist-electron/*.d.ts
