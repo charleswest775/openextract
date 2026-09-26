@@ -161,11 +161,12 @@ class BackupManager:
         search_dirs = []
 
         if custom_path and os.path.isdir(custom_path):
-            # Check if this IS a backup folder (has Manifest.db)
-            if os.path.exists(os.path.join(custom_path, "Manifest.db")):
-                search_dirs = [os.path.dirname(custom_path)]
-            else:
-                search_dirs = [custom_path]
+            # If the user picked a backup folder itself, return only that backup —
+            # not its siblings, or the caller may open a different device (#81).
+            info = self._read_backup_info(custom_path)
+            if info:
+                return {"backups": [info], "search_dirs": [custom_path]}
+            search_dirs = [custom_path]
         else:
             search_dirs = self._get_default_backup_dirs()
 
@@ -256,6 +257,25 @@ class BackupManager:
         """Normalise a UDID for comparison: strip dashes, lowercase."""
         return udid.replace("-", "").lower()
 
+    def _find_backup_in_subdirs(self, parent_dir: str, udid: str) -> Optional[dict]:
+        """Find the backup for *udid* one level below *parent_dir*.
+
+        Prefers the subfolder whose Info.plist UDID (or folder name) matches;
+        falls back to the first backup found only when none match.
+        """
+        norm = self._norm_udid(udid or "")
+        first = None
+        for entry in sorted(os.scandir(parent_dir), key=lambda e: e.name):
+            if not entry.is_dir():
+                continue
+            info = self._read_backup_info(entry.path)
+            if not info:
+                continue
+            if norm and norm in (self._norm_udid(info.get("udid") or ""), self._norm_udid(entry.name)):
+                return info
+            first = first or info
+        return first
+
     def open_backup(self, udid: str, password: Optional[str] = None,
                     backup_dir: Optional[str] = None) -> dict:
         """
@@ -281,14 +301,9 @@ class BackupManager:
                 # Safety net: scan one level deep in case the caller pointed
                 # at the parent directory rather than the backup itself.
                 try:
-                    subdirs = [e.name for e in os.scandir(backup_dir) if e.is_dir()]
-                    _tlog(f"open_backup fast-path fallback scan: subdirs={subdirs!r}")
-                    for entry in os.scandir(backup_dir):
-                        if entry.is_dir():
-                            backup_info = self._read_backup_info(entry.path)
-                            if backup_info:
-                                _tlog(f"open_backup fast-path fallback: found in subdir {entry.name!r}")
-                                break
+                    backup_info = self._find_backup_in_subdirs(backup_dir, udid)
+                    if backup_info:
+                        _tlog(f"open_backup fast-path fallback: found in subdir {backup_info['backup_dir']!r}")
                 except Exception as exc:
                     _tlog(f"open_backup fast-path fallback scan error: {exc}")
 
@@ -388,12 +403,9 @@ class BackupManager:
         if backup_dir and os.path.isdir(backup_dir):
             info = self._read_backup_info(backup_dir)
             if not info:
-                for entry in os.scandir(backup_dir):
-                    if entry.is_dir():
-                        info = self._read_backup_info(entry.path)
-                        if info:
-                            backup_dir = entry.path
-                            break
+                info = self._find_backup_in_subdirs(backup_dir, udid)
+                if info:
+                    backup_dir = info["backup_dir"]
         else:
             info = None
             for b in self.list_backups()["backups"]:
