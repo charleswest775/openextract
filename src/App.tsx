@@ -6,6 +6,7 @@ import BackupFlow from './components/backup/BackupFlow';
 import PasswordDialog from './components/shared/PasswordDialog';
 import BackupChooserDialog from './components/shared/BackupChooserDialog';
 import type { RecentSession } from './lib/appState';
+import FullDiskAccessDialog, { FULL_DISK_ACCESS_PREFIX } from './components/shared/FullDiskAccessDialog';
 
 type Screen = 'home' | 'explore' | 'create-backup';
 
@@ -83,6 +84,9 @@ export default function App() {
         setScreen('explore');
         setPendingOpen(null);
         setPasswordError(null);
+      } else if (result.status.startsWith(`error:${FULL_DISK_ACCESS_PREFIX}`)) {
+        setPendingOpen(null);
+        setOpenError(result.status.slice(6));
       } else if (result.status.startsWith('error:')) {
         setPasswordError(result.status.slice(6));
       }
@@ -146,7 +150,11 @@ export default function App() {
         />
       )}
 
-      {openError && screen === 'home' && (
+      {openError?.startsWith(FULL_DISK_ACCESS_PREFIX) && (
+        <FullDiskAccessDialog message={openError} onClose={() => setOpenError(null)} />
+      )}
+
+      {openError && screen === 'home' && !openError.startsWith(FULL_DISK_ACCESS_PREFIX) && (
         <div
           role="alert"
           className="fixed left-1/2 -translate-x-1/2 bottom-6 z-40 max-w-md w-[90%] px-4 py-3 rounded-xl flex items-start gap-3 text-sm"

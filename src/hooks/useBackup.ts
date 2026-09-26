@@ -42,7 +42,9 @@ export function useBackup() {
       return result.backups;
     } catch (e: any) {
       setError(e.message);
-      return [];
+      // Rethrow so callers can tell "no backups here" apart from "couldn't read
+      // this folder" (e.g. macOS Full Disk Access, #84).
+      throw e;
     } finally {
       setLoading(false);
     }
