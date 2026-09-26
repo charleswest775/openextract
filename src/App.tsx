@@ -4,6 +4,7 @@ import HomeScreen from './components/HomeScreen';
 import ExploreLayout from './components/explore/ExploreLayout';
 import BackupFlow from './components/backup/BackupFlow';
 import PasswordDialog from './components/shared/PasswordDialog';
+import BackupChooserDialog from './components/shared/BackupChooserDialog';
 import type { RecentSession } from './lib/appState';
 
 type Screen = 'home' | 'explore' | 'create-backup';
@@ -37,6 +38,7 @@ export default function App() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
+  const [browseChoices, setBrowseChoices] = useState<{ folder: string; backups: BackupInfo[] } | null>(null);
 
   const openAndNavigate = useCallback(async (
     udid: string,
@@ -107,6 +109,12 @@ export default function App() {
                 setOpenError(`No iPhone backups found in ${path}. Pick the parent folder that contains a UDID-named subfolder (e.g. MobileSync/Backup).`);
                 return;
               }
+              if (found.length > 1) {
+                // Several backups in the picked folder — let the user choose
+                // rather than silently opening whichever one is listed first (#81).
+                setBrowseChoices({ folder: path, backups: found });
+                return;
+              }
               const b = found[0];
               await openAndNavigate(b.udid, undefined, b.backup_dir, undefined, b);
             } catch (e: any) {
@@ -163,6 +171,18 @@ export default function App() {
             aria-label="Dismiss"
           >×</button>
         </div>
+      )}
+
+      {browseChoices && (
+        <BackupChooserDialog
+          folder={browseChoices.folder}
+          backups={browseChoices.backups}
+          onChoose={async (b) => {
+            setBrowseChoices(null);
+            await openAndNavigate(b.udid, undefined, b.backup_dir, undefined, b);
+          }}
+          onCancel={() => setBrowseChoices(null)}
+        />
       )}
 
       {pendingOpen && (
