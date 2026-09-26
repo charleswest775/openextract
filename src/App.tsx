@@ -4,8 +4,8 @@ import HomeScreen from './components/HomeScreen';
 import ExploreLayout from './components/explore/ExploreLayout';
 import BackupFlow from './components/backup/BackupFlow';
 import PasswordDialog from './components/shared/PasswordDialog';
-import FullDiskAccessDialog, { FULL_DISK_ACCESS_PREFIX } from './components/shared/FullDiskAccessDialog';
 import type { RecentSession } from './lib/appState';
+import FullDiskAccessDialog, { FULL_DISK_ACCESS_PREFIX } from './components/shared/FullDiskAccessDialog';
 
 type Screen = 'home' | 'explore' | 'create-backup';
 
