@@ -67,3 +67,47 @@ export const test = base.extend<Options & Fixtures>({
 
 export { expect } from '@playwright/test';
 export { FIXTURE_BACKUP_PATH, ENCRYPTED_FIXTURE_BACKUP_PATH };
+
+// Values the populated fixture is built to produce (see build_fixture.py EXPECTED).
+export type Expected = {
+  udid: string;
+  device_name: string;
+  contacts: string[];
+  conversations: Record<string, number>;
+  total_messages: number;
+  search: { query: string; text: string };
+  attachment: { conversation: string; transfer_name: string; bytes: number };
+  total_calls: number;
+  facetime_calls: number;
+  notes: string[];
+  note_body_fragment: string;
+  photos: string[];
+  trashed_photo: string;
+  album: { title: string; count: number };
+  voicemails: Record<string, string>;
+  browser_titles: string[];
+  browser_visits: number;
+  recently_deleted: string;
+  orphaned: string;
+};
+
+export function loadExpected(): Expected {
+  return JSON.parse(fs.readFileSync(path.join(FIXTURE_BACKUP_PATH, 'expected.json'), 'utf-8'));
+}
+
+// Home → "Explore my data" → dashboard for the populated fixture.
+export async function openFixtureBackup(page: Page, deviceName = 'E2E Test iPhone') {
+  await page.getByRole('button', { name: /Explore my data/i }).click();
+  await page.getByRole('heading', { level: 1, name: deviceName }).waitFor({ timeout: 20_000 });
+}
+
+// Call the sidecar through the real preload → main → Python bridge and
+// unwrap the { success, data, error } envelope.
+export async function rpc<T = any>(page: Page, method: string, params: Record<string, unknown> = {}): Promise<T> {
+  const res = await page.evaluate(
+    ([m, p]) => (window as any).openextract.call(m, p),
+    [method, params] as const,
+  );
+  if (!res?.success) throw new Error(`${method} failed: ${res?.error}`);
+  return res.data as T;
+}

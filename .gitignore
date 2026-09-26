@@ -57,3 +57,7 @@ playwright-report/
 
 # Type declarations emitted by the composite electron tsconfig
 dist-electron/*.d.ts
+
+# Synthetic backups are generated at test time by tests/fixtures/build_fixture.py
+tests/fixtures/synthetic_backup/
+tests/fixtures/synthetic_backup_encrypted/
