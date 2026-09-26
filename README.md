@@ -25,9 +25,22 @@ A free, open-source desktop application for extracting text messages, photos, vo
 
 ### Setup
 
+OpenExtract's parsing engine lives in a separate library,
+[ios-backup-core](https://github.com/charleswest775/ios-backup-core), which
+`python/requirements.txt` installs from a **sibling folder**. Clone both repos
+side by side, or `pip install` will fail and the app will report
+`ModuleNotFoundError: No module named 'ios_backup_core'`:
+
+```
+your-dev-folder/
+├── openextract/
+└── ios-backup-core/
+```
+
 ```bash
-# Clone the repo
-git clone https://github.com/yourusername/openextract.git
+# Clone both repos side by side
+git clone https://github.com/charleswest775/ios-backup-core.git
+git clone https://github.com/charleswest775/openextract.git
 cd openextract
 
 # Install Node dependencies
