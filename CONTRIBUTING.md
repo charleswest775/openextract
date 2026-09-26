@@ -6,7 +6,12 @@ for contributing to OpenExtract.
 ## Getting Started
 
 1. Fork the repository
-2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/openextract.git`
+2. Clone your fork **and** [ios-backup-core](https://github.com/charleswest775/ios-backup-core) side by side
+   (`python/requirements.txt` installs it from `../ios-backup-core`):
+   ```bash
+   git clone https://github.com/charleswest775/ios-backup-core.git
+   git clone https://github.com/YOUR_USERNAME/openextract.git
+   ```
 3. Create a branch: `git checkout -b feature/your-feature-name`
 4. Set up your dev environment (see README.md)
 5. Make your changes
