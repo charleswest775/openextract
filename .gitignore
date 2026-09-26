@@ -49,4 +49,5 @@ temp_stderr.txt
 temp_stdout.txt
 
 # Claude worktrees
-.claude/
+.claude/*
+!.claude/skills/
