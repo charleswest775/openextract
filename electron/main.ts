@@ -199,8 +199,24 @@ app.whenReady().then(async () => {
     return result.canceled ? null : result.filePaths[0];
   });
 
+  // URLs reach here from untrusted backup content (e.g. links in iMessage text),
+  // so only open web/mail links plus the one System Settings pane we link to.
+  const EXTERNAL_PROTOCOLS = new Set(['https:', 'http:', 'mailto:']);
+  const FULL_DISK_ACCESS_URL = 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles';
+
   ipcMain.handle('shell:openExternal', (_event: any, url: string) => {
-    shell.openExternal(url);
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      console.warn('[shell:openExternal] rejected unparseable URL:', url);
+      return;
+    }
+    if (!EXTERNAL_PROTOCOLS.has(parsed.protocol) && parsed.href !== FULL_DISK_ACCESS_URL) {
+      console.warn('[shell:openExternal] rejected URL with disallowed scheme:', url);
+      return;
+    }
+    shell.openExternal(parsed.href);
   });
 
   ipcMain.handle('shell:openPath', (_event: any, filePath: string) => {
