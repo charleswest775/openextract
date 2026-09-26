@@ -9,6 +9,7 @@ let mainWindow: any = null;
 let sidecar: any = null;
 
 const isDev = !app.isPackaged;
+const isTestMode = process.env.OPENEXTRACT_TEST_MODE === '1';
 
 app.setName('OpenExtract');
 
@@ -93,7 +94,7 @@ function createWindow() {
 
   mainWindow.on('page-title-updated', (e: any) => e.preventDefault());
 
-  if (isDev) {
+  if (isDev && !isTestMode) {
     mainWindow.loadURL('http://127.0.0.1:5179');
     mainWindow.webContents.openDevTools();
   } else {
@@ -117,6 +118,13 @@ function findVenvPython(): string {
 }
 
 function getPythonPath(): string {
+  // In test mode with OPENEXTRACT_PYTHON_FROM_SOURCE=1, spawn Python on
+  // python/main.py directly instead of the PyInstaller binary. Preference:
+  // explicit override → project venv → system python3. findVenvPython
+  // already falls back to the system interpreter when no .venv exists.
+  if (isTestMode && process.env.OPENEXTRACT_PYTHON_FROM_SOURCE === '1') {
+    return process.env.OPENEXTRACT_TEST_PYTHON || findVenvPython();
+  }
   if (isDev) {
     return findVenvPython();
   }
@@ -126,6 +134,9 @@ function getPythonPath(): string {
 }
 
 function getPythonArgs(): string[] {
+  if (isTestMode && process.env.OPENEXTRACT_PYTHON_FROM_SOURCE === '1') {
+    return [path.join(__dirname, '..', 'python', 'main.py')];
+  }
   if (isDev) {
     return [path.join(__dirname, '..', 'python', 'main.py'), '--debug'];
   }
@@ -191,7 +202,10 @@ app.whenReady().then(async () => {
   });
 
   // ── Native dialogs ──────────────────────────────────────────────────────
+  // In test mode the handlers return env-var paths instead of popping a
+  // native picker Playwright can't interact with.
   ipcMain.handle('dialog:selectFolder', async () => {
+    if (isTestMode) return process.env.OPENEXTRACT_TEST_OPEN_PATH || null;
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openDirectory'],
       title: 'Select iPhone Backup Folder',
@@ -208,6 +222,7 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle('dialog:saveFolder', async () => {
+    if (isTestMode) return process.env.OPENEXTRACT_TEST_SAVE_PATH || null;
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openDirectory', 'createDirectory'],
       title: 'Choose Export Location',
@@ -216,6 +231,7 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle('dialog:saveFile', async (_event: any, options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => {
+    if (isTestMode) return process.env.OPENEXTRACT_TEST_SAVE_PATH || null;
     const result = await dialog.showSaveDialog(mainWindow, {
       title: options.title || 'Save File',
       defaultPath: options.defaultPath,
