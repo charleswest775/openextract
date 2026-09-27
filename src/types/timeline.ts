@@ -1,4 +1,4 @@
-export type TimelineEntryType = 'message' | 'call' | 'photo' | 'voicemail' | 'note' | 'browser';
+export type TimelineEntryType = 'message' | 'call' | 'photo' | 'voicemail' | 'note' | 'browser' | 'voice_memo' | 'calendar';
 
 export interface TimelineEntry {
   id: string;                         // "{type}:{original_id}"
@@ -41,6 +41,24 @@ export interface TimelineEntry {
     body: string;
     modified: string;
   };
+  voiceMemo?: {
+    memoId: number;
+    title: string;
+    duration: number;
+    folder: string | null;
+    deleted: boolean;
+    hasAudio: boolean;
+  };
+  calendar?: {
+    eventId: number;
+    title: string;
+    allDay: boolean;
+    when: string;                     // formatted, e.g. "3:00 PM – 4:00 PM" or "All day"
+    location: string | null;
+    calendarName: string | null;
+    color: string | null;
+    recurring: boolean;
+  };
   browser?: {
     url: string;
     title: string;
@@ -63,7 +81,7 @@ export interface ContactOption {
 }
 
 export const DEFAULT_FILTERS: TimelineFilters = {
-  types: new Set(['message', 'call', 'photo', 'voicemail', 'note', 'browser']),
+  types: new Set(['message', 'call', 'photo', 'voicemail', 'note', 'browser', 'voice_memo', 'calendar']),
   contactIdentifier: '',
   dateFrom: '',
   dateTo: '',

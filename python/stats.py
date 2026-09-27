@@ -102,6 +102,20 @@ class StatsComputer:
             vm_stats = {"total": 0, "total_duration_seconds": 0, "read": 0, "unread": 0}
             errors.append(f"voicemails: {e}")
 
+        # Voice Memos
+        try:
+            voice_memo_count = self._voice_memo_count(backup)
+        except Exception as e:
+            voice_memo_count = 0
+            errors.append(f"voice memos: {e}")
+
+        # Calendar
+        try:
+            calendar_event_count = self._calendar_event_count(backup)
+        except Exception as e:
+            calendar_event_count = 0
+            errors.append(f"calendar: {e}")
+
         overview["total_messages"] = msg_stats.get("total", 0)
         overview["total_conversations"] = msg_stats.get("total_conversations", 0)
         overview["total_photos"] = photo_stats.get("total_photos", 0)
@@ -110,6 +124,8 @@ class StatsComputer:
         overview["total_calls"] = call_stats.get("total", 0)
         overview["total_notes"] = note_stats.get("total", 0)
         overview["total_voicemails"] = vm_stats.get("total", 0)
+        overview["total_voice_memos"] = voice_memo_count
+        overview["total_calendar_events"] = calendar_event_count
 
         # Remove internal keys from sub-dicts
         msg_stats.pop("total", None)
@@ -488,3 +504,15 @@ class StatsComputer:
             }
         finally:
             conn.close()
+
+    # ── Voice Memos & Calendar ────────────────────────────────────────────────
+
+    def _voice_memo_count(self, backup) -> int:
+        """Recordings outside Recently Deleted — the count the phone shows."""
+        from voice_memos import VoiceMemoExtractor
+        memos = VoiceMemoExtractor().list_voice_memos(backup).get("voice_memos", [])
+        return sum(1 for m in memos if not m["deleted"])
+
+    def _calendar_event_count(self, backup) -> int:
+        from calendar_events import CalendarExtractor
+        return len(CalendarExtractor().list_events(backup).get("events", []))

@@ -16,4 +16,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Chat-bubble message viewer UI
 - Photo extraction from CameraRollDomain
 - Voicemail, call history, contacts, and notes extractors
+- Voice Memos (play, export, Recently Deleted) and Calendar (browse, export to .ics and CSV), also shown on the Overview and Timeline
 - Export to TXT, CSV, and HTML formats

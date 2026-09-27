@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import { saveFolder, sidecarCall } from '../../lib/ipc';
-import { ExportIcon, LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon, GlobeIcon, ContactIcon } from '../shared/Icons';
+import { ExportIcon, LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon, GlobeIcon, ContactIcon, MicIcon, CalendarIcon } from '../shared/Icons';
 
 interface Props {
   udid: string;
 }
 
-type ExportType = 'messages' | 'photos' | 'calls' | 'voicemail' | 'notes' | 'browser_history' | 'contacts';
+type ExportType = 'messages' | 'photos' | 'calls' | 'voicemail' | 'voice_memos' | 'calendar' | 'notes' | 'browser_history' | 'contacts';
 
 const exportOptions: { id: ExportType; label: string; description: string; icon: typeof LinesIcon }[] = [
   { id: 'messages', label: 'Messages', description: 'Export all messages as CSV', icon: LinesIcon },
   { id: 'photos', label: 'Photos', description: 'Export all photos and videos', icon: CameraIcon },
   { id: 'calls', label: 'Call History', description: 'Export call log as CSV', icon: CallIcon },
   { id: 'voicemail', label: 'Voicemail', description: 'Export voicemail audio and transcripts', icon: VoicemailIcon },
+  { id: 'voice_memos', label: 'Voice Memos', description: 'Export recordings as audio files', icon: MicIcon },
+  { id: 'calendar', label: 'Calendar', description: 'Export events as .ics files and CSV', icon: CalendarIcon },
   { id: 'contacts', label: 'Contacts', description: 'Export address book as CSV', icon: ContactIcon },
   { id: 'notes', label: 'Notes', description: 'Export all notes as TXT', icon: NoteIcon },
   { id: 'browser_history', label: 'Browser History', description: 'Export browsing history as CSV', icon: GlobeIcon },
@@ -162,15 +164,28 @@ export default function ExportPanel({ udid }: Props) {
         method = 'export_voicemails';
         params.output_dir = outputDir + '/Voicemails';
         break;
+      case 'voice_memos':
+        method = 'export_voice_memos';
+        params.output_dir = outputDir + '/Voice Memos';
+        break;
+      case 'calendar':
+        method = 'export_calendar';
+        params.output_dir = outputDir + '/Calendar';
+        break;
       case 'browser_history':
         method = 'export_browser_history';
         break;
       default:
         return;
     }
-    await sidecarCall(method, params);
+    const result = await sidecarCall<{ success?: boolean; error?: string }>(method, params);
+    if (result?.success === false) {
+      setStatus(`Export failed: ${result.error ?? 'nothing to export'}`);
+      return;
+    }
     window.openextract.incrementExportCount();
-    setStatus(`${type} exported successfully`);
+    const label = exportOptions.find(o => o.id === type)?.label ?? type;
+    setStatus(`${label} exported successfully`);
   }
 
   return (
