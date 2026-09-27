@@ -244,6 +244,14 @@ class MessageExtractor:
             return f"{text} {label}".strip() if text else label
         return msg.get("text") or ""
 
+    @staticmethod
+    def _html_escape(value, preserve_newlines: bool = False) -> str:
+        """Escape a user-derived value for safe inclusion in exported HTML."""
+        escaped = html.escape(str(value)) if value is not None else ""
+        if preserve_newlines:
+            escaped = escaped.replace("\r\n", "\n").replace("\n", "<br>")
+        return escaped
+
     def _get_filename_for_message_export(self, display_name, messages) -> str:
         """Build a filesystem-safe base filename from the conversation name and the
         date range of ``messages`` (which must be sorted oldest-first).
@@ -322,11 +330,11 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
                 f.write(f'<h1 class="conv-title">{safe_name}</h1>\n')
             for msg in messages:
                 css_class = "sent" if msg["is_from_me"] else "received"
-                text = msg["text"] or "[Attachment]"
-                date = msg["date"] or ""
+                text = self._html_escape(msg["text"] or "[Attachment]", preserve_newlines=True)
+                date = self._html_escape(msg["date"] or "")
                 f.write(f'<div class="meta">{date}</div>\n')
                 if not msg["is_from_me"]:
-                    f.write(f'<div class="sender">{msg["sender"]}</div>\n')
+                    f.write(f'<div class="sender">{self._html_escape(msg["sender"])}</div>\n')
                 f.write(f'<div class="msg {css_class}">{text}</div>\n')
             f.write("</body></html>")
         return {"file": filepath, "message_count": len(messages)}
@@ -455,13 +463,13 @@ body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 0 auto;
 """)
             for msg in messages:
                 css_class = "sent" if msg["is_from_me"] else "received"
-                text = msg["text"] or "[Attachment]"
-                date = msg["date"] or ""
-                conv = msg["_conversation"]
+                text = self._html_escape(msg["text"] or "[Attachment]", preserve_newlines=True)
+                date = self._html_escape(msg["date"] or "")
+                conv = self._html_escape(msg["_conversation"])
                 direction = "to" if msg["is_from_me"] else "from"
                 f.write(f'<div class="meta">{date} <span class="conv-label">({direction} {conv})</span></div>\n')
                 if not msg["is_from_me"]:
-                    f.write(f'<div class="sender">{msg["sender"]}</div>\n')
+                    f.write(f'<div class="sender">{self._html_escape(msg["sender"])}</div>\n')
                 f.write(f'<div class="msg {css_class}">{text}</div>\n')
             f.write("</body></html>")
         return {"files": [filepath], "message_count": len(messages)}
