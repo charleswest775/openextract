@@ -15,6 +15,18 @@
       "source": "/download/linux",
       "destination": "https://github.com/charleswest775/openextract/releases/download/v0.5.1/OpenExtract-0.5.1.AppImage",
       "permanent": false
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "openextract.app" }],
+      "destination": "https://www.openextract.app/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "charleswest775-openextract.vercel.app" }],
+      "destination": "https://www.openextract.app/:path*",
+      "permanent": true
     }
   ]
 }
