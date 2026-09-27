@@ -1,6 +1,6 @@
 # OpenExtract
 
-A free, open-source desktop application for extracting text messages, photos, voicemails, call history, contacts, and notes from iPhone/iPad backups.
+A free, open-source desktop application for extracting text messages, photos, voicemails, call history, contacts, notes, and browser history from iPhone/iPad backups.
 
 **No cloud. No subscriptions. Your data stays on your computer.**
 
@@ -12,6 +12,7 @@ A free, open-source desktop application for extracting text messages, photos, vo
 - 📋 **Call History** — View calls with contact name resolution
 - 👤 **Contacts** — Browse and export your address book
 - 📝 **Notes** — Read and export your iOS notes
+- 🌐 **Browser History** — Safari, Chrome, Edge, Brave, and Firefox (Safari history needs an encrypted backup)
 - 🔒 **Encrypted Backups** — Full support for password-protected backups
 - 📤 **Export** — Save conversations as PDF, HTML, CSV, or plain text
 

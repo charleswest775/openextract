@@ -1,3 +1,5 @@
+import type { BrowserKey } from '../lib/browserHistoryStats';
+
 export type TimelineEntryType = 'message' | 'call' | 'photo' | 'voicemail' | 'note' | 'browser';
 
 export interface TimelineEntry {
@@ -45,7 +47,7 @@ export interface TimelineEntry {
     url: string;
     title: string;
     domain: string;
-    browserName: 'safari' | 'firefox';
+    browserName: BrowserKey;
   };
 }
 
