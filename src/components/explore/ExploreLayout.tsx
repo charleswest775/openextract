@@ -16,7 +16,7 @@ import BrowserHistoryExplorer from './BrowserHistoryExplorer';
 import RecordRecoveryView from './RecordRecoveryView';
 import ExportPanel from './ExportPanel';
 import TimelineView from '../timeline/TimelineView';
-import type { HistoryVisit } from '../../lib/browserHistoryStats';
+import type { BrowserHistoryError, HistoryVisit } from '../../lib/browserHistoryStats';
 
 type Tab = 'dashboard' | 'timeline' | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'record_recovery' | 'export';
 
@@ -46,17 +46,25 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
   const [hasBrowserHistory, setHasBrowserHistory] = useState(false);
   const [preloadedBrowserHistory, setPreloadedBrowserHistory] = useState<HistoryVisit[] | null>(null);
   const [browserHistoryPreloading, setBrowserHistoryPreloading] = useState(false);
+  const [browserHistoryNotice, setBrowserHistoryNotice] = useState<string | null>(null);
+  const [browserHistoryErrors, setBrowserHistoryErrors] = useState<BrowserHistoryError[]>([]);
 
   useEffect(() => {
+    setHasBrowserHistory(false);
     setPreloadedBrowserHistory(null);
     setBrowserHistoryPreloading(false);
+    setBrowserHistoryNotice(null);
+    setBrowserHistoryErrors([]);
     window.openextract.call('has_browser_history', { udid }).then((res: any) => {
-      if (res.success && res.data?.has_any) {
+      if (!res.success) return;
+      setBrowserHistoryNotice(res.data?.notice ?? null);
+      if (res.data?.has_any) {
         setHasBrowserHistory(true);
         setBrowserHistoryPreloading(true);
         window.openextract.call('list_browser_history', { udid })
           .then((r: any) => {
             setPreloadedBrowserHistory(r.success && r.data ? r.data.visits || [] : []);
+            setBrowserHistoryErrors(r.success && r.data ? r.data.errors || [] : []);
           })
           .catch(() => {})
           .finally(() => setBrowserHistoryPreloading(false));
@@ -64,8 +72,10 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
     }).catch(() => {});
   }, [udid]);
 
+  // Show the History tab when there's history, or when there's a notice
+  // explaining why it's missing (e.g. Safari history needs an encrypted backup).
   const navItems = allNavItems.filter(item =>
-    item.id !== 'browser_history' || hasBrowserHistory
+    item.id !== 'browser_history' || hasBrowserHistory || !!browserHistoryNotice
   );
 
   const initial = (session?.name ?? 'B')[0]?.toUpperCase() ?? 'B';
@@ -167,6 +177,8 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
                 udid={udid}
                 preloadedVisits={preloadedBrowserHistory}
                 preloadedLoading={browserHistoryPreloading}
+                notice={browserHistoryNotice}
+                errors={browserHistoryErrors}
               />
             )}
             {activeTab === 'record_recovery' && <RecordRecoveryView udid={udid} />}

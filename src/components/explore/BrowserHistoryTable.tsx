@@ -1,8 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { saveFolder } from '../../lib/ipc';
 import { SearchIcon, ExportIcon, ArrowLeftIcon } from '../shared/Icons';
 import { formatDateTime } from '../../lib/dates';
-import type { HistoryVisit } from '../../lib/browserHistoryStats';
+import {
+  BROWSER_BADGE_CLASSES,
+  BROWSER_ORDER,
+  browserLabel,
+  type BrowserKey,
+  type HistoryVisit,
+} from '../../lib/browserHistoryStats';
 
 interface Props {
   visits: HistoryVisit[];
@@ -21,7 +27,11 @@ export default function BrowserHistoryTable({
 }: Props) {
   const [search, setSearch] = useState(initialDomainFilter || '');
   const [dateFilter, setDateFilter] = useState(initialDateFilter || '');
-  const [browserFilter, setBrowserFilter] = useState<'all' | 'safari' | 'firefox'>('all');
+  const [browserFilter, setBrowserFilter] = useState<'all' | BrowserKey>('all');
+  const browsersPresent = useMemo(() => {
+    const present = new Set(visits.map(v => v.browser));
+    return BROWSER_ORDER.filter(b => present.has(b));
+  }, [visits]);
   const [exporting, setExporting] = useState(false);
 
   async function handleExport() {
@@ -80,22 +90,24 @@ export default function BrowserHistoryTable({
             </span>
           )}
 
-          {/* Browser filter pills */}
-          <div className="flex items-center bg-gray-100 rounded-md p-0.5">
-            {(['all', 'safari', 'firefox'] as const).map((b) => (
-              <button
-                key={b}
-                onClick={() => setBrowserFilter(b)}
-                className={`px-2 py-1 text-xs rounded transition-colors ${
-                  browserFilter === b
-                    ? 'bg-white text-gray-900 shadow-sm font-medium'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {b === 'all' ? 'All' : b === 'safari' ? 'Safari' : 'Firefox'}
-              </button>
-            ))}
-          </div>
+          {/* Browser filter pills — only when there's more than one browser to pick from */}
+          {browsersPresent.length > 1 && (
+            <div className="flex items-center bg-gray-100 rounded-md p-0.5">
+              {(['all', ...browsersPresent] as const).map((b) => (
+                <button
+                  key={b}
+                  onClick={() => setBrowserFilter(b)}
+                  className={`px-2 py-1 text-xs rounded transition-colors ${
+                    browserFilter === b
+                      ? 'bg-white text-gray-900 shadow-sm font-medium'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {b === 'all' ? 'All' : browserLabel(b)}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="relative">
             <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
@@ -145,11 +157,9 @@ export default function BrowserHistoryTable({
                 </td>
                 <td className="px-4 py-2.5">
                   <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                    v.browser === 'safari'
-                      ? 'bg-blue-50 text-blue-600'
-                      : 'bg-orange-50 text-orange-600'
+                    BROWSER_BADGE_CLASSES[v.browser] ?? 'bg-gray-100 text-gray-600'
                   }`}>
-                    {v.browser === 'safari' ? 'Safari' : 'Firefox'}
+                    {browserLabel(v.browser)}
                   </span>
                 </td>
               </tr>

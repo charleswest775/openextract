@@ -9,6 +9,7 @@ import {
 } from '../types/timeline';
 import type { Conversation, Message } from './useMessages';
 import type { PhotoAsset } from '../types';
+import type { BrowserKey } from '../lib/browserHistoryStats';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -173,7 +174,7 @@ interface RawBrowserVisit {
   title: string;
   domain: string;
   visit_date: string | null;
-  browser: 'safari' | 'firefox';
+  browser: BrowserKey;
   visit_count: number | null;
 }
 

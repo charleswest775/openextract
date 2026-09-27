@@ -14,7 +14,13 @@ import {
   Legend,
 } from 'recharts';
 import { formatDate } from '../../lib/dates';
-import { computeBrowserStats, type HistoryVisit } from '../../lib/browserHistoryStats';
+import {
+  BROWSER_COLORS,
+  browserLabel,
+  computeBrowserStats,
+  type BrowserKey,
+  type HistoryVisit,
+} from '../../lib/browserHistoryStats';
 
 interface Props {
   visits: HistoryVisit[];
@@ -22,11 +28,6 @@ interface Props {
   onSelectDate: (date: string) => void;
   onViewAll: () => void;
 }
-
-const BROWSER_COLORS: Record<string, string> = {
-  safari: '#3b82f6',
-  firefox: '#f97316',
-};
 
 const PEAK_COLOR = '#f59e0b';
 const DEFAULT_HOUR_COLOR = '#d1d5db';
@@ -322,7 +323,7 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
                     {stats.browserBreakdown.map((entry) => (
                       <Cell
                         key={entry.browser}
-                        fill={BROWSER_COLORS[entry.browser] ?? '#94a3b8'}
+                        fill={BROWSER_COLORS[entry.browser as BrowserKey] ?? '#94a3b8'}
                       />
                     ))}
                   </Pie>
@@ -343,9 +344,9 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
                     <div key={b.browser} className="flex items-center gap-2 text-sm">
                       <span
                         className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                        style={{ background: BROWSER_COLORS[b.browser] ?? '#94a3b8' }}
+                        style={{ background: BROWSER_COLORS[b.browser as BrowserKey] ?? '#94a3b8' }}
                       />
-                      <span className="text-gray-700 capitalize">{b.browser}</span>
+                      <span className="text-gray-700">{browserLabel(b.browser)}</span>
                       <span className="font-medium text-gray-900">{b.count.toLocaleString()}</span>
                       <span className="text-xs text-gray-400">{b.pct}%</span>
                     </div>
@@ -358,9 +359,9 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
                   <div key={b.browser} className="flex items-center gap-3">
                     <span
                       className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{ background: BROWSER_COLORS[b.browser] ?? '#94a3b8' }}
+                      style={{ background: BROWSER_COLORS[b.browser as BrowserKey] ?? '#94a3b8' }}
                     />
-                    <span className="text-sm text-gray-700 capitalize">{b.browser}</span>
+                    <span className="text-sm text-gray-700">{browserLabel(b.browser)}</span>
                     <span className="text-sm font-medium text-gray-900 ml-auto">
                       {b.count.toLocaleString()}
                     </span>
