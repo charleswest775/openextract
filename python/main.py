@@ -41,6 +41,8 @@ from voicemail import VoicemailExtractor  # noqa: E402
 from calls import CallExtractor  # noqa: E402
 from notes import NoteExtractor  # noqa: E402
 from browser_history import BrowserHistoryExtractor  # noqa: E402
+from voice_memos import VoiceMemoExtractor  # noqa: E402
+from calendar_events import CalendarExtractor  # noqa: E402
 from message_recovery import MessageRecoveryExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
 from stats import StatsComputer  # noqa: E402
@@ -56,6 +58,8 @@ class SidecarServer:
         self.call_extractor = CallExtractor()
         self.note_extractor = NoteExtractor()
         self.browser_history_extractor = BrowserHistoryExtractor()
+        self.voice_memo_extractor = VoiceMemoExtractor()
+        self.calendar_extractor = CalendarExtractor()
         self.message_recovery_extractor = MessageRecoveryExtractor()
         self.device_backup_manager = DeviceBackupManager()
         self.stats_computer = StatsComputer()
@@ -92,6 +96,14 @@ class SidecarServer:
             "has_browser_history": self.has_browser_history,
             "list_browser_history": self.list_browser_history,
             "export_browser_history": self.export_browser_history,
+            # Voice Memos
+            "list_voice_memos": self.list_voice_memos,
+            "get_voice_memo_audio": self.get_voice_memo_audio,
+            "get_voice_memo_file": self.get_voice_memo_file,
+            "export_voice_memos": self.export_voice_memos,
+            # Calendar
+            "list_calendar_events": self.list_calendar_events,
+            "export_calendar": self.export_calendar,
             # Record recovery
             "recover_messages": self.recover_messages,
             "export_recovered_messages": self.export_recovered_messages,
@@ -363,6 +375,36 @@ class SidecarServer:
         return self.browser_history_extractor.export_browser_history_csv(
             backup, output_dir, browser
         )
+
+    # ── Voice Memos ──────────────────────────────────────────────────────────
+
+    def list_voice_memos(self, params):
+        backup = self.backup_manager.get_open_backup(params["udid"])
+        return self.voice_memo_extractor.list_voice_memos(backup)
+
+    def get_voice_memo_audio(self, params):
+        backup = self.backup_manager.get_open_backup(params["udid"])
+        return self.voice_memo_extractor.get_audio(backup, params["memo_id"])
+
+    def get_voice_memo_file(self, params):
+        backup = self.backup_manager.get_open_backup(params["udid"])
+        return self.voice_memo_extractor.get_playable_file(backup, params["memo_id"])
+
+    def export_voice_memos(self, params):
+        backup = self.backup_manager.get_open_backup(params["udid"])
+        return self.voice_memo_extractor.export_voice_memos(
+            backup, params["output_dir"], params.get("include_deleted", True)
+        )
+
+    # ── Calendar ─────────────────────────────────────────────────────────────
+
+    def list_calendar_events(self, params):
+        backup = self.backup_manager.get_open_backup(params["udid"])
+        return self.calendar_extractor.list_events(backup, params.get("calendar_id"))
+
+    def export_calendar(self, params):
+        backup = self.backup_manager.get_open_backup(params["udid"])
+        return self.calendar_extractor.export_calendar(backup, params["output_dir"])
 
     # ── Record recovery ──────────────────────────────────────────────────────
 

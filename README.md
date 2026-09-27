@@ -9,6 +9,8 @@ A free, open-source desktop application for extracting text messages, photos, vo
 - 💬 **Messages** — Browse iMessage/SMS conversations with chat-bubble UI
 - 📷 **Photos & Videos** — Gallery view with thumbnails and bulk export
 - 📞 **Voicemail** — Listen to voicemails with caller ID
+- 🎤 **Voice Memos** — Play and export recordings, including ones in Recently Deleted
+- 📅 **Calendar** — Browse events and export them as .ics files for any calendar app
 - 📋 **Call History** — View calls with contact name resolution
 - 👤 **Contacts** — Browse and export your address book
 - 📝 **Notes** — Read and export your iOS notes

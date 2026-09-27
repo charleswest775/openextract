@@ -18,6 +18,19 @@ function escapeCsv(s: string): string {
 
 function entryDescription(e: TimelineEntry): string {
   switch (e.type) {
+    case 'voice_memo': {
+      const v = e.voiceMemo!;
+      const parts = [`[Voice Memo] ${v.title} (${formatDuration(v.duration)})`];
+      if (v.deleted) parts.push('Recently Deleted');
+      return parts.join(' - ');
+    }
+    case 'calendar': {
+      const c = e.calendar!;
+      const parts = [`[Event] ${c.title}`, c.when];
+      if (c.location) parts.push(c.location);
+      if (c.calendarName) parts.push(c.calendarName);
+      return parts.join(' - ');
+    }
     case 'message': {
       const m = e.message!;
       const dir = m.isFromMe ? 'Sent' : 'Received';

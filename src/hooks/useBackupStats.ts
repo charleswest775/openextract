@@ -26,6 +26,9 @@ export interface BackupStatsOverview {
   total_calls: number;
   total_notes: number;
   total_voicemails: number;
+  /** Absent when the sidecar predates Voice Memos / Calendar support */
+  total_voice_memos?: number;
+  total_calendar_events?: number;
 }
 
 export interface MessageStats {

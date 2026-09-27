@@ -20,9 +20,11 @@ const LOADING_LABELS: Record<TimelineEntryType, string> = {
   voicemail: 'Voicemail',
   note:      'Notes',
   browser:   'Browser History',
+  voice_memo: 'Voice Memos',
+  calendar:  'Calendar',
 };
 
-const ALL_TYPES: TimelineEntryType[] = ['message', 'call', 'photo', 'voicemail', 'note', 'browser'];
+const ALL_TYPES: TimelineEntryType[] = ['message', 'call', 'photo', 'voicemail', 'note', 'browser', 'voice_memo', 'calendar'];
 
 // Group entries by calendar day
 function groupByDay(entries: TimelineEntry[]): { date: string; entries: TimelineEntry[] }[] {

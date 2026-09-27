@@ -3,7 +3,7 @@ import type { RecentSession } from '../../lib/appState';
 import {
   LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon,
   VoicemailIcon, GlobeIcon, ClockIcon, ChartIcon, ArrowLeftIcon, ExportIcon,
-  RecoverIcon,
+  RecoverIcon, MicIcon, CalendarIcon,
 } from '../shared/Icons';
 import BackupDashboard from './BackupDashboard';
 import MessageExplorer from './MessageExplorer';
@@ -12,13 +12,15 @@ import ContactExplorer from './ContactExplorer';
 import CallExplorer from './CallExplorer';
 import NoteExplorer from './NoteExplorer';
 import VoicemailExplorer from './VoicemailExplorer';
+import VoiceMemoExplorer from './VoiceMemoExplorer';
+import CalendarExplorer from './CalendarExplorer';
 import BrowserHistoryExplorer from './BrowserHistoryExplorer';
 import RecordRecoveryView from './RecordRecoveryView';
 import ExportPanel from './ExportPanel';
 import TimelineView from '../timeline/TimelineView';
 import type { HistoryVisit } from '../../lib/browserHistoryStats';
 
-type Tab = 'dashboard' | 'timeline' | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'record_recovery' | 'export';
+type Tab = 'dashboard' | 'timeline' | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'voice_memos' | 'calendar' | 'browser_history' | 'record_recovery' | 'export';
 
 interface Props {
   udid: string;
@@ -35,6 +37,8 @@ const allNavItems: { id: Tab; label: string; icon: typeof LinesIcon; comingSoon?
   { id: 'calls', label: 'Calls', icon: CallIcon },
   { id: 'notes', label: 'Notes', icon: NoteIcon },
   { id: 'voicemail', label: 'Voicemail', icon: VoicemailIcon },
+  { id: 'voice_memos', label: 'Memos', icon: MicIcon },
+  { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
   { id: 'browser_history', label: 'History', icon: GlobeIcon },
   { id: 'record_recovery', label: 'Recover', icon: RecoverIcon },
   { id: 'export', label: 'Export', icon: ExportIcon },
@@ -162,6 +166,8 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
             {activeTab === 'calls' && <CallExplorer udid={udid} />}
             {activeTab === 'notes' && <NoteExplorer udid={udid} />}
             {activeTab === 'voicemail' && <VoicemailExplorer udid={udid} />}
+            {activeTab === 'voice_memos' && <VoiceMemoExplorer udid={udid} />}
+            {activeTab === 'calendar' && <CalendarExplorer udid={udid} />}
             {activeTab === 'browser_history' && (
               <BrowserHistoryExplorer
                 udid={udid}
