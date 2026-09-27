@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- One <url> per page, using the page's <link rel="canonical"> href. Add new pages here. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://www.openextract.app/</loc></url>
+  <url><loc>https://www.openextract.app/how-it-works</loc></url>
+  <url><loc>https://www.openextract.app/vs-imazing</loc></url>
+  <url><loc>https://www.openextract.app/about</loc></url>
+  <url><loc>https://www.openextract.app/use-cases/free-imazing-alternative</loc></url>
+  <url><loc>https://www.openextract.app/use-cases/export-iphone-messages</loc></url>
+  <url><loc>https://www.openextract.app/use-cases/export-iphone-data</loc></url>
+  <url><loc>https://www.openextract.app/blog</loc></url>
+  <url><loc>https://www.openextract.app/blog/what-is-in-an-iphone-backup</loc></url>
+  <url><loc>https://www.openextract.app/blog/encrypted-backups-are-better</loc></url>
+  <url><loc>https://www.openextract.app/blog/recovering-voicemails-from-loved-ones</loc></url>
+  <url><loc>https://www.openextract.app/blog/switching-to-android-with-your-data</loc></url>
+  <url><loc>https://www.openextract.app/blog/open-source-trust-model</loc></url>
+</urlset>
