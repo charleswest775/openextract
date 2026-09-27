@@ -10,6 +10,7 @@ A free, open-source desktop application for extracting text messages, photos, vo
 - 📷 **Photos & Videos** — Gallery view with thumbnails and bulk export
 - 📞 **Voicemail** — Listen to voicemails with caller ID
 - 📋 **Call History** — View calls with contact name resolution
+- ❤️ **Health** — Steps, sleep, heart rate, weight and workouts, with charts and CSV export (needs an encrypted backup)
 - 👤 **Contacts** — Browse and export your address book
 - 📝 **Notes** — Read and export your iOS notes
 - 🔒 **Encrypted Backups** — Full support for password-protected backups

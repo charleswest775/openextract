@@ -42,6 +42,7 @@ from calls import CallExtractor  # noqa: E402
 from notes import NoteExtractor  # noqa: E402
 from browser_history import BrowserHistoryExtractor  # noqa: E402
 from message_recovery import MessageRecoveryExtractor  # noqa: E402
+from health import HealthExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
 from stats import StatsComputer  # noqa: E402
 
@@ -57,6 +58,7 @@ class SidecarServer:
         self.note_extractor = NoteExtractor()
         self.browser_history_extractor = BrowserHistoryExtractor()
         self.message_recovery_extractor = MessageRecoveryExtractor()
+        self.health_extractor = HealthExtractor()
         self.device_backup_manager = DeviceBackupManager()
         self.stats_computer = StatsComputer()
 
@@ -95,6 +97,9 @@ class SidecarServer:
             # Record recovery
             "recover_messages": self.recover_messages,
             "export_recovered_messages": self.export_recovered_messages,
+            # Health
+            "get_health_summary": self.get_health_summary,
+            "export_health": self.export_health,
             # Utility
             "write_file": self.write_file,
             # Aggregate stats
@@ -381,6 +386,16 @@ class SidecarServer:
         return self.message_recovery_extractor.export_recovered_messages(
             backup, contacts, fmt, output_dir
         )
+
+    # ── Health ───────────────────────────────────────────────────────────────
+
+    def get_health_summary(self, params):
+        backup = self.backup_manager.get_open_backup(params["udid"])
+        return self.health_extractor.get_summary(backup)
+
+    def export_health(self, params):
+        backup = self.backup_manager.get_open_backup(params["udid"])
+        return self.health_extractor.export_health(backup, params["output_dir"])
 
     # ── Backup stats dashboard ─────────────────────────────────────────────
 

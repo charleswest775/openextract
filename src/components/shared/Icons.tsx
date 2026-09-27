@@ -215,6 +215,15 @@ export function GlobeIcon({ className, size = defaultProps.size }: IconProps) {
   );
 }
 
+export function HeartIcon({ className, size = defaultProps.size }: IconProps) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z" />
+      <polyline points="3.5 12 8 12 10 9 13 15 15 12 20.5 12" />
+    </svg>
+  );
+}
+
 export function CameraIcon({ className, size = defaultProps.size }: IconProps) {
   return (
     <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
