@@ -1,0 +1,12 @@
+{
+  "description": "Synthetic backups written by ios-backup-core's backupgen (layer L4 in docs/BACKUP_TEST_CORPUS_PLAN.md). Generated on demand into <cache>/syn/<key>/, each with an expected.json answer key. Items in the 'pr' tier run in every PR's CI once backupgen and the persona are available.",
+  "items": [
+    {"key": "syn-testpersona-ios15-plain", "persona": "testpersona", "snapshot": "ios15", "password": null, "tiers": ["pr"]},
+    {"key": "syn-testpersona-ios17-encrypted", "persona": "testpersona", "snapshot": "ios17", "password": "test-password", "tiers": ["pr"]},
+    {"key": "syn-testpersona-ios26-plain", "persona": "testpersona", "snapshot": "ios26", "password": null, "tiers": ["pr"]},
+    {"key": "syn-einstein-ios15-plain", "persona": "einstein", "snapshot": "ios15", "password": null, "tiers": ["pr"]},
+    {"key": "syn-einstein-ios17-encrypted", "persona": "einstein", "snapshot": "ios17", "password": "annus-mirabilis-1905", "tiers": ["pr"]},
+    {"key": "syn-einstein-ios26-plain", "persona": "einstein", "snapshot": "ios26", "password": null, "tiers": ["pr"]},
+    {"key": "syn-einstein-ios26-encrypted", "persona": "einstein", "snapshot": "ios26", "password": "annus-mirabilis-1905", "tiers": ["pr"]}
+  ]
+}

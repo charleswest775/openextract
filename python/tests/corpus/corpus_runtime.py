@@ -12,6 +12,7 @@ import pytest
 
 from corpus.facts import ExtractedData
 from corpus.manifest import Item, load_manifest
+from corpus.synthetic import SyntheticItem, ensure_generated, load_synthetic, persona_available
 from raw_backup import RawBackup
 from sidecar_client import SidecarClient, SidecarError
 
@@ -23,11 +24,20 @@ def require_fetched() -> bool:
     return os.environ.get("OPENEXTRACT_CORPUS_REQUIRE") == "1"
 
 
-def selected_keys(items: dict[str, Item]) -> list[str]:
-    """Items named in $OPENEXTRACT_CORPUS_ITEMS, or else every item already fetched."""
+def all_items() -> dict:
+    """Downloaded items (corpus/manifest.json) and generated ones (corpus/synthetic.json)."""
+    return {**load_manifest(), **load_synthetic()}
+
+
+def selected_keys(items: dict) -> list[str]:
+    """Items named in $OPENEXTRACT_CORPUS_ITEMS, or else every fetched item plus the 'pr'-tier synthetic ones."""
     raw = os.environ.get("OPENEXTRACT_CORPUS_ITEMS", "").strip()
     if not raw:
-        return [key for key, item in items.items() if item.backup_dir() is not None]
+        return [
+            key for key, item in items.items()
+            if (isinstance(item, SyntheticItem) and "pr" in item.tiers and persona_available(item.persona))
+            or (isinstance(item, Item) and item.backup_dir() is not None)
+        ]
     keys = [k.strip() for k in raw.split(",") if k.strip()]
     unknown = [k for k in keys if k not in items]
     if unknown:
@@ -184,15 +194,20 @@ class ItemContext:
 
 class CorpusRuntime:
     def __init__(self):
-        self.items = load_manifest()
+        self.items = all_items()
         self._contexts: dict[str, ItemContext] = {}
 
     def context(self, key: str) -> ItemContext:
         if key not in self._contexts:
             item = self.items[key]
-            backup_dir = item.backup_dir()
-            if backup_dir is None:
+            if isinstance(item, SyntheticItem):
+                backup_dir = ensure_generated(item)
+                message = (f"{key} can't be generated: ios-backup-core's backupgen (with persona "
+                           f"'{item.persona}') wasn't found; set OPENEXTRACT_IOS_BACKUP_CORE")
+            else:
+                backup_dir = item.backup_dir()
                 message = f"{key} is not fetched; run: python -m corpus.fetch fetch {key}"
+            if backup_dir is None:
                 if require_fetched():
                     pytest.fail(message)
                 pytest.skip(message)

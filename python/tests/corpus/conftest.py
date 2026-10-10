@@ -23,8 +23,8 @@ for path in (str(REPO_ROOT), str(HERE)):
         sys.path.insert(0, path)
 
 from corpus.facts import load_facts  # noqa: E402
-from corpus.manifest import CORPUS_DIR, load_manifest  # noqa: E402
-from corpus_runtime import CorpusRuntime, selected_keys  # noqa: E402
+from corpus.manifest import CORPUS_DIR  # noqa: E402
+from corpus_runtime import CorpusRuntime, all_items, selected_keys  # noqa: E402
 
 KNOWN_ISSUES_PATH = CORPUS_DIR / "known_issues.json"
 
@@ -36,7 +36,7 @@ def pytest_configure(config):
 def pytest_generate_tests(metafunc):
     if "corpus_key" not in metafunc.fixturenames and "fact_case" not in metafunc.fixturenames:
         return
-    items = load_manifest()
+    items = all_items()
     keys = selected_keys(items)
     if "corpus_key" in metafunc.fixturenames:
         metafunc.parametrize("corpus_key", keys, ids=keys)
