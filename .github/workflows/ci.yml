@@ -57,7 +57,7 @@ jobs:
         run: pip install ruff pytest -r requirements.txt
 
       - name: Python lint
-        run: ruff check python/
+        run: ruff check python/ corpus/
 
       - name: Python tests
         run: pytest python/tests/ -v

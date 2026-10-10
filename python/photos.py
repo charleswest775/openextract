@@ -50,6 +50,12 @@ except ImportError:
 print(f"[photos] PIL={HAS_PIL} HEIF={HAS_HEIF}", file=sys.stderr, flush=True)
 
 
+def _asset_table(conn) -> str:
+    """The assets table: ZASSET from iOS 14, ZGENERICASSET before that."""
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    return "ZGENERICASSET" if "ZASSET" not in tables and "ZGENERICASSET" in tables else "ZASSET"
+
+
 class PhotoExtractor:
     """Adapter wrapping the ios-backup-core PhotoExtractor."""
 
@@ -74,9 +80,12 @@ class PhotoExtractor:
         if result.get("source") == "unavailable" or (
             not result.get("photos") and result.get("total", 0) == 0
         ):
-            print("[photos] list_photos: using DCIM fallback (no album filter)",
+            reason = result.get("error") or result.get("source") or "no assets in Photos.sqlite"
+            print(f"[photos] list_photos: using DCIM fallback (no album filter): {reason}",
                   file=sys.stderr, flush=True)
-            return self._list_photos_from_dcim(backup, offset, limit)
+            # Say why we fell back: the DCIM scan has no dates, places or
+            # albums, so a silent fallback hides real extraction bugs.
+            return {**self._list_photos_from_dcim(backup, offset, limit), "fallback_reason": reason}
 
         photos_out = []
         for asset in result.get("photos", []):
@@ -107,26 +116,31 @@ class PhotoExtractor:
         try:
             junc_table, albums_col, assets_col = self._inner._find_album_junction(conn)
 
+            assets = _asset_table(conn)
             zasset_cols = {
-                col[1] for col in conn.execute("PRAGMA table_info('ZASSET')").fetchall()
+                col[1] for col in conn.execute(f"PRAGMA table_info('{assets}')").fetchall()
             }
 
             def _col_or_null(name: str) -> str:
                 return f"a.{name}" if name in zasset_cols else f"NULL AS {name}"
 
+            # Older and newer names for the same fields (iOS 15 has
+            # ZMODIFICATIONDATE / ZAVALANCHEUUID); the library's row mapper
+            # takes whichever is present.
             meta_cols = ", ".join([
                 _col_or_null("ZUUID"), _col_or_null("ZDIRECTORY"),
                 _col_or_null("ZFILENAME"), _col_or_null("ZKIND"),
                 _col_or_null("ZDATECREATED"), _col_or_null("ZDATEMODIFIED"),
+                _col_or_null("ZMODIFICATIONDATE"),
                 _col_or_null("ZWIDTH"), _col_or_null("ZHEIGHT"),
                 _col_or_null("ZDURATION"), _col_or_null("ZFAVORITE"),
                 _col_or_null("ZHIDDEN"), _col_or_null("ZHASADJUSTMENTS"),
-                _col_or_null("ZBURSTUUID"), _col_or_null("ZLATITUDE"),
-                _col_or_null("ZLONGITUDE"), "a.Z_PK",
+                _col_or_null("ZBURSTUUID"), _col_or_null("ZAVALANCHEUUID"),
+                _col_or_null("ZLATITUDE"), _col_or_null("ZLONGITUDE"), "a.Z_PK",
             ])
 
             row = conn.execute(
-                f"SELECT {meta_cols} FROM ZASSET a WHERE a.ZUUID = ?",
+                f"SELECT {meta_cols} FROM {assets} a WHERE a.ZUUID = ?",
                 (asset_uuid,)
             ).fetchone()
 
