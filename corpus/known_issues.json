@@ -1,0 +1,20 @@
+{
+  "description": "Known corpus failures that need a product decision or a larger fix. Each entry turns the named check into a strict xfail for that item: the run stays green while the issue exists and fails as soon as it is fixed, so the entry gets removed. 'check' is an invariant test name (e.g. test_photo_total_matches_listing) or a spot-fact id.",
+  "issues": [
+    {
+      "item": "pub-hickman-15.3.1",
+      "check": "test_photo_total_matches_listing",
+      "reason": "list_photos 'total' (and the stats screen) count 231 assets, but the list skips 25 shared-album assets whose originals aren't in the backup (only their thumbnails are), so the pages hold 206. Decide whether to list them from thumbnails or leave them out of the count."
+    },
+    {
+      "item": "pub-hickman-16.1.2",
+      "check": "test_photo_total_matches_listing",
+      "reason": "Same as pub-hickman-15.3.1: 'total' counts 387 assets, but the list skips 40 shared-album assets whose originals aren't in the backup, so the pages hold 347."
+    },
+    {
+      "item": "pub-hickman-17.3",
+      "check": "test_photo_total_matches_listing",
+      "reason": "Same as pub-hickman-15.3.1: 'total' counts 567 assets, but the list skips 44 shared-album assets whose originals aren't in the backup, so the pages hold 523."
+    }
+  ]
+}

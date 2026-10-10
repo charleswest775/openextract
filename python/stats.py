@@ -32,6 +32,12 @@ def _safe_connect(db_path: str) -> Optional[sqlite3.Connection]:
         return None
 
 
+def _asset_table(cursor) -> str:
+    """The assets table: ZASSET from iOS 14, ZGENERICASSET before that."""
+    tables = {r[0] for r in cursor.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    return "ZGENERICASSET" if "ZASSET" not in tables and "ZGENERICASSET" in tables else "ZASSET"
+
+
 def _apple_ts_to_iso(ts) -> Optional[str]:
     """Convert Apple CoreData timestamp (seconds since 2001-01-01) to ISO 8601."""
     if ts is None:
@@ -184,12 +190,27 @@ class StatsComputer:
                 imessage_count = 0
                 sms_count = 0
 
-            # Group vs 1-on-1 conversations
+            # Group vs 1-on-1 conversations. Same rule as ios_backup_core's
+            # list_conversations (chats with at least one message; a group has
+            # several handles or a "chat…" identifier) so the dashboard agrees
+            # with the conversation list. chat.group_id is set on every chat,
+            # so it can't tell groups apart.
             try:
-                group_convos = c.execute(
-                    "SELECT COUNT(*) FROM chat WHERE group_id IS NOT NULL AND group_id != ''"
-                ).fetchone()[0]
-                total_convos = c.execute("SELECT COUNT(*) FROM chat").fetchone()[0]
+                chat_rows = c.execute("""
+                    SELECT ch.chat_identifier,
+                           (SELECT COUNT(*) FROM chat_handle_join chj
+                            JOIN handle h ON h.ROWID = chj.handle_id
+                            WHERE chj.chat_id = ch.ROWID) AS participants
+                    FROM chat ch
+                    WHERE EXISTS (SELECT 1 FROM chat_message_join cmj
+                                  JOIN message m ON m.ROWID = cmj.message_id
+                                  WHERE cmj.chat_id = ch.ROWID)
+                """).fetchall()
+                total_convos = len(chat_rows)
+                group_convos = sum(
+                    1 for identifier, participants in chat_rows
+                    if participants > 1 or "chat" in (identifier or "").lower()
+                )
                 one_on_one = total_convos - group_convos
             except Exception:
                 group_convos = 0
@@ -298,9 +319,10 @@ class StatsComputer:
 
         try:
             c = conn.cursor()
+            assets = _asset_table(c)
 
             # Check which columns exist
-            c.execute("PRAGMA table_info(ZASSET)")
+            c.execute(f"PRAGMA table_info({assets})")
             columns = {row[1] for row in c.fetchall()}
 
             has_trashed = "ZTRASHEDSTATE" in columns
@@ -310,7 +332,7 @@ class StatsComputer:
             # Kind breakdown
             kind_map = {0: "photo", 1: "video", 2: "live_photo", 3: "live_photo"}
             kind_rows = c.execute(
-                f"SELECT ZKIND, COUNT(*) FROM ZASSET {trash_filter} GROUP BY ZKIND"
+                f"SELECT ZKIND, COUNT(*) FROM {assets} {trash_filter} GROUP BY ZKIND"
             ).fetchall()
             by_kind = {}
             total_photos = 0
@@ -329,14 +351,14 @@ class StatsComputer:
             total_favorites = 0
             if fav_col:
                 total_favorites = c.execute(
-                    f"SELECT COUNT(*) FROM ZASSET WHERE {fav_col} = 1 {trash_and}"
+                    f"SELECT COUNT(*) FROM {assets} WHERE {fav_col} = 1 {trash_and}"
                 ).fetchone()[0]
 
             # Location data
             with_location = 0
             if "ZLATITUDE" in columns:
                 with_location = c.execute(
-                    f"SELECT COUNT(*) FROM ZASSET WHERE ZLATITUDE IS NOT NULL AND ZLATITUDE != 0 {trash_and}"
+                    f"SELECT COUNT(*) FROM {assets} WHERE ZLATITUDE IS NOT NULL AND ZLATITUDE != 0 {trash_and}"
                 ).fetchone()[0]
 
             # Date range
@@ -345,7 +367,7 @@ class StatsComputer:
             latest = None
             if date_col:
                 date_row = c.execute(
-                    f"SELECT MIN({date_col}), MAX({date_col}) FROM ZASSET {trash_filter}"
+                    f"SELECT MIN({date_col}), MAX({date_col}) FROM {assets} {trash_filter}"
                 ).fetchone()
                 earliest = _apple_ts_to_iso(date_row[0])
                 latest = _apple_ts_to_iso(date_row[1])
@@ -354,7 +376,7 @@ class StatsComputer:
             total_video_duration = 0.0
             if "ZDURATION" in columns:
                 dur_row = c.execute(
-                    f"SELECT SUM(ZDURATION) FROM ZASSET WHERE ZKIND = 1 {trash_and}"
+                    f"SELECT SUM(ZDURATION) FROM {assets} WHERE ZKIND = 1 {trash_and}"
                 ).fetchone()
                 total_video_duration = float(dur_row[0] or 0)
 
