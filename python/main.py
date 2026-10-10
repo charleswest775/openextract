@@ -518,7 +518,8 @@ if __name__ == "__main__":
     if "--debug" in sys.argv:
         try:
             import debugpy
-            debugpy.listen(("0.0.0.0", 5678))
+            # Loopback only: debugpy is unauthenticated and allows arbitrary code execution.
+            debugpy.listen(("127.0.0.1", 5678))
             print('{"status":"info", "message":"debugpy listening on port 5678. Debugger can attach at any time!"}', file=sys.stderr)
         except Exception as e:
             print(f'{{"status":"error", "message":"Failed to start debugger: {e}"}}', file=sys.stderr)
