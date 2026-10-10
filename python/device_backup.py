@@ -7,6 +7,7 @@ Uses pymobiledevice3 for device communication and MobileBackup2 protocol.
 import asyncio
 import os
 import re
+import shutil
 import sys
 import tempfile
 import time
@@ -33,6 +34,18 @@ _BACKUP_LOCK_RETRY_DELAY_S = 3
 
 def _is_backup_lock_error(exc: Exception) -> bool:
     return bool(_BACKUP_LOCK_ERROR_RE.search(str(exc)))
+
+
+def _disk_full_message(free_bytes: int, phone_used_bytes: int) -> str:
+    # Decimal GB, matching how Finder and iPhone Storage report sizes.
+    free_gb = free_bytes / 1e9
+    if phone_used_bytes > free_bytes:
+        detail = (f"Your iPhone has about {phone_used_bytes / 1e9:.0f} GB of data, but the drive "
+                  f"you chose only has {free_gb:.0f} GB free.")
+    else:
+        detail = f"The drive you chose only has {free_gb:.0f} GB free."
+    return (f"Not enough free space for this backup. {detail} Free up space or choose a "
+            "folder on an external drive, then try again.")
 
 
 class DeviceBackupManager:
@@ -170,7 +183,11 @@ class DeviceBackupManager:
         try:
             from pymobiledevice3.lockdown import create_using_usbmux
             from pymobiledevice3.services.mobilebackup2 import Mobilebackup2Service
-            from pymobiledevice3.exceptions import ConnectionTerminatedError, PasswordRequiredError
+            from pymobiledevice3.exceptions import (
+                ConnectionTerminatedError,
+                NotEnoughDiskSpaceError,
+                PasswordRequiredError,
+            )
         except ImportError:
             raise RuntimeError(
                 "pymobiledevice3 is not installed. Run: pip install pymobiledevice3"
@@ -185,6 +202,9 @@ class DeviceBackupManager:
         # negotiating / backing_up milestones (0 → 5 → 10) are never overwritten
         # by an early 0% callback from pymobiledevice3.
         last_pct = [0]
+        # Bytes in use on the iPhone, so a disk-full error can say how much room
+        # the backup needs.  0 when the device didn't report it.
+        phone_used_bytes = 0
 
         def _tracked_notify(phase: str, pct: int, fd: int, ft: int) -> None:
             """Emit a progress notification, enforcing monotone progress."""
@@ -224,6 +244,7 @@ class DeviceBackupManager:
             _tracked_notify(phase, pct, files_done, files_total)
 
         async def _run_backup():
+            nonlocal phone_used_bytes
             _tracked_notify("negotiating", 0, 0, 0)
 
             # Open the lockdown channel to the device (async in pymobiledevice3 v4+).
@@ -245,6 +266,12 @@ class DeviceBackupManager:
                         "when prompted."
                     ) from None
                 raise
+
+            try:
+                usage = await lockdown.get_value("com.apple.disk_usage")
+                phone_used_bytes = usage["TotalDataCapacity"] - usage["TotalDataAvailable"]
+            except Exception:
+                pass
 
             _tracked_notify("negotiating", 5, 0, 0)
 
@@ -282,6 +309,14 @@ class DeviceBackupManager:
                 "PASSCODE_REQUIRED: Your iPhone is locked. Unlock it with your "
                 "passcode, keep it unlocked while the backup starts, then click Retry."
             ) from e
+        except NotEnoughDiskSpaceError as e:
+            # The device compares its backup size against the free space we report
+            # and, when it won't fit, asks us to purge; pymobiledevice3 raises this
+            # with an empty message, which the UI would show as "Unknown error".
+            free_bytes = shutil.disk_usage(output_dir).free
+            _dev_log(f"not enough disk space: free={free_bytes} phone_used={phone_used_bytes} "
+                     f"output_dir={output_dir!r}")
+            raise RuntimeError(_disk_full_message(free_bytes, phone_used_bytes)) from e
         except ConnectionTerminatedError as e:
             # iOS often closes the backup channel immediately after all data has been
             # transferred — this is normal end-of-backup behaviour and does NOT mean
