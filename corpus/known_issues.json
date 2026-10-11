@@ -15,21 +15,6 @@
       "item": "pub-hickman-17.3",
       "check": "test_photo_total_matches_listing",
       "reason": "Same as pub-hickman-15.3.1: 'total' counts 567 assets, but the list skips 44 shared-album assets whose originals aren't in the backup, so the pages hold 523."
-    },
-    {
-      "item": "syn-testpersona-ios15-plain",
-      "check": "test_unlocated_photos_have_no_coordinates",
-      "reason": "iOS stores -180 as the latitude and longitude of a photo with no location. The photo list passes it through (the detail view shows \"-180.00000, -180.00000\") and the stats count those photos as located. On pub-hickman-17.3 that's 392 of 567 photos."
-    },
-    {
-      "item": "syn-testpersona-ios17-encrypted",
-      "check": "test_unlocated_photos_have_no_coordinates",
-      "reason": "iOS stores -180 as the latitude and longitude of a photo with no location. The photo list passes it through (the detail view shows \"-180.00000, -180.00000\") and the stats count those photos as located. On pub-hickman-17.3 that's 392 of 567 photos."
-    },
-    {
-      "item": "syn-testpersona-ios26-plain",
-      "check": "test_unlocated_photos_have_no_coordinates",
-      "reason": "iOS stores -180 as the latitude and longitude of a photo with no location. The photo list passes it through (the detail view shows \"-180.00000, -180.00000\") and the stats count those photos as located. On pub-hickman-17.3 that's 392 of 567 photos."
     }
   ]
 }
