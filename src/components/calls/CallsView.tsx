@@ -35,6 +35,7 @@ export default function CallsView({ backup }: Props) {
     const [calls, setCalls] = useState<Call[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [emptyReason, setEmptyReason] = useState<string | null>(null);
     const [exporting, setExporting] = useState(false);
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -50,11 +51,15 @@ export default function CallsView({ backup }: Props) {
     async function loadCalls() {
         setLoading(true);
         setError(null);
+        setEmptyReason(null);
         try {
             const res = await window.openextract.call('list_calls', { udid: backup.udid, limit: 10000 });
             if (!res.success) throw new Error(res.error);
-            if (res.data?.error) throw new Error(res.data.error);
+            // An unencrypted backup without call history also carries an error;
+            // it gets the encryption hint below instead.
+            if (res.data?.error && res.data.empty_reason !== 'requires_encryption') throw new Error(res.data.error);
             setCalls(res.data?.calls || []);
+            setEmptyReason(res.data?.empty_reason ?? null);
         } catch (err: any) {
             setError(err.message || 'Failed to load calls');
         } finally {
@@ -175,28 +180,29 @@ export default function CallsView({ backup }: Props) {
 
                 {error && (
                     <div className="flex flex-col items-center justify-center h-full">
-                        {error.toLowerCase().includes('encrypt') ? (
-                            <>
-                                <Lock size={32} strokeWidth={1.5} className="text-apple-warning mb-3" />
-                                <h3 className="text-subhead font-semibold text-text-primary mb-2">Encrypted Backup Required</h3>
-                                <p className="text-center text-body text-text-secondary max-w-md">
-                                    Apple blocks call history from unencrypted backups.
-                                    Enable <strong>"Encrypt local backup"</strong> in iTunes/Finder and create a new backup.
-                                </p>
-                            </>
-                        ) : (
-                            <>
-                                <AlertTriangle size={24} strokeWidth={1.5} className="text-apple-error mb-3" />
-                                <p className="text-body text-apple-error">{error}</p>
-                            </>
-                        )}
+                        <AlertTriangle size={24} strokeWidth={1.5} className="text-apple-error mb-3" />
+                        <p className="text-body text-apple-error">{error}</p>
                     </div>
                 )}
 
                 {!loading && !error && filteredAndSortedCalls.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-text-tertiary">
-                        <Inbox size={24} strokeWidth={1.5} className="mb-3" />
-                        <p className="text-body">No call records found.</p>
+                        {calls.length === 0 && emptyReason === 'requires_encryption' ? (
+                            <>
+                                <Lock size={32} strokeWidth={1.5} className="text-apple-warning mb-3" />
+                                <h3 className="text-subhead font-semibold text-text-primary mb-2">Encrypted Backup Required</h3>
+                                <p className="text-center text-body text-text-secondary max-w-md">
+                                    Apple leaves call history out of unencrypted backups. Make a new backup with
+                                    encryption on: tick <strong>"Encrypt backup"</strong> when backing up in OpenExtract,
+                                    or turn on <strong>"Encrypt local backup"</strong> in Finder or iTunes.
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <Inbox size={24} strokeWidth={1.5} className="mb-3" />
+                                <p className="text-body">{calls.length > 0 ? 'No calls match your filter.' : 'No calls in this backup'}</p>
+                            </>
+                        )}
                     </div>
                 )}
 

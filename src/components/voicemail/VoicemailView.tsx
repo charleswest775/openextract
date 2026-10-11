@@ -34,6 +34,7 @@ export default function VoicemailView({ backup }: Props) {
     const [voicemails, setVoicemails] = useState<Voicemail[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [emptyReason, setEmptyReason] = useState<string | null>(null);
 
     const [expandedId, setExpandedId] = useState<number | null>(null);
     const [audioCache, setAudioCache] = useState<Record<number, AudioInfo>>({});
@@ -44,18 +45,17 @@ export default function VoicemailView({ backup }: Props) {
         loadVoicemails();
     }, [backup.udid]);
 
-    const [debugInfo, setDebugInfo] = useState<string>('');
-
     async function loadVoicemails() {
         setLoading(true);
         setError(null);
+        setEmptyReason(null);
         try {
             const res = await window.openextract.call('list_voicemails', { udid: backup.udid });
-            setDebugInfo(JSON.stringify(res, null, 2));
             if (!res.success) throw new Error(res.error);
             if (res.data?.error) throw new Error(res.data.error);
 
             setVoicemails(res.data?.voicemails || []);
+            setEmptyReason(res.data?.empty_reason ?? null);
         } catch (err: any) {
             setError(err.message || 'Failed to load voicemails');
         } finally {
@@ -159,8 +159,12 @@ export default function VoicemailView({ backup }: Props) {
                 {!loading && voicemails.length === 0 && !error && (
                     <div className="text-center text-text-secondary py-10">
                         <Inbox className="w-10 h-10 mx-auto mb-3 text-text-tertiary opacity-50" />
-                        <p className="text-body">No voicemails found in this backup.</p>
-                        <pre className="text-caption text-left overflow-auto mt-4 p-2 bg-elevated rounded-lg font-mono">{debugInfo}</pre>
+                        <p className="text-body">No voicemails in this backup</p>
+                        {emptyReason === 'not_in_backup' && (
+                            <p className="text-caption text-text-tertiary mt-1">
+                                iPhones only keep voicemail when the carrier supports Visual Voicemail.
+                            </p>
+                        )}
                     </div>
                 )}
 
