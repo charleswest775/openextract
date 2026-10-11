@@ -23,12 +23,13 @@ class TestPhotoStatsBeforeIOS14(unittest.TestCase):
         conn.executescript(
             """
             CREATE TABLE ZGENERICASSET (Z_PK INTEGER PRIMARY KEY, ZKIND INTEGER, ZTRASHEDSTATE INTEGER,
-                                        ZDATECREATED TIMESTAMP, ZLATITUDE FLOAT, ZFAVORITE INTEGER,
-                                        ZDURATION FLOAT);
-            INSERT INTO ZGENERICASSET VALUES (1, 0, 0, 600000000, 35.6, 1, 0);
-            INSERT INTO ZGENERICASSET VALUES (2, 0, 0, 600000100, NULL, 0, 0);
-            INSERT INTO ZGENERICASSET VALUES (3, 1, 0, 600000200, NULL, 0, 12.5);
-            INSERT INTO ZGENERICASSET VALUES (4, 0, 1, 600000300, NULL, 0, 0);  -- trashed
+                                        ZDATECREATED TIMESTAMP, ZLATITUDE FLOAT, ZLONGITUDE FLOAT,
+                                        ZFAVORITE INTEGER, ZDURATION FLOAT);
+            -- iOS 13 also stores -180, -180 for "no location"
+            INSERT INTO ZGENERICASSET VALUES (1, 0, 0, 600000000, 35.6, -78.8, 1, 0);
+            INSERT INTO ZGENERICASSET VALUES (2, 0, 0, 600000100, -180, -180, 0, 0);
+            INSERT INTO ZGENERICASSET VALUES (3, 1, 0, 600000200, -180, -180, 0, 12.5);
+            INSERT INTO ZGENERICASSET VALUES (4, 0, 1, 600000300, -180, -180, 0, 0);  -- trashed
             """
         )
         conn.commit()

@@ -49,6 +49,7 @@ def _make_pymobiledevice3_stub():
     pkg.exceptions.ConnectionFailedToUsbmuxdError = type("ConnectionFailedToUsbmuxdError", (Exception,), {})
     pkg.exceptions.ConnectionTerminatedError = type("ConnectionTerminatedError", (Exception,), {})
     pkg.exceptions.PasswordRequiredError = type("PasswordRequiredError", (Exception,), {})
+    pkg.exceptions.NotEnoughDiskSpaceError = type("NotEnoughDiskSpaceError", (Exception,), {})
 
     return pkg
 
@@ -383,8 +384,8 @@ class TestStartBackup(unittest.TestCase):
                     notify=self.notify,
                 )
 
-    def _run_backup_with(self, mb2):
-        lockdown = _make_lockdown_mock()
+    def _run_backup_with(self, mb2, lockdown=None):
+        lockdown = lockdown or _make_lockdown_mock()
         with (
             patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
             patch("pymobiledevice3.services.mobilebackup2.Mobilebackup2Service", return_value=mb2),
@@ -432,6 +433,37 @@ class TestStartBackup(unittest.TestCase):
         with self.assertRaises(RuntimeError) as ctx:
             self._run_backup_with(mb2)
         self.assertTrue(str(ctx.exception).startswith("PASSCODE_REQUIRED:"))
+
+    def test_not_enough_disk_space_explains_sizes(self):
+        """The device asking us to purge space becomes a message with both sizes."""
+        mb2 = self._make_mb2_mock()
+        mb2.backup.side_effect = _stub.exceptions.NotEnoughDiskSpaceError()
+        lockdown = _make_lockdown_mock()
+        lockdown.get_value = AsyncMock(return_value={
+            "TotalDataCapacity": 1_014_000_000_000,
+            "TotalDataAvailable": 933_000_000_000,
+        })
+        free = MagicMock(free=55_000_000_000)
+        with patch("device_backup.shutil.disk_usage", return_value=free):
+            with self.assertRaises(RuntimeError) as ctx:
+                self._run_backup_with(mb2, lockdown)
+        msg = str(ctx.exception)
+        self.assertIn("about 81 GB of data", msg)
+        self.assertIn("only has 55 GB free", msg)
+        self.assertEqual(mb2.backup.await_count, 1)
+
+    def test_not_enough_disk_space_without_device_usage(self):
+        """If the device doesn't report its usage, still explain the free space."""
+        mb2 = self._make_mb2_mock()
+        mb2.backup.side_effect = _stub.exceptions.NotEnoughDiskSpaceError()
+        free = MagicMock(free=55_000_000_000)
+        with patch("device_backup.shutil.disk_usage", return_value=free):
+            with self.assertRaises(RuntimeError) as ctx:
+                self._run_backup_with(mb2)
+        msg = str(ctx.exception)
+        self.assertIn("Not enough free space", msg)
+        self.assertIn("only has 55 GB free", msg)
+        self.assertNotIn("of data", msg)
 
     def test_output_dir_created(self):
         """start_backup should create output_dir if it does not exist."""

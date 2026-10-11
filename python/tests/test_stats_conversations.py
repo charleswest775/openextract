@@ -29,16 +29,19 @@ def _build_sms_db(path: str) -> None:
         CREATE TABLE chat_handle_join (chat_id INTEGER, handle_id INTEGER);
         CREATE TABLE chat_message_join (chat_id INTEGER, message_id INTEGER);
 
-        INSERT INTO handle VALUES (1, '+15555550100'), (2, '+15555550101'), (3, '22000');
+        INSERT INTO handle VALUES (1, '+15555550100'), (2, '+15555550101'), (3, '22000'),
+                                  (4, 'chatham@example.com');
         -- every chat has a group_id, as on a real device
         INSERT INTO chat VALUES (1, '+15555550100', '', 'iMessage', 'A1');
         INSERT INTO chat VALUES (2, '22000', '', 'SMS', 'B2');
         INSERT INTO chat VALUES (3, 'chat123456', 'Family', 'iMessage', 'C3');
         INSERT INTO chat VALUES (4, '+15555550101', '', 'iMessage', 'D4');  -- no messages
-        INSERT INTO chat_handle_join VALUES (1, 1), (2, 3), (3, 1), (3, 2), (4, 2);
+        -- 1:1 with an email handle that merely contains "chat"
+        INSERT INTO chat VALUES (5, 'chatham@example.com', '', 'iMessage', 'E5');
+        INSERT INTO chat_handle_join VALUES (1, 1), (2, 3), (3, 1), (3, 2), (4, 2), (5, 4);
         INSERT INTO message VALUES (1, 'hi', 700000000000000000, 1), (2, 'code 1234', 700000100000000000, 0),
-                                   (3, 'dinner?', 700000200000000000, 0);
-        INSERT INTO chat_message_join VALUES (1, 1), (2, 2), (3, 3);
+                                   (3, 'dinner?', 700000200000000000, 0), (4, 'see you', 700000300000000000, 0);
+        INSERT INTO chat_message_join VALUES (1, 1), (2, 2), (3, 3), (5, 4);
         """
     )
     conn.commit()
@@ -58,9 +61,9 @@ class TestConversationKinds(unittest.TestCase):
 
     def test_group_and_one_on_one_match_conversation_list(self):
         stats = StatsComputer()._message_stats(self.backup, {})
-        self.assertEqual(stats["total_conversations"], 3)  # the empty chat isn't listed
+        self.assertEqual(stats["total_conversations"], 4)  # the empty chat isn't listed
         self.assertEqual(stats["group_conversations"], 1)
-        self.assertEqual(stats["one_on_one_conversations"], 2)
+        self.assertEqual(stats["one_on_one_conversations"], 3)
 
 
 if __name__ == "__main__":

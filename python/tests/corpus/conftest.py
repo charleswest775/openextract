@@ -1,8 +1,9 @@
 """Fixtures for the corpus tests.
 
 Corpus tests run against backups fetched into the local cache with
-``python -m corpus.fetch``. Items that aren't fetched are skipped, so these
-tests are inert in the normal PR run. Environment variables:
+``python -m corpus.fetch``. They only run when asked for, with ``-m corpus`` or
+``$OPENEXTRACT_CORPUS_ITEMS``, so a plain ``pytest python/tests/`` stays fast
+even with items in the cache. Environment variables:
 
 - ``OPENEXTRACT_CORPUS_ITEMS``: comma-separated item keys to test (default: all).
 - ``OPENEXTRACT_CORPUS_REQUIRE=1``: fail, rather than skip, when an item isn't fetched.
@@ -11,6 +12,7 @@ tests are inert in the normal PR run. Environment variables:
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -33,11 +35,17 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "corpus: runs against backups in the corpus cache")
 
 
+def _corpus_requested(config) -> bool:
+    return "corpus" in (config.getoption("markexpr") or "") or bool(
+        os.environ.get("OPENEXTRACT_CORPUS_ITEMS", "").strip()
+    )
+
+
 def pytest_generate_tests(metafunc):
     if "corpus_key" not in metafunc.fixturenames and "fact_case" not in metafunc.fixturenames:
         return
     items = all_items()
-    keys = selected_keys(items)
+    keys = selected_keys(items) if _corpus_requested(metafunc.config) else []
     if "corpus_key" in metafunc.fixturenames:
         metafunc.parametrize("corpus_key", keys, ids=keys)
     if "fact_case" in metafunc.fixturenames:

@@ -76,6 +76,12 @@ def is_fetched(item: Item, root: Optional[Path] = None) -> bool:
     return item.fetch.sha256 is None or record.get("sha256") == item.fetch.sha256
 
 
+def _discard(artifact: Path) -> None:
+    """Delete a downloaded artifact and any partial download, so the next fetch starts fresh."""
+    artifact.unlink(missing_ok=True)
+    remote.part_path(artifact).unlink(missing_ok=True)
+
+
 def _download(item: Item, artifact: Path, log) -> None:
     fetch = item.fetch
     progress = _Progress(artifact.name, log)
@@ -105,14 +111,22 @@ def fetch_item(item: Item, root: Optional[Path] = None, *, force: bool = False, 
         return item.backup_dir(root)
 
     artifact = item.artifact_path(root)
-    if force and artifact.exists():
-        artifact.unlink()
-    if not artifact.exists():
+    if force:
+        _discard(artifact)
+    cached = artifact.exists()
+    if not cached:
         _download(item, artifact, log)
 
     log(f"{item.key}: checking SHA-256")
     digest = sha256_file(artifact)
     pinned = item.fetch.sha256
+    if pinned and digest != pinned and cached and item.fetch.method != "manual":
+        # A download from before the hash was re-pinned (e.g. restored from CI's
+        # cache): fetch it again rather than failing on every run.
+        log(f"{item.key}: cached download doesn't match the pinned SHA-256; downloading again")
+        _discard(artifact)
+        _download(item, artifact, log)
+        digest = sha256_file(artifact)
     if pinned and digest != pinned:
         bad = artifact.with_name(artifact.name + ".mismatch")
         artifact.replace(bad)
