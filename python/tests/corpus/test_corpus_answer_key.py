@@ -92,3 +92,32 @@ def test_received_messages_name_their_sender(ctx):
         and m["sender"] != _handle_name(names, handle)
     ]
     assert not wrong, f"senders shown wrongly: {wrong[:5]}"
+
+
+# Data types a generated backup doesn't hold (expected.json "absent"), with the extracted list
+# that must come back empty and the dashboard totals that must be zero. Types the app doesn't
+# read yet are left out.
+ABSENT_CHECKS = {
+    "messages": (lambda ctx: ctx.conversations, ("total_messages", "total_conversations")),
+    "contacts": (lambda ctx: ctx.contacts, ("total_contacts",)),
+    "calls": (lambda ctx: ctx.calls_result.get("calls", []), ("total_calls",)),
+    "voicemail": (lambda ctx: ctx.voicemails_result.get("voicemails", []), ("total_voicemails",)),
+    "notes": (lambda ctx: ctx.notes_result.get("notes", []), ("total_notes",)),
+    "photos": (lambda ctx: ctx.photos_result.get("photos", []) + ctx.albums_result.get("albums", []),
+               ("total_photos", "total_videos")),
+    "browser_history": (lambda ctx: ctx.browser_result.get("visits", []), ()),
+}
+
+
+def test_absent_data_types_come_back_empty(ctx):
+    """A backup without a data type must show that tab empty, not fail or invent rows."""
+    expected = _expected(ctx)
+    absent = [t for t in expected.get("absent", []) if t in ABSENT_CHECKS]
+    if not absent:
+        pytest.skip("the backup holds every data type the app reads")
+    overview = ctx.stats["overview"]
+    for data_type in absent:
+        listed, totals = ABSENT_CHECKS[data_type]
+        assert listed(ctx) == [], data_type
+        for total in totals:
+            assert overview[total] == 0, f"{data_type}: {total}"
