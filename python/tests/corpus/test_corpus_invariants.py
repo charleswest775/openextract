@@ -220,13 +220,13 @@ def test_every_call_record_listed(ctx):
 
 
 def test_calls_agree_with_call_history(ctx):
-    """Direction, FaceTime audio/video and answered status follow the raw ZCALLRECORD row."""
+    """Address, direction, FaceTime audio/video and answered status follow the raw ZCALLRECORD row."""
     ctx.require_open()
     conn = ctx.raw.connect(*CALL_HISTORY)
     if conn is None:
         pytest.skip("no CallHistory.storedata in this backup")
     rows = {r["Z_PK"]: r for r in conn.execute(
-        "SELECT Z_PK, ZORIGINATED, ZANSWERED, ZDURATION, ZCALLTYPE, ZSERVICE_PROVIDER FROM ZCALLRECORD"
+        "SELECT Z_PK, ZADDRESS, ZORIGINATED, ZANSWERED, ZDURATION, ZCALLTYPE, ZSERVICE_PROVIDER FROM ZCALLRECORD"
     )}
     conn.close()
     problems = []
@@ -234,6 +234,11 @@ def test_calls_agree_with_call_history(ctx):
         row = rows.get(call["call_id"])
         if row is None:
             continue  # FaceTime-from-Messages and voicemail entries have string ids
+        # Before iOS 17 ZADDRESS is a BLOB of UTF-8; short codes are INTEGERs.
+        raw = row["ZADDRESS"]
+        address = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else ("" if raw is None else str(raw))
+        if call["address"] != address:
+            problems.append(f"call {row['Z_PK']}: address {call['address']!r}, ZADDRESS holds {address!r}")
         if row["ZORIGINATED"] is not None:
             direction = "outgoing" if row["ZORIGINATED"] else "incoming"
             if call["direction"] != direction:
