@@ -2,13 +2,13 @@
   "description": "Synthetic backups written by ios-backup-core's backupgen (layer L4 in docs/BACKUP_TEST_CORPUS_PLAN.md). Generated on demand into <cache>/syn/<key>/, each with an expected.json answer key. Items in the 'pr' tier run in every PR's CI once backupgen and the persona are available. 'purpose' says what each persona is for: testpersona checks the generator itself; einstein is the sparse set (Messages and Contacts only, so every other tab must show its empty state); maren is the showcase set (every tab filled, for screenshots), whose public-domain photos are downloaded on first use, so it runs weekly rather than in every PR.",
   "items": [
     {"key": "syn-testpersona-ios15-plain", "persona": "testpersona", "purpose": "generator", "snapshot": "ios15", "password": null, "tiers": ["pr"]},
-    {"key": "syn-testpersona-ios17-encrypted", "persona": "testpersona", "purpose": "generator", "snapshot": "ios17", "password": "test-password", "tiers": ["pr"]},
+    {"key": "syn-testpersona-ios17-encrypted", "persona": "testpersona", "purpose": "generator", "snapshot": "ios17", "password": "test", "tiers": ["pr"]},
     {"key": "syn-testpersona-ios26-plain", "persona": "testpersona", "purpose": "generator", "snapshot": "ios26", "password": null, "tiers": ["pr"]},
     {"key": "syn-einstein-ios15-plain", "persona": "einstein", "purpose": "sparse", "snapshot": "ios15", "password": null, "tiers": ["pr"]},
-    {"key": "syn-einstein-ios17-encrypted", "persona": "einstein", "purpose": "sparse", "snapshot": "ios17", "password": "annus-mirabilis-1905", "tiers": ["pr"]},
+    {"key": "syn-einstein-ios17-encrypted", "persona": "einstein", "purpose": "sparse", "snapshot": "ios17", "password": "test", "tiers": ["pr"]},
     {"key": "syn-einstein-ios26-plain", "persona": "einstein", "purpose": "sparse", "snapshot": "ios26", "password": null, "tiers": ["pr"]},
-    {"key": "syn-einstein-ios26-encrypted", "persona": "einstein", "purpose": "sparse", "snapshot": "ios26", "password": "annus-mirabilis-1905", "tiers": ["pr"]},
-    {"key": "syn-maren-ios26-encrypted", "persona": "maren", "purpose": "showcase", "snapshot": "ios26", "password": "switchbacks-and-snacks", "tiers": ["weekly"]},
+    {"key": "syn-einstein-ios26-encrypted", "persona": "einstein", "purpose": "sparse", "snapshot": "ios26", "password": "test", "tiers": ["pr"]},
+    {"key": "syn-maren-ios26-encrypted", "persona": "maren", "purpose": "showcase", "snapshot": "ios26", "password": "test", "tiers": ["weekly"]},
     {"key": "syn-maren-ios26-plain", "persona": "maren", "purpose": "showcase", "snapshot": "ios26", "password": null, "tiers": ["weekly"]}
   ]
 }
