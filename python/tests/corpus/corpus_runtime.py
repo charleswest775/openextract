@@ -44,12 +44,17 @@ class ItemContext:
         with open(backup_dir / "Info.plist", "rb") as f:
             info = plistlib.load(f)
         self.udid = item.udid or info.get("Unique Identifier") or backup_dir.name
-        self.client = SidecarClient().start()
+        self.client = SidecarClient()
         self.open_result: Optional[dict] = None
-        if not item.encrypted or item.password:
-            self.open_result = self.client.call(
-                "open_backup", {"udid": self.udid, "password": item.password, "backup_dir": str(backup_dir)}
-            )
+        try:
+            self.client.start()
+            if not item.encrypted or item.password:
+                self.open_result = self.client.call(
+                    "open_backup", {"udid": self.udid, "password": item.password, "backup_dir": str(backup_dir)}
+                )
+        except Exception:
+            self.client.close()  # don't leave the sidecar running
+            raise
 
     def close(self) -> None:
         self.client.close()
@@ -116,10 +121,13 @@ class ItemContext:
             page = self.rpc(method, offset=offset, limit=PAGE, **params)
             batch = page.get(key, [])
             items.extend(batch)
-            total = page.get("total", len(items))
+            total = page.get("total")
             offset += PAGE
-            if not batch or offset >= total:
-                return {**page, key: items, "total": total}
+            # Page by `total`, not by empty pages: list_photos leaves out assets it
+            # can't address, so a page can be empty with more photos after it.
+            done = offset >= total if total is not None else not batch
+            if done:
+                return {**page, key: items, "total": len(items) if total is None else total}
 
     @cached_property
     def calls_result(self) -> dict:
@@ -186,8 +194,13 @@ class CorpusRuntime:
     def __init__(self):
         self.items = load_manifest()
         self._contexts: dict[str, ItemContext] = {}
+        # Items whose sidecar wouldn't start or open the backup: fail their other tests
+        # at once instead of starting (and decrypting) again for every test.
+        self._failures: dict[str, str] = {}
 
     def context(self, key: str) -> ItemContext:
+        if key in self._failures:
+            pytest.fail(f"{key}: setup failed earlier in this run: {self._failures[key]}")
         if key not in self._contexts:
             item = self.items[key]
             backup_dir = item.backup_dir()
@@ -196,7 +209,11 @@ class CorpusRuntime:
                 if require_fetched():
                     pytest.fail(message)
                 pytest.skip(message)
-            self._contexts[key] = ItemContext(item, backup_dir)
+            try:
+                self._contexts[key] = ItemContext(item, backup_dir)
+            except Exception as e:
+                self._failures[key] = f"{type(e).__name__}: {e}"
+                raise
         return self._contexts[key]
 
     def close(self) -> None:

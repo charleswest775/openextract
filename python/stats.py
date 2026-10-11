@@ -3,6 +3,7 @@ Backup statistics computation.
 Aggregates data across all backup databases into a single stats response.
 """
 
+import re
 import sqlite3
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -12,6 +13,9 @@ from messages import apple_date_to_iso, NANOSECOND_THRESHOLD
 
 # Seconds between Unix epoch (1970) and Apple epoch (2001)
 _APPLE_UNIX_DELTA = 978307200
+
+# Group chats have identifiers like "chat644566139839284925".
+_GROUP_CHAT_IDENTIFIER = re.compile(r"chat\d+", re.IGNORECASE)
 
 _DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -30,12 +34,6 @@ def _safe_connect(db_path: str) -> Optional[sqlite3.Connection]:
         return conn
     except Exception:
         return None
-
-
-def _asset_table(cursor) -> str:
-    """The assets table: ZASSET from iOS 14, ZGENERICASSET before that."""
-    tables = {r[0] for r in cursor.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-    return "ZGENERICASSET" if "ZASSET" not in tables and "ZGENERICASSET" in tables else "ZASSET"
 
 
 def _apple_ts_to_iso(ts) -> Optional[str]:
@@ -194,7 +192,8 @@ class StatsComputer:
             # list_conversations (chats with at least one message; a group has
             # several handles or a "chat…" identifier) so the dashboard agrees
             # with the conversation list. chat.group_id is set on every chat,
-            # so it can't tell groups apart.
+            # so it can't tell groups apart. Match the whole "chat<digits>"
+            # identifier: an email handle such as chatham@… is a 1:1 chat.
             try:
                 chat_rows = c.execute("""
                     SELECT ch.chat_identifier,
@@ -209,7 +208,7 @@ class StatsComputer:
                 total_convos = len(chat_rows)
                 group_convos = sum(
                     1 for identifier, participants in chat_rows
-                    if participants > 1 or "chat" in (identifier or "").lower()
+                    if participants > 1 or _GROUP_CHAT_IDENTIFIER.fullmatch(identifier or "")
                 )
                 one_on_one = total_convos - group_convos
             except Exception:
@@ -319,7 +318,8 @@ class StatsComputer:
 
         try:
             c = conn.cursor()
-            assets = _asset_table(c)
+            from photos import asset_table
+            assets = asset_table(c)
 
             # Check which columns exist
             c.execute(f"PRAGMA table_info({assets})")

@@ -14,7 +14,7 @@ python -m corpus.fetch fetch pub-hickman-15.3.1
 pytest python/tests/corpus -m corpus -v
 ```
 
-Without `-m corpus`, `pytest python/tests/` runs the corpus tooling's own unit tests. It also runs the corpus checks for any item that's already in your cache.
+Without `-m corpus`, `pytest python/tests/` runs only the corpus tooling's own unit tests, even when items are in your cache. Setting `OPENEXTRACT_CORPUS_ITEMS` also turns the corpus checks on.
 
 ## What's here
 

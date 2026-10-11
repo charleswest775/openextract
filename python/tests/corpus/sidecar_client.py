@@ -45,7 +45,8 @@ class SidecarClient:
             command = [binary] if binary else [sys.executable, "-u", str(SIDECAR_MAIN)]
         self.command = command
         self.startup_timeout = startup_timeout
-        self.protocol_errors: list[str] = []
+        self.protocol_errors: list[str] = []  # every violation seen; test_protocol_stayed_clean checks it
+        self._raised_errors = 0  # how many of them a call has already raised
         self.notifications: list[dict] = []
         self.calls = 0
         self._ids = itertools.count(1)
@@ -146,9 +147,12 @@ class SidecarClient:
                 self.protocol_errors.append(
                     f"unexpected message while waiting for id {request_id} ({method}): {str(message)[:200]}"
                 )
-                raise ProtocolError(self.protocol_errors[-1])
-            if self.protocol_errors:
-                raise ProtocolError("; ".join(self.protocol_errors))
+            # Raise each violation once, from the call that saw it, so one stray line
+            # doesn't fail every later test that shares this sidecar.
+            new_errors = self.protocol_errors[self._raised_errors:]
+            if new_errors:
+                self._raised_errors = len(self.protocol_errors)
+                raise ProtocolError(f"{method}: " + "; ".join(new_errors))
             if "error" in message:
                 error = message["error"] or {}
                 raise SidecarError(method, error.get("code"), error.get("message", ""))

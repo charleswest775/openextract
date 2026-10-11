@@ -88,7 +88,8 @@ def test_no_extractor_errors(ctx):
     ]
     problems = []
     for method, fetch, (domain, path) in checks:
-        present = raw.has_file(domain, path)
+        # An empty photo library legitimately falls back to the DCIM scan.
+        present = _has_photo_assets(ctx) if method == "list_photos" else raw.has_file(domain, path)
         try:
             result = fetch()
         except SidecarError as e:
@@ -280,6 +281,16 @@ def _asset_table(raw, conn):
     return "ZASSET" if "ZASSET" in tables else "ZGENERICASSET"
 
 
+def _has_photo_assets(ctx) -> bool:
+    conn = ctx.raw.connect(*PHOTOS)
+    if conn is None:
+        return False
+    try:
+        return bool(conn.execute(f"SELECT EXISTS (SELECT 1 FROM {_asset_table(ctx.raw, conn)})").fetchone()[0])
+    finally:
+        conn.close()
+
+
 def _photo_rows(ctx):
     """Non-trashed assets as (uuid, has_date, original_in_backup)."""
     conn = ctx.raw.connect(*PHOTOS)
@@ -302,6 +313,8 @@ def test_every_photo_listed(ctx):
     """Every asset whose original is in the backup is listed once, with its date."""
     ctx.require_open()
     rows = _photo_rows(ctx)
+    if not rows:
+        pytest.skip("Photos.sqlite has no assets")
     result = ctx.photos_result
     assert result.get("source") == "photos_sqlite", (
         f"list_photos used {result.get('source')!r} although Photos.sqlite is in the backup"

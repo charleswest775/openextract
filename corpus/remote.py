@@ -192,14 +192,15 @@ def _copy(reader: BinaryIO, writer: BinaryIO, total: Optional[int], progress: Pr
             progress(done, total)
 
 
-def _part(dest: Path) -> Path:
+def part_path(dest: Path) -> Path:
+    """Where a download to ``dest`` is written until it's complete."""
     return dest.with_name(dest.name + ".part")
 
 
 def download(src: str, dest: Path, *, expected_size: Optional[int] = None, progress: Progress = None) -> Path:
     """Download ``src`` to ``dest``, resuming from ``dest.part`` when it exists."""
     dest.parent.mkdir(parents=True, exist_ok=True)
-    part = _part(dest)
+    part = part_path(dest)
     if not is_remote(src):
         with open(local_path(src), "rb") as reader, open(part, "wb") as writer:
             _copy(reader, writer, expected_size, progress)
@@ -242,7 +243,7 @@ def extract_zip_member(src: str, member: str, dest: Path, *, progress: Progress 
         data_start = info.header_offset + 30 + name_len + extra_len
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    part = _part(dest)
+    part = part_path(dest)
     remaining = info.compress_size
     if is_remote(src):
         reader = ResumableStream(src, data_start, data_start + remaining - 1)
@@ -282,7 +283,7 @@ def extract_zip_member(src: str, member: str, dest: Path, *, progress: Progress 
 def extract_targz_member(src: str, member: str, dest: Path, *, progress: Progress = None) -> Path:
     """Stream a .tar.gz from the start and copy out one member, then stop reading."""
     dest.parent.mkdir(parents=True, exist_ok=True)
-    part = _part(dest)
+    part = part_path(dest)
     if is_remote(src):
         stream = io.BufferedReader(ResumableStream(src), buffer_size=CHUNK)
     else:

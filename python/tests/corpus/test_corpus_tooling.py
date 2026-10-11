@@ -5,18 +5,22 @@ import http.server
 import io
 import json
 import plistlib
+import sys
 import tarfile
 import threading
+import types
 import zipfile
 from pathlib import Path
 
 import pytest
 
+import corpus_runtime
 from corpus import remote
 from corpus.facts import ExtractedData, evaluate, load_facts, normalize_phone, phone_sha256, text_sha256
 from corpus.fetch import HashMismatch, ManualFetchRequired, fetch_item, is_fetched
 from corpus.manifest import FACTS_DIR, Fetch, Item, ManifestError, load_manifest
-from sidecar_client import SidecarClient, SidecarError
+from corpus_runtime import PAGE, CorpusRuntime, ItemContext
+from sidecar_client import ProtocolError, SidecarClient, SidecarError
 
 UDID = "0123456789abcdef0123456789abcdef01234567"
 
@@ -347,6 +351,37 @@ def test_fetch_item_rejects_a_hash_mismatch(http_root, tmp_path):
     assert not is_fetched(item, cache)
 
 
+def test_fetch_item_replaces_a_cached_download_after_a_re_pin(http_root, tmp_path):
+    """A cached artifact from before the hash was re-pinned is fetched again, not failed on forever."""
+    root, base, _, _ = http_root
+    data = _backup_zip_bytes()
+    (root / "backup.zip").write_bytes(data)
+    item = _item(Fetch(method="direct", url=f"{base}/backup.zip", artifact="backup.zip", archive="zip",
+                       size=len(data), sha256=hashlib.sha256(data).hexdigest()))
+    cache = tmp_path / "cache"
+    stale = item.artifact_path(cache)
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"last year's upload")
+    backup_dir = fetch_item(item, cache, log=lambda *_: None)
+    assert (backup_dir / "Manifest.plist").is_file()
+    assert stale.read_bytes() == data
+
+
+def test_force_discards_a_partial_download(http_root, tmp_path):
+    root, base, ranges, _ = http_root
+    data = _backup_zip_bytes()
+    (root / "backup.zip").write_bytes(data)
+    item = _item(Fetch(method="direct", url=f"{base}/backup.zip", artifact="backup.zip", archive="zip",
+                       size=len(data), sha256=hashlib.sha256(data).hexdigest()))
+    cache = tmp_path / "cache"
+    part = remote.part_path(item.artifact_path(cache))
+    part.parent.mkdir(parents=True)
+    part.write_bytes(b"x" * 100)  # left over from an older upload
+    fetch_item(item, cache, force=True, log=lambda *_: None)
+    assert not ranges, "a forced fetch must not resume the old .part file"
+    assert is_fetched(item, cache)
+
+
 def test_manual_item_says_where_to_put_the_file(tmp_path):
     item = _item(Fetch(method="manual", artifact="backup.zip", archive="zip", instructions="Download it by hand."))
     with pytest.raises(ManualFetchRequired, match="Download it by hand") as excinfo:
@@ -367,3 +402,62 @@ def test_sidecar_round_trip():
         assert reply["id"] is None and reply["error"]["code"] == -32700
         assert client.call("ping")["status"] == "ok"
         assert not client.protocol_errors
+
+
+_NOISY_SIDECAR = """
+import json, sys
+print(json.dumps({"status": "ready"}), flush=True)
+for n, line in enumerate(sys.stdin):
+    if n == 0:
+        print("debug output that should have gone to stderr", flush=True)
+    print(json.dumps({"id": json.loads(line)["id"], "result": {"n": n}}), flush=True)
+"""
+
+
+def test_stdout_noise_fails_only_the_call_that_saw_it():
+    with SidecarClient(command=[sys.executable, "-c", _NOISY_SIDECAR]) as client:
+        with pytest.raises(ProtocolError, match="first: non-JSON line"):
+            client.call("first")
+        assert client.call("second") == {"n": 1}
+        assert len(client.protocol_errors) == 1  # still reported by test_protocol_stayed_clean
+
+
+# ── corpus runtime ───────────────────────────────────────────────────────────
+
+
+def test_paging_continues_past_an_empty_page():
+    """list_photos can return an empty page when it can't address any asset in it."""
+    pages = {0: ["a"] * PAGE, PAGE: [], 2 * PAGE: ["b", "c"]}
+    fake = types.SimpleNamespace(rpc=lambda method, offset, limit: {"photos": pages[offset], "total": 2 * PAGE + 2})
+    result = ItemContext._paged(fake, "list_photos", "photos")
+    assert len(result["photos"]) == PAGE + 2
+
+
+def test_a_failed_open_closes_its_sidecar_and_is_not_retried(tmp_path, monkeypatch):
+    (tmp_path / "Info.plist").write_bytes(plistlib.dumps({"Unique Identifier": UDID}))
+    clients = []
+
+    class FailingSidecar:
+        def __init__(self):
+            self.closed = False
+            clients.append(self)
+
+        def start(self):
+            return self
+
+        def call(self, method, params):
+            raise SidecarError(method, -32000, "could not open")
+
+        def close(self):
+            self.closed = True
+
+    monkeypatch.setattr(corpus_runtime, "SidecarClient", FailingSidecar)
+    runtime = CorpusRuntime()
+    item = _item(Fetch(method="manual", artifact="backup.zip", archive="zip", instructions="-"))
+    monkeypatch.setattr(type(item), "backup_dir", lambda self, root=None: tmp_path)
+    runtime.items = {item.key: item}
+    with pytest.raises(SidecarError):
+        runtime.context(item.key)
+    with pytest.raises(pytest.fail.Exception, match="setup failed earlier"):
+        runtime.context(item.key)
+    assert len(clients) == 1 and clients[0].closed

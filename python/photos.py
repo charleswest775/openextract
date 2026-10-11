@@ -50,8 +50,8 @@ except ImportError:
 print(f"[photos] PIL={HAS_PIL} HEIF={HAS_HEIF}", file=sys.stderr, flush=True)
 
 
-def _asset_table(conn) -> str:
-    """The assets table: ZASSET from iOS 14, ZGENERICASSET before that."""
+def asset_table(conn) -> str:
+    """The assets table: ZASSET from iOS 14, ZGENERICASSET before that. Also used by stats.py."""
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     return "ZGENERICASSET" if "ZASSET" not in tables and "ZGENERICASSET" in tables else "ZASSET"
 
@@ -80,7 +80,10 @@ class PhotoExtractor:
         if result.get("source") == "unavailable" or (
             not result.get("photos") and result.get("total", 0) == 0
         ):
-            reason = result.get("error") or result.get("source") or "no assets in Photos.sqlite"
+            reason = result.get("error") or (
+                "Photos.sqlite unavailable" if result.get("source") == "unavailable"
+                else "Photos.sqlite lists no assets"
+            )
             print(f"[photos] list_photos: using DCIM fallback (no album filter): {reason}",
                   file=sys.stderr, flush=True)
             # Say why we fell back: the DCIM scan has no dates, places or
@@ -116,7 +119,7 @@ class PhotoExtractor:
         try:
             junc_table, albums_col, assets_col = self._inner._find_album_junction(conn)
 
-            assets = _asset_table(conn)
+            assets = asset_table(conn)
             zasset_cols = {
                 col[1] for col in conn.execute(f"PRAGMA table_info('{assets}')").fetchall()
             }
@@ -124,18 +127,22 @@ class PhotoExtractor:
             def _col_or_null(name: str) -> str:
                 return f"a.{name}" if name in zasset_cols else f"NULL AS {name}"
 
-            # Older and newer names for the same fields (iOS 15 has
-            # ZMODIFICATIONDATE / ZAVALANCHEUUID); the library's row mapper
-            # takes whichever is present.
+            def _renamed(*names: str) -> str:
+                # Fields renamed between iOS releases (iOS 15 has ZMODIFICATIONDATE /
+                # ZAVALANCHEUUID). Select whichever exists under every name: the
+                # library's row mapper takes the first name present in the row, so
+                # a NULL placeholder for a missing new name would hide the old one.
+                present = next((f"a.{n}" for n in names if n in zasset_cols), "NULL")
+                return ", ".join(f"{present} AS {n}" for n in names)
+
             meta_cols = ", ".join([
                 _col_or_null("ZUUID"), _col_or_null("ZDIRECTORY"),
                 _col_or_null("ZFILENAME"), _col_or_null("ZKIND"),
-                _col_or_null("ZDATECREATED"), _col_or_null("ZDATEMODIFIED"),
-                _col_or_null("ZMODIFICATIONDATE"),
+                _col_or_null("ZDATECREATED"), _renamed("ZMODIFICATIONDATE", "ZDATEMODIFIED"),
                 _col_or_null("ZWIDTH"), _col_or_null("ZHEIGHT"),
                 _col_or_null("ZDURATION"), _col_or_null("ZFAVORITE"),
                 _col_or_null("ZHIDDEN"), _col_or_null("ZHASADJUSTMENTS"),
-                _col_or_null("ZBURSTUUID"), _col_or_null("ZAVALANCHEUUID"),
+                _renamed("ZAVALANCHEUUID", "ZBURSTUUID"),
                 _col_or_null("ZLATITUDE"), _col_or_null("ZLONGITUDE"), "a.Z_PK",
             ])
 
