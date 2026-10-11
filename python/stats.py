@@ -7,6 +7,7 @@ import sqlite3
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
+from contacts import resolve_contact
 from messages import apple_date_to_iso, NANOSECOND_THRESHOLD
 
 
@@ -212,7 +213,9 @@ class StatsComputer:
                     name = row[2] or ""
                     if not name:
                         identifier = row[1] or ""
-                        name = contacts.get(identifier, identifier)
+                        # Handles are stored as e.g. "+447700900101" while the address
+                        # book may hold "+44 7700 900101" — normalize like the Messages tab.
+                        name = resolve_contact(identifier, contacts) or identifier
                     top_conversations.append({
                         "display_name": name or "Unknown",
                         "message_count": row[3],
