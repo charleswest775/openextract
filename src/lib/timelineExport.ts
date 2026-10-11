@@ -1,5 +1,6 @@
 import { TimelineEntry } from '../types/timeline';
 import { formatDate, formatTime, formatDateTime, formatDuration } from './dates';
+import { browserLabel } from './browserHistoryStats';
 
 export type ExportFormat = 'html' | 'md' | 'csv';
 
@@ -66,7 +67,7 @@ function entryDescription(e: TimelineEntry): string {
     }
     case 'browser': {
       const b = e.browser!;
-      return `[${b.browserName === 'firefox' ? 'Firefox' : 'Safari'}] ${b.title || b.domain} (${b.url})`;
+      return `[${browserLabel(b.browserName)}] ${b.title || b.domain} (${b.url})`;
     }
     default:
       return '';

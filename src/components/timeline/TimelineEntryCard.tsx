@@ -3,6 +3,7 @@ import { MessageSquare, PhoneCall, Image, Phone, FileText, Globe, ChevronDown, C
 import { TimelineEntry } from '../../types/timeline';
 import { formatTime, formatDate, formatDuration } from '../../lib/dates';
 import { sidecarCall } from '../../lib/ipc';
+import { browserLabel } from '../../lib/browserHistoryStats';
 import AmrPlayer from '../voicemail/AmrPlayer';
 
 // ── Full-size photo lightbox ───────────────────────────────────────────────────
@@ -586,13 +587,13 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
     );
   } else if (entry.type === 'browser' && entry.browser) {
     const { url, title, domain, browserName } = entry.browser;
-    const browserLabel = browserName === 'firefox' ? 'Firefox' : 'Safari';
+    const browserDisplayName = browserLabel(browserName);
 
     body = (
       <>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
           {metaLeft}
-          <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}>{browserLabel}</span>
+          <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}>{browserDisplayName}</span>
         </div>
         <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {title || domain}

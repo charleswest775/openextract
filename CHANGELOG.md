@@ -17,3 +17,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Photo extraction from CameraRollDomain
 - Voicemail, call history, contacts, and notes extractors
 - Export to TXT, CSV, and HTML formats
+- Browser history from Chrome, Edge, and Brave, plus Safari profiles; explains when Safari history is missing because the backup isn't encrypted

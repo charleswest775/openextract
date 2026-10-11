@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { saveFolder } from '../../lib/ipc';
 import { ExportIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
-import type { HistoryVisit } from '../../lib/browserHistoryStats';
+import { browserLabel, type BrowserHistoryError, type HistoryVisit } from '../../lib/browserHistoryStats';
 import BrowserHistoryOverview from './BrowserHistoryOverview';
 import BrowserHistoryTable from './BrowserHistoryTable';
 
@@ -27,14 +27,42 @@ class BrowserHistoryErrorBoundary extends Component<
   }
 }
 
+function BrowserHistoryNotices({ notice, errors }: { notice: string | null; errors: BrowserHistoryError[] }) {
+  if (!notice && errors.length === 0) return null;
+  return (
+    <div className="px-4 py-2.5 border-b border-amber-200 bg-amber-50 text-xs text-amber-800 space-y-1 flex-shrink-0">
+      {notice && <p>{notice}</p>}
+      {errors.map((e) => (
+        <p key={e.browser}>
+          <span className="font-medium">{browserLabel(e.browser)}:</span> {e.message}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 interface Props {
   udid: string;
   preloadedVisits?: HistoryVisit[] | null;
   preloadedLoading?: boolean;
+  /** Explains missing history, e.g. Safari needs an encrypted backup. */
+  notice?: string | null;
+  /** Browsers whose history was found but couldn't be read. */
+  errors?: BrowserHistoryError[];
 }
 
-export default function BrowserHistoryExplorer({ udid, preloadedVisits, preloadedLoading }: Props) {
+export default function BrowserHistoryExplorer({
+  udid,
+  preloadedVisits,
+  preloadedLoading,
+  notice: preloadedNotice,
+  errors: preloadedErrors,
+}: Props) {
   const [visits, setVisits] = useState<HistoryVisit[]>([]);
+  const [fetchedNotice, setFetchedNotice] = useState<string | null>(null);
+  const [fetchedErrors, setFetchedErrors] = useState<BrowserHistoryError[]>([]);
+  const notice = preloadedNotice ?? fetchedNotice;
+  const errors = preloadedErrors?.length ? preloadedErrors : fetchedErrors;
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<'overview' | 'history'>('overview');
   const [drillDomain, setDrillDomain] = useState<string | null>(null);
@@ -59,6 +87,8 @@ export default function BrowserHistoryExplorer({ udid, preloadedVisits, preloade
       const res = await window.openextract.call('list_browser_history', { udid });
       if (res.success && res.data) {
         setVisits(res.data.visits || []);
+        setFetchedNotice(res.data.notice ?? null);
+        setFetchedErrors(res.data.errors || []);
       }
     } finally {
       setLoading(false);
@@ -139,11 +169,17 @@ export default function BrowserHistoryExplorer({ udid, preloadedVisits, preloade
         </button>
       </div>
 
+      <BrowserHistoryNotices notice={notice} errors={errors} />
+
       {/* Body */}
       <div className="flex-1 overflow-hidden">
         {isLoading ? (
           <div className="h-full flex items-center justify-center text-accent">
             <OrganicLoader size={96} />
+          </div>
+        ) : visits.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-sm text-gray-400">
+            No browser history found in this backup.
           </div>
         ) : (
           <BrowserHistoryErrorBoundary>

@@ -2,14 +2,56 @@
  * Shared types and stat computation for browser history.
  */
 
+/** Browser keys the sidecar can report. Keep in sync with ios-backup-core's BrowserHistoryExtractor.BROWSERS. */
+export type BrowserKey = 'safari' | 'firefox' | 'chrome' | 'edge' | 'brave';
+
+/** Display order for filters and legends. */
+export const BROWSER_ORDER: BrowserKey[] = ['safari', 'chrome', 'firefox', 'edge', 'brave'];
+
+const BROWSER_LABELS: Record<BrowserKey, string> = {
+  safari: 'Safari',
+  firefox: 'Firefox',
+  chrome: 'Chrome',
+  edge: 'Edge',
+  brave: 'Brave',
+};
+
+/** Chart/legend colors per browser. */
+export const BROWSER_COLORS: Record<BrowserKey, string> = {
+  safari: '#3b82f6',
+  firefox: '#f97316',
+  chrome: '#16a34a',
+  edge: '#0891b2',
+  brave: '#e11d48',
+};
+
+/** Tailwind classes for the small browser badge in tables. */
+export const BROWSER_BADGE_CLASSES: Record<BrowserKey, string> = {
+  safari: 'bg-blue-50 text-blue-600',
+  firefox: 'bg-orange-50 text-orange-600',
+  chrome: 'bg-green-50 text-green-700',
+  edge: 'bg-cyan-50 text-cyan-700',
+  brave: 'bg-rose-50 text-rose-600',
+};
+
+export function browserLabel(browser: string): string {
+  return BROWSER_LABELS[browser as BrowserKey] ?? browser.charAt(0).toUpperCase() + browser.slice(1);
+}
+
 export interface HistoryVisit {
   visit_id: string;
   url: string;
   title: string;
   domain: string;
   visit_date: string | null;
-  browser: 'safari' | 'firefox';
+  browser: BrowserKey;
   visit_count: number | null;
+}
+
+/** A browser whose history database was found but couldn't be read. */
+export interface BrowserHistoryError {
+  browser: string;
+  message: string;
 }
 
 export interface BrowserHistoryStats {
