@@ -136,6 +136,36 @@ def test_voicemails_match_answer_key(ctx):
     assert not missing and not extra, f"missing {list(missing)[:3]} … extra {list(extra)[:3]} …"
 
 
+def test_notes_match_answer_key(ctx):
+    expected = _expected(ctx)
+    if not expected.get("notes"):
+        pytest.skip("no notes in this backup")
+    want = Counter((n["title"], n["text"], parse_iso(n["created"]), parse_iso(n["modified"])) for n in expected["notes"])
+    got = Counter(
+        (n["title"], n["body"], parse_iso(n["created"]) if n.get("created") else None, parse_iso(n["modified"]))
+        for n in ctx.notes_result.get("notes", [])
+    )
+    missing, extra = want - got, got - want
+    assert not missing and not extra, f"missing {list(missing)[:2]} … extra {list(extra)[:2]} …"
+
+
+def test_browser_history_matches_answer_key(ctx):
+    expected = _expected(ctx)
+    if not expected.get("browser_history"):
+        pytest.skip("no browser history in this backup")
+    # The app folds a page revisited within two minutes into one visit.
+    want, kept = Counter(), {}
+    for v in sorted(expected["browser_history"], key=lambda v: v["date"]):
+        when, headline = parse_iso(v["date"]), v["title"] or v["url"]
+        if headline in kept and (when - kept[headline]).total_seconds() < 120:
+            continue
+        kept[headline] = when
+        want[(v["url"], v["title"], when)] += 1
+    got = Counter((v["url"], v["title"], parse_iso(v["visit_date"])) for v in ctx.browser_result.get("visits", []))
+    missing, extra = want - got, got - want
+    assert not missing and not extra, f"missing {list(missing)[:3]} … extra {list(extra)[:3]} …"
+
+
 # Data types a generated backup doesn't hold (expected.json "absent"), with the extracted list
 # that must come back empty and the dashboard totals that must be zero. Types the app doesn't
 # read yet are left out.
