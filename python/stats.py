@@ -332,11 +332,13 @@ class StatsComputer:
                     f"SELECT COUNT(*) FROM ZASSET WHERE {fav_col} = 1 {trash_and}"
                 ).fetchone()[0]
 
-            # Location data
+            # Location data. iOS writes -180 to both coordinates when a photo
+            # has no location; it doesn't leave them NULL.
             with_location = 0
-            if "ZLATITUDE" in columns:
+            if "ZLATITUDE" in columns and "ZLONGITUDE" in columns:
                 with_location = c.execute(
-                    f"SELECT COUNT(*) FROM ZASSET WHERE ZLATITUDE IS NOT NULL AND ZLATITUDE != 0 {trash_and}"
+                    f"SELECT COUNT(*) FROM ZASSET WHERE ZLATITUDE IS NOT NULL AND ZLATITUDE NOT IN (0, -180) "
+                    f"AND ZLONGITUDE IS NOT NULL AND ZLONGITUDE != -180 {trash_and}"
                 ).fetchone()[0]
 
             # Date range

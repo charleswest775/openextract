@@ -9,6 +9,10 @@ interface Props {
   onClose: () => void;
 }
 
+// iOS stores -180, -180 for a photo with no location. The engine reports that
+// as null; this keeps the panel from ever showing it as a place.
+const NO_LOCATION = -180;
+
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="mb-3">
@@ -158,7 +162,8 @@ export default function PhotoLightbox({ photos, initialIndex, getFullPhoto, onCl
             {photo.duration > 0 && (
               <MetaRow label="Duration" value={`${photo.duration.toFixed(1)}s`} />
             )}
-            {photo.latitude != null && photo.longitude != null && (
+            {photo.latitude != null && photo.longitude != null &&
+              photo.latitude !== NO_LOCATION && photo.longitude !== NO_LOCATION && (
               <MetaRow
                 label="Location"
                 value={`${photo.latitude.toFixed(5)}, ${photo.longitude.toFixed(5)}`}
