@@ -166,6 +166,55 @@ def test_browser_history_matches_answer_key(ctx):
     assert not missing and not extra, f"missing {list(missing)[:3]} … extra {list(extra)[:3]} …"
 
 
+def _photos(ctx):
+    expected = _expected(ctx)
+    if not expected.get("photos"):
+        pytest.skip("no photos in this backup")
+    return expected, [p for p in expected["photos"] if not p["trashed"]]
+
+
+def test_photos_match_answer_key(ctx):
+    """Every photo outside Recently Deleted, with its size, date, favourite flag and location."""
+    _, shown = _photos(ctx)
+    want = Counter((p["filename"], p["width"], p["height"], p["favorite"], parse_iso(p["date"])) for p in shown)
+    listed = ctx.photos_result.get("photos", [])
+    got = Counter((p["filename"], p["width"], p["height"], p["favorite"], parse_iso(p["date_created"])) for p in listed)
+    missing, extra = want - got, got - want
+    assert not missing and not extra, f"missing {list(missing)[:3]} … extra {list(extra)[:3]} …"
+    by_name = {p["filename"]: p for p in listed}
+    for photo in (p for p in shown if p["lat"] is not None):
+        got_photo = by_name[photo["filename"]]
+        assert (round(got_photo["latitude"], 4), round(got_photo["longitude"], 4)) == (round(photo["lat"], 4), round(photo["lon"], 4))
+
+
+def test_albums_match_answer_key(ctx):
+    _, shown = _photos(ctx)
+    want = Counter(title for p in shown for title in p["albums"])
+    got = {a["title"]: a["asset_count"] for a in ctx.albums_result.get("albums", []) if a["id"] != "__all__"}
+    assert got == dict(want)
+
+
+def test_unlocated_photos_have_no_coordinates(ctx):
+    """iOS stores -180 for "no location"; the app must not show that as a place or count it."""
+    _, shown = _photos(ctx)
+    unlocated = {p["filename"] for p in shown if p["lat"] is None}
+    if not unlocated:
+        pytest.skip("every photo has a location")
+    wrong = [(p["filename"], p["latitude"]) for p in ctx.photos_result.get("photos", [])
+             if p["filename"] in unlocated and p["latitude"] is not None]
+    assert not wrong, f"photos without a location show coordinates: {wrong}"
+    assert ctx.stats["photos"]["with_location"] == len(shown) - len(unlocated)
+
+
+def test_photo_attachments_match_answer_key(ctx):
+    expected = _expected(ctx)
+    sent = Counter((m["attachment"]["name"], m["attachment"]["bytes"]) for m in expected["messages"] if m.get("attachment"))
+    if not sent:
+        pytest.skip("no attachments in this backup")
+    got = Counter((a["transfer_name"], a["total_bytes"]) for m in ctx.messages for a in m.get("attachments") or [])
+    assert got == sent
+
+
 # Data types a generated backup doesn't hold (expected.json "absent"), with the extracted list
 # that must come back empty and the dashboard totals that must be zero. Types the app doesn't
 # read yet are left out.
