@@ -94,6 +94,48 @@ def test_received_messages_name_their_sender(ctx):
     assert not wrong, f"senders shown wrongly: {wrong[:5]}"
 
 
+_APPS = {"phone": "Phone", "facetime-audio": "FaceTime Audio", "facetime-video": "FaceTime Video"}
+
+
+def _minute(iso: str) -> int:
+    return int(parse_iso(iso).timestamp()) // 60
+
+
+def test_calls_match_answer_key(ctx):
+    """Every call, plus a missed call for each voicemail that has none (the app merges them in)."""
+    expected = _expected(ctx)
+    if not expected.get("calls") and not expected.get("voicemails"):
+        pytest.skip("no calls or voicemails in this backup")
+    want = Counter(
+        (c["address"], parse_iso(c["date"]), c["duration"], "outgoing" if c["outgoing"] else "incoming",
+         "answered" if c["answered"] else "missed", _APPS[c["service"]], c["contact"] or c["address"])
+        for c in expected["calls"]
+    )
+    called = {(c["address"], _minute(c["date"])) for c in expected["calls"]}
+    want.update(
+        (v["sender"], parse_iso(v["date"]), v["duration"], "incoming", "missed", "Phone", v["contact"] or v["sender"])
+        for v in expected["voicemails"] if (v["sender"], _minute(v["date"])) not in called
+    )
+    got = Counter(
+        (c["address"], parse_iso(c["date"]), c["duration"], c["direction"], c["status"], c["app"], c["contact_name"])
+        for c in ctx.calls_result.get("calls", [])
+    )
+    missing, extra = want - got, got - want
+    assert not missing and not extra, f"missing {list(missing)[:3]} … extra {list(extra)[:3]} …"
+
+
+def test_voicemails_match_answer_key(ctx):
+    expected = _expected(ctx)
+    if "voicemail" in expected.get("absent", {}):
+        pytest.skip("no voicemail in this backup")
+    want = Counter((v["sender"], parse_iso(v["date"]), v["duration"], v["contact"] or v["sender"])
+                   for v in expected["voicemails"])
+    got = Counter((v["phone_number"], parse_iso(v["date_received"]), v["duration"], v["contact_name"])
+                  for v in ctx.voicemails_result.get("voicemails", []))
+    missing, extra = want - got, got - want
+    assert not missing and not extra, f"missing {list(missing)[:3]} … extra {list(extra)[:3]} …"
+
+
 # Data types a generated backup doesn't hold (expected.json "absent"), with the extracted list
 # that must come back empty and the dashboard totals that must be zero. Types the app doesn't
 # read yet are left out.
@@ -112,7 +154,9 @@ ABSENT_CHECKS = {
 def test_absent_data_types_come_back_empty(ctx):
     """A backup without a data type must show that tab empty, not fail or invent rows."""
     expected = _expected(ctx)
-    absent = [t for t in expected.get("absent", []) if t in ABSENT_CHECKS]
+    absent = [t for t in expected.get("absent", {}) if t in ABSENT_CHECKS]
+    if expected.get("voicemails") and "calls" in absent:
+        absent.remove("calls")  # voicemails show in the call list; test_calls_match_answer_key covers them
     if not absent:
         pytest.skip("the backup holds every data type the app reads")
     overview = ctx.stats["overview"]
