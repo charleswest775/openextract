@@ -40,12 +40,13 @@ def _handle_name(names, handle):
 
 def test_contacts_match_answer_key(ctx):
     expected = _expected(ctx)
-    listed = Counter((c.get("first_name") or "", c.get("last_name") or "") for c in ctx.contacts)
-    wanted = Counter((c["first"], c["last"]) for c in expected["contacts"])
+    # Businesses have only an organization, so it's part of the key.
+    listed = Counter((c.get("first_name") or "", c.get("last_name") or "", c.get("organization") or "") for c in ctx.contacts)
+    wanted = Counter((c["first"], c["last"], c["organization"]) for c in expected["contacts"])
     assert listed == wanted
-    by_name = {(c.get("first_name") or "", c.get("last_name") or ""): c for c in ctx.contacts}
+    by_name = {(c.get("first_name") or "", c.get("last_name") or "", c.get("organization") or ""): c for c in ctx.contacts}
     for contact in expected["contacts"]:
-        got = by_name[(contact["first"], contact["last"])]
+        got = by_name[(contact["first"], contact["last"], contact["organization"])]
         assert sorted(got.get("phones") or []) == sorted(contact["phones"]), contact["first"]
         assert sorted(got.get("emails") or []) == sorted(contact["emails"]), contact["first"]
 
