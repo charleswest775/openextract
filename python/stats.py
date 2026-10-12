@@ -221,7 +221,9 @@ class StatsComputer:
                 pass
 
             # Busiest day of week and hour
-            # Need to handle both nanosecond and second Apple timestamps
+            # Need to handle both nanosecond and second Apple timestamps.
+            # 'localtime' buckets them in this computer's time zone, not UTC,
+            # so evening messages don't count toward the next day or a 2 AM peak.
             busiest_day = ""
             busiest_hour = -1
             try:
@@ -234,7 +236,7 @@ class StatsComputer:
 
                 # Busiest day of week (strftime %w: 0=Sunday, 6=Saturday)
                 day_row = c.execute(f"""
-                    SELECT strftime('%w', {date_expr}, 'unixepoch') AS dow, COUNT(*) AS c
+                    SELECT strftime('%w', {date_expr}, 'unixepoch', 'localtime') AS dow, COUNT(*) AS c
                     FROM message WHERE date > 0
                     GROUP BY dow ORDER BY c DESC LIMIT 1
                 """).fetchone()
@@ -247,7 +249,7 @@ class StatsComputer:
 
                 # Busiest hour
                 hour_row = c.execute(f"""
-                    SELECT strftime('%H', {date_expr}, 'unixepoch') AS hr, COUNT(*) AS c
+                    SELECT strftime('%H', {date_expr}, 'unixepoch', 'localtime') AS hr, COUNT(*) AS c
                     FROM message WHERE date > 0
                     GROUP BY hr ORDER BY c DESC LIMIT 1
                 """).fetchone()
