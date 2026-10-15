@@ -856,6 +856,46 @@ details.qa p {
 .uc-reason__k { font-size: 18px; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.01em; }
 .uc-reason__v { font-size: 15px; color: var(--ink-soft); line-height: 1.6; }
 
+/* ── App screenshots (landing section + /screenshots) ─ */
+.screen { margin: 0; }
+.screen__frame {
+  display: block;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 28px 56px -32px rgba(31,29,26,0.35);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.screen__frame:hover { transform: translateY(-2px); box-shadow: 0 34px 64px -30px rgba(31,29,26,0.4); }
+.screen__frame img { width: 100%; height: auto; }
+.screen figcaption { margin-top: 16px; font-size: 14px; color: var(--ink-soft); line-height: 1.55; }
+.screen figcaption strong { display: block; font-size: 17px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 4px; }
+
+.screens { padding: 24px 56px 56px; }
+.screens__head {
+  display: flex; justify-content: space-between; align-items: end;
+  margin-bottom: 40px; gap: 40px;
+}
+.screens__title {
+  font-size: 52px; letter-spacing: -0.025em; margin: 0;
+  font-weight: 500; max-width: 700px; line-height: 1;
+}
+.screens__lede { font-size: 15px; color: var(--ink-soft); max-width: 340px; line-height: 1.55; }
+.screens__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 36px; }
+.screens__more {
+  display: inline-block; margin-top: 36px;
+  font-size: 15px; font-weight: 500; color: var(--coral);
+  border-bottom: 1px solid var(--coral-44); padding-bottom: 2px;
+}
+.screens__more:hover { border-bottom-color: var(--coral); }
+
+.gallery {
+  padding: 0 56px 64px; max-width: 1200px; margin: 0 auto;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 56px 36px;
+}
+.gallery .screen--wide { grid-column: 1 / -1; }
+
 /* ── Responsive ─────────────────────────────────────── */
 @media (max-width: 1024px) {
   .hero,
@@ -873,13 +913,14 @@ details.qa p {
   .blog-list__grid,
   .post-more__grid,
   .uc-related__grid,
-  .uc-picks__grid {
+  .uc-picks__grid,
+  .screens__grid {
     grid-template-columns: 1fr;
   }
   .step-row { gap: 24px; }
-  .features__head, .how__head { flex-direction: column; align-items: flex-start; }
+  .features__head, .how__head, .screens__head { flex-direction: column; align-items: flex-start; }
   .hero h1 { font-size: 64px; }
-  .features__title { font-size: 40px; }
+  .features__title, .screens__title { font-size: 40px; }
   .how__title { font-size: 36px; }
   .final-cta h2 { font-size: 44px; }
   .footer { grid-template-columns: 1fr 1fr; }
@@ -890,7 +931,7 @@ details.qa p {
   .verdict-wrap, .matrix-wrap, .wheres,
   .migrate, .vs-faq, .blog-featured, .blog-list, .post-header, .post-body,
   .post-more, .about-stats, .uc-steps, .uc-related, .uc-picks, .uc-switch-card,
-  .uc-reasons, .inline-download, .backup-card-grid, .snags {
+  .uc-reasons, .inline-download, .backup-card-grid, .snags, .screens, .gallery {
     padding-left: 24px;
     padding-right: 24px;
   }
@@ -900,7 +941,7 @@ details.qa p {
   .phone { width: 220px; height: 440px; }
   .recovered { width: 280px; }
   .page-head h1 { font-size: 44px; }
-  .features__title, .how__title, .testimonials h2, .faq h2, .privacy h3,
+  .features__title, .screens__title, .how__title, .testimonials h2, .faq h2, .privacy h3,
   .matrix-wrap h2, .vs-faq h2, .wheres h3, .migrate h2,
   .backup-card-grid h2, .snags h2, .blog-featured h2,
   .post-header h1 {
@@ -916,4 +957,5 @@ details.qa p {
   .step-row { grid-template-columns: 1fr; }
   .uc-step { grid-template-columns: 1fr; gap: 12px; }
   .about-stats__grid { grid-template-columns: 1fr 1fr; }
+  .gallery { grid-template-columns: 1fr; gap: 40px; }
 }
