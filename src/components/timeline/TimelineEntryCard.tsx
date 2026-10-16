@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MessageSquare, PhoneCall, Image, Phone, FileText, Globe, ChevronDown, ChevronUp, Loader2, X, ZoomIn } from 'lucide-react';
+import { MessageSquare, PhoneCall, Image, Phone, FileText, Globe, Mic, CalendarDays, ChevronDown, ChevronUp, Loader2, X, ZoomIn } from 'lucide-react';
 import { TimelineEntry } from '../../types/timeline';
 import { formatTime, formatDate, formatDuration } from '../../lib/dates';
 import { sidecarCall } from '../../lib/ipc';
 import AmrPlayer from '../voicemail/AmrPlayer';
+import VoiceMemoPlayer from '../explore/VoiceMemoPlayer';
 
 // ── Full-size photo lightbox ───────────────────────────────────────────────────
 
@@ -282,10 +283,13 @@ const TYPE_CONFIG = {
   voicemail: { color: '#ff9f0a', icon: Phone,         badge: 'VM'    },
   note:      { color: '#5AC8FA', icon: FileText,      badge: 'NOTE'  },
   browser:   { color: '#34C759', icon: Globe,         badge: 'WEB'   },
+  voice_memo: { color: '#FF2D55', icon: Mic,          badge: 'MEMO'  },
+  calendar:  { color: '#5856D6', icon: CalendarDays,  badge: 'EVENT' },
 } as const;
 
 function accentColor(entry: TimelineEntry): string {
   if (entry.type === 'call' && entry.call?.status === 'missed') return '#ff3b30';
+  if (entry.type === 'calendar' && entry.calendar?.color) return entry.calendar.color;
   return TYPE_CONFIG[entry.type].color;
 }
 
@@ -396,6 +400,7 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [msgOpen, setMsgOpen] = useState(false);
+  const [memoExpanded, setMemoExpanded] = useState(false);
   const color = accentColor(entry);
   const { icon: Icon, badge } = TYPE_CONFIG[entry.type];
 
@@ -410,14 +415,72 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
       </span>
       <Icon size={12} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
       <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-        {formatTime(entry.timestamp)}
+        {entry.type === 'calendar' && entry.calendar ? entry.calendar.when : formatTime(entry.timestamp)}
       </span>
     </div>
   );
 
   let body: React.ReactNode = null;
 
-  if (entry.type === 'message' && entry.message) {
+  if (entry.type === 'voice_memo' && entry.voiceMemo) {
+    const { memoId, title, duration, folder, deleted, hasAudio } = entry.voiceMemo;
+    const toggle = () => hasAudio && setMemoExpanded(x => !x);
+
+    body = (
+      <>
+        <div
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2, cursor: hasAudio ? 'pointer' : 'default' }}
+          onClick={toggle}
+        >
+          {metaLeft}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{formatDuration(duration)}</span>
+            {hasAudio && (memoExpanded
+              ? <ChevronUp size={13} style={{ color: 'var(--text-tertiary)' }} />
+              : <ChevronDown size={13} style={{ color: 'var(--text-tertiary)' }} />)}
+          </div>
+        </div>
+        <div
+          style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', cursor: hasAudio ? 'pointer' : 'default' }}
+          onClick={toggle}
+        >
+          {title}
+        </div>
+        {(folder || deleted || !hasAudio) && (
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 1 }}>
+            {[folder, deleted ? 'Recently Deleted' : null, hasAudio ? null : 'Audio not in backup']
+              .filter(Boolean).join(' · ')}
+          </div>
+        )}
+        {memoExpanded && (
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '0.5px solid var(--border-subtle)' }}>
+            <VoiceMemoPlayer udid={udid} memoId={memoId} autoPlay />
+          </div>
+        )}
+      </>
+    );
+  } else if (entry.type === 'calendar' && entry.calendar) {
+    const { title, location, calendarName, recurring } = entry.calendar;
+
+    body = (
+      <>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+          {metaLeft}
+          <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}>
+            {[calendarName, recurring ? 'Repeats' : null].filter(Boolean).join(' · ')}
+          </span>
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {title}
+        </div>
+        {location && (
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+            {location}
+          </div>
+        )}
+      </>
+    );
+  } else if (entry.type === 'message' && entry.message) {
     const { text, isFromMe, conversationName, service, messageType } = entry.message;
     const displayText = messageType === 'app' ? '📱 App message'
       : messageType === 'attachment' ? '📎 Attachment'
