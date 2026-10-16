@@ -349,10 +349,35 @@ jobs:
   build-linux:
     needs: preflight
     runs-on: ubuntu-latest
+    # Build inside the oldest distro we support, not on the runner's own OS. PyInstaller
+    # bundles the build system's libpython and shared libraries, so the engine needs at
+    # least that system's glibc: built on ubuntu-24.04 it needed GLIBC_2.38 and failed to
+    # start on Ubuntu 22.04 (glibc 2.35) and Debian 12 (2.36). The ubuntu-22.04 runner
+    # image is being retired (2027-04-17), so use the container image instead.
+    container: ubuntu:22.04
+    env:
+      # The runner mounts its own tool cache into the container (at /__t), and setup-python
+      # would reuse the Python 3.11 in it, which is built for the runner's OS and so has
+      # the same glibc problem. A tool cache inside the container makes setup-python
+      # download its Ubuntu 22.04 build instead. Not /opt/hostedtoolcache: that is the
+      # runner's own path, and the runner rewrites it to /__t.
+      AGENT_TOOLSDIRECTORY: /opt/toolcache
     timeout-minutes: 60
     permissions:
       contents: write
     steps:
+      # Before checkout: the container has no git. PyInstaller needs objdump (binutils);
+      # the .deb is xz-compressed (xz-utils). setup-python's build links to the system's
+      # libsqlite3 and libreadline, which PyInstaller then bundles; without libsqlite3 the
+      # engine can't open a backup.
+      - name: Install Linux build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git ca-certificates binutils xz-utils libarchive-tools libsqlite3-0 libreadline8
+
       - name: Checkout tag
         uses: actions/checkout@v5
         with:
@@ -369,10 +394,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Linux build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libarchive-tools
+      # PyInstaller only warns about a missing library, so check them here: a build
+      # without one would ship an engine that fails when it first needs it.
+      - name: Check Python's system libraries
+        run: python -c "import sqlite3, ssl, ctypes, lzma, bz2, zlib, readline"
 
       - name: Install Node dependencies
         run: npm install
