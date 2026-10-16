@@ -15,6 +15,16 @@ declare global {
       relaunch: () => Promise<void>;
       /** Subscribe to JSON-RPC notifications from the Python sidecar (e.g. backup.progress). Returns a cleanup function. */
       onNotification: (callback: (notification: { method: string; params: Record<string, any> }) => void) => () => void;
+      getVersion: () => Promise<string>;
+      updates: {
+        getState: () => Promise<UpdatesState>;
+        setAutoCheck: (enabled: boolean) => Promise<void>;
+        check: () => Promise<void>;
+        download: () => Promise<void>;
+        install: () => Promise<void>;
+        /** Subscribe to update status changes. Returns a cleanup function. */
+        onStatus: (callback: (status: UpdateStatus) => void) => () => void;
+      };
       /** App state persistence */
       getAppState: () => Promise<AppStateData>;
       setFirstLaunchCompleted: () => Promise<void>;
@@ -24,6 +34,35 @@ declare global {
       incrementExportCount: () => Promise<number>;
     };
   }
+}
+
+// ─── Auto-update types (mirror electron/updater.ts) ──────────────────────────
+
+export type UpdateState =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error';
+
+export interface UpdateStatus {
+  state: UpdateState;
+  version?: string;
+  percent?: number;
+  error?: string;
+  checkedAt?: string;
+}
+
+export interface UpdatesState {
+  /** False in development and for installs that can't update themselves (e.g. an extracted AppImage). */
+  supported: boolean;
+  /** null until the user has answered the "check automatically?" question. */
+  autoCheck: boolean | null;
+  currentVersion: string;
+  releasesUrl: string;
+  status: UpdateStatus;
 }
 
 // ─── Photo types ─────────────────────────────────────────────────────────────

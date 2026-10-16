@@ -7,6 +7,7 @@ import PasswordDialog from './components/shared/PasswordDialog';
 import BackupChooserDialog from './components/shared/BackupChooserDialog';
 import type { RecentSession } from './lib/appState';
 import FullDiskAccessDialog, { FULL_DISK_ACCESS_PREFIX } from './components/shared/FullDiskAccessDialog';
+import UpdateNotice from './components/shared/UpdateNotice';
 
 type Screen = 'home' | 'explore' | 'create-backup';
 
@@ -149,6 +150,8 @@ export default function App() {
           }}
         />
       )}
+
+      <UpdateNotice />
 
       {openError?.startsWith(FULL_DISK_ACCESS_PREFIX) && (
         <FullDiskAccessDialog message={openError} onClose={() => setOpenError(null)} />

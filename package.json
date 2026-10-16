@@ -24,6 +24,7 @@
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "benz-amr-recorder": "^1.1.5",
     "date-fns": "^4.1.0",
+    "electron-updater": "^6.8.10",
     "lucide-react": "^0.577.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -56,6 +57,8 @@
     ],
     "publish": {
       "provider": "github",
+      "owner": "charleswest775",
+      "repo": "openextract",
       "releaseType": "release"
     },
     "afterSign": "build/notarize.js",

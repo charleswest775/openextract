@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 import { PythonSidecar } from './sidecar';
+import { initUpdater } from './updater';
 
 let mainWindow: any = null;
 let sidecar: any = null;
@@ -73,6 +74,8 @@ const store = new JsonStore({
   firstLaunchCompleted: false,
   sessions: [],
   stats: { totalExports: 0 },
+  // null until the user answers the "check for updates automatically?" question.
+  updatesAutoCheck: null,
 });
 
 function createWindow() {
@@ -166,6 +169,18 @@ app.whenReady().then(async () => {
   }
 
   createWindow();
+
+  initUpdater({
+    store,
+    getWindow: () => mainWindow,
+    // The installer replaces the engine binary, so it must not be running (Windows locks it).
+    beforeInstall: async () => {
+      if (sidecar) sidecar.stop();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    },
+  });
+
+  ipcMain.handle('app:get-version', () => app.getVersion());
 
   // ── Sidecar IPC bridge ──────────────────────────────────────────────────
   ipcMain.handle('sidecar:call', async (_event: any, method: string, params: any) => {

@@ -29,6 +29,23 @@ contextBridge.exposeInMainWorld('openextract', {
     return () => ipcRenderer.removeListener('sidecar:notification', listener);
   },
 
+  // App version (the packaged one, not a hard-coded string)
+  getVersion: () => ipcRenderer.invoke('app:get-version'),
+
+  // Auto-update. Nothing is checked until the user allows it (setAutoCheck) or clicks Check.
+  updates: {
+    getState: () => ipcRenderer.invoke('updates:get-state'),
+    setAutoCheck: (enabled: boolean) => ipcRenderer.invoke('updates:set-auto-check', enabled),
+    check: () => ipcRenderer.invoke('updates:check'),
+    download: () => ipcRenderer.invoke('updates:download'),
+    install: () => ipcRenderer.invoke('updates:install'),
+    onStatus: (callback: (status: any) => void) => {
+      const listener = (_event: any, status: any) => callback(status);
+      ipcRenderer.on('updates:status', listener);
+      return () => ipcRenderer.removeListener('updates:status', listener);
+    },
+  },
+
   // App state persistence
   getAppState: () => ipcRenderer.invoke('get-app-state'),
   setFirstLaunchCompleted: () => ipcRenderer.invoke('set-first-launch-completed'),

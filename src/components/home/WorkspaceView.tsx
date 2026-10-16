@@ -15,7 +15,7 @@ interface Props {
 export default function WorkspaceView({ data, onOpenSession, onGetMoreData, onBrowseForBackup }: Props) {
   return (
     <div className="h-screen flex flex-col bg-base">
-      <AppHeader showVersion={false} showSettings={false} />
+      <AppHeader showVersion={false} />
 
       <div className="flex-1 overflow-y-auto px-7 py-8">
         {/* Header row */}

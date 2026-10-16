@@ -127,6 +127,8 @@ Output will be in the `release/` directory.
 
 OpenExtract runs 100% locally. Your backup data never leaves your computer. The source code is fully auditable — that's the point of being open source.
 
+The only network request the app makes is an update check: it asks GitHub for the latest release's version file. It asks you once before checking automatically, you can turn it off in Settings, and it never sends anything about you or your backups. Updates download only when you click Update.
+
 ## License
 
 MIT — use it however you want.
