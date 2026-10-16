@@ -23,10 +23,10 @@ import io
 import json
 import os
 import shutil
-import sqlite3
 import sys
 from typing import Optional
 
+from ios_backup_core.db import connect_readonly
 from ios_backup_core.extractors.photos import (
     PhotoExtractor as _CorePhotoExtractor,
     PHOTO_EXTENSIONS,
@@ -550,7 +550,7 @@ class PhotoExtractor:
             manifest = backup.get_manifest_db()
             if manifest:
                 try:
-                    conn = sqlite3.connect(manifest)
+                    conn = connect_readonly(manifest, backup)
                     row = conn.execute(
                         "SELECT domain, relativePath FROM Files WHERE fileID = ?",
                         (file_hash,)

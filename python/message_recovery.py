@@ -30,6 +30,7 @@ import sqlite3
 from typing import Optional
 
 from ios_backup_core.contacts import resolve_contact
+from ios_backup_core.db import connect_readonly, get_database
 from ios_backup_core.text import parse_attributed_body
 from ios_backup_core.timestamps import apple_to_iso as apple_date_to_iso
 
@@ -103,7 +104,7 @@ class MessageRecoveryExtractor:
     """Scan sms.db and return recovered messages grouped by conversation."""
 
     def recover_messages(self, backup, contacts: dict) -> dict:
-        db_path = backup.get_file("Library/SMS/sms.db", "HomeDomain")
+        db_path = get_database(backup, "Library/SMS/sms.db", "HomeDomain")
         if not db_path:
             return {
                 "conversations": [],
@@ -112,7 +113,7 @@ class MessageRecoveryExtractor:
                 "schema_support": {"recently_deleted": False},
             }
 
-        conn = sqlite3.connect(db_path)
+        conn = connect_readonly(db_path, backup)
         conn.row_factory = sqlite3.Row
         try:
             has_recoverable = _table_exists(conn, "chat_recoverable_message_join")

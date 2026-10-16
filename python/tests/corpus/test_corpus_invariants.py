@@ -7,12 +7,15 @@ screens agree with each other, and that no value is impossible.
 """
 
 import base64
+import os
+import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 from corpus.facts import parse_iso
+from corpus_runtime import ItemContext
 from sidecar_client import SidecarClient, SidecarError
 
 pytestmark = pytest.mark.corpus
@@ -28,6 +31,7 @@ SAFARI = ("HomeDomain", "Library/Safari/History.db")
 EARLIEST = datetime(2007, 6, 29, tzinfo=timezone.utc)  # first iPhone
 ATTACHMENT_SAMPLE = 200
 TEXT_RESIDUE = ("￼", "streamtyped", "NSAttributedString", "NSMutableString", "__kIM")
+READ_ONLY_COPY_LIMIT = 256 * 1024 * 1024  # bigger backups take too long to copy
 
 
 def _latest(ctx) -> datetime:
@@ -470,6 +474,48 @@ def test_export_conversation_round_trip(ctx, tmp_path):
     assert exported.is_file() and exported.stat().st_size > 0, f"export didn't produce a file: {result}"
     shown = len(ctx.message_pages[biggest["chat_id"]]["messages"])
     assert result["message_count"] == shown, f"exported {result['message_count']} messages, the app shows {shown}"
+
+
+def _what_every_screen_shows(c) -> dict:
+    conversations = c.result_or_empty("conversations_result").get("conversations", [])
+    return {
+        "conversations": sorted((x["chat_id"], x.get("message_count")) for x in conversations),
+        "messages": sum(page["total"] for page in c.message_pages.values()) if conversations else 0,
+        "contacts": len(c.result_or_empty("contacts") or []),
+        "photos": c.result_or_empty("photos_result").get("total"),
+        "albums": len(c.result_or_empty("albums_result").get("albums", [])),
+        "notes": len(c.result_or_empty("notes_result").get("notes", [])),
+        "voicemails": len(c.result_or_empty("voicemails_result").get("voicemails", [])),
+        "calls": c.result_or_empty("calls_result").get("total"),
+        "visits": c.result_or_empty("browser_result").get("total"),
+        "stats": c.result_or_empty("stats"),
+    }
+
+
+def test_read_only_copy_reads_the_same(ctx, tmp_path):
+    """Backups sit on read-only disks, in other users' folders or behind macOS
+    permissions. The engine never writes into a backup, so a read-only copy reads the same."""
+    ctx.require_open()
+    if os.name == "nt" or os.geteuid() == 0:
+        pytest.skip("folder permissions aren't enforced for this user")
+    files = [p for p in ctx.backup_dir.rglob("*") if p.is_file()]
+    if sum(p.stat().st_size for p in files) > READ_ONLY_COPY_LIMIT:
+        pytest.skip("too big to copy for this check")
+    copy = tmp_path / ctx.backup_dir.name
+    shutil.copytree(ctx.backup_dir, copy)
+    paths = [copy, *copy.rglob("*")]
+    for p in paths:
+        p.chmod(p.stat().st_mode & ~0o222)
+    read_only = None
+    try:
+        read_only = ItemContext(ctx.item, copy)
+        assert read_only.is_open, read_only.open_result
+        assert _what_every_screen_shows(read_only) == _what_every_screen_shows(ctx)
+    finally:
+        if read_only is not None:
+            read_only.close()
+        for p in paths:
+            p.chmod(p.stat().st_mode | 0o200)
 
 
 # Keep last: protocol problems anywhere above would show up here too.

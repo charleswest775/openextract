@@ -34,7 +34,9 @@ class TestPhotoStatsBeforeIOS14(unittest.TestCase):
         )
         conn.commit()
         conn.close()
-        self.backup = MagicMock()
+        # Only what a backup accessor has: a bare MagicMock would also "have" get_database().
+        self.backup = MagicMock(spec=["get_file", "backup_dir"])
+        self.backup.backup_dir = self.tmp.name
         self.backup.get_file.side_effect = (
             lambda path, *a, **k: self.db if path == "Media/PhotoData/Photos.sqlite" else None
         )

@@ -88,13 +88,12 @@ class MessageExtractor:
         ios-backup-core only embeds attachments in get_messages results; this
         is the standalone per-attachment fetcher openextract's UI uses.
         """
-        # Re-use the inner extractor's connection helper so we share the
-        # same PRAGMAs / index creation it sets up on first use.
+        # Re-use the inner extractor's read-only connection to sms.db.
         db_path = self._inner._get_sms_db(backup)
         if not db_path:
             return {"error": "sms.db not found"}
 
-        conn = self._inner._get_conn(db_path)
+        conn = self._inner._get_conn(db_path, backup)
 
         try:
             row = conn.execute(

@@ -395,7 +395,7 @@ class SidecarServer:
 
     def get_aggregate_stats(self, params):
         """Return aggregate statistics across all opened backups."""
-        import sqlite3
+        from ios_backup_core.db import connect_readonly, get_database
         stats = {
             "total_devices": 0,
             "total_size_gb": 0.0,
@@ -405,9 +405,9 @@ class SidecarServer:
             stats["total_devices"] += 1
             stats["total_size_gb"] += getattr(backup, "size_gb", 0) or 0
             try:
-                sms_path = backup.get_file("Library/SMS/sms.db", "HomeDomain")
+                sms_path = get_database(backup, "Library/SMS/sms.db", "HomeDomain")
                 if sms_path:
-                    conn = sqlite3.connect(sms_path)
+                    conn = connect_readonly(sms_path, backup)
                     count = conn.execute("SELECT COUNT(*) FROM message").fetchone()[0]
                     stats["total_messages"] += count
                     conn.close()

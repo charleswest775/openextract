@@ -8,6 +8,8 @@ import sqlite3
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
+from ios_backup_core.db import connect_readonly, get_database
+
 from messages import apple_date_to_iso, NANOSECOND_THRESHOLD
 
 
@@ -20,15 +22,13 @@ _GROUP_CHAT_IDENTIFIER = re.compile(r"chat\d+", re.IGNORECASE)
 _DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
-def _safe_connect(db_path: str) -> Optional[sqlite3.Connection]:
-    """Open a SQLite DB in read-only mode with performance PRAGMAs."""
+def _safe_connect(db_path: str, backup=None) -> Optional[sqlite3.Connection]:
+    """Open a SQLite DB read-only (never writing into the backup) with performance PRAGMAs."""
     if not db_path:
         return None
     try:
-        conn = sqlite3.connect(db_path)
+        conn = connect_readonly(db_path, backup)
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA query_only = TRUE")
-        conn.execute("PRAGMA synchronous = OFF")
         conn.execute("PRAGMA cache_size = -10000")
         conn.execute("PRAGMA temp_store = MEMORY")
         return conn
@@ -133,8 +133,8 @@ class StatsComputer:
     # ── Messages ──────────────────────────────────────────────────────────────
 
     def _message_stats(self, backup, contacts: dict) -> dict:
-        db_path = backup.get_file("Library/SMS/sms.db", "HomeDomain")
-        conn = _safe_connect(db_path)
+        db_path = get_database(backup, "Library/SMS/sms.db", "HomeDomain")
+        conn = _safe_connect(db_path, backup)
         if not conn:
             return self._empty_message_stats()
 
@@ -309,10 +309,10 @@ class StatsComputer:
 
     def _photo_stats(self, backup) -> dict:
         # Reuse the same DB open logic as PhotoExtractor
-        db_path = backup.get_file("Media/PhotoData/Photos.sqlite", domain="CameraRollDomain")
+        db_path = get_database(backup, "Media/PhotoData/Photos.sqlite", domain="CameraRollDomain")
         if not db_path:
-            db_path = backup.get_file("PhotoData/Photos.sqlite", domain="CameraRollDomain")
-        conn = _safe_connect(db_path)
+            db_path = get_database(backup, "PhotoData/Photos.sqlite", domain="CameraRollDomain")
+        conn = _safe_connect(db_path, backup)
         if not conn:
             return self._empty_photo_stats()
 
@@ -406,8 +406,8 @@ class StatsComputer:
     # ── Contacts ──────────────────────────────────────────────────────────────
 
     def _contact_count(self, backup) -> int:
-        db_path = backup.get_file("Library/AddressBook/AddressBook.sqlitedb", domain="HomeDomain")
-        conn = _safe_connect(db_path)
+        db_path = get_database(backup, "Library/AddressBook/AddressBook.sqlitedb", domain="HomeDomain")
+        conn = _safe_connect(db_path, backup)
         if not conn:
             return 0
         try:
@@ -486,8 +486,8 @@ class StatsComputer:
     # ── Voicemails ────────────────────────────────────────────────────────────
 
     def _voicemail_stats(self, backup) -> dict:
-        db_path = backup.get_file("Library/Voicemail/voicemail.db", domain="HomeDomain")
-        conn = _safe_connect(db_path)
+        db_path = get_database(backup, "Library/Voicemail/voicemail.db", domain="HomeDomain")
+        conn = _safe_connect(db_path, backup)
         if not conn:
             return {"total": 0, "total_duration_seconds": 0, "read": 0, "unread": 0}
 
