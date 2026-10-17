@@ -47,6 +47,8 @@ export default function VoicemailExplorer({ udid }: Props) {
   const [audioCache, setAudioCache] = useState<Record<number, AudioInfo>>({});
   const [playerStates, setPlayerStates] = useState<Record<number, PlayerState>>({});
   const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [emptyReason, setEmptyReason] = useState<string | null>(null);
 
   const playersRef = useRef<Record<number, BenzAMRRecorder>>({});
   const timersRef = useRef<Record<number, number>>({});
@@ -65,10 +67,17 @@ export default function VoicemailExplorer({ udid }: Props) {
 
   async function loadVoicemails() {
     setLoading(true);
+    setError(null);
+    setEmptyReason(null);
     try {
       const res = await window.openextract.call('list_voicemails', { udid });
-      if (res.success && res.data) {
+      if (!res.success) {
+        setVoicemails([]);
+        setError(res.error || 'Failed to load voicemails');
+      } else if (res.data) {
         setVoicemails(res.data.voicemails || []);
+        setEmptyReason(res.data.empty_reason ?? null);
+        if (res.data.error) setError(res.data.error);
       }
     } finally {
       setLoading(false);
@@ -187,7 +196,18 @@ export default function VoicemailExplorer({ udid }: Props) {
           </div>
         )}
         {!loading && voicemails.length === 0 && (
-          <div className="text-center py-8 text-sm text-gray-400">No voicemails found</div>
+          error ? (
+            <div className="text-center py-8 text-sm text-apple-error">{error}</div>
+          ) : (
+            <div className="text-center py-8 text-sm text-gray-400">
+              No voicemails in this backup
+              {emptyReason === 'not_in_backup' && (
+                <p className="mt-1.5 text-xs">
+                  iPhones only keep voicemail when the carrier supports Visual Voicemail.
+                </p>
+              )}
+            </div>
+          )
         )}
         {voicemails.map((vm) => {
           const ps = playerStates[vm.id];
