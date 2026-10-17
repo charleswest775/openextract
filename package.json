@@ -88,8 +88,11 @@
       },
       "extraResources": [
         {
-          "from": "python/dist/openextract-engine.exe",
-          "to": "python/openextract-engine.exe"
+          "from": "python/dist",
+          "to": "python",
+          "filter": [
+            "openextract-engine.exe"
+          ]
         }
       ]
     },

@@ -366,6 +366,29 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
+      # electron-builder signs an extraResources executable only when the entry copies a
+      # directory (a single-file `from` skips the signing hook), which is why
+      # win.extraResources copies python/dist with a filter. Check the engine along with
+      # the app and installer; failing here keeps the release in draft.
+      - name: Verify Authenticode signatures
+        shell: pwsh
+        run: |
+          $files = @(
+            'release/win-unpacked/OpenExtract.exe',
+            'release/win-unpacked/resources/python/openextract-engine.exe',
+            'release/OpenExtract Setup ${{ inputs.version }}.exe'
+          )
+          $unsigned = 0
+          foreach ($file in $files) {
+            $sig = Get-AuthenticodeSignature -LiteralPath $file
+            Write-Output ("{0,-10} {1}  ({2})" -f $sig.Status, $file, $sig.SignerCertificate.Subject)
+            if ($sig.Status -ne 'Valid') { $unsigned++ }
+          }
+          if ($unsigned -gt 0) {
+            Write-Output "::error::$unsigned Windows executable(s) are not validly Authenticode-signed"
+            exit 1
+          }
+
   build-linux:
     needs: preflight
     runs-on: ubuntu-latest

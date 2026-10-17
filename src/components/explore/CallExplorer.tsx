@@ -38,6 +38,7 @@ export default function CallExplorer({ udid }: Props) {
   const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emptyReason, setEmptyReason] = useState<string | null>(null);
 
   useEffect(() => {
     loadCalls();
@@ -46,12 +47,20 @@ export default function CallExplorer({ udid }: Props) {
   async function loadCalls() {
     setLoading(true);
     setError(null);
+    setEmptyReason(null);
     try {
       const res = await window.openextract.call('list_calls', { udid, limit: 10000 });
-      if (res.success && res.data) {
+      if (!res.success) {
+        setCalls([]);
+        setTotal(0);
+        setError(res.error || 'Failed to load calls');
+      } else if (res.data) {
         setCalls(res.data.calls || []);
         setTotal(res.data.total ?? res.data.calls?.length ?? 0);
-        if (res.data.error) {
+        setEmptyReason(res.data.empty_reason ?? null);
+        // An unencrypted backup without call history also carries an error;
+        // it gets the encryption hint below instead.
+        if (res.data.error && res.data.empty_reason !== 'requires_encryption') {
           setError(res.data.error);
         }
       }
@@ -151,9 +160,22 @@ export default function CallExplorer({ udid }: Props) {
           </div>
         )}
         {!loading && filtered.length === 0 && (
-          <div className="text-center py-8 text-sm text-gray-400">
-            {error || 'No calls found'}
-          </div>
+          calls.length > 0 ? (
+            <div className="text-center py-8 text-sm text-gray-400">No calls match your search</div>
+          ) : error ? (
+            <div className="text-center py-8 text-sm text-apple-error">{error}</div>
+          ) : emptyReason === 'requires_encryption' ? (
+            <div className="max-w-md mx-auto text-center py-8">
+              <div className="text-sm font-medium text-text-primary">Call history needs an encrypted backup</div>
+              <p className="mt-1.5 text-sm text-text-secondary">
+                Apple leaves call history out of unencrypted backups. Make a new backup with
+                encryption on: tick "Encrypt backup" when backing up in OpenExtract, or turn on
+                "Encrypt local backup" in Finder or iTunes.
+              </p>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-sm text-gray-400">No calls in this backup</div>
+          )
         )}
       </div>
     </div>
