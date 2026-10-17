@@ -15,6 +15,21 @@ A free, open-source desktop application for extracting text messages, photos, vo
 - 🔒 **Encrypted Backups** — Full support for password-protected backups
 - 📤 **Export** — Save conversations as PDF, HTML, CSV, or plain text
 
+## Download
+
+Get the latest version from [openextract.app](https://www.openextract.app/#download) or [GitHub Releases](https://github.com/charleswest775/openextract/releases/latest).
+
+### Linux
+
+- **Ubuntu, Debian, Mint, Pop!_OS:** download the `.deb` and open it, or install it from a terminal, then start OpenExtract from your app menu:
+  ```bash
+  sudo apt install ./openextract_*_amd64.deb
+  ```
+- **Other distros:** use the `.AppImage` (`chmod +x` it first). AppImages need FUSE 2, which Ubuntu 22.04 and later no longer install by default. If it fails with `dlopen(): error loading libfuse.so.2`, install FUSE 2 (`libfuse2t64` on Ubuntu 24.04+, `libfuse2` on Ubuntu 22.04 and Debian, `fuse-libs` on Fedora, `fuse2` on Arch), or run it without FUSE:
+  ```bash
+  ./OpenExtract-*.AppImage --appimage-extract-and-run
+  ```
+
 ## Quick Start
 
 ### Prerequisites

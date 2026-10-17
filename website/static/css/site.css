@@ -536,6 +536,8 @@ details.qa p {
 .dl-card--primary .dl-card__meta { opacity: 0.8; }
 .final-cta__brew { margin-top: 28px; font-size: 13px; color: var(--ink-dim); font-family: var(--mono); }
 .final-cta__brew code { background: #f4ede0; padding: 3px 8px; border-radius: 4px; font-family: var(--mono); }
+.final-cta__brew + .final-cta__brew { margin-top: 8px; }
+.final-cta__brew a { text-decoration: underline; text-underline-offset: 3px; }
 
 /* ── How-it-works page ─────────────────────────────── */
 .steps-wrap { padding: 24px 56px 64px; max-width: 1100px; margin: 0 auto; }

@@ -22,7 +22,7 @@ import plistlib
 import tempfile
 import time
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from ios_backup_core.backup import (
@@ -242,9 +242,14 @@ class BackupManager:
                     "phone_number": plist.get("Phone Number", ""),
                     "last_backup": plist.get("Last Backup Date", ""),
                 }
-                # Convert datetime to ISO string
-                if isinstance(info["last_backup"], datetime):
-                    info["last_backup"] = info["last_backup"].isoformat()
+                # Convert datetime to ISO string. plistlib returns a naive
+                # datetime holding UTC; mark it as UTC so the renderer shows
+                # it in local time instead of reading it as local already.
+                last_backup = info["last_backup"]
+                if isinstance(last_backup, datetime):
+                    if last_backup.tzinfo is None:
+                        last_backup = last_backup.replace(tzinfo=timezone.utc)
+                    info["last_backup"] = last_backup.isoformat()
             except Exception:
                 info = {
                     "udid": os.path.basename(backup_dir),
