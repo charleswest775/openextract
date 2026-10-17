@@ -36,15 +36,50 @@ def _is_backup_lock_error(exc: Exception) -> bool:
     return bool(_BACKUP_LOCK_ERROR_RE.search(str(exc)))
 
 
-def _disk_full_message(free_bytes: int, phone_used_bytes: int) -> str:
-    # Decimal GB, matching how Finder and iPhone Storage report sizes.
-    free_gb = free_bytes / 1e9
-    if phone_used_bytes > free_bytes:
-        detail = (f"Your iPhone has about {phone_used_bytes / 1e9:.0f} GB of data, but the drive "
-                  f"you chose only has {free_gb:.0f} GB free.")
+# pymobiledevice3 11.x words the device's refusal (MBErrorDomain/105) as "... it needs
+# more than <required> bytes free at <path>, host reported <reported> ...". Older
+# releases raised NotEnoughDiskSpaceError() with an empty message.
+_DISK_SPACE_DETAIL_RE = re.compile(r"needs more than (\d+) bytes free .*?host reported (\d+)", re.S)
+
+
+def _disk_space_from_error(exc: Exception) -> tuple[Optional[int], Optional[int]]:
+    """(bytes the device requires, bytes we reported free), or (None, None) if the error doesn't say."""
+    match = _DISK_SPACE_DETAIL_RE.search(str(exc))
+    return (int(match[1]), int(match[2])) if match else (None, None)
+
+
+def _free_bytes(path: str) -> Optional[int]:
+    try:
+        return shutil.disk_usage(path).free
+    except OSError as e:  # e.g. the external drive was unplugged
+        _dev_log(f"disk_usage({path!r}) failed: {e}")
+        return None
+
+
+def _gb(*sizes: int) -> list[str]:
+    """Decimal GB, matching how Finder and iPhone Storage report sizes.
+
+    Whole GB, unless that would show 0 GB or make two different sizes look equal.
+    """
+    whole = [round(size / 1e9) for size in sizes]
+    digits = 1 if 0 in whole or len(set(whole)) < len(whole) else 0
+    return [f"{size / 1e9:.{digits}f}" for size in sizes]
+
+
+def _disk_full_message(free_bytes: Optional[int], needed_bytes: Optional[int], phone_used_bytes: int) -> str:
+    if free_bytes is None:
+        detail = ""
+    elif needed_bytes is not None:
+        needed, free = _gb(needed_bytes, free_bytes)
+        detail = f" It needs more than {needed} GB free, but the drive you chose has {free} GB free."
+    elif phone_used_bytes > free_bytes:
+        used, free = _gb(phone_used_bytes, free_bytes)
+        detail = (f" Your iPhone has about {used} GB of data, but the drive you chose only "
+                  f"has {free} GB free.")
     else:
-        detail = f"The drive you chose only has {free_gb:.0f} GB free."
-    return (f"Not enough free space for this backup. {detail} Free up space or choose a "
+        (free,) = _gb(free_bytes)
+        detail = f" The drive you chose only has {free} GB free."
+    return (f"Not enough free space for this backup.{detail} Free up space or choose a "
             "folder on an external drive, then try again.")
 
 
@@ -270,8 +305,8 @@ class DeviceBackupManager:
             try:
                 usage = await lockdown.get_value("com.apple.disk_usage")
                 phone_used_bytes = usage["TotalDataCapacity"] - usage["TotalDataAvailable"]
-            except Exception:
-                pass
+            except Exception as e:
+                _dev_log(f"couldn't read the iPhone's disk usage: {e!r}")
 
             _tracked_notify("negotiating", 5, 0, 0)
 
@@ -311,12 +346,17 @@ class DeviceBackupManager:
             ) from e
         except NotEnoughDiskSpaceError as e:
             # The device compares its backup size against the free space we report
-            # and, when it won't fit, asks us to purge; pymobiledevice3 raises this
-            # with an empty message, which the UI would show as "Unknown error".
-            free_bytes = shutil.disk_usage(output_dir).free
-            _dev_log(f"not enough disk space: free={free_bytes} phone_used={phone_used_bytes} "
-                     f"output_dir={output_dir!r}")
-            raise RuntimeError(_disk_full_message(free_bytes, phone_used_bytes)) from e
+            # and refuses when it won't fit. pymobiledevice3 11.x says how many bytes
+            # it needed and how many we reported (on macOS that figure counts
+            # purgeable space, like Finder); older releases raise with an empty
+            # message, which the UI would show as "Unknown error", after reporting
+            # plain statvfs free space, which is what disk_usage returns.
+            needed_bytes, free_bytes = _disk_space_from_error(e)
+            if free_bytes is None:
+                free_bytes = _free_bytes(output_dir)
+            _dev_log(f"not enough disk space: {e} | needed={needed_bytes} free={free_bytes} "
+                     f"phone_used={phone_used_bytes} output_dir={output_dir!r}")
+            raise RuntimeError(_disk_full_message(free_bytes, needed_bytes, phone_used_bytes)) from e
         except ConnectionTerminatedError as e:
             # iOS often closes the backup channel immediately after all data has been
             # transferred — this is normal end-of-backup behaviour and does NOT mean

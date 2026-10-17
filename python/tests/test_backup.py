@@ -82,7 +82,7 @@ _stub = _install_stub()
 
 # Now safe to import our module
 sys.path.insert(0, "python")
-from device_backup import DeviceBackupManager  # noqa: E402
+from device_backup import DeviceBackupManager, _disk_full_message  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -456,14 +456,51 @@ class TestStartBackup(unittest.TestCase):
         """If the device doesn't report its usage, still explain the free space."""
         mb2 = self._make_mb2_mock()
         mb2.backup.side_effect = _stub.exceptions.NotEnoughDiskSpaceError()
+        lockdown = _make_lockdown_mock()
+        lockdown.get_value = AsyncMock(return_value={})  # no TotalDataCapacity
         free = MagicMock(free=55_000_000_000)
         with patch("device_backup.shutil.disk_usage", return_value=free):
             with self.assertRaises(RuntimeError) as ctx:
-                self._run_backup_with(mb2)
+                self._run_backup_with(mb2, lockdown)
         msg = str(ctx.exception)
         self.assertIn("Not enough free space", msg)
         self.assertIn("only has 55 GB free", msg)
         self.assertNotIn("of data", msg)
+
+    def test_not_enough_disk_space_uses_device_requirement(self):
+        """pymobiledevice3 11.x reports the bytes the device needs and the free space it was told."""
+        mb2 = self._make_mb2_mock()
+        mb2.backup.side_effect = _stub.exceptions.NotEnoughDiskSpaceError(
+            "Device refused the backup: it needs more than 92400000000 bytes free at /Volumes/Backups, "
+            "host reported 60300000000 (32100000001 more needed) (MBErrorDomain/105). The device counts "
+            "every hardlink and clone at full size."
+        )
+        with patch("device_backup.shutil.disk_usage") as disk_usage:
+            with self.assertRaises(RuntimeError) as ctx:
+                self._run_backup_with(mb2)
+        msg = str(ctx.exception)
+        self.assertIn("needs more than 92 GB free, but the drive you chose has 60 GB free", msg)
+        disk_usage.assert_not_called()
+
+    def test_not_enough_disk_space_when_drive_is_gone(self):
+        """If the drive can't be measured any more, still say it's a space problem."""
+        mb2 = self._make_mb2_mock()
+        mb2.backup.side_effect = _stub.exceptions.NotEnoughDiskSpaceError()
+        with patch("device_backup.shutil.disk_usage", side_effect=FileNotFoundError("gone")):
+            with self.assertRaises(RuntimeError) as ctx:
+                self._run_backup_with(mb2)
+        self.assertEqual(
+            str(ctx.exception),
+            "Not enough free space for this backup. Free up space or choose a folder on an "
+            "external drive, then try again.",
+        )
+
+    def test_disk_full_message_never_shows_equal_or_zero_sizes(self):
+        self.assertIn(
+            "about 55.4 GB of data, but the drive you chose only has 55.1 GB free",
+            _disk_full_message(55_100_000_000, None, 55_400_000_000),
+        )
+        self.assertIn("only has 0.3 GB free", _disk_full_message(300_000_000, None, 0))
 
     def test_output_dir_created(self):
         """start_backup should create output_dir if it does not exist."""

@@ -131,9 +131,9 @@ jobs:
       # Touches two files:
       #   - website/static/index.html: nav version pill + installer filename refs.
       #     Nav copy may be `v0.4` (no patch) or `v0.4.0`; both should bump cleanly.
-      #   - website/static/vercel.json: /download/{mac,windows,linux} redirects
-      #     point at the GitHub release asset for this version. If we don't update
-      #     vercel.json, the website keeps serving the previous version's binaries.
+      #   - website/static/vercel.json: /download/{mac,windows,linux,linux-appimage}
+      #     redirects point at the GitHub release asset for this version. If we don't
+      #     update vercel.json, the website keeps serving the previous version's binaries.
       - name: Update website version and download URLs
         run: |
           VERSION="${{ inputs.version }}"
@@ -146,6 +146,7 @@ jobs:
             sed -i "s/OpenExtract-Setup-[0-9]\+\.[0-9]\+\.[0-9]\+/OpenExtract-Setup-${VERSION}/g" "$INDEX"
             sed -i "s/OpenExtract-[0-9]\+\.[0-9]\+\.[0-9]\+-arm64/OpenExtract-${VERSION}-arm64/g" "$INDEX"
             sed -i "s/OpenExtract-[0-9]\+\.[0-9]\+\.[0-9]\+\.AppImage/OpenExtract-${VERSION}.AppImage/g" "$INDEX"
+            sed -i "s/openextract_[0-9]\+\.[0-9]\+\.[0-9]\+_amd64/openextract_${VERSION}_amd64/g" "$INDEX"
             if ! git diff --quiet "$INDEX"; then
               git add "$INDEX"
               STAGED=1
@@ -157,9 +158,28 @@ jobs:
 
           VERCEL="website/static/vercel.json"
           if [ -f "$VERCEL" ]; then
-            # Redirects embed the version in both the path segment and the filename,
-            # so a single regex over X.Y.Z occurrences swaps both at once.
-            sed -i "s/[0-9]\+\.[0-9]\+\.[0-9]\+/${VERSION}/g" "$VERCEL"
+            # Set each redirect to this version's asset by name rather than swapping
+            # version numbers, so a new or renamed asset (e.g. /download/linux moving
+            # from the AppImage to the .deb) takes effect on release. The names must
+            # match what electron-builder uploads; finalize checks them before publishing.
+            node - "$VERCEL" "$VERSION" <<'EOF'
+          const fs = require('fs');
+          const [file, version] = process.argv.slice(2);
+          const base = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/v${version}`;
+          const assets = {
+            '/download/mac': `OpenExtract-${version}-arm64.dmg`,
+            '/download/windows': `OpenExtract-Setup-${version}.exe`,
+            '/download/linux': `openextract_${version}_amd64.deb`,
+            '/download/linux-appimage': `OpenExtract-${version}.AppImage`,
+          };
+          const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+          for (const [source, asset] of Object.entries(assets)) {
+            const redirect = config.redirects.find((r) => r.source === source);
+            if (!redirect) throw new Error(`${file} has no ${source} redirect`);
+            redirect.destination = `${base}/${asset}`;
+          }
+          fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+          EOF
             if ! git diff --quiet "$VERCEL"; then
               git add "$VERCEL"
               STAGED=1
@@ -346,6 +366,29 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
+      # electron-builder signs an extraResources executable only when the entry copies a
+      # directory (a single-file `from` skips the signing hook), which is why
+      # win.extraResources copies python/dist with a filter. Check the engine along with
+      # the app and installer; failing here keeps the release in draft.
+      - name: Verify Authenticode signatures
+        shell: pwsh
+        run: |
+          $files = @(
+            'release/win-unpacked/OpenExtract.exe',
+            'release/win-unpacked/resources/python/openextract-engine.exe',
+            'release/OpenExtract Setup ${{ inputs.version }}.exe'
+          )
+          $unsigned = 0
+          foreach ($file in $files) {
+            $sig = Get-AuthenticodeSignature -LiteralPath $file
+            Write-Output ("{0,-10} {1}  ({2})" -f $sig.Status, $file, $sig.SignerCertificate.Subject)
+            if ($sig.Status -ne 'Valid') { $unsigned++ }
+          }
+          if ($unsigned -gt 0) {
+            Write-Output "::error::$unsigned Windows executable(s) are not validly Authenticode-signed"
+            exit 1
+          }
+
   build-linux:
     needs: preflight
     runs-on: ubuntu-latest
@@ -445,6 +488,29 @@ jobs:
 
       - name: Fetch main for comparison
         run: git fetch --no-tags origin main:refs/remotes/origin/main
+
+      # Every /download/* redirect on the release branch must name an asset this
+      # release actually has; otherwise the website would 404 once the sync PR merges.
+      # Runs while the release is still a draft so a mismatch never goes public.
+      - name: Check website download links against release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ASSETS=$(gh release view "v${{ inputs.version }}" --json assets --jq '.assets[].name')
+          FAILED=0
+          while read -r SOURCE URL; do
+            NAME="${URL##*/}"
+            if [[ "$URL" != */releases/download/v${{ inputs.version }}/* ]]; then
+              echo "::error::$SOURCE points at $URL, not v${{ inputs.version }}"
+              FAILED=1
+            elif ! grep -qxF "$NAME" <<< "$ASSETS"; then
+              echo "::error::$SOURCE points at $NAME, which v${{ inputs.version }} does not have"
+              FAILED=1
+            else
+              echo "$SOURCE -> $NAME"
+            fi
+          done < <(jq -r '.redirects[] | select(.source | startswith("/download/")) | "\(.source) \(.destination)"' website/static/vercel.json)
+          exit $FAILED
 
       - name: Publish release (remove draft)
         env:
