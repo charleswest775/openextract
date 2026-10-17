@@ -237,15 +237,62 @@ jobs:
       - name: Build Electron app
         run: npm run build
 
+      # electron-builder's own certificate import (CSC_LINK) runs
+      # `security set-key-partition-list` with the certificate's password instead of
+      # the keychain's. The macos-26 runner rejects that ("SecKeychainUnlock: The user
+      # name or passphrase you entered is not correct"), so import the certificate here
+      # into a keychain we hold the password for. Without CSC_LINK, electron-builder
+      # signs with the identity it finds in CSC_KEYCHAIN.
+      - name: Import signing certificate
+        env:
+          MAC_CERTIFICATE_P12: ${{ secrets.MAC_CERTIFICATE_P12 }}
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          CERT="$RUNNER_TEMP/signing.p12"
+          # Decode the secret the same way electron-builder decodes CSC_LINK.
+          node -e "require('fs').writeFileSync(process.argv[1], Buffer.from(process.env.MAC_CERTIFICATE_P12, 'base64'))" "$CERT"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT" -k "$KEYCHAIN" -P "$MAC_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          rm -f "$CERT"
+
+          # Apple's Developer ID intermediates, so the identity validates on any runner
+          # image. "Already exists" (the .p12 may carry one) is fine: the check below is
+          # what decides.
+          for CA in DeveloperIDG2CA DeveloperIDCA; do
+            curl -fsSL "https://www.apple.com/certificateauthority/$CA.cer" -o "$RUNNER_TEMP/$CA.cer"
+            security import "$RUNNER_TEMP/$CA.cer" -k "$KEYCHAIN" || true
+          done
+          # Put the keychain first in the user search list, which codesign uses.
+          SEARCH_LIST=("$KEYCHAIN")
+          while read -r KC; do SEARCH_LIST+=("${KC//\"/}"); done < <(security list-keychains -d user)
+          security list-keychains -d user -s "${SEARCH_LIST[@]}"
+
+          # electron-builder falls back to ad-hoc signing when it finds no identity, so fail here.
+          IDENTITIES="$(security find-identity -v -p codesigning "$KEYCHAIN")"
+          echo "$IDENTITIES"
+          if ! grep -q "Developer ID Application" <<< "$IDENTITIES"; then
+            echo "::error::No valid Developer ID Application identity after importing MAC_CERTIFICATE_P12"
+            exit 1
+          fi
+          echo "CSC_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
       - name: Package and publish
         run: npx electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.MAC_CERTIFICATE_P12 }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Remove signing keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
 
   build-windows:
     needs: preflight

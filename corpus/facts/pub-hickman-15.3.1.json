@@ -1,0 +1,270 @@
+{
+  "schema_version": 1,
+  "item": "pub-hickman-15.3.1",
+  "source": {
+    "title": "iOS 15 Image documentation by Joshua Hickman (iOS15-ImageCreation.pdf)",
+    "url": "https://digitalcorpora.s3.amazonaws.com/corpora/mobile/android_13/ios_15_3_1/iOS15-ImageCreation.pdf",
+    "note": "source_ref points at the app section, date and time of each entry in the PDF's activity log. Text values are SHA-256 hashes of corpus.facts.normalize_text(); phone numbers use corpus.facts.normalize_phone()."
+  },
+  "source_utc_offset": "-04:00",
+  "defaults": {
+    "time_tolerance_s": 120
+  },
+  "facts": [
+    {
+      "id": "msg-received-first-imessage",
+      "kind": "message",
+      "source_ref": "Messages, 2023-05-09 20:00 Received message",
+      "at": "2023-05-09T20:00",
+      "expect": {
+        "is_from_me": false,
+        "text_sha256": "c5d0234e7b4bd82beef4c5e1cbe7329c26040dc0db17f8fa27040ee82c04c97f"
+      }
+    },
+    {
+      "id": "msg-sent-question",
+      "kind": "message",
+      "source_ref": "Messages, 2023-05-09 20:03 Sent message",
+      "at": "2023-05-09T20:03",
+      "expect": {
+        "is_from_me": true,
+        "text_sha256": "2941e4d59fe808b010b93c5afad3fa7b3cf063e73666c1bd0b349e9be2cdbf49"
+      }
+    },
+    {
+      "id": "msg-sent-inline-reply",
+      "kind": "message",
+      "source_ref": "Messages, 2023-05-09 20:11 Sent message (reply)",
+      "at": "2023-05-09T20:11",
+      "expect": {
+        "is_from_me": true,
+        "text_sha256": "988ddbee35b8380ffcafd9a31271fd9a2104d9fc42bad262fbbbe976634999dd"
+      }
+    },
+    {
+      "id": "msg-received-inline-reply",
+      "kind": "message",
+      "source_ref": "Messages, 2023-05-09 20:13 Received message (reply)",
+      "at": "2023-05-09T20:13",
+      "expect": {
+        "is_from_me": false,
+        "text_sha256": "772244e2a5f92951f897f452c25aec10f7db3f943a652120e14f2032e95f8610"
+      }
+    },
+    {
+      "id": "msg-sent-curly-apostrophe",
+      "kind": "message",
+      "source_ref": "Messages, 2023-05-09 20:18 Sent message",
+      "at": "2023-05-09T20:18",
+      "expect": {
+        "is_from_me": true,
+        "text_sha256": "eee5fcb558145f71b080f8082f0edd4dedf22536846dc13e57e6ffbec1f7fde5"
+      }
+    },
+    {
+      "id": "msg-received-picture",
+      "kind": "message",
+      "source_ref": "Messages, 2023-05-09 20:20 Received picture",
+      "at": "2023-05-09T20:20",
+      "expect": {
+        "is_from_me": false,
+        "has_attachments": true,
+        "attachment_mime_prefix": "image/"
+      }
+    },
+    {
+      "id": "msg-sent-picture",
+      "kind": "message",
+      "source_ref": "Messages, 2023-05-09 20:23 Sent picture",
+      "at": "2023-05-09T20:23",
+      "expect": {
+        "is_from_me": true,
+        "has_attachments": true,
+        "attachment_mime_prefix": "image/"
+      }
+    },
+    {
+      "id": "msg-sent-tapback",
+      "kind": "message",
+      "source_ref": "Messages, 2023-05-09 20:48 Reacted to message (thumbs up)",
+      "at": "2023-05-09T20:48",
+      "expect": {
+        "is_from_me": true,
+        "is_reaction": true
+      }
+    },
+    {
+      "id": "msg-deleted-is-gone",
+      "kind": "message_absent",
+      "source_ref": "Messages, 2023-05-09 20:49 received, 20:50 deleted",
+      "expect": {
+        "text_sha256": "dc1223d287baaebe9a24a063ca2ca6cf3bfe3190b034106a93054cc6c5c2d3d9"
+      }
+    },
+    {
+      "id": "msg-sent-after-delete",
+      "kind": "message",
+      "source_ref": "Messages, 2023-05-09 20:51 Sent message",
+      "at": "2023-05-09T20:51",
+      "expect": {
+        "is_from_me": true,
+        "text_sha256": "9a6cb5abdebe489cdc5677bc5d169e1e2d52c662a0cc47b34ba97f09fce25497"
+      }
+    },
+    {
+      "id": "msg-location-sharing-started-by-me",
+      "kind": "message",
+      "source_ref": "Messages, 2023-05-17 12:07 Started sending dynamic location",
+      "at": "2023-05-17T12:07",
+      "expect": {
+        "message_type": "location_started_by_me"
+      }
+    },
+    {
+      "id": "msg-location-sharing-started-by-them",
+      "kind": "message",
+      "source_ref": "Messages, 2023-05-17 12:13 Started receiving dynamic location",
+      "at": "2023-05-17T12:13",
+      "expect": {
+        "message_type": "location_started_by_them"
+      }
+    },
+    {
+      "id": "msg-sent-pdf",
+      "kind": "message",
+      "source_ref": "Messages, 2023-05-20 10:54 Sent file",
+      "at": "2023-05-20T10:54",
+      "expect": {
+        "is_from_me": true,
+        "attachment_name_sha256": "5846b25aae1c3c23cc448eec438dd73fa86859a287e487dbbc6d79ddf2c5928d"
+      }
+    },
+    {
+      "id": "msg-received-pdf",
+      "kind": "message",
+      "source_ref": "Messages, 2023-05-20 10:57 Received file",
+      "at": "2023-05-20T10:57",
+      "expect": {
+        "is_from_me": false,
+        "attachment_name_sha256": "9b9935305c4749a7c6e91b4fbd25862db1ed822444ed5e0616cc5c1a27b6a73c",
+        "attachment_mime_prefix": "application/pdf"
+      }
+    },
+    {
+      "id": "call-facetime-video-outgoing",
+      "kind": "call",
+      "source_ref": "FaceTime, 2023-05-09 19:49 Outgoing video call (~2:00)",
+      "at": "2023-05-09T19:49",
+      "expect": {
+        "direction": "outgoing",
+        "app": "FaceTime Video",
+        "duration_s": 120,
+        "duration_tolerance_s": 25
+      }
+    },
+    {
+      "id": "call-facetime-video-outgoing-2",
+      "kind": "call",
+      "source_ref": "Messages, 2023-05-09 20:39 Outgoing FaceTime video call (~1:30)",
+      "at": "2023-05-09T20:39",
+      "expect": {
+        "direction": "outgoing",
+        "app": "FaceTime Video",
+        "duration_s": 90,
+        "duration_tolerance_s": 25
+      }
+    },
+    {
+      "id": "call-facetime-audio-incoming",
+      "kind": "call",
+      "source_ref": "Messages, 2023-05-09 20:46 Incoming FaceTime audio call (~1:40)",
+      "at": "2023-05-09T20:46",
+      "expect": {
+        "direction": "incoming",
+        "app": "FaceTime Audio",
+        "duration_s": 100,
+        "duration_tolerance_s": 25
+      }
+    },
+    {
+      "id": "call-cellular-outgoing",
+      "kind": "call",
+      "source_ref": "Phone, 2023-04-25 10:52 Outgoing call (~1:45)",
+      "at": "2023-04-25T10:52",
+      "expect": {
+        "direction": "outgoing",
+        "app": "Phone",
+        "address_sha256": "44fe492e9c367260c08509a57b3eedb2c7aedf6e4d17191de2a333a00b7795dd",
+        "duration_s": 105,
+        "duration_tolerance_s": 25
+      }
+    },
+    {
+      "id": "note-created",
+      "kind": "note",
+      "source_ref": "Notes, 2023-05-09 20:56 Created note",
+      "at": "2023-05-09T20:56",
+      "expect": {
+        "title_sha256": "1226c421571079907815a506aaa568bb6316bb3de3471257f9b4f386afe7305d"
+      }
+    },
+    {
+      "id": "note-locked",
+      "kind": "note",
+      "source_ref": "Notes, 2023-05-09 20:59 Created note, 21:00 Locked",
+      "at": "2023-05-09T20:59",
+      "expect": {
+        "title_sha256": "29ba18d03681546c3e6b7c58600f95c31c2f206e12a1939ba16b18cc2789d0aa"
+      }
+    },
+    {
+      "id": "safari-visit-pubpub",
+      "kind": "browser_visit",
+      "source_ref": "Safari, 2023-05-20 10:49 Visited dfir.pubpub.org",
+      "at": "2023-05-20T10:49",
+      "expect": {
+        "browser": "safari",
+        "domain": "dfir.pubpub.org"
+      }
+    },
+    {
+      "id": "safari-visit-nhl",
+      "kind": "browser_visit",
+      "source_ref": "Safari, 2023-05-10 10:08 Typed nhl.com",
+      "at": "2023-05-10T10:08",
+      "expect": {
+        "browser": "safari",
+        "domain": "nhl.com"
+      }
+    },
+    {
+      "id": "safari-private-tab-not-in-history",
+      "kind": "browser_visit_absent",
+      "source_ref": "Safari, 2023-05-10 10:17-10:25 Private tab visits to sans.org",
+      "window": [
+        "2023-05-10T10:16",
+        "2023-05-10T10:27"
+      ],
+      "expect": {
+        "browser": "safari",
+        "domain_suffix": "sans.org"
+      }
+    },
+    {
+      "id": "photo-screenshot",
+      "kind": "photo",
+      "source_ref": "Photos, 2023-05-19 08:54 Took screenshot",
+      "at": "2023-05-19T08:54",
+      "expect": {}
+    },
+    {
+      "id": "album-created",
+      "kind": "album",
+      "source_ref": "Photos, 2023-05-20 10:16-10:18 Created album with 15 pictures",
+      "expect": {
+        "title_sha256": "1388d74a9f8d10162511777edc3cc536183640b1f80f0ac705e35d77a2cef531",
+        "count": 15
+      }
+    }
+  ]
+}

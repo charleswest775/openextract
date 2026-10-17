@@ -99,6 +99,10 @@ npm run build
 
 # Run tests
 npm test
+
+# Corpus tests against real public iPhone backups (see corpus/README.md)
+python -m corpus.fetch fetch pub-hickman-15.3.1
+pytest python/tests/corpus -m corpus -v
 ```
 
 *(Update these if scripts differ in package.json)*

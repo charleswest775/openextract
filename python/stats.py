@@ -3,15 +3,20 @@ Backup statistics computation.
 Aggregates data across all backup databases into a single stats response.
 """
 
+import re
 import sqlite3
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
+from contacts import resolve_contact
 from messages import apple_date_to_iso, NANOSECOND_THRESHOLD
 
 
 # Seconds between Unix epoch (1970) and Apple epoch (2001)
 _APPLE_UNIX_DELTA = 978307200
+
+# Group chats have identifiers like "chat644566139839284925".
+_GROUP_CHAT_IDENTIFIER = re.compile(r"chat\d+", re.IGNORECASE)
 
 _DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -184,12 +189,28 @@ class StatsComputer:
                 imessage_count = 0
                 sms_count = 0
 
-            # Group vs 1-on-1 conversations
+            # Group vs 1-on-1 conversations. Same rule as ios_backup_core's
+            # list_conversations (chats with at least one message; a group has
+            # several handles or a "chat…" identifier) so the dashboard agrees
+            # with the conversation list. chat.group_id is set on every chat,
+            # so it can't tell groups apart. Match the whole "chat<digits>"
+            # identifier: an email handle such as chatham@… is a 1:1 chat.
             try:
-                group_convos = c.execute(
-                    "SELECT COUNT(*) FROM chat WHERE group_id IS NOT NULL AND group_id != ''"
-                ).fetchone()[0]
-                total_convos = c.execute("SELECT COUNT(*) FROM chat").fetchone()[0]
+                chat_rows = c.execute("""
+                    SELECT ch.chat_identifier,
+                           (SELECT COUNT(*) FROM chat_handle_join chj
+                            JOIN handle h ON h.ROWID = chj.handle_id
+                            WHERE chj.chat_id = ch.ROWID) AS participants
+                    FROM chat ch
+                    WHERE EXISTS (SELECT 1 FROM chat_message_join cmj
+                                  JOIN message m ON m.ROWID = cmj.message_id
+                                  WHERE cmj.chat_id = ch.ROWID)
+                """).fetchall()
+                total_convos = len(chat_rows)
+                group_convos = sum(
+                    1 for identifier, participants in chat_rows
+                    if participants > 1 or _GROUP_CHAT_IDENTIFIER.fullmatch(identifier or "")
+                )
                 one_on_one = total_convos - group_convos
             except Exception:
                 group_convos = 0
@@ -212,7 +233,9 @@ class StatsComputer:
                     name = row[2] or ""
                     if not name:
                         identifier = row[1] or ""
-                        name = contacts.get(identifier, identifier)
+                        # Handles are stored as e.g. "+447700900101" while the address
+                        # book may hold "+44 7700 900101" — normalize like the Messages tab.
+                        name = resolve_contact(identifier, contacts) or identifier
                     top_conversations.append({
                         "display_name": name or "Unknown",
                         "message_count": row[3],
@@ -300,9 +323,11 @@ class StatsComputer:
 
         try:
             c = conn.cursor()
+            from photos import asset_table
+            assets = asset_table(c)
 
             # Check which columns exist
-            c.execute("PRAGMA table_info(ZASSET)")
+            c.execute(f"PRAGMA table_info({assets})")
             columns = {row[1] for row in c.fetchall()}
 
             has_trashed = "ZTRASHEDSTATE" in columns
@@ -312,7 +337,7 @@ class StatsComputer:
             # Kind breakdown
             kind_map = {0: "photo", 1: "video", 2: "live_photo", 3: "live_photo"}
             kind_rows = c.execute(
-                f"SELECT ZKIND, COUNT(*) FROM ZASSET {trash_filter} GROUP BY ZKIND"
+                f"SELECT ZKIND, COUNT(*) FROM {assets} {trash_filter} GROUP BY ZKIND"
             ).fetchall()
             by_kind = {}
             total_photos = 0
@@ -331,7 +356,7 @@ class StatsComputer:
             total_favorites = 0
             if fav_col:
                 total_favorites = c.execute(
-                    f"SELECT COUNT(*) FROM ZASSET WHERE {fav_col} = 1 {trash_and}"
+                    f"SELECT COUNT(*) FROM {assets} WHERE {fav_col} = 1 {trash_and}"
                 ).fetchone()[0]
 
             # Location data. iOS writes -180 to both coordinates when a photo
@@ -339,7 +364,7 @@ class StatsComputer:
             with_location = 0
             if "ZLATITUDE" in columns and "ZLONGITUDE" in columns:
                 with_location = c.execute(
-                    f"SELECT COUNT(*) FROM ZASSET WHERE ZLATITUDE IS NOT NULL AND ZLATITUDE NOT IN (0, -180) "
+                    f"SELECT COUNT(*) FROM {assets} WHERE ZLATITUDE IS NOT NULL AND ZLATITUDE NOT IN (0, -180) "
                     f"AND ZLONGITUDE IS NOT NULL AND ZLONGITUDE != -180 {trash_and}"
                 ).fetchone()[0]
 
@@ -349,7 +374,7 @@ class StatsComputer:
             latest = None
             if date_col:
                 date_row = c.execute(
-                    f"SELECT MIN({date_col}), MAX({date_col}) FROM ZASSET {trash_filter}"
+                    f"SELECT MIN({date_col}), MAX({date_col}) FROM {assets} {trash_filter}"
                 ).fetchone()
                 earliest = _apple_ts_to_iso(date_row[0])
                 latest = _apple_ts_to_iso(date_row[1])
@@ -358,7 +383,7 @@ class StatsComputer:
             total_video_duration = 0.0
             if "ZDURATION" in columns:
                 dur_row = c.execute(
-                    f"SELECT SUM(ZDURATION) FROM ZASSET WHERE ZKIND = 1 {trash_and}"
+                    f"SELECT SUM(ZDURATION) FROM {assets} WHERE ZKIND = 1 {trash_and}"
                 ).fetchone()
                 total_video_duration = float(dur_row[0] or 0)
 

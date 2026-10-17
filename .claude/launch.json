@@ -4,14 +4,30 @@
     {
       "name": "openextract-renderer",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite"],
+      "runtimeArgs": [
+        "vite"
+      ],
       "port": 5179
     },
     {
       "name": "openextract-dev",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "--port", "5180"],
+      "runtimeArgs": [
+        "vite",
+        "--port",
+        "5180"
+      ],
       "port": 5180
+    },
+    {
+      "name": "openextract-renderer-any-port",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "npx vite --port \"$PORT\" --strictPort"
+      ],
+      "autoPort": true,
+      "port": 5179
     }
   ]
 }
