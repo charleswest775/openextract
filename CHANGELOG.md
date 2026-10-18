@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Message extraction from sms.db with contact resolution
 - Chat-bubble message viewer UI
 - Photo extraction from CameraRollDomain
+- Health tab: daily steps, distance, sleep, resting heart rate and weight with charts and a table view, plus workouts; CSV export
 - Voicemail, call history, contacts, and notes extractors
 - Export to TXT, CSV, and HTML formats
 - Backup test corpus: tests against real public iPhone backups (iOS 13–17), run weekly in CI (see `corpus/README.md`)
