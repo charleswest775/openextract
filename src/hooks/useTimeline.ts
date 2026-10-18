@@ -8,6 +8,8 @@ import {
   DEFAULT_FILTERS,
 } from '../types/timeline';
 import type { Conversation, Message } from './useMessages';
+import { memoTitle, type VoiceMemo } from '../lib/voiceMemos';
+import { eventStart, formatEventWhen, type CalendarEvent } from '../lib/calendarEvents';
 import type { PhotoAsset } from '../types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -167,6 +169,46 @@ function normalizeNote(note: RawNote): TimelineEntry {
   };
 }
 
+function normalizeVoiceMemo(m: VoiceMemo): TimelineEntry {
+  return {
+    id: `voice_memo:${m.id}`,
+    type: 'voice_memo',
+    timestamp: m.date ?? '',
+    contactName: null,
+    contactIdentifier: null,
+    voiceMemo: {
+      memoId: m.id,
+      title: memoTitle(m),
+      duration: m.duration,
+      folder: m.folder,
+      deleted: m.deleted,
+      hasAudio: m.has_audio,
+    },
+  };
+}
+
+function normalizeCalendarEvent(ev: CalendarEvent): TimelineEntry {
+  return {
+    id: `calendar:${ev.id}`,
+    type: 'calendar',
+    // As a UTC instant so it sorts with other entries; all-day events use
+    // local midnight of their first day.
+    timestamp: eventStart(ev).toISOString(),
+    contactName: null,
+    contactIdentifier: null,
+    calendar: {
+      eventId: ev.id,
+      title: ev.title || 'Untitled event',
+      allDay: ev.all_day,
+      when: formatEventWhen(ev),
+      location: ev.location,
+      calendarName: ev.calendar,
+      color: ev.calendar_color,
+      recurring: ev.recurring,
+    },
+  };
+}
+
 interface RawBrowserVisit {
   visit_id: string;
   url: string;
@@ -255,7 +297,7 @@ function getContactGroup(id: string, idMap: IdentifierGroupMap): Set<string> | n
 export function useTimeline(udid: string): UseTimelineReturn {
   const [rawEntries, setRawEntries] = useState<TimelineEntry[]>([]);
   const [loadingTypes, setLoadingTypes] = useState<Set<TimelineEntryType>>(
-    new Set(['message', 'call', 'photo', 'voicemail', 'note'])
+    new Set(['message', 'call', 'photo', 'voicemail', 'note', 'voice_memo', 'calendar'])
   );
   const [errors, setErrors] = useState<Partial<Record<TimelineEntryType, string>>>({});
   const [messageCap, setMessageCap] = useState<{ loaded: number; total: number } | null>(null);
@@ -393,6 +435,32 @@ export function useTimeline(udid: string): UseTimelineReturn {
     }
   }, [udid, addEntries, markError]);
 
+  const fetchVoiceMemos = useCallback(async (epoch: number) => {
+    try {
+      const res = await sidecarCall<{ voice_memos: VoiceMemo[] }>(
+        'list_voice_memos',
+        { udid }
+      );
+      if (loadEpochRef.current !== epoch) return;
+      addEntries((res.voice_memos ?? []).map(normalizeVoiceMemo), 'voice_memo');
+    } catch (e: any) {
+      markError('voice_memo', e.message || 'Failed to load voice memos');
+    }
+  }, [udid, addEntries, markError]);
+
+  const fetchCalendar = useCallback(async (epoch: number) => {
+    try {
+      const res = await sidecarCall<{ events: CalendarEvent[] }>(
+        'list_calendar_events',
+        { udid }
+      );
+      if (loadEpochRef.current !== epoch) return;
+      addEntries((res.events ?? []).map(normalizeCalendarEvent), 'calendar');
+    } catch (e: any) {
+      markError('calendar', e.message || 'Failed to load calendar');
+    }
+  }, [udid, addEntries, markError]);
+
   const fetchBrowser = useCallback(async (epoch: number) => {
     try {
       // Check first — not every backup has browser history
@@ -431,7 +499,7 @@ export function useTimeline(udid: string): UseTimelineReturn {
     setRawEntries([]);
     setErrors({});
     setMessageCap(null);
-    setLoadingTypes(new Set(['message', 'call', 'photo', 'voicemail', 'note', 'browser']));
+    setLoadingTypes(new Set(['message', 'call', 'photo', 'voicemail', 'note', 'browser', 'voice_memo', 'calendar']));
     setPage(0);
 
     // Fire all fetches in parallel; each one updates state independently
@@ -441,8 +509,10 @@ export function useTimeline(udid: string): UseTimelineReturn {
     fetchVoicemail(epoch);
     fetchNotes(epoch);
     fetchBrowser(epoch);
+    fetchVoiceMemos(epoch);
+    fetchCalendar(epoch);
     fetchContactGroups();
-  }, [fetchMessages, fetchCalls, fetchPhotos, fetchVoicemail, fetchNotes, fetchBrowser, fetchContactGroups]);
+  }, [fetchMessages, fetchCalls, fetchPhotos, fetchVoicemail, fetchNotes, fetchBrowser, fetchVoiceMemos, fetchCalendar, fetchContactGroups]);
 
   useEffect(() => {
     load();
@@ -501,7 +571,7 @@ export function useTimeline(udid: string): UseTimelineReturn {
   // ── Counts per type (unfiltered) ──────────────────────────────────────────
   const counts = useMemo((): Record<TimelineEntryType, number> => {
     const c: Record<TimelineEntryType, number> = {
-      message: 0, call: 0, photo: 0, voicemail: 0, note: 0, browser: 0,
+      message: 0, call: 0, photo: 0, voicemail: 0, note: 0, browser: 0, voice_memo: 0, calendar: 0,
     };
     for (const e of rawEntries) c[e.type]++;
     // When messages are capped, show the real total rather than the loaded subset
@@ -619,6 +689,11 @@ export function useTimeline(udid: string): UseTimelineReturn {
             e.browser?.title,
             e.browser?.domain,
             e.browser?.url,
+            e.voiceMemo?.title,
+            e.voiceMemo?.folder,
+            e.calendar?.title,
+            e.calendar?.location,
+            e.calendar?.calendarName,
           ].filter(Boolean).join(' ').toLowerCase();
           if (!haystack.includes(q)) return false;
         }

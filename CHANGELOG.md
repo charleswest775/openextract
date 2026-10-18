@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Chat-bubble message viewer UI
 - Photo extraction from CameraRollDomain
 - Voicemail, call history, contacts, and notes extractors
+- Voice Memos (play, export, Recently Deleted) and Calendar (browse, export to .ics and CSV), also shown on the Overview and Timeline
 - Export to TXT, CSV, and HTML formats
 - Backup test corpus: tests against real public iPhone backups (iOS 13–17), run weekly in CI (see `corpus/README.md`)
 
