@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "description": "Only here so Vercel runs download-counter.ts (Routing Middleware, no framework) as an ES module.",
+  "type": "module"
+}
