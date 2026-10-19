@@ -1,5 +1,8 @@
 {
   "cleanUrls": true,
+  "proxy": {
+    "entrypoint": "download-counter.mjs"
+  },
   "redirects": [
     {
       "source": "/download/mac",
