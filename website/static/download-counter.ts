@@ -1,5 +1,7 @@
-// Counts clicks on the download buttons (/download/*) for the usage dashboard, then lets the
-// request carry on to its redirect in vercel.json exactly as before. The count is sent after the
+// Counts clicks on the download buttons (/download/*) for the usage dashboard, then sends the
+// browser on to the same path with ?go=1, where vercel.json's redirect to the GitHub installer
+// applies (those redirects only match with `go`, because Vercel runs vercel.json redirects before
+// middleware and the counter would otherwise never see the click). The count is sent after the
 // response, gives up after 3 seconds, and any failure is swallowed: it can never delay or break a
 // download. What's sent: which button, the site that sent the visitor (from download-source.js,
 // or the Referer header), the page the button was on, and the visitor's country as Vercel reports
@@ -21,7 +23,9 @@ export default function downloadCounter(request, context) {
   try {
     const url = new URL(request.url);
     const button = BUTTONS[url.pathname.replace(/^\/download\/|\/+$/g, "")];
-    if (button && request.method === "GET" && !BOTS.test(request.headers.get("user-agent") ?? "")) {
+    // Already counted and on its way to GitHub (or a path with no button): nothing to do here.
+    if (!button || url.searchParams.has("go")) return next();
+    if (request.method === "GET" && !BOTS.test(request.headers.get("user-agent") ?? "")) {
       const body = JSON.stringify({
         app: "openextract",
         country: request.headers.get("x-vercel-ip-country") || undefined,
@@ -45,7 +49,21 @@ export default function downloadCounter(request, context) {
   } catch {
     // Counting must never get in the way of the download.
   }
-  // Carry on to the vercel.json redirect.
+  return onToGitHub(request);
+}
+
+/** On to vercel.json's redirect for this button: same path, with ?go=1. */
+function onToGitHub(request) {
+  try {
+    const url = new URL(request.url);
+    return new Response(null, { status: 302, headers: { Location: `${url.pathname}?go=1`, "Cache-Control": "no-store" } });
+  } catch {
+    return next();
+  }
+}
+
+/** Let the request carry on untouched. */
+function next() {
   return new Response(null, { headers: { "x-middleware-next": "1" } });
 }
 
