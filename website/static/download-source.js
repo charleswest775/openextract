@@ -1,5 +1,5 @@
 /* Remembers, for this tab only, which site brought the visitor (a site's name, never a full URL)
-   and adds it to the download links, so the download counter (download-counter.mjs) can say where
+   and adds it to the download links, so the download counter (download-counter.ts) can say where
    downloads come from. No cookies: sessionStorage is cleared when the tab closes. Without this
    script the buttons work exactly the same, the counter just knows less. */
 (function () {
