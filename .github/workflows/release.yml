@@ -131,9 +131,10 @@ jobs:
       # Touches two files:
       #   - website/static/index.html: nav version pill + installer filename refs.
       #     Nav copy may be `v0.4` (no patch) or `v0.4.0`; both should bump cleanly.
-      #   - website/static/vercel.json: /download/{mac,windows,linux,linux-appimage}
-      #     redirects point at the GitHub release asset for this version. If we don't
-      #     update vercel.json, the website keeps serving the previous version's binaries.
+      #   - website/static/vercel.json: /download/{mac,windows,linux,linux-appimage}/file
+      #     redirects (behind the /download/* landing pages) point at the GitHub
+      #     release asset for this version. If we don't update vercel.json, the
+      #     website keeps serving the previous version's binaries.
       - name: Update website version and download URLs
         run: |
           VERSION="${{ inputs.version }}"
@@ -167,10 +168,10 @@ jobs:
           const [file, version] = process.argv.slice(2);
           const base = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/v${version}`;
           const assets = {
-            '/download/mac': `OpenExtract-${version}-arm64.dmg`,
-            '/download/windows': `OpenExtract-Setup-${version}.exe`,
-            '/download/linux': `openextract_${version}_amd64.deb`,
-            '/download/linux-appimage': `OpenExtract-${version}.AppImage`,
+            '/download/mac/file': `OpenExtract-${version}-arm64.dmg`,
+            '/download/windows/file': `OpenExtract-Setup-${version}.exe`,
+            '/download/linux/file': `openextract_${version}_amd64.deb`,
+            '/download/linux-appimage/file': `OpenExtract-${version}.AppImage`,
           };
           const config = JSON.parse(fs.readFileSync(file, 'utf8'));
           for (const [source, asset] of Object.entries(assets)) {

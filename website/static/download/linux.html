@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Downloading OpenExtract for Linux</title>
+  <meta name="description" content="Your OpenExtract Linux download is starting." />
+  <!-- Download landing page. It exists so download clicks show up as pageviews of
+       /download/linux in Vercel Web Analytics (Hobby has no custom events, and a bare
+       redirect never loads the analytics script). The meta refresh sends the browser
+       on to /download/linux/file, which vercel.json redirects to the GitHub release
+       asset for the current version. Browsers stay on this page while the file
+       downloads, so the pageview always gets recorded. -->
+  <meta http-equiv="refresh" content="1;url=/download/linux/file" />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Ubuntu &amp; Debian · .deb</div>
+    <h1>Your download is<br /><span class="it">starting</span>.</h1>
+    <p class="page-head__lede">OpenExtract for Linux is on its way from GitHub. If nothing happens in a few seconds, <a href="/download/linux/file">download the .deb directly</a>.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>While it downloads</h2>
+      <ol>
+        <li>Install it with your package manager: <code>sudo apt install ./openextract_*.deb</code></li>
+        <li>Run <code>openextract</code> or open it from your app launcher.</li>
+        <li>No backup yet? Plug your iPhone in, open Finder (or iTunes on Windows), and click "Back up now." <a href="/how-it-works">How it works</a> walks through the rest.</li>
+      </ol>
+      <p>Every download comes straight from the <a href="https://github.com/charleswest775/openextract/releases/latest">GitHub release</a>, where you can also read the changelog and the source. OpenExtract runs entirely on your computer and never uploads your backup.</p>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,6 +1,7 @@
 User-agent: *
-# /download/* redirects straight to installer binaries on GitHub; keep crawlers
-# out so they don't inflate download counts.
+# /download/<platform> are download landing pages (noindex) and
+# /download/<platform>/file redirects straight to the installer on GitHub.
+# Keep crawlers out of both so they don't inflate download counts.
 Disallow: /download/
 
 Sitemap: https://www.openextract.app/sitemap.xml
