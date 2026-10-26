@@ -2,7 +2,7 @@ import { useBackupStats, type BackupStats } from '../../hooks/useBackupStats';
 import CountUp from '../shared/CountUp';
 import OrganicLoader from '../shared/OrganicLoader';
 import {
-  LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon, VoicemailIcon,
+  LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon, VoicemailIcon, MicIcon, CalendarIcon,
   LockIcon, ClockIcon,
 } from '../shared/Icons';
 
@@ -207,7 +207,7 @@ function DashboardContent({ stats, onNavigate }: { stats: BackupStats; onNavigat
       </div>
 
       {/* Big Numbers */}
-      <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-4 lg:grid-cols-8 gap-3">
         <StatCard
           icon={LinesIcon}
           value={overview.total_messages}
@@ -243,6 +243,18 @@ function DashboardContent({ stats, onNavigate }: { stats: BackupStats; onNavigat
           value={overview.total_voicemails}
           label="Voicemails"
           onClick={() => onNavigate('voicemail')}
+        />
+        <StatCard
+          icon={MicIcon}
+          value={overview.total_voice_memos ?? 0}
+          label="Voice Memos"
+          onClick={() => onNavigate('voice_memos')}
+        />
+        <StatCard
+          icon={CalendarIcon}
+          value={overview.total_calendar_events ?? 0}
+          label="Calendar Events"
+          onClick={() => onNavigate('calendar')}
         />
       </div>
 
