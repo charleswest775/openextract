@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { saveFolder, sidecarCall } from '../../lib/ipc';
+import { photoExportSummary, PhotoExportResult } from '../../lib/photoCounts';
 import { ExportIcon, LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon, GlobeIcon, ContactIcon } from '../shared/Icons';
 
 interface Props {
@@ -168,9 +169,13 @@ export default function ExportPanel({ udid }: Props) {
       default:
         return;
     }
-    await sidecarCall(method, params);
+    const result = await sidecarCall(method, params);
     window.openextract.incrementExportCount();
-    setStatus(`${type} exported successfully`);
+    if (type === 'photos') {
+      setStatus(`Photos: ${photoExportSummary(result as PhotoExportResult)}`);
+    } else {
+      setStatus(`${type} exported successfully`);
+    }
   }
 
   return (
