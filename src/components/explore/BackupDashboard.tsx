@@ -2,6 +2,7 @@ import { useBackupStats, type BackupStats } from '../../hooks/useBackupStats';
 import CountUp from '../shared/CountUp';
 import OrganicLoader from '../shared/OrganicLoader';
 import { allOnlyInIcloud, moreOnlyInIcloud } from '../../lib/photoCounts';
+import SearchAllMessages, { type MessageTarget } from './SearchAllMessages';
 import {
   LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon, VoicemailIcon,
   LockIcon, ClockIcon,
@@ -10,6 +11,7 @@ import {
 interface Props {
   udid: string;
   onNavigate: (tab: string) => void;
+  onOpenMessage: (target: MessageTarget) => void;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -169,7 +171,7 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 
 // ── Main Dashboard ───────────────────────────────────────────────────────────
 
-function DashboardContent({ stats, onNavigate }: { stats: BackupStats; onNavigate: (tab: string) => void }) {
+function DashboardContent({ udid, stats, onNavigate, onOpenMessage }: { stats: BackupStats } & Props) {
   const { overview, messages, photos, calls, notes, voicemails } = stats;
   // Library rows the backup has no file for (#106), as the Photos screen counts them.
   const photosOnlyInIcloud = Math.max(overview.total_photos + overview.total_videos - overview.photos_in_backup, 0);
@@ -208,6 +210,11 @@ function DashboardContent({ stats, onNavigate }: { stats: BackupStats; onNavigat
           )}
         </div>
       </div>
+
+      {/* Search every conversation, right from the first screen */}
+      {overview.total_messages > 0 && (
+        <SearchAllMessages udid={udid} onOpen={onOpenMessage} />
+      )}
 
       {/* Big Numbers */}
       <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
@@ -439,7 +446,7 @@ function DashboardContent({ stats, onNavigate }: { stats: BackupStats; onNavigat
   );
 }
 
-export default function BackupDashboard({ udid, onNavigate }: Props) {
+export default function BackupDashboard({ udid, onNavigate, onOpenMessage }: Props) {
   const { stats, loading, error } = useBackupStats(udid);
 
   if (loading) return <LoadingSkeleton />;
@@ -457,5 +464,5 @@ export default function BackupDashboard({ udid, onNavigate }: Props) {
 
   if (!stats) return null;
 
-  return <DashboardContent stats={stats} onNavigate={onNavigate} />;
+  return <DashboardContent udid={udid} stats={stats} onNavigate={onNavigate} onOpenMessage={onOpenMessage} />;
 }

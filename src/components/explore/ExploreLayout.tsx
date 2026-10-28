@@ -15,6 +15,7 @@ import VoicemailExplorer from './VoicemailExplorer';
 import BrowserHistoryExplorer from './BrowserHistoryExplorer';
 import RecordRecoveryView from './RecordRecoveryView';
 import ExportPanel from './ExportPanel';
+import type { MessageTarget } from './SearchAllMessages';
 import TimelineView from '../timeline/TimelineView';
 import type { HistoryVisit } from '../../lib/browserHistoryStats';
 
@@ -42,7 +43,16 @@ const allNavItems: { id: Tab; label: string; icon: typeof LinesIcon; comingSoon?
 
 export default function ExploreLayout({ udid, session, onBack }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
-  const handleNavigate = (tab: string) => setActiveTab(tab as Tab);
+  // Set when a search result on the Overview opens a conversation
+  const [messageTarget, setMessageTarget] = useState<MessageTarget | null>(null);
+  const handleNavigate = (tab: string) => {
+    setMessageTarget(null);
+    setActiveTab(tab as Tab);
+  };
+  const openMessage = (target: MessageTarget) => {
+    setMessageTarget(target);
+    setActiveTab('messages');
+  };
   const [hasBrowserHistory, setHasBrowserHistory] = useState(false);
   const [preloadedBrowserHistory, setPreloadedBrowserHistory] = useState<HistoryVisit[] | null>(null);
   const [browserHistoryPreloading, setBrowserHistoryPreloading] = useState(false);
@@ -111,7 +121,7 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
                 <button
                   key={item.id}
                   title={item.label}
-                  onClick={() => !item.comingSoon && setActiveTab(item.id)}
+                  onClick={() => !item.comingSoon && handleNavigate(item.id)}
                   className={`w-[68px] h-[64px] rounded-[14px] flex flex-col items-center justify-center gap-[3px] transition-all ${
                     isActive ? 'bg-surface border border-rule' : 'border border-transparent hover:bg-surface/60'
                   } ${item.comingSoon ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
@@ -154,9 +164,9 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
 
           {/* Content area */}
           <div className="flex-1 overflow-hidden min-w-0">
-            {activeTab === 'dashboard' && <BackupDashboard udid={udid} onNavigate={handleNavigate} />}
+            {activeTab === 'dashboard' && <BackupDashboard udid={udid} onNavigate={handleNavigate} onOpenMessage={openMessage} />}
             {activeTab === 'timeline' && <TimelineView udid={udid} />}
-            {activeTab === 'messages' && <MessageExplorer udid={udid} />}
+            {activeTab === 'messages' && <MessageExplorer udid={udid} openTarget={messageTarget} />}
             {activeTab === 'photos' && <PhotoExplorer udid={udid} />}
             {activeTab === 'contacts' && <ContactExplorer udid={udid} />}
             {activeTab === 'calls' && <CallExplorer udid={udid} />}
