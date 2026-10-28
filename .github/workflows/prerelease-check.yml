@@ -147,12 +147,14 @@ jobs:
           ]
           if None in paths:
               raise SystemExit(f"Missing test backup: {paths}")
-          with open(os.environ["GITHUB_WORKSPACE"] + "/e2e-backups.txt", "w", encoding="utf-8") as f:
+          with open(os.environ["GITHUB_WORKSPACE"] + "/e2e-backups.txt", "w", encoding="utf-8", newline="\n") as f:
               f.write("\n".join(map(str, paths)) + "\n")
           EOF
-          # macOS runners have bash 3.2, which has no mapfile.
+          # macOS runners have bash 3.2, which has no mapfile. Strip CRs too: a stray one
+          # at the end of a Windows path makes the backup folder "not found".
           backups=()
-          while IFS= read -r line || [ -n "$line" ]; do backups+=("${line%$'\r'}"); done < e2e-backups.txt
+          while IFS= read -r line; do if [ -n "$line" ]; then backups+=("$line"); fi; done < <(tr -d '\r' < e2e-backups.txt)
+          printf 'Backup: %q\n' "${backups[@]}"
           args=(scripts/e2e-packaged.mjs "$(native "$GITHUB_WORKSPACE/release/${{ matrix.app }}")" "$(native "$GITHUB_WORKSPACE/e2e-out")" "${backups[@]}")
           if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a -s '-screen 0 1600x1000x24' node "${args[@]}"; else node "${args[@]}"; fi
 
