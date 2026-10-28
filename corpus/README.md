@@ -39,8 +39,9 @@ Without `-m corpus`, `pytest python/tests/` runs only the corpus tooling's own u
 
 ## When it runs
 
-- **Every PR** (`ci.yml`): the tooling unit tests. Nothing is downloaded.
+- **Every PR** (`ci.yml`): the tooling unit tests and the generated backups in the `pr` tier, on Linux, macOS and Windows. Nothing is downloaded.
 - **Weekly** (`corpus-weekly.yml`): fetches every item in the `weekly` tier and runs all corpus checks. Run it by hand with a different item list, or against an `ios-backup-core` branch, from the Actions tab.
+- **Before a release** (`prerelease-check.yml`, run by hand from the Actions tab): on Linux, macOS and Windows, packages the app unsigned, runs the corpus checks on the public items it's given plus every generated backup against the engine inside that build, and drives the build end to end with `scripts/e2e-packaged.mjs`. Only the end-to-end results for the fictional maren backups are uploaded.
 
 ## Adding an item
 

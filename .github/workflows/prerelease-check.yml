@@ -1,0 +1,167 @@
+name: Pre-release check
+
+# Run this by hand from the Actions tab before cutting a release: release.yml always tags
+# and publishes, so it can't be used as a dry run.
+#
+# On Linux, macOS and Windows it builds the engine and the app the way release.yml does,
+# but unsigned and unpublished, then
+#   - runs the backup corpus (public items plus every generated one) against the engine
+#     inside the packaged app, and
+#   - drives the packaged app end to end with scripts/e2e-packaged.mjs.
+#
+# Third-party backups (Hickman, FCSC) may not be screenshotted or redistributed, so the
+# only artifacts uploaded are the e2e results for the fictional maren backups.
+# Linux here builds on the runner's own OS; release.yml builds Linux in an older distro.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ios_backup_core_ref:
+        description: 'ios-backup-core branch or tag to build against'
+        required: false
+        default: 'master'
+      items:
+        description: 'Public corpus items to fetch and test (comma-separated)'
+        required: false
+        default: 'pub-hickman-13.3.1,pub-hickman-13.4.1,pub-hickman-15.3.1,pub-hickman-16.1.2,pub-hickman-17.3,pub-fcsc25-16.0'
+
+permissions:
+  contents: read
+
+jobs:
+  packaged:
+    name: packaged app (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            app: linux-unpacked/openextract
+            engine: linux-unpacked/resources/python/openextract-engine
+          - os: macos-latest
+            app: mac-arm64/OpenExtract.app/Contents/MacOS/OpenExtract
+            engine: mac-arm64/OpenExtract.app/Contents/Resources/python/openextract-engine
+          - os: windows-latest
+            app: win-unpacked/OpenExtract.exe
+            engine: win-unpacked/resources/python/openextract-engine.exe
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONUTF8: '1'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install Node dependencies
+        run: npm ci --no-audit --no-fund
+
+      # Same sibling layout as ci.yml: python/requirements.txt installs
+      # ios-backup-core from ../../ios-backup-core.
+      - name: Clone ios-backup-core (sibling for editable install)
+        env:
+          REF: ${{ inputs.ios_backup_core_ref || 'master' }}
+        run: |
+          git clone --depth=1 --branch "$REF" \
+            https://github.com/charleswest775/ios-backup-core.git \
+            "$GITHUB_WORKSPACE/../ios-backup-core"
+
+      - name: Install Python dependencies and PyInstaller
+        working-directory: python
+        run: pip install pytest pyinstaller -r requirements.txt
+
+      - name: Build Python sidecar
+        run: npm run python:bundle
+
+      - name: Build Electron app
+        run: npm run build
+
+      # No signing secrets here: drop the notarize hook and Azure signing, and turn off
+      # hardened runtime so an ad-hoc signature is enough to launch on Apple silicon.
+      - name: Unsigned packaging config
+        run: |
+          node -e '
+            const fs = require("fs"); const p = JSON.parse(fs.readFileSync("package.json"));
+            delete p.build.afterSign; delete p.build.win.azureSignOptions;
+            p.build.mac.hardenedRuntime = false; p.build.mac.identity = null;
+            fs.writeFileSync("package.json", JSON.stringify(p, null, 2));'
+
+      - name: Package (unpacked, no publish)
+        run: npx electron-builder --dir --publish never
+
+      - name: Ad-hoc sign (macOS)
+        if: runner.os == 'macOS'
+        run: codesign --force --deep -s - release/mac-arm64/OpenExtract.app
+
+      - name: Fetch public backups
+        id: fetch
+        env:
+          ITEMS: ${{ inputs.items }}
+        run: |
+          # The end-to-end run needs pub-hickman-15.3.1 whatever the item list says.
+          python -m corpus.fetch fetch $(echo "$ITEMS,pub-hickman-15.3.1" | tr ',' '\n' | sort -u)
+
+      - name: Corpus, packaged engine (public + generated)
+        env:
+          ITEMS: ${{ inputs.items }}
+          OPENEXTRACT_CORPUS_REQUIRE: '1'
+        run: |
+          synthetic=$(python -c "from corpus.synthetic import load_synthetic; print(','.join(load_synthetic()))")
+          export OPENEXTRACT_CORPUS_ITEMS="$ITEMS,$synthetic"
+          export OPENEXTRACT_SIDECAR="$GITHUB_WORKSPACE/release/${{ matrix.engine }}"
+          echo "Engine: $OPENEXTRACT_SIDECAR"
+          echo "Items: $OPENEXTRACT_CORPUS_ITEMS"
+          pytest python/tests/corpus -m corpus -q -rfE
+
+      # Runs even when the corpus step fails, so one run shows both.
+      - name: End to end
+        id: e2e
+        if: ${{ !cancelled() && steps.fetch.outcome == 'success' }}
+        run: |
+          npm install --no-save --no-audit --no-fund playwright-core@1.59.1
+          # Node on Windows needs C:\ paths, not Git Bash's /c/ ones.
+          native() { if command -v cygpath >/dev/null; then cygpath -w "$1"; else echo "$1"; fi; }
+          python - <<'EOF'
+          import os
+          from corpus.manifest import load_manifest
+          from corpus.synthetic import ensure_generated, load_synthetic
+          syn = load_synthetic()
+          paths = [
+              ensure_generated(syn["syn-maren-ios26-plain"]),
+              ensure_generated(syn["syn-maren-ios26-encrypted"]),
+              load_manifest()["pub-hickman-15.3.1"].backup_dir(),
+          ]
+          if None in paths:
+              raise SystemExit(f"Missing test backup: {paths}")
+          with open(os.environ["GITHUB_WORKSPACE"] + "/e2e-backups.txt", "w", encoding="utf-8") as f:
+              f.write("\n".join(map(str, paths)) + "\n")
+          EOF
+          # macOS runners have bash 3.2, which has no mapfile.
+          backups=()
+          while IFS= read -r line || [ -n "$line" ]; do backups+=("${line%$'\r'}"); done < e2e-backups.txt
+          args=(scripts/e2e-packaged.mjs "$(native "$GITHUB_WORKSPACE/release/${{ matrix.app }}")" "$(native "$GITHUB_WORKSPACE/e2e-out")" "${backups[@]}")
+          if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a -s '-screen 0 1600x1000x24' node "${args[@]}"; else node "${args[@]}"; fi
+
+      # Maren is fictional; scripts/e2e-packaged.mjs keeps every Hickman screenshot and
+      # export out of e2e-out.
+      - name: Upload end-to-end results (maren only)
+        if: ${{ !cancelled() && (steps.e2e.outcome == 'success' || steps.e2e.outcome == 'failure') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ runner.os }}
+          path: e2e-out
+          retention-days: 5
