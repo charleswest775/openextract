@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Backup test corpus: tests against real public iPhone backups (iOS 13–17), run weekly in CI (see `corpus/README.md`)
 - Export a conversation as PDF, with its photos, from the Messages view (single or several conversations) (#91)
 - HTML and PDF message exports end with one small line: "Made with OpenExtract, free at openextract.app"
+- Search all your messages from the Overview screen as soon as a backup opens: each match shows the conversation, sender, date and the message with your words highlighted, and clicking one opens that conversation. The Messages view searches every conversation when none is selected, and says when it is showing only the first 500 matches
 
 ### Fixed
 - Stats dashboard counted every conversation as a group chat

@@ -91,6 +91,10 @@ class MessageExtractor:
 
     def __init__(self):
         self._inner = _CoreMessageExtractor()
+        # Conversation names keyed by sms.db path, so a search across every
+        # conversation can say which one each match is in. A backup doesn't
+        # change while it's open, so the names are worked out once.
+        self._chat_names: dict[str, dict[int, str]] = {}
 
     # ── Delegated raw-extraction methods ─────────────────────────────────────
 
@@ -111,10 +115,24 @@ class MessageExtractor:
                         date_from: Optional[str] = None,
                         date_to: Optional[str] = None,
                         limit: int = 500) -> dict:
-        return self._inner.search_messages(
+        result = self._inner.search_messages(
             backup, query, contacts, chat_id,
             date_from=date_from, date_to=date_to, limit=limit,
         )
+        # Searching every conversation: name the one each match is in, as the
+        # conversation list names it.
+        if chat_id is None and result.get("results"):
+            names = self._conversation_names(backup, contacts)
+            for r in result["results"]:
+                r["chat_name"] = names.get(r["chat_id"], "")
+        return result
+
+    def _conversation_names(self, backup, contacts: dict) -> dict[int, str]:
+        db_path = self._inner._get_sms_db(backup) or ""
+        if db_path not in self._chat_names:
+            convos = self._inner.list_conversations(backup, contacts).get("conversations", [])
+            self._chat_names[db_path] = {c["chat_id"]: c["display_name"] for c in convos}
+        return self._chat_names[db_path]
 
     # ── openextract-only: per-id attachment extraction ───────────────────────
 
