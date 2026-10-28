@@ -19,9 +19,13 @@ sidecar imports from this module:
     apple_date_to_iso, iso_to_apple_date, parse_attributed_body
 """
 
+import av
 import base64
 import csv
+import io
+import pillow_heif
 import os
+from PIL import Image
 from typing import Optional
 
 from ios_backup_core.extractors.messages import MessageExtractor as _CoreMessageExtractor
@@ -123,13 +127,12 @@ class MessageExtractor:
 
             mime_type = row["mime_type"]
             filename_lower = (row["filename"] or "").lower()
-            if mime_type in ("image/heic", "image/heif") or filename_lower.endswith(".heic") or filename_lower.endswith(".heif"):
+            if (mime_type in ("image/heic", "image/heif")
+                or filename_lower.endswith(".heic")
+                or filename_lower.endswith(".heif")):
 
                 # convert HEIC to JPG
                 try:
-                    import io
-                    import pillow_heif
-                    from PIL import Image
                     pillow_heif.register_heif_opener()
                     img = Image.open(io.BytesIO(raw_data))
                     buf = io.BytesIO()
@@ -233,8 +236,6 @@ class MessageExtractor:
     def reduce_image_size(base64_data: str, mime_type: str, filename: str) -> str:
         """reduce image quality to save size for export through converting to 75% qualtiy JPEG"""
         try:
-            import io
-            from PIL import Image
 
             original_size = len(base64_data)
 
@@ -411,8 +412,6 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
         Returns:
             str: b64 encoded jpg of the 1st frame of the video data
         """
-        import av
-        import io
 
         # check if data is b64 encoded, and decode if necessary
         if isinstance(data, str):
