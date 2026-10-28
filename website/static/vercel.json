@@ -1,25 +1,52 @@
 {
   "cleanUrls": true,
+  "proxy": {
+    "entrypoint": "download-counter.ts"
+  },
   "redirects": [
     {
       "source": "/download/mac/file",
       "destination": "https://github.com/charleswest775/openextract/releases/download/v0.7.0/OpenExtract-0.7.0-arm64.dmg",
-      "permanent": false
+      "permanent": false,
+      "has": [
+        {
+          "type": "query",
+          "key": "go"
+        }
+      ]
     },
     {
       "source": "/download/windows/file",
       "destination": "https://github.com/charleswest775/openextract/releases/download/v0.7.0/OpenExtract-Setup-0.7.0.exe",
-      "permanent": false
+      "permanent": false,
+      "has": [
+        {
+          "type": "query",
+          "key": "go"
+        }
+      ]
     },
     {
       "source": "/download/linux/file",
       "destination": "https://github.com/charleswest775/openextract/releases/download/v0.7.0/openextract_0.7.0_amd64.deb",
-      "permanent": false
+      "permanent": false,
+      "has": [
+        {
+          "type": "query",
+          "key": "go"
+        }
+      ]
     },
     {
       "source": "/download/linux-appimage/file",
       "destination": "https://github.com/charleswest775/openextract/releases/download/v0.7.0/OpenExtract-0.7.0.AppImage",
-      "permanent": false
+      "permanent": false,
+      "has": [
+        {
+          "type": "query",
+          "key": "go"
+        }
+      ]
     },
     {
       "source": "/:path(.*)",
