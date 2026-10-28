@@ -336,12 +336,33 @@ def test_every_photo_listed(ctx):
     assert not undated, f"photos with a date in Photos.sqlite but none in list_photos: {_sample(undated)}"
 
 
-def test_photo_total_matches_listing(ctx):
-    """The count the UI shows equals the number of photos it can actually page through."""
+def test_photo_count_matches_listing(ctx):
+    """The count the Photos screen shows (in_backup) equals the number of photos it can page through.
+
+    total stays the library's row count, which paging steps through; the rows
+    left out are the ones whose original isn't in the backup (only in iCloud).
+    """
     ctx.require_open()
     result = ctx.photos_result
     listed = len(result.get("photos", []))
-    assert result.get("total") == listed, f"list_photos says total {result.get('total')} but pages contain {listed}"
+    assert result.get("in_backup") == listed, f"list_photos says in_backup {result.get('in_backup')} but pages contain {listed}"
+    assert listed + result.get("not_in_backup", 0) == result.get("total"), (
+        f"in_backup {listed} + not_in_backup {result.get('not_in_backup')} != total {result.get('total')}"
+    )
+
+
+def test_album_counts_match_listing(ctx):
+    """Each album's in_backup count equals the number of photos its listing pages through."""
+    ctx.require_open()
+    albums = [a for a in ctx.albums_result.get("albums", []) if a.get("id") != "__all__"]
+    if ctx.photos_result.get("source") != "photos_sqlite" or not albums:
+        pytest.skip("no Photos.sqlite albums")
+    wrong = {}
+    for album in albums:
+        listed = len(ctx.photos_in_album(album["id"]).get("photos", []))
+        if album.get("in_backup") != listed:
+            wrong[album["id"]] = f"in_backup={album.get('in_backup')} listed={listed}"
+    assert not wrong, f"album counts disagree with their listings: {_sample(sorted(wrong.items()))}"
 
 
 def test_photo_details_agree_with_list(ctx):
