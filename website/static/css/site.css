@@ -434,6 +434,10 @@ img { max-width: 100%; display: block; }
 }
 .testimonial__name { font-size: 14px; font-weight: 600; }
 .testimonial__loc { font-size: 12px; color: var(--ink-dim); }
+/* Use-case cards reuse the card layout, but read as descriptions, not quotes. */
+.testimonials--usecases .testimonial__name { font-size: 17px; margin-bottom: 12px; }
+.testimonials--usecases .testimonial__quote { font-family: inherit; font-style: normal; font-size: 16px; line-height: 1.5; }
+.testimonials--usecases .testimonial__loc a { color: inherit; }
 
 /* ── Privacy band ───────────────────────────────────── */
 .privacy { padding: 48px 56px 56px; }

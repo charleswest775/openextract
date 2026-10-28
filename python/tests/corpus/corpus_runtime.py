@@ -151,6 +151,9 @@ class ItemContext:
     def albums_result(self) -> dict:
         return self.rpc("list_albums")
 
+    def photos_in_album(self, album_id: str) -> dict:
+        return self._paged("list_photos", "photos", album_id=album_id)
+
     @cached_property
     def contacts(self) -> list[dict]:
         return self.rpc("list_contacts").get("contacts", [])

@@ -62,7 +62,6 @@
         <ul>
           <li>You want a full iPhone suite, not just extraction.</li>
           <li>You need paid vendor support on a deadline.</li>
-          <li>You do expert-witness forensics and want the bundled chain-of-custody workflow.</li>
           <li>You're migrating music, apps, or ringtones device-to-device.</li>
         </ul>
       </div>
@@ -99,7 +98,7 @@
           <tr><td class="matrix__k">Cross-device transfers</td><td class="matrix__cell">No</td><td class="matrix__cell matrix__cell--win-im">Yes</td></tr>
           <tr><td class="matrix__k">App / music / ringtone sync</td><td class="matrix__cell">No</td><td class="matrix__cell matrix__cell--win-im">Yes</td></tr>
           <tr><td class="matrix__k">Paid commercial support</td><td class="matrix__cell">Community · GitHub</td><td class="matrix__cell matrix__cell--win-im">Yes, vendor-backed</td></tr>
-          <tr><td class="matrix__k">Forensic workflow (chain-of-custody, hashing)</td><td class="matrix__cell">Basic (timestamps preserved)</td><td class="matrix__cell matrix__cell--win-im">iMazing Forensics edition</td></tr>
+          <tr><td class="matrix__k">Manages the phone itself (apps, ringtones, live transfers)</td><td class="matrix__cell">No, reads backups only</td><td class="matrix__cell matrix__cell--win-im">Yes</td></tr>
         </tbody>
       </table>
     </div>
@@ -108,10 +107,10 @@
   <section class="wheres">
     <div>
       <h3>Where OpenExtract <span class="it it--coral">wins</span></h3>
-      <div class="wheres__row"><div class="wheres__row-k">Price.</div><div class="wheres__row-v">Free forever. No trial, no paywall, no upsell.</div></div>
+      <div class="wheres__row"><div class="wheres__row-k">Price.</div><div class="wheres__row-v">Free and open source. No trial, no paywall and no paid tier.</div></div>
       <div class="wheres__row"><div class="wheres__row-k">Open source.</div><div class="wheres__row-v">MIT-licensed. Read every line. Fork it. Modify it. Verify exactly what it does to your backup.</div></div>
       <div class="wheres__row"><div class="wheres__row-k">Auditability for sensitive work.</div><div class="wheres__row-v">For legal or investigative use, "this tool's code is public" is a different trust model from "trust the vendor."</div></div>
-      <div class="wheres__row"><div class="wheres__row-k">Linux support.</div><div class="wheres__row-v">Runs on Linux too — useful for forensics workstations and hardened investigation boxes.</div></div>
+      <div class="wheres__row"><div class="wheres__row-k">Linux support.</div><div class="wheres__row-v">Runs on Linux too, so you can get your texts off an iPhone backup on any computer you own.</div></div>
       <div class="wheres__row"><div class="wheres__row-k">No account, no telemetry.</div><div class="wheres__row-v">Nothing to register. Nothing phoned home. Nothing to cancel.</div></div>
       <div class="wheres__row"><div class="wheres__row-k">Export formats without watermark.</div><div class="wheres__row-v">Full-fidelity PDF / CSV / HTML, no trial stamp, no feature gate.</div></div>
     </div>
@@ -120,7 +119,7 @@
       <div class="wheres__row"><div class="wheres__row-k">Maturity.</div><div class="wheres__row-v">iMazing has over a decade of edge-case handling across iOS versions. OpenExtract is newer; you may hit rough spots it hasn't.</div></div>
       <div class="wheres__row"><div class="wheres__row-k">Live device management.</div><div class="wheres__row-v">Transferring between phones, managing apps, syncing music — iMazing does it. We don't.</div></div>
       <div class="wheres__row"><div class="wheres__row-k">Paid commercial support.</div><div class="wheres__row-v">When something breaks on a deadline, a vendor support team is different from GitHub issues.</div></div>
-      <div class="wheres__row"><div class="wheres__row-k">iMazing Forensics Edition.</div><div class="wheres__row-v">Bundled chain-of-custody, hash verification, and formalized expert-witness workflow. We preserve metadata cleanly, but the turnkey forensics package is theirs.</div></div>
+      <div class="wheres__row"><div class="wheres__row-k">Managing the phone itself.</div><div class="wheres__row-v">iMazing can manage apps, ringtones and live transfers on a connected iPhone. OpenExtract only reads backups.</div></div>
     </div>
   </section>
 
@@ -130,7 +129,7 @@
       <h2>Your backups <span class="it">already work</span>.</h2>
       <p>iMazing reads the same iTunes/Finder backup format Apple writes. So does OpenExtract. You don't need to re-back-up anything.</p>
       <ol>
-        <li>Install OpenExtract. Free, 48 MB.</li>
+        <li>Install OpenExtract. Free, about 180 MB.</li>
         <li>Launch it. It scans for existing backups automatically.</li>
         <li>If your backup was stored in iMazing's custom location, point OpenExtract at the folder. Any folder with a <code>Manifest.db</code> works.</li>
         <li>Export what you need. Done.</li>
@@ -146,7 +145,7 @@
     </details>
     <details class="qa">
       <summary>Can I use OpenExtract exports in court?</summary>
-      <p>Formats preserve timestamps and metadata. Admissibility depends on your jurisdiction, chain of custody, and your retained expert. For expert-witness work where the tool is cross-examined, read "Where iMazing wins" above.</p>
+      <p>Exports keep the date, time and sender of every message, so they read clearly when printed. Whether a court accepts them depends on your jurisdiction and your case, so ask your lawyer.</p>
     </details>
     <details class="qa">
       <summary>Does OpenExtract handle encrypted backups?</summary>
@@ -154,7 +153,7 @@
     </details>
     <details class="qa">
       <summary>Is OpenExtract safe to install?</summary>
-      <p>Source is public on GitHub. Installers are code-signed. No network calls at runtime. You can verify all of that yourself.</p>
+      <p>Source is public on GitHub. Installers are code-signed. Nothing you extract is ever uploaded, and update checks are off unless you turn them on. You can verify all of that yourself.</p>
     </details>
     <details class="qa">
       <summary>Will it work on backups iMazing made?</summary>
@@ -165,7 +164,7 @@
   <section class="cta-strip">
     <div class="cta-strip__inner">
       <div>
-        <div class="cta-strip__label">Free. Open source. 48 MB.</div>
+        <div class="cta-strip__label">Free. Open source. Nothing uploaded.</div>
         <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
       </div>
       <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>

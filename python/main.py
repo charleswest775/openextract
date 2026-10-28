@@ -58,7 +58,7 @@ class SidecarServer:
         self.browser_history_extractor = BrowserHistoryExtractor()
         self.message_recovery_extractor = MessageRecoveryExtractor()
         self.device_backup_manager = DeviceBackupManager()
-        self.stats_computer = StatsComputer()
+        self.stats_computer = StatsComputer(self.photo_extractor)
 
         # Method dispatch table
         self.methods = {

@@ -9,6 +9,7 @@ screens agree with each other, and that no value is impossible.
 import base64
 import os
 import shutil
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -336,12 +337,33 @@ def test_every_photo_listed(ctx):
     assert not undated, f"photos with a date in Photos.sqlite but none in list_photos: {_sample(undated)}"
 
 
-def test_photo_total_matches_listing(ctx):
-    """The count the UI shows equals the number of photos it can actually page through."""
+def test_photo_count_matches_listing(ctx):
+    """The count the Photos screen shows (in_backup) equals the number of photos it can page through.
+
+    total stays the library's row count, which paging steps through; the rows
+    left out are the ones whose original isn't in the backup (only in iCloud).
+    """
     ctx.require_open()
     result = ctx.photos_result
     listed = len(result.get("photos", []))
-    assert result.get("total") == listed, f"list_photos says total {result.get('total')} but pages contain {listed}"
+    assert result.get("in_backup") == listed, f"list_photos says in_backup {result.get('in_backup')} but pages contain {listed}"
+    assert listed + result.get("not_in_backup", 0) == result.get("total"), (
+        f"in_backup {listed} + not_in_backup {result.get('not_in_backup')} != total {result.get('total')}"
+    )
+
+
+def test_album_counts_match_listing(ctx):
+    """Each album's in_backup count equals the number of photos its listing pages through."""
+    ctx.require_open()
+    albums = [a for a in ctx.albums_result.get("albums", []) if a.get("id") != "__all__"]
+    if ctx.photos_result.get("source") != "photos_sqlite" or not albums:
+        pytest.skip("no Photos.sqlite albums")
+    wrong = {}
+    for album in albums:
+        listed = len(ctx.photos_in_album(album["id"]).get("photos", []))
+        if album.get("in_backup") != listed:
+            wrong[album["id"]] = f"in_backup={album.get('in_backup')} listed={listed}"
+    assert not wrong, f"album counts disagree with their listings: {_sample(sorted(wrong.items()))}"
 
 
 def test_photo_details_agree_with_list(ctx):
@@ -418,6 +440,9 @@ def test_stats_agree_with_lists(ctx):
     ctx.require_open()
     overview = ctx.stats.get("overview", {})
     message_stats = ctx.stats.get("messages", {})
+    photo_stats = ctx.stats.get("photos", {})
+    photos = ctx.photos_result.get("photos", [])
+    photo_dates = sorted(d for p in photos if (d := parse_iso(p.get("date_created"))))
     expected = {
         "overview.total_conversations": (overview.get("total_conversations"), len(ctx.conversations)),
         "overview.total_messages": (overview.get("total_messages"), sum(c["message_count"] for c in ctx.conversations)),
@@ -430,8 +455,27 @@ def test_stats_agree_with_lists(ctx):
         "overview.total_contacts": (overview.get("total_contacts"), len(ctx.contacts)),
         "overview.total_notes": (overview.get("total_notes"), len(ctx.notes_result.get("notes", []))),
         "overview.total_voicemails": (overview.get("total_voicemails"), len(ctx.voicemails_result.get("voicemails", []))),
+        # The Photos tile shows photos_in_backup; total_photos + total_videos count library rows.
+        "overview.photos_in_backup": (overview.get("photos_in_backup"), ctx.photos_result.get("in_backup")),
         "overview.total_photos + total_videos": (
             (overview.get("total_photos") or 0) + (overview.get("total_videos") or 0), ctx.photos_result.get("total")
+        ),
+        # The Photos card describes the photos the Photos screen lists, not every library row.
+        "photos.by_kind total": (sum(photo_stats.get("by_kind", {}).values()), ctx.photos_result.get("in_backup")),
+        "photos.by_kind": (  # list_photos calls an unknown ZKIND "unknown", the stats "other"
+            photo_stats.get("by_kind"),
+            dict(Counter("other" if p.get("kind") == "unknown" else p.get("kind") for p in photos)),
+        ),
+        "photos.total_favorites": (photo_stats.get("total_favorites"), sum(1 for p in photos if p.get("favorite"))),
+        # The stats also count latitude 0 as no location.
+        "photos.with_location": (
+            photo_stats.get("with_location"), sum(1 for p in photos if p.get("latitude") not in (None, 0))
+        ),
+        "photos.earliest_date": (parse_iso(photo_stats.get("earliest_date")), photo_dates[0] if photo_dates else None),
+        "photos.latest_date": (parse_iso(photo_stats.get("latest_date")), photo_dates[-1] if photo_dates else None),
+        "photos.total_video_duration_seconds": (
+            round(photo_stats.get("total_video_duration_seconds") or 0, 1),
+            round(sum(p.get("duration") or 0 for p in photos if p.get("kind") == "video"), 1),
         ),
     }
     try:
