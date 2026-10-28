@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Voicemail, call history, contacts, and notes extractors
 - Export to TXT, CSV, and HTML formats
 - Backup test corpus: tests against real public iPhone backups (iOS 13–17), run weekly in CI (see `corpus/README.md`)
+- After the first successful export, a one-time card asks for a GitHub star or a word to a friend (Star on GitHub, Copy link, Get release notes, Not now). It shows once, is remembered on this computer, and sends nothing anywhere
 
 ### Fixed
 - Stats dashboard counted every conversation as a group chat

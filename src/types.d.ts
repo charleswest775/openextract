@@ -32,6 +32,10 @@ declare global {
       removeSession: (id: string) => Promise<void>;
       getRecentSessions: () => Promise<RecentSession[]>;
       incrementExportCount: () => Promise<number>;
+      /** Called once, after the first successful export, to show the share prompt. Returns a cleanup function. */
+      onSharePrompt: (callback: () => void) => () => void;
+      /** Copy text to the system clipboard. */
+      copyText: (text: string) => Promise<void>;
     };
   }
 }
