@@ -373,11 +373,11 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
                 if "data" in att_result:
 
                     # Create attachments folder in output directory
+                    filename = att_result["filename"]  # as we come from a file system, should have no problems with filename
                     attachments_folder = os.path.join(output_dir, f"{os.path.splitext(filename)[0]}_files")
                     os.makedirs(attachments_folder, exist_ok=True)
 
                     # Save video to attachments folder
-                    filename = att_result["filename"]  # as we come from a file system, should have no problems with filename
                     video_path = os.path.join(attachments_folder, filename)
                     with open(video_path, "wb") as video_file:
                         video_file.write(base64.b64decode(att_result["data"]))
