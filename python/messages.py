@@ -375,6 +375,7 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
 
                     # Create attachments folder in output directory
                     filename = att_result["filename"]  # as we come from a file system, should have no problems with filename
+                    # FIXME: we do want the export html filename as attachment folder name, not the image file name
                     attachments_folder = os.path.join(output_dir, f"{os.path.splitext(filename)[0]}_files")
                     os.makedirs(attachments_folder, exist_ok=True)
 
