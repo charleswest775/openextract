@@ -165,6 +165,18 @@ class MessageExtractor:
         except Exception:
             raise
 
+    def get_video_thumbnail(self, backup, attachment_id: int) -> dict:
+        """Extract a JPEG poster frame for a Messages video attachment."""
+        attachment = self.get_attachment(backup, attachment_id)
+        if "error" in attachment:
+            return attachment
+
+        return {
+            "data": self.get_video_frame_as_b64_jpg(attachment["data"]),
+            "mime_type": "image/jpeg",
+            "filename": attachment["filename"],
+        }
+
     # ── openextract-only: conversation export to disk ────────────────────────
 
     def export_conversation(self, backup, chat_id: int, contacts: dict,

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { formatTime } from '../../lib/dates';
 import { sidecarCall } from '../../lib/ipc';
+import { Loader2, Video } from 'lucide-react';
 
 interface Attachment {
   attachment_id: number;
@@ -31,34 +32,49 @@ interface Props {
 }
 
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.heic', '.heif', '.webp', '.bmp', '.tiff', '.tif'];
+const VIDEO_EXTENSIONS = ['.mov', '.mp4', '.m4v', '.3gp'];
 
 function isImageAttachment(a: Attachment): boolean {
   if (a.mime_type?.startsWith('image/')) return true;
-  const name = (a.transfer_name || a.filename || '').toLowerCase();
-  return IMAGE_EXTENSIONS.some(ext => name.endsWith(ext));
+  return [a.transfer_name, a.filename]
+    .filter(Boolean)
+    .some(name => IMAGE_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext)));
+}
+
+function isVideoAttachment(a: Attachment): boolean {
+  if (a.mime_type?.startsWith('video/')) return true;
+  return [a.transfer_name, a.filename]
+    .filter(Boolean)
+    .some(name => VIDEO_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext)));
 }
 
 function AttachmentItem({ udid, attachment, isMine }: { udid: string; attachment: Attachment; isMine: boolean }) {
   const [data, setData] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const isImage = isImageAttachment(attachment);
+  const isVideo = isVideoAttachment(attachment);
 
   useEffect(() => {
-    if (!isImageAttachment(attachment)) return;
+    if (!isImage && !isVideo) return;
+    let cancelled = false;
+    setData(null);
+    setError(false);
     setLoading(true);
     sidecarCall<{ data: string; mime_type: string; filename: string }>(
-      'get_attachment',
+      isVideo ? 'get_video_thumbnail' : 'get_attachment',
       { udid, attachment_id: attachment.attachment_id }
     ).then((result) => {
-      setData(`data:${result.mime_type};base64,${result.data}`);
+      if (!cancelled) setData(`data:${result.mime_type};base64,${result.data}`);
     }).catch(() => {
-      setError(true);
+      if (!cancelled) setError(true);
     }).finally(() => {
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     });
-  }, [udid, attachment]);
+    return () => { cancelled = true; };
+  }, [udid, attachment.attachment_id, isImage, isVideo]);
 
-  if (!isImageAttachment(attachment)) {
+  if (!isImage && !isVideo) {
     return (
       <div className={`text-xs truncate ${isMine ? 'text-white/75' : 'text-gray-400'}`}>
         📎 {attachment.transfer_name || attachment.filename}
@@ -67,7 +83,9 @@ function AttachmentItem({ udid, attachment, isMine }: { udid: string; attachment
   }
 
   if (loading) {
-    return <div className={`text-xs italic ${isMine ? 'text-white/75' : 'text-gray-400'}`}>Loading…</div>;
+    return <div className={`text-xs italic ${isMine ? 'text-white/75' : 'text-gray-400'}`}>
+      {isVideo ? 'Loading video thumbnail…' : 'Loading…'}
+    </div>;
   }
 
   if (error || !data) {
@@ -79,12 +97,21 @@ function AttachmentItem({ udid, attachment, isMine }: { udid: string; attachment
   }
 
   return (
-    <img
-      src={data}
-      alt={attachment.transfer_name || 'Attachment'}
-      className="rounded-lg max-h-64 max-w-full object-contain mt-1"
-      onError={() => setError(true)}
-    />
+    <div className="relative inline-flex mt-1" onClick={e => e.stopPropagation()}>
+      <img
+        src={data}
+        alt={attachment.transfer_name || 'Attachment'}
+        className="rounded-lg max-h-64 max-w-full object-contain"
+        onError={() => setError(true)}
+      />
+      {isVideo && (
+        <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <span className="rounded-full bg-black/65 p-2 text-white">
+            <Video className="w-5 h-5" />
+          </span>
+        </span>
+      )}
+    </div>
   );
 }
 

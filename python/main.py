@@ -70,6 +70,7 @@ class SidecarServer:
             "list_conversations": self.list_conversations,
             "get_messages": self.get_messages,
             "get_attachment": self.get_attachment,
+            "get_video_thumbnail": self.get_video_thumbnail,
             "search_messages": self.search_messages,
             "list_albums": self.list_albums,
             "list_photos": self.list_photos,
@@ -184,6 +185,12 @@ class SidecarServer:
         attachment_id = params["attachment_id"]
         backup = self.backup_manager.get_open_backup(udid)
         return self.message_extractor.get_attachment(backup, attachment_id)
+
+    def get_video_thumbnail(self, params):
+        udid = params["udid"]
+        attachment_id = params["attachment_id"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.message_extractor.get_video_thumbnail(backup, attachment_id)
 
     def search_messages(self, params):
         udid = params["udid"]
