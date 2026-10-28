@@ -18,6 +18,21 @@ export async function sidecarCall<T = any>(method: string, params: any = {}): Pr
   return result.data as T;
 }
 
+/** Export one or more conversations as PDF. Resolves to the PDF paths written. */
+export async function exportMessagesPdf(
+  method: 'export_conversation' | 'export_conversations',
+  params: any,
+): Promise<{ files: string[]; message_count: number }> {
+  if (!isElectron) {
+    throw new Error('Not running in Electron. Start with: npm run dev');
+  }
+  const result = await window.openextract.exportPdf(method, params);
+  if (!result.success || !result.data) {
+    throw new Error(result.error || 'PDF export failed');
+  }
+  return result.data;
+}
+
 export async function selectFolder(): Promise<string | null> {
   if (!isElectron) return null;
   return window.openextract.selectFolder();
