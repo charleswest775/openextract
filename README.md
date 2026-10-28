@@ -17,6 +17,16 @@ A free, open-source desktop application for extracting text messages, photos, vo
 - 🔒 **Encrypted Backups** — Full support for password-protected backups
 - 📤 **Export** — Save conversations as PDF, HTML, CSV, or plain text
 
+## Writing
+
+Essays on Medium about what your phone keeps, and what it's like to finally read it:
+
+- **[The journal you never meant to keep](https://medium.com/@charles.west_98012/the-journal-you-never-meant-to-keep-c1858cb5a065)** (October 2026): your phone has been keeping a more honest journal than the one you'd write, and how to read it like one.
+- **[The Fortress of Nothing Matters](https://medium.com/@charles.west_98012/the-fortress-of-nothing-matters-65a7b01aeaf6)** (April 2026): what 17,518 extracted text messages revealed when analyzed at scale, and what data-as-mirror can show that introspection can't.
+- **[Your iPhone Has Been Writing Your Diary. You Just Can't Read It Yet.](https://medium.com/@charles.west_98012/your-iphone-has-been-writing-your-diary-you-just-cant-read-it-yet-30cafde69261)** (March 2026): what it feels like to finally hold years of your own messages, photos and voicemails in a readable form.
+
+More on [Medium](https://medium.com/@charles.west_98012) and the [OpenExtract blog](https://www.openextract.app/blog).
+
 ## Screenshots
 
 These use a made-up test backup, so none of the people or messages are real. Click any screenshot to see it full size.
