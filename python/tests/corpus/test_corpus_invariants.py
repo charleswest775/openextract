@@ -9,6 +9,7 @@ screens agree with each other, and that no value is impossible.
 import base64
 import os
 import shutil
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -439,6 +440,9 @@ def test_stats_agree_with_lists(ctx):
     ctx.require_open()
     overview = ctx.stats.get("overview", {})
     message_stats = ctx.stats.get("messages", {})
+    photo_stats = ctx.stats.get("photos", {})
+    photos = ctx.photos_result.get("photos", [])
+    photo_dates = sorted(d for p in photos if (d := parse_iso(p.get("date_created"))))
     expected = {
         "overview.total_conversations": (overview.get("total_conversations"), len(ctx.conversations)),
         "overview.total_messages": (overview.get("total_messages"), sum(c["message_count"] for c in ctx.conversations)),
@@ -455,6 +459,23 @@ def test_stats_agree_with_lists(ctx):
         "overview.photos_in_backup": (overview.get("photos_in_backup"), ctx.photos_result.get("in_backup")),
         "overview.total_photos + total_videos": (
             (overview.get("total_photos") or 0) + (overview.get("total_videos") or 0), ctx.photos_result.get("total")
+        ),
+        # The Photos card describes the photos the Photos screen lists, not every library row.
+        "photos.by_kind total": (sum(photo_stats.get("by_kind", {}).values()), ctx.photos_result.get("in_backup")),
+        "photos.by_kind": (  # list_photos calls an unknown ZKIND "unknown", the stats "other"
+            photo_stats.get("by_kind"),
+            dict(Counter("other" if p.get("kind") == "unknown" else p.get("kind") for p in photos)),
+        ),
+        "photos.total_favorites": (photo_stats.get("total_favorites"), sum(1 for p in photos if p.get("favorite"))),
+        # The stats also count latitude 0 as no location.
+        "photos.with_location": (
+            photo_stats.get("with_location"), sum(1 for p in photos if p.get("latitude") not in (None, 0))
+        ),
+        "photos.earliest_date": (parse_iso(photo_stats.get("earliest_date")), photo_dates[0] if photo_dates else None),
+        "photos.latest_date": (parse_iso(photo_stats.get("latest_date")), photo_dates[-1] if photo_dates else None),
+        "photos.total_video_duration_seconds": (
+            round(photo_stats.get("total_video_duration_seconds") or 0, 1),
+            round(sum(p.get("duration") or 0 for p in photos if p.get("kind") == "video"), 1),
         ),
     }
     try:

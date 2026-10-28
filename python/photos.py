@@ -165,6 +165,16 @@ class PhotoExtractor:
         page = self.list_photos(backup, 0, 1)
         return page.get("in_backup", page.get("total", 0))
 
+    def ids_in_backup(self, backup) -> Optional[frozenset]:
+        """Z_PKs of the assets whose original is in the backup, trashed ones too.
+
+        For the Overview's Photos card, so it describes the photos list_photos
+        lists. None when Photos.sqlite can't be counted (list_photos then lists
+        every row).
+        """
+        counts = self._in_backup_counts(backup)
+        return None if counts is None else counts["present"]
+
     def get_photo_metadata(self, backup, asset_uuid: str) -> dict:
         """Return full metadata for a single asset by UUID, including album names.
 
@@ -333,9 +343,9 @@ class PhotoExtractor:
         Mirrors the library's list_photos filters, so each count equals what
         paging through that listing returns: the library view leaves out
         trashed assets, an album view lists every asset joined to the album.
-        Returns ``{"library": n, "albums": {album id: n}, "has_albums": bool}``,
-        or None when Photos.sqlite can't be read (list_photos then reports
-        only ``total``).
+        Returns ``{"library": n, "albums": {album id: n}, "has_albums": bool,
+        "present": Z_PKs in the backup}``, or None when Photos.sqlite can't be
+        read (list_photos then reports only ``total``).
         """
         if backup in self._in_backup_cache:
             return self._in_backup_cache[backup]
@@ -375,7 +385,8 @@ class PhotoExtractor:
             ):
                 if asset in present:
                     albums[str(album)] = albums.get(str(album), 0) + 1
-        return {"library": library, "albums": albums, "has_albums": bool(junc_table)}
+        return {"library": library, "albums": albums, "has_albums": bool(junc_table),
+                "present": frozenset(present)}
 
     def _list_photos_from_dcim(self, backup, offset: int, limit: int) -> dict:
         """Fallback: enumerate files directly from DCIM via Manifest.db."""

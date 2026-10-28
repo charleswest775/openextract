@@ -35,6 +35,17 @@ ASSETS = [
 ]
 ALBUM_ASSETS = [1, 3, 4, 8]
 
+# What the Overview's Photos card counts, for the assets that have any:
+# Z_PK → (ZKIND, ZFAVORITE, ZLATITUDE, ZLONGITUDE, ZDURATION).
+DETAILS = {
+    2: (1, 0, 44.6, -110.5, 12.5),  # a video with a location
+    3: (0, 1, 44.6, -110.5, 0),     # trashed favorite
+    4: (0, 1, 44.6, -110.5, 0),     # favorite with a location, only in iCloud
+    5: (1, 0, -180, -180, 30.0),    # video, only in iCloud
+    8: (0, 1, -180, -180, 0),       # favorite
+}
+NO_DETAILS = (0, 0, -180, -180, 0)  # a photo with no location
+
 
 def _path(directory: str, filename: str) -> str:
     """Where the asset's file is in CameraRollDomain."""
@@ -49,7 +60,7 @@ class _FakeBackup:
         self.encrypted = encrypted
         self.photos_db = os.path.join(root, "Photos.sqlite")
         self.files = {}  # CameraRollDomain relative path → fileID
-        self.list_files_calls = 0
+        self.camera_roll_reads = 0  # Manifest.db reads of CameraRollDomain
         for pk, directory, filename, _, present in ASSETS:
             if present:
                 file_id = f"{pk:02d}" + "0" * 38
@@ -65,7 +76,8 @@ class _FakeBackup:
         return os.path.join(self.backup_dir, file_id[:2], file_id) if file_id else None
 
     def list_files(self, domain=None, path_like=None):
-        self.list_files_calls += 1
+        if domain == "CameraRollDomain":
+            self.camera_roll_reads += 1
         prefix = (path_like or "%").rstrip("%")
         return [
             {"hash": h, "domain": "CameraRollDomain", "path": p}
@@ -79,7 +91,8 @@ def _write_photos_db(path: str) -> None:
         """
         CREATE TABLE ZASSET (Z_PK INTEGER PRIMARY KEY, ZUUID VARCHAR, ZDIRECTORY VARCHAR,
                              ZFILENAME VARCHAR, ZKIND INTEGER, ZDATECREATED TIMESTAMP,
-                             ZTRASHEDSTATE INTEGER);
+                             ZTRASHEDSTATE INTEGER, ZFAVORITE INTEGER, ZLATITUDE FLOAT,
+                             ZLONGITUDE FLOAT, ZDURATION FLOAT);
         CREATE TABLE ZGENERICALBUM (Z_PK INTEGER PRIMARY KEY, ZTITLE VARCHAR, ZKIND INTEGER);
         CREATE TABLE Z_PRIMARYKEY (Z_ENT INTEGER PRIMARY KEY, Z_NAME VARCHAR, Z_SUPER INTEGER, Z_MAX INTEGER);
         CREATE TABLE Z_33ASSETS (Z_33ALBUMS INTEGER, Z_3ASSETS INTEGER, Z_FOK_3ASSETS INTEGER);
@@ -87,8 +100,9 @@ def _write_photos_db(path: str) -> None:
         """
     )
     conn.executemany(
-        "INSERT INTO ZASSET VALUES (?, ?, ?, ?, 0, ?, ?)",
-        [(pk, f"UUID-{pk}", d, f, 700000000 + pk, t) for pk, d, f, t, _ in ASSETS],
+        "INSERT INTO ZASSET (Z_PK, ZUUID, ZDIRECTORY, ZFILENAME, ZDATECREATED, ZTRASHEDSTATE,"
+        " ZKIND, ZFAVORITE, ZLATITUDE, ZLONGITUDE, ZDURATION) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [(pk, f"UUID-{pk}", d, f, 700000000 + pk, t, *DETAILS.get(pk, NO_DETAILS)) for pk, d, f, t, _ in ASSETS],
     )
     conn.execute("INSERT INTO ZGENERICALBUM VALUES (?, 'Yellowstone', 2)", (int(ALBUM),))
     conn.execute("INSERT INTO ZGENERICALBUM VALUES (?, 'Empty', 2)", (int(EMPTY_ALBUM),))
@@ -145,12 +159,12 @@ class _PhotoCountTests:
 
     def test_manifest_is_read_once_per_backup(self):
         self.extractor.list_photos(self.backup, offset=0, limit=1)
-        reads = self.backup.list_files_calls
+        reads = self.backup.camera_roll_reads
         _page_through(self.extractor, self.backup, limit=1)
         _page_through(self.extractor, self.backup, album_id=ALBUM, limit=1)
         self.extractor.list_albums(self.backup)
-        self.assertEqual(self.backup.list_files_calls, reads)
-
+        StatsComputer(self.extractor).compute(self.backup, {})
+        self.assertEqual(self.backup.camera_roll_reads, reads)
 
     def test_export_reports_photos_not_in_the_backup(self):
         out = os.path.join(self._tmp.name, "export")
@@ -162,6 +176,34 @@ class _PhotoCountTests:
         overview = StatsComputer(self.extractor).compute(self.backup, {})["overview"]
         self.assertEqual(overview["photos_in_backup"], 3)
         self.assertEqual(overview["total_photos"] + overview["total_videos"], 8)
+
+    def test_overview_card_describes_the_photos_in_the_backup(self):
+        # It described every library row, next to a tile that counts only these 3.
+        stats = StatsComputer(self.extractor).compute(self.backup, {})
+        photos = stats["photos"]
+        self.assertEqual(photos["by_kind"], {"photo": 2, "video": 1})
+        self.assertEqual((photos["total_favorites"], photos["with_location"]), (1, 1))
+        self.assertEqual(photos["total_video_duration_seconds"], 12.5)
+        listed, _ = _page_through(self.extractor, self.backup)
+        dates = sorted(p["date_created"] for p in listed)
+        self.assertEqual((photos["earliest_date"], photos["latest_date"]), (dates[0], dates[-1]))
+        # Library rows, as before; the card says how many of them are only in iCloud.
+        self.assertEqual((photos["total_photos"], photos["total_videos"]), (6, 2))
+        self.assertEqual((stats["overview"]["total_photos"], stats["overview"]["total_videos"]), (6, 2))
+
+    def test_overview_card_is_empty_when_every_photo_is_only_in_icloud(self):
+        self.backup.files.clear()
+        stats = StatsComputer(self.extractor).compute(self.backup, {})
+        photos = stats["photos"]
+        self.assertEqual(photos["by_kind"], {})
+        self.assertEqual(
+            (photos["total_favorites"], photos["with_location"], photos["total_video_duration_seconds"],
+             photos["earliest_date"], photos["latest_date"]),
+            (0, 0, 0.0, None, None),
+        )
+        # The card still shows, to say all 8 are only in iCloud.
+        overview = stats["overview"]
+        self.assertEqual((overview["photos_in_backup"], overview["total_photos"] + overview["total_videos"]), (0, 8))
 
 
 class TestPhotoCountsUnencrypted(_PhotoCountTests, unittest.TestCase):

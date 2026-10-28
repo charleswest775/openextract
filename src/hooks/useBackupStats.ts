@@ -47,6 +47,8 @@ export interface MessageStats {
   last_message_date: string | null;
 }
 
+// The photos the backup has a file for, like the Photos screen lists, except
+// total_photos/total_videos, which are rows in the Photos library (#106).
 export interface PhotoStats {
   by_kind: Record<string, number>;
   total_photos: number;
