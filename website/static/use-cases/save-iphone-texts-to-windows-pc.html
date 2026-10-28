@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>How to save iPhone text messages to a Windows PC (free)</title>
+  <meta name="description" content="Copy your iMessages and SMS texts from an iPhone to a Windows 10 or 11 PC as HTML, CSV or text files. Free, open source, and nothing gets uploaded." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/save-iphone-texts-to-windows-pc" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/save-iphone-texts-to-windows-pc" />
+  <meta property="og:title" content="Save iPhone text messages to a Windows PC, free" />
+  <meta property="og:description" content="Back up with Apple Devices or iTunes, then export the conversations as files." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  "name": "How to save iPhone text messages to a Windows PC",
+  "step": [
+    {
+      "@type": "HowToStep",
+      "position": 1,
+      "name": "Install the Apple Devices app or iTunes",
+      "text": "Windows needs Apple's software to talk to an iPhone over a cable. Get the Apple Devices app or iTunes from the Microsoft Store, or iTunes from Apple's website. You may already have one of them."
+    },
+    {
+      "@type": "HowToStep",
+      "position": 2,
+      "name": "Back up the iPhone to the PC",
+      "text": "Connect the iPhone with a cable and tap Trust on the phone if it asks. In Apple Devices or iTunes, select the iPhone, choose to back up to this computer, and click Back Up Now. Ticking Encrypt local backup is optional; if you do, write the password down. OpenExtract can also make the backup itself from its Get my data button, once Apple's software is installed."
+    },
+    {
+      "@type": "HowToStep",
+      "position": 3,
+      "name": "Install OpenExtract for Windows",
+      "text": "Download it from the Windows download page and run the installer. The installer is signed by Charles West, the developer. If SmartScreen shows a notice for a new app, choose More info, then Run anyway."
+    },
+    {
+      "@type": "HowToStep",
+      "position": 4,
+      "name": "Open the backup",
+      "text": "Choose Explore my data and pick the backup folder, usually %USERPROFILE%\\Apple\\MobileSync\\Backup (the Apple Devices app, or iTunes from the Microsoft Store) or %APPDATA%\\Apple Computer\\MobileSync\\Backup (iTunes downloaded from Apple's website). Type the backup password if it asks."
+    },
+    {
+      "@type": "HowToStep",
+      "position": 5,
+      "name": "Save one conversation",
+      "text": "In the Messages tab, click a conversation, then click the export icon at its top right and choose HTML, CSV or Text. Pick a folder, and the file is named after the conversation and its dates."
+    },
+    {
+      "@type": "HowToStep",
+      "position": 6,
+      "name": "Or save many at once",
+      "text": "Click Select above the conversation list, tick the ones you want or click Select all, then click Export. Choose separate files, or a single file sorted by time, and a format. For one spreadsheet of every message, use the Export tab and choose Messages."
+    }
+  ]
+}
+  </script>
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Do I need iTunes?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "You need either iTunes or the Apple Devices app to make the backup, because Windows needs Apple's software to connect to the iPhone. After that, OpenExtract does the rest."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I need the internet?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. Making the backup and exporting the messages both happen on your PC."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Where do the files go?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Into whichever folder you pick when you export. Nothing is saved anywhere else."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does it get iMessages as well as SMS?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes, iMessage, SMS and group chats."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does anything get uploaded?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. The only thing it asks the internet for is whether a new version is out, and it asks you before it checks. You can turn that off in Settings."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is it really free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. OpenExtract is open source under the MIT license, with no paid tier. The code is on GitHub."
+      }
+    }
+  ]
+}
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 4 min</div>
+    <h1>Get your iPhone texts<br />onto a <span class="it">Windows PC</span>.</h1>
+    <p class="page-head__lede">Back up the iPhone to your PC with the Apple Devices app or iTunes, then open that backup in OpenExtract, a free Windows app, and export your conversations as HTML, CSV or plain text files. You can save one conversation, a handful, or all of them at once.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <p>Windows has no built-in way to copy texts off an iPhone, and the backup Apple's software makes isn't something you can open in File Explorer. OpenExtract reads that backup and turns the conversations into ordinary files you can keep, search and print.</p>
+    </div>
+  </section>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>Install the Apple Devices app or iTunes</h2>
+        <p>Windows needs Apple's software to talk to an iPhone over a cable. Get the Apple Devices app or iTunes from the Microsoft Store, or iTunes from Apple's website. You may already have one of them.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>Back up the iPhone to the PC</h2>
+        <p>Connect the iPhone with a cable and tap <strong>Trust</strong> on the phone if it asks. In Apple Devices or iTunes, select the iPhone, choose to back up to this computer, and click <strong>Back Up Now</strong>. Ticking <strong>Encrypt local backup</strong> is optional; if you do, write the password down. OpenExtract can also make the backup itself from its <strong>Get my data</strong> button, once Apple's software is installed.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>Install OpenExtract for Windows</h2>
+        <p>Download it from <a href="/download/windows">the Windows download page</a> and run the installer. The installer is signed by Charles West, the developer. If SmartScreen shows a notice for a new app, choose More info, then Run anyway.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Open the backup</h2>
+        <p>Choose <strong>Explore my data</strong> and pick the backup folder, usually <code>%USERPROFILE%\Apple\MobileSync\Backup</code> (the Apple Devices app, or iTunes from the Microsoft Store) or <code>%APPDATA%\Apple Computer\MobileSync\Backup</code> (iTunes downloaded from Apple's website). Type the backup password if it asks.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">05</div>
+      <div>
+        <h2>Save one conversation</h2>
+        <p>In the <strong>Messages</strong> tab, click a conversation, then click the export icon at its top right and choose <strong>HTML</strong>, <strong>CSV</strong> or <strong>Text</strong>. Pick a folder, and the file is named after the conversation and its dates.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">06</div>
+      <div>
+        <h2>Or save many at once</h2>
+        <p>Click <strong>Select</strong> above the conversation list, tick the ones you want or click <strong>Select all</strong>, then click <strong>Export</strong>. Choose separate files, or a single file sorted by time, and a format. For one spreadsheet of every message, use the <strong>Export</strong> tab and choose <strong>Messages</strong>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>Which format to pick</h2>
+      <ul>
+        <li><strong>HTML</strong> looks like a chat and opens in any web browser. Good for reading and printing.</li>
+        <li><strong>CSV</strong> opens in Excel or Google Sheets, one row per message with the date and sender. Good for searching and sorting.</li>
+        <li><strong>Text</strong> is one line per message, readable anywhere, even years from now.</li>
+      </ul>
+      <h2>What it can't do</h2>
+      <ul>
+        <li><strong>No wireless or iCloud transfer.</strong> It works from a backup on the PC, made over a cable.</li>
+        <li><strong>Photos stay out of the message files.</strong> A photo in a thread shows as a placeholder or a file name. To save the camera roll, use the <strong>Photos</strong> tab or the <strong>Export</strong> tab.</li>
+        <li><strong>No PDF button yet.</strong> Open the HTML file in your browser and print it to PDF.</li>
+        <li><strong>It can't put messages back</strong> on an iPhone or onto another phone. The files are an archive for your PC.</li>
+      </ul>
+      <h2>Common questions</h2>
+      <p><strong>Do I need iTunes?</strong> You need either iTunes or the Apple Devices app to make the backup, because Windows needs Apple's software to connect to the iPhone. After that, OpenExtract does the rest.</p>
+      <p><strong>Do I need the internet?</strong> No. Making the backup and exporting the messages both happen on your PC.</p>
+      <p><strong>Where do the files go?</strong> Into whichever folder you pick when you export. Nothing is saved anywhere else.</p>
+      <p><strong>Does it get iMessages as well as SMS?</strong> Yes, iMessage, SMS and group chats.</p>
+      <p><strong>Does anything get uploaded?</strong> No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. The only thing it asks the internet for is whether a new version is out, and it asks you before it checks. You can turn that off in Settings.</p>
+      <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Windows 10 &amp; 11</div>
+        <h3>Your texts,<br /><span class="it">on your PC.</span></h3>
+        <p>Free, open source, and the backup never leaves your computer.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/use-cases/view-iphone-backup-on-windows">Find and open an iPhone backup on Windows →</a>
+        <a class="uc-related__link" href="/use-cases/iphone-backup-viewer-windows">Free iPhone backup viewer for Windows →</a>
+        <a class="uc-related__link" href="/use-cases/export-imessage-to-pdf">Export iMessage to PDF →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Your messages, saved on your PC.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/download/windows">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
