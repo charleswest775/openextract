@@ -1,12 +1,15 @@
 """
 Photo extraction adapter.
 
-Delegates ``list_albums`` directly to ``ios_backup_core.extractors.photos.PhotoExtractor``.
+Delegates ``list_albums`` to ``ios_backup_core.extractors.photos.PhotoExtractor``.
 For ``list_photos`` and ``get_photo_metadata`` the library returns assets with a
 ``relative_path`` field but no ``file_hash``; openextract's frontend addresses
 photos by hash (so it can call ``get_photo``/``get_thumbnail``/``get_photo_path``
 later without re-reading Photos.sqlite). This adapter post-processes the
-library's output to add ``file_hash`` and filter iCloud-shared assets.
+library's output to add ``file_hash`` and leave out assets whose original isn't
+in the backup (iCloud Photos with "Optimize iPhone Storage", Shared Albums).
+``list_photos`` and ``list_albums`` also say how many assets are in the backup,
+because the library's counts include the ones left out.
 
 Kept openextract-local because the library intentionally omits them as
 "UI concerns":
@@ -23,7 +26,9 @@ import io
 import json
 import os
 import shutil
+import sqlite3
 import sys
+import weakref
 from typing import Optional
 
 from ios_backup_core.db import connect_readonly
@@ -50,6 +55,24 @@ except ImportError:
 print(f"[photos] PIL={HAS_PIL} HEIF={HAS_HEIF}", file=sys.stderr, flush=True)
 
 
+# Where Photos keeps originals in CameraRollDomain: DCIM for photos taken or
+# saved on this iPhone, PhotoData/CPLAssets for ones iCloud Photos brought in
+# from other devices.
+_ORIGINALS_PREFIXES = ("Media/DCIM/", "Media/PhotoData/CPLAssets/")
+
+
+def _original_paths(rel: str) -> tuple:
+    """Where an asset's original can be: the library's path, then Media/<ZDIRECTORY>/<file>.
+
+    The library puts every asset under Media/DCIM/, but iCloud Photos assets
+    have a ZDIRECTORY like "PhotoData/CPLAssets/group79", and their files are
+    at Media/PhotoData/CPLAssets/group79/.
+    """
+    if rel.startswith("Media/DCIM/"):
+        return (rel, "Media/" + rel[len("Media/DCIM/"):])
+    return (rel,)
+
+
 def asset_table(conn) -> str:
     """The assets table: ZASSET from iOS 14, ZGENERICASSET before that. Also used by stats.py."""
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
@@ -64,21 +87,44 @@ class PhotoExtractor:
         # In-memory thumbnail cache (file_hash:size → base64 string)
         self._thumb_cache: dict = {}
         self._thumb_fail_count: int = 0
+        # Per open backup, so paging doesn't re-read Manifest.db and Photos.sqlite:
+        # its originals (relative path → fileID) and its in-backup counts.
+        self._originals_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+        self._in_backup_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
 
     # ── Delegated raw-extraction methods ─────────────────────────────────────
 
     def list_albums(self, backup) -> dict:
-        return self._inner.list_albums(backup)
+        """List albums. Each also gets ``in_backup``: how many of its
+        ``asset_count`` assets the backup has a file for."""
+        result = self._inner.list_albums(backup)
+        counts = self._in_backup_counts(backup) if result.get("albums") else None
+        if counts is None:
+            return result
+        def in_backup(album: dict) -> int:
+            if album["id"] == "__all__":
+                return counts["library"]
+            return counts["albums"].get(album["id"], 0)
+
+        return {**result, "albums": [{**a, "in_backup": in_backup(a)} for a in result["albums"]]}
 
     def list_photos(self, backup, offset: int = 0, limit: int = 100,
                     album_id: Optional[str] = None) -> dict:
-        """List photo assets, post-processed to add file_hash for downstream RPCs."""
+        """List photo assets, post-processed to add file_hash for downstream RPCs.
+
+        ``total``, ``offset`` and ``limit`` count rows in the Photos library, so
+        a page can hold fewer photos than ``limit`` (or none) with more after it.
+        ``in_backup`` is how many photos the pages hold in all, and
+        ``not_in_backup`` how many library rows have no file in the backup.
+        """
         result = self._inner.list_photos(backup, offset, limit, album_id)
 
         # If the library returned nothing because Photos.sqlite is unavailable
         # (older iOS, corrupted backup), fall back to direct DCIM enumeration.
+        # An empty album is just empty: the DCIM scan can't filter by album.
+        whole_library = not album_id or album_id == "__all__"
         if result.get("source") == "unavailable" or (
-            not result.get("photos") and result.get("total", 0) == 0
+            whole_library and not result.get("photos") and result.get("total", 0) == 0
         ):
             reason = result.get("error") or (
                 "Photos.sqlite unavailable" if result.get("source") == "unavailable"
@@ -96,13 +142,38 @@ class PhotoExtractor:
             if adapted is not None:
                 photos_out.append(adapted)
 
-        return {
+        total = result.get("total", len(photos_out))
+        out = {
             "photos": photos_out,
-            "total": result.get("total", len(photos_out)),
+            "total": total,
             "offset": result.get("offset", offset),
             "limit": result.get("limit", limit),
             "source": result.get("source", "photos_sqlite"),
         }
+        in_backup = self._selection_in_backup(backup, album_id)
+        if in_backup is not None:
+            out["in_backup"] = in_backup
+            out["not_in_backup"] = max(total - in_backup, 0)
+        return out
+
+    def library_in_backup(self, backup) -> int:
+        """The count the Photos screen shows for All Photos, for the Overview tile.
+
+        That is list_photos' ``in_backup`` (including the DCIM fallback), or its
+        ``total`` when the library couldn't be counted, as the Photos screen does.
+        """
+        page = self.list_photos(backup, 0, 1)
+        return page.get("in_backup", page.get("total", 0))
+
+    def ids_in_backup(self, backup) -> Optional[frozenset]:
+        """Z_PKs of the assets whose original is in the backup, trashed ones too.
+
+        For the Overview's Photos card, so it describes the photos list_photos
+        lists. None when Photos.sqlite can't be counted (list_photos then lists
+        every row).
+        """
+        counts = self._in_backup_counts(backup)
+        return None if counts is None else counts["present"]
 
     def get_photo_metadata(self, backup, asset_uuid: str) -> dict:
         """Return full metadata for a single asset by UUID, including album names.
@@ -202,22 +273,11 @@ class PhotoExtractor:
     def _add_file_hash(self, asset: dict, backup) -> Optional[dict]:
         """Translate the library's relative_path-keyed asset into a hash-keyed one.
 
-        Returns None when the asset is unaddressable (no relative_path, iCloud
-        shared, or — for unencrypted backups — its hash isn't in Manifest.db).
+        Returns None when the backup has no file for the asset (see _file_hash_for).
         """
-        rel = asset.get("relative_path")
-        filename = asset.get("filename") or ""
-        if not rel:
+        file_hash = self._file_hash_for(backup, asset.get("relative_path"), asset.get("filename") or "")
+        if file_hash is None:
             return None
-        if "PhotoCloudSharingData" in rel or "PhotoCloudSharingData" in filename:
-            return None
-
-        if backup.encrypted:
-            file_hash = f"dcim:{rel}"
-        else:
-            file_hash = backup._lookup_file_hash(rel, "CameraRollDomain")
-            if not file_hash:
-                return None
 
         asset = dict(asset)
         asset["file_hash"] = file_hash
@@ -225,6 +285,108 @@ class PhotoExtractor:
         # leaving the path adds ~50 bytes per asset to RPC payloads.
         asset.pop("relative_path", None)
         return asset
+
+    def _file_hash_for(self, backup, rel: Optional[str], filename: str) -> Optional[str]:
+        """The file_hash list_photos gives an asset, or None when its original isn't in the backup.
+
+        That happens with iCloud Photos and "Optimize iPhone Storage" (the
+        original is only in iCloud), for Shared Album items (the backup has only
+        their thumbnails), and for rows with no file name. Encrypted backups
+        get ``dcim:<path>`` because their Manifest.db fileIDs aren't usable
+        outside the decryption library (see _resolve_file).
+        """
+        if not rel:
+            return None
+        if "PhotoCloudSharingData" in rel or "PhotoCloudSharingData" in filename:
+            return None
+        files = self._original_files(backup)
+        for path in _original_paths(rel):
+            file_id = files.get(path)
+            if file_id is not None:
+                return f"dcim:{path}" if backup.encrypted else file_id
+        return None
+
+    def _original_files(self, backup) -> dict:
+        """CameraRollDomain files where Photos keeps originals, as relative path → fileID.
+
+        Read once per backup: a Manifest.db query per folder instead of a lookup
+        per asset, and it works on encrypted backups too (list_files reads
+        their decrypted manifest).
+        """
+        files = self._originals_cache.get(backup)
+        if files is None:
+            files = {
+                f["path"]: f["hash"]
+                for prefix in _ORIGINALS_PREFIXES
+                for f in backup.list_files(domain="CameraRollDomain", path_like=prefix + "%")
+            }
+            self._originals_cache[backup] = files
+        return files
+
+    def _selection_in_backup(self, backup, album_id: Optional[str]) -> Optional[int]:
+        """How many photos list_photos(album_id=...) holds across all its pages."""
+        counts = self._in_backup_counts(backup)
+        if counts is None:
+            return None
+        # Same choice as the library's list_photos: an album it can't filter by
+        # (no album junction table, "__all__") lists the whole library.
+        if album_id and album_id != "__all__" and counts["has_albums"]:
+            try:
+                return counts["albums"].get(str(int(album_id)), 0)
+            except ValueError:
+                return None
+        return counts["library"]
+
+    def _in_backup_counts(self, backup) -> Optional[dict]:
+        """In-backup counts for the library and each album, computed once per backup.
+
+        Mirrors the library's list_photos filters, so each count equals what
+        paging through that listing returns: the library view leaves out
+        trashed assets, an album view lists every asset joined to the album.
+        Returns ``{"library": n, "albums": {album id: n}, "has_albums": bool,
+        "present": Z_PKs in the backup}``, or None when Photos.sqlite can't be
+        read (list_photos then reports only ``total``).
+        """
+        if backup in self._in_backup_cache:
+            return self._in_backup_cache[backup]
+        counts = None
+        conn = self._inner._open_photos_db(backup)
+        if conn is not None:
+            try:
+                counts = self._count_in_backup(conn, backup)
+            except sqlite3.Error as e:
+                print(f"[photos] couldn't count photos in the backup: {e}", file=sys.stderr, flush=True)
+            finally:
+                conn.close()
+        self._in_backup_cache[backup] = counts
+        return counts
+
+    def _count_in_backup(self, conn, backup) -> dict:
+        assets = asset_table(conn)
+        columns = {col[1] for col in conn.execute(f"PRAGMA table_info('{assets}')")}
+        trashed = "ZTRASHEDSTATE" if "ZTRASHEDSTATE" in columns else "0"
+        present: set = set()
+        library = 0
+        for pk, directory, filename, is_trashed in conn.execute(
+            f"SELECT Z_PK, ZDIRECTORY, ZFILENAME, {trashed} FROM {assets}"
+        ):
+            rel = _build_dcim_path(directory, filename) if directory and filename else None
+            if self._file_hash_for(backup, rel, filename or "") is None:
+                continue
+            present.add(pk)
+            if is_trashed == 0:
+                library += 1
+
+        albums: dict = {}
+        junc_table, albums_col, assets_col = self._inner._find_album_junction(conn)
+        if junc_table:
+            for album, asset in conn.execute(
+                f"SELECT {albums_col}, {assets_col} FROM '{junc_table}' WHERE {albums_col} IS NOT NULL"
+            ):
+                if asset in present:
+                    albums[str(album)] = albums.get(str(album), 0) + 1
+        return {"library": library, "albums": albums, "has_albums": bool(junc_table),
+                "present": frozenset(present)}
 
     def _list_photos_from_dcim(self, backup, offset: int, limit: int) -> dict:
         """Fallback: enumerate files directly from DCIM via Manifest.db."""
@@ -263,6 +425,8 @@ class PhotoExtractor:
         return {
             "photos": media_files[offset:offset + limit],
             "total": total,
+            "in_backup": total,
+            "not_in_backup": 0,
             "offset": offset,
             "limit": limit,
             "source": "dcim_scan",
@@ -493,6 +657,9 @@ class PhotoExtractor:
         return {
             "exported": exported,
             "errors": errors,
+            # Library items left out because the backup has no file for them
+            # (only in iCloud). list_photos never returns them, so they aren't errors.
+            "not_in_backup": result.get("not_in_backup", 0),
             "output_dir": output_dir,
         }
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { sidecarCall, saveFolder } from '../../lib/ipc';
 import { SearchIcon, ExportIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
+import { allOnlyInIcloud, moreOnlyInIcloud, photoExportSummary, PhotoExportResult } from '../../lib/photoCounts';
 
 interface PhotoAsset {
   uuid: string;
@@ -15,10 +16,21 @@ interface PhotoAsset {
   favorite: boolean;
 }
 
+// total counts rows in the Photos library (paging steps through it); in_backup
+// is how many photos the pages hold, not_in_backup the rows left out because
+// the backup has no file for them.
+interface PhotoPage {
+  photos: PhotoAsset[];
+  total: number;
+  in_backup?: number;
+  not_in_backup?: number;
+}
+
 interface PhotoAlbum {
   id: string;
   title: string;
   asset_count: number;
+  in_backup?: number;
 }
 
 const BATCH_SIZE = 100;
@@ -43,17 +55,23 @@ export default function PhotoExplorer({ udid }: Props) {
   const [failedThumbs, setFailedThumbs] = useState<Set<string>>(new Set());
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
+  const [inBackup, setInBackup] = useState<number | null>(null);
+  const [notInBackup, setNotInBackup] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<string>('all');
   const [exporting, setExporting] = useState(false);
+  const [exportSummary, setExportSummary] = useState<string | null>(null);
   const [videoLoading, setVideoLoading] = useState(false);
 
   const offsetRef = useRef(0);
   const gridRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
   const mountedRef = useRef(true);
+  // Bumped by every load, so a load still running when the album changes drops its results.
+  const requestRef = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -74,22 +92,35 @@ export default function PhotoExplorer({ udid }: Props) {
   async function loadPhotos(offset: number, albumId?: string | null) {
     if (loadingRef.current) return;
     loadingRef.current = true;
+    const request = ++requestRef.current;
     setLoading(true);
+    setLoadError(null);
     try {
-      const result = await sidecarCall<{ photos: PhotoAsset[]; total: number }>(
-        'list_photos',
-        { udid, offset, limit: BATCH_SIZE, album_id: albumId ?? undefined }
-      );
-      if (!mountedRef.current) return;
+      // offset and total count rows in the Photos library, not photos returned:
+      // the engine leaves out assets it can't show (Shared Album items, files
+      // not in the backup), so a page can come back short or even empty with
+      // more photos after it. Step by the page size and skip empty pages.
+      let next = offset;
+      let result: PhotoPage;
+      do {
+        result = await sidecarCall<PhotoPage>(
+          'list_photos',
+          { udid, offset: next, limit: BATCH_SIZE, album_id: albumId ?? undefined }
+        );
+        if (!mountedRef.current || request !== requestRef.current) return;
+        next += BATCH_SIZE;
+      } while (result.photos.length === 0 && next < result.total);
 
       if (offset === 0) {
         setPhotos(result.photos);
       } else {
         setPhotos(prev => [...prev, ...result.photos]);
       }
+      setInBackup(result.in_backup ?? null);
+      setNotInBackup(result.not_in_backup ?? 0);
       setTotal(result.total);
-      offsetRef.current = offset + result.photos.length;
-      setHasMore(offset + result.photos.length < result.total);
+      offsetRef.current = next;
+      setHasMore(next < result.total);
 
       // Hydrate state from module-level cache for photos we already have
       const cachedThumbs: Record<string, string> = {};
@@ -113,9 +144,17 @@ export default function PhotoExplorer({ udid }: Props) {
       if (needFetch.length > 0) {
         loadThumbnailBatch(needFetch);
       }
+    } catch (err: any) {
+      // Stop paging: retrying on every render would hammer a failing engine.
+      if (mountedRef.current && request === requestRef.current) {
+        setHasMore(false);
+        setLoadError(err?.message || 'Unknown error');
+      }
     } finally {
-      setLoading(false);
-      loadingRef.current = false;
+      if (request === requestRef.current) {
+        setLoading(false);
+        loadingRef.current = false;
+      }
     }
   }
 
@@ -188,8 +227,9 @@ export default function PhotoExplorer({ udid }: Props) {
     const outputDir = await saveFolder();
     if (!outputDir) return;
     setExporting(true);
+    setExportSummary(null);
     try {
-      await sidecarCall('export_photos', {
+      const result = await sidecarCall<PhotoExportResult>('export_photos', {
         udid,
         output_dir: outputDir,
         options: {
@@ -203,6 +243,9 @@ export default function PhotoExplorer({ udid }: Props) {
         },
       });
       window.openextract.incrementExportCount();
+      setExportSummary(photoExportSummary(result));
+    } catch (err: any) {
+      setExportSummary(`Export failed: ${err?.message || 'Unknown error'}`);
     } finally {
       setExporting(false);
     }
@@ -228,11 +271,25 @@ export default function PhotoExplorer({ udid }: Props) {
     }
   }
 
+  // What the header counts: photos the backup has, falling back to library
+  // rows for an engine that doesn't report in_backup.
+  const shownCount = inBackup ?? total;
+
   const filteredPhotos = photos.filter(p => {
     if (kindFilter !== 'all' && p.kind !== kindFilter) return false;
     if (search && !p.filename.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+
+  // A short page (or a filter that hides most of it) can leave the grid too
+  // short to scroll, and then no scroll event comes to load the next page.
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el || loading || !hasMore) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
+      loadPhotos(offsetRef.current, selectedAlbum);
+    }
+  }, [filteredPhotos.length, loading, hasMore, selectedAlbum]);
 
   return (
     <div className="h-full flex flex-col">
@@ -240,13 +297,19 @@ export default function PhotoExplorer({ udid }: Props) {
       <div className="flex items-end justify-between gap-4 bg-base" style={{ padding: '20px 28px 14px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 }}>
         <div className="min-w-0 flex-1">
           <div className="hearth-eyebrow mb-1.5">
-            Photos{total > 0 && ` · ${total.toLocaleString()} recovered`}
+            Photos{total > 0 && ` · ${shownCount.toLocaleString()} in this backup`}
           </div>
           <h1 className="hearth-title text-3xl">
             Albums <span className="font-serif-italic text-accent">across the years.</span>
           </h1>
+          {notInBackup > 0 && shownCount > 0 && (
+            <p className="text-sm text-text-secondary mt-1.5">{moreOnlyInIcloud(notInBackup)}</p>
+          )}
         </div>
         <div className="flex items-center gap-2">
+          {exportSummary && (
+            <span className="text-xs text-text-tertiary">{exportSummary}</span>
+          )}
           <select
             value={kindFilter}
             onChange={(e) => setKindFilter(e.target.value)}
@@ -296,7 +359,7 @@ export default function PhotoExplorer({ udid }: Props) {
                 }`}
               >
                 <span className="truncate">{album.title}</span>
-                <span className="text-xs text-gray-400 flex-shrink-0 ml-1">{album.asset_count}</span>
+                <span className="text-xs text-gray-400 flex-shrink-0 ml-1">{album.in_backup ?? album.asset_count}</span>
               </button>
             ))}
           </div>
@@ -360,8 +423,13 @@ export default function PhotoExplorer({ udid }: Props) {
               <OrganicLoader size={56} />
             </div>
           )}
-          {!loading && filteredPhotos.length === 0 && (
-            <div className="text-center py-8 text-sm text-gray-400">No photos found</div>
+          {loadError && (
+            <div className="text-center py-8 text-sm text-gray-400">Couldn't load more photos: {loadError}</div>
+          )}
+          {!loading && !loadError && !hasMore && filteredPhotos.length === 0 && (
+            <div className="text-center py-8 text-sm text-gray-400">
+              {shownCount === 0 && notInBackup > 0 ? allOnlyInIcloud(notInBackup) : 'No photos found'}
+            </div>
           )}
         </div>
       </div>

@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Voicemail, call history, contacts, and notes extractors
 - Export to TXT, CSV, and HTML formats
 - Backup test corpus: tests against real public iPhone backups (iOS 13–17), run weekly in CI (see `corpus/README.md`)
+- Export a conversation as PDF, with its photos, from the Messages view (single or several conversations) (#91)
+- HTML and PDF message exports end with one small line: "Made with OpenExtract, free at openextract.app"
 - Website: eight how-to guides under /use-cases (printing texts for court, saving voicemails, texts to a Windows PC, a Windows backup viewer, recovering deleted texts, keeping messages when moving to Android, iMessage to PDF, finding a backup on Windows), linked from the blog and listed in the sitemap
 
 ### Fixed

@@ -9,8 +9,9 @@ of openextract-only behaviour:
     attachments inline in get_messages output but does not expose a per-id
     extraction RPC. openextract's frontend has its own attachment-load flow,
     so we keep the original implementation here.
-  * ``export_conversation`` / ``export_conversations`` (txt, csv, html) — file
-    export is out of scope for the library.
+  * ``export_conversation`` / ``export_conversations`` (txt, csv, html, and
+    ``pdf_source``, the print-ready HTML with images that Electron turns into
+    a PDF) — file export is out of scope for the library.
 
 Re-exports the utility constants/functions that the rest of the openextract
 sidecar imports from this module:
@@ -23,6 +24,7 @@ import base64
 import csv
 import html
 import os
+import uuid
 from typing import Optional
 
 from ios_backup_core.extractors.messages import MessageExtractor as _CoreMessageExtractor
@@ -42,6 +44,40 @@ __all__ = [
     "APPLE_EPOCH",
     "NANOSECOND_THRESHOLD",
 ]
+
+# One small grey line at the end of HTML and PDF exports. To remove it, make
+# this an empty string; nothing else depends on it.
+EXPORT_FOOTER_HTML = (
+    '<footer style="clear: both; padding-top: 32px; text-align: center; '
+    'font-size: 10px; color: #999;">Made with OpenExtract, free at '
+    '<a href="https://www.openextract.app" style="color: inherit;">openextract.app</a>'
+    '</footer>\n'
+)
+
+# Longest side, in pixels, of images written for a PDF export. Big enough to
+# look sharp on a printed page, small enough that a long thread stays a
+# reasonable file size.
+PDF_IMAGE_MAX_PX = 1600
+
+# Styles for images and attachment labels inside bubbles, plus page breaks
+# for the PDF. Harmless in the plain HTML export, which has no images yet.
+_ATTACHMENT_CSS = """.msg img { display: block; max-width: 100%; max-height: 420px; border-radius: 12px; margin: 2px 0; }
+.msg .text { margin-top: 6px; }
+.attachment-label { font-style: italic; opacity: 0.85; }
+@media print {
+  body { background: #fff; max-width: none; }
+  .msg { float: none; width: fit-content; break-inside: avoid; }
+  .msg img { max-height: 360px; }
+  .sent { margin-left: auto; }
+  .received { margin-right: auto; }
+  .meta, .sender { break-after: avoid; }
+}
+"""
+
+# Extensions we try to render as images when sms.db has no mime type.
+_IMAGE_EXTENSIONS = (
+    ".jpg", ".jpeg", ".png", ".gif", ".heic", ".heif", ".webp", ".bmp", ".tif", ".tiff",
+)
 
 
 class MessageExtractor:
@@ -104,18 +140,8 @@ class MessageExtractor:
             if not row or not row["filename"]:
                 return {"error": "Attachment not found"}
 
-            # The filename in sms.db starts with ~/
-            # e.g. "~/Library/SMS/Attachments/ab/12/IMG_1234.jpeg"
-            relative_path = row["filename"]
-            if relative_path.startswith("~/"):
-                relative_path = relative_path[2:]
-
-            # Try MediaDomain first, then HomeDomain
-            file_path = backup.get_file(relative_path, domain="MediaDomain")
+            file_path = self._attachment_file_path(backup, row["filename"])
             if not file_path:
-                file_path = backup.get_file(relative_path, domain="HomeDomain")
-
-            if not file_path or not os.path.exists(file_path):
                 return {"error": "Attachment file not found in backup"}
 
             with open(file_path, "rb") as f:
@@ -159,6 +185,24 @@ class MessageExtractor:
             }
         except Exception:
             raise
+
+    @staticmethod
+    def _attachment_file_path(backup, sms_filename: str) -> Optional[str]:
+        """Return the on-disk path of an attachment in the backup, or None.
+
+        The filename in sms.db starts with ~/, e.g.
+        "~/Library/SMS/Attachments/ab/12/IMG_1234.jpeg". Attachments live in
+        MediaDomain, older ones sometimes in HomeDomain.
+        """
+        if not sms_filename:
+            return None
+        relative_path = sms_filename[2:] if sms_filename.startswith("~/") else sms_filename
+        file_path = backup.get_file(relative_path, domain="MediaDomain")
+        if not file_path:
+            file_path = backup.get_file(relative_path, domain="HomeDomain")
+        if not file_path or not os.path.exists(file_path):
+            return None
+        return file_path
 
     # ── openextract-only: conversation export to disk ────────────────────────
 
@@ -211,6 +255,11 @@ class MessageExtractor:
             return self._export_csv(all_messages, chat_id, output_dir, display_name)
         elif fmt == "html":
             return self._export_html(all_messages, chat_id, output_dir, display_name)
+        elif fmt == "pdf_source":
+            return self._export_html(
+                all_messages, chat_id, output_dir, display_name,
+                attachments=_PrintAttachmentWriter(self, backup, output_dir),
+            )
         else:
             return {"error": f"Unsupported format: {fmt}"}
 
@@ -306,7 +355,23 @@ class MessageExtractor:
                 ])
         return {"file": filepath, "message_count": len(messages)}
 
-    def _export_html(self, messages, chat_id, output_dir, display_name = ""):
+    def _message_html(self, msg, attachments=None) -> str:
+        """Inner HTML of one message bubble.
+
+        Without ``attachments`` (the plain HTML export) this is the escaped
+        text. With a ``_PrintAttachmentWriter`` (the PDF export) images are
+        drawn inline and other attachments get a short label.
+        """
+        text = self._html_escape(msg.get("text") or "", preserve_newlines=True)
+        if attachments is not None and msg.get("attachments"):
+            parts = [attachments.render(a) for a in msg["attachments"]]
+            if text:
+                parts.append(f'<div class="text">{text}</div>')
+            return "".join(parts)
+        return text or "[Attachment]"
+
+    def _export_html(self, messages, chat_id, output_dir, display_name = "",
+                     attachments=None):
         base = self._get_filename_for_message_export(display_name, messages)
         filename = f"{base or f'conversation_{chat_id}'}.html"
         filepath = os.path.join(output_dir, filename)
@@ -323,18 +388,19 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
 .meta {{ font-size: 11px; color: #888; clear: both; text-align: center; margin: 12px 0 4px; }}
 .sender {{ font-size: 11px; color: #666; margin-bottom: 2px; }}
 .conv-title {{ font-size: 18px; color: #333; margin-bottom: 20px; text-align: center; }}
-</style></head><body>
+{_ATTACHMENT_CSS}</style></head><body>
 """)
             if safe_name:
                 f.write(f'<h1 class="conv-title">{safe_name}</h1>\n')
             for msg in messages:
                 css_class = "sent" if msg["is_from_me"] else "received"
-                text = self._html_escape(msg["text"] or "[Attachment]", preserve_newlines=True)
+                text = self._message_html(msg, attachments)
                 date = self._html_escape(msg["date"] or "")
                 f.write(f'<div class="meta">{date}</div>\n')
                 if not msg["is_from_me"]:
                     f.write(f'<div class="sender">{self._html_escape(msg["sender"])}</div>\n')
                 f.write(f'<div class="msg {css_class}">{text}</div>\n')
+            f.write(EXPORT_FOOTER_HTML)
             f.write("</body></html>")
         return {"file": filepath, "message_count": len(messages)}
 
@@ -415,6 +481,11 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
             return self._export_merged_csv(all_messages, output_dir)
         elif fmt == "html":
             return self._export_merged_html(all_messages, output_dir)
+        elif fmt == "pdf_source":
+            return self._export_merged_html(
+                all_messages, output_dir,
+                attachments=_PrintAttachmentWriter(self, backup, output_dir),
+            )
         else:
             return {"error": f"Unsupported format: {fmt}"}
 
@@ -444,7 +515,7 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
                 ])
         return {"files": [filepath], "message_count": len(messages)}
 
-    def _export_merged_html(self, messages, output_dir):
+    def _export_merged_html(self, messages, output_dir, attachments=None):
         filepath = os.path.join(output_dir, "all_conversations.html")
         with open(filepath, "w", encoding="utf-8") as f:
             f.write("""<!DOCTYPE html>
@@ -457,12 +528,12 @@ body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 0 auto;
 .meta { font-size: 11px; color: #888; clear: both; text-align: center; margin: 12px 0 4px; }
 .sender { font-size: 11px; color: #666; margin-bottom: 2px; }
 .conv-label { font-size: 10px; color: #999; font-style: italic; }
-</style></head><body>
+""" + _ATTACHMENT_CSS + """</style></head><body>
 <h2>Merged Conversations</h2>
 """)
             for msg in messages:
                 css_class = "sent" if msg["is_from_me"] else "received"
-                text = self._html_escape(msg["text"] or "[Attachment]", preserve_newlines=True)
+                text = self._message_html(msg, attachments)
                 date = self._html_escape(msg["date"] or "")
                 conv = self._html_escape(msg["_conversation"])
                 direction = "to" if msg["is_from_me"] else "from"
@@ -470,5 +541,116 @@ body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 0 auto;
                 if not msg["is_from_me"]:
                     f.write(f'<div class="sender">{self._html_escape(msg["sender"])}</div>\n')
                 f.write(f'<div class="msg {css_class}">{text}</div>\n')
+            f.write(EXPORT_FOOTER_HTML)
             f.write("</body></html>")
         return {"files": [filepath], "message_count": len(messages)}
+
+
+class _PrintAttachmentWriter:
+    """Writes a message's images next to a print-ready HTML file.
+
+    Used only for the PDF export: the HTML and its ``attachments/`` folder go
+    into a temporary folder that Electron renders to PDF and then deletes, so
+    the file names here never reach the user. Images are converted to JPEG
+    (HEIC included), turned upright and scaled down to ``PDF_IMAGE_MAX_PX``.
+    Videos, audio and other files, and images missing from the backup, get a
+    short text label instead, so one bad attachment never fails the export.
+    """
+
+    SUBDIR = "attachments"
+
+    def __init__(self, extractor: "MessageExtractor", backup, output_dir: str):
+        self._extractor = extractor
+        self._backup = backup
+        self._dir = os.path.join(output_dir, self.SUBDIR)
+        self._written: dict = {}
+        self._heif_registered = False
+        self.images_written = 0
+        self.images_missing = 0
+
+    @staticmethod
+    def _is_image(att: dict) -> bool:
+        mime = (att.get("mime_type") or "").lower()
+        if mime.startswith("image/"):
+            return mime != "image/svg+xml"
+        name = (att.get("filename") or att.get("transfer_name") or "").lower()
+        return name.endswith(_IMAGE_EXTENSIONS)
+
+    @staticmethod
+    def _label(att: dict, missing: bool = False) -> str:
+        name = att.get("transfer_name") or os.path.basename(att.get("filename") or "")
+        mime = (att.get("mime_type") or "").lower()
+        if _PrintAttachmentWriter._is_image(att):
+            kind = "Image"
+        elif mime.startswith("video/"):
+            kind = "Video"
+        elif mime.startswith("audio/"):
+            kind = "Audio"
+        else:
+            kind = "File"
+        if missing:
+            kind = f"{kind} not in this backup"
+        label = f"[{kind}: {name}]" if name else f"[{kind}]"
+        return f'<div class="attachment-label">{MessageExtractor._html_escape(label)}</div>'
+
+    def _convert(self, src_path: str, dest_path: str) -> bool:
+        try:
+            from PIL import Image, ImageOps
+        except ImportError:
+            return False
+        if not self._heif_registered:
+            try:
+                import pillow_heif
+                pillow_heif.register_heif_opener()
+            except Exception:
+                pass
+            self._heif_registered = True
+        try:
+            with Image.open(src_path) as opened:
+                img = ImageOps.exif_transpose(opened)
+                img.thumbnail((PDF_IMAGE_MAX_PX, PDF_IMAGE_MAX_PX))
+                if img.mode not in ("RGB", "L"):
+                    rgba = img.convert("RGBA")
+                    flat = Image.new("RGB", rgba.size, (255, 255, 255))
+                    flat.paste(rgba, mask=rgba.getchannel("A"))
+                    img = flat
+                img.save(dest_path, "JPEG", quality=85)
+            return True
+        except Exception:
+            if os.path.exists(dest_path):
+                os.remove(dest_path)
+            return False
+
+    def render(self, att: dict) -> str:
+        """Return the HTML for one attachment inside a message bubble."""
+        if not self._is_image(att):
+            return self._label(att)
+
+        # attachment_id is sms.db's ROWID, unique within the backup, so it
+        # names the file. Several conversations exported into one folder (or
+        # the same image forwarded twice) then share one copy.
+        att_id = att.get("attachment_id")
+        if isinstance(att_id, int) and att_id in self._written:
+            rel = self._written[att_id]
+        else:
+            rel = None
+            name = f"{att_id}.jpg" if isinstance(att_id, int) else f"x{uuid.uuid4().hex}.jpg"
+            dest = os.path.join(self._dir, name)
+            if os.path.exists(dest):
+                rel = f"{self.SUBDIR}/{name}"
+            else:
+                src = self._extractor._attachment_file_path(self._backup, att.get("filename") or "")
+                if src:
+                    os.makedirs(self._dir, exist_ok=True)
+                    if self._convert(src, dest):
+                        rel = f"{self.SUBDIR}/{name}"
+                        self.images_written += 1
+            if rel is None:
+                self.images_missing += 1
+            if isinstance(att_id, int):
+                self._written[att_id] = rel
+
+        if rel is None:
+            return self._label(att, missing=True)
+        alt = MessageExtractor._html_escape(att.get("transfer_name") or "Image")
+        return f'<img src="{rel}" alt="{alt}">'

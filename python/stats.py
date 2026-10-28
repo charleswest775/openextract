@@ -5,6 +5,7 @@ Aggregates data across all backup databases into a single stats response.
 
 import re
 import sqlite3
+from collections import Counter
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
@@ -50,6 +51,11 @@ def _apple_ts_to_iso(ts) -> Optional[str]:
 
 class StatsComputer:
     """Computes comprehensive backup statistics in a single call."""
+
+    def __init__(self, photo_extractor=None):
+        # The Photos screen's extractor, so the Overview counts photos the same
+        # way and from the same per-backup cache.
+        self._photo_extractor = photo_extractor
 
     def compute(self, backup, contacts: dict) -> dict:
         """Return all stats for a backup. Each section is independent — failures are isolated."""
@@ -111,6 +117,14 @@ class StatsComputer:
         overview["total_conversations"] = msg_stats.get("total_conversations", 0)
         overview["total_photos"] = photo_stats.get("total_photos", 0)
         overview["total_videos"] = photo_stats.get("total_videos", 0)
+        # total_photos/total_videos count every row in the Photos library. With
+        # iCloud Photos most of those can be only in iCloud (#106), so the
+        # Photos tile shows this: what the Photos screen lists from the backup.
+        try:
+            overview["photos_in_backup"] = self._photos_in_backup(backup)
+        except Exception as e:
+            overview["photos_in_backup"] = overview["total_photos"] + overview["total_videos"]
+            errors.append(f"photos in backup: {e}")
         overview["total_contacts"] = contact_count
         overview["total_calls"] = call_stats.get("total", 0)
         overview["total_notes"] = note_stats.get("total", 0)
@@ -330,62 +344,49 @@ class StatsComputer:
             c.execute(f"PRAGMA table_info({assets})")
             columns = {row[1] for row in c.fetchall()}
 
-            has_trashed = "ZTRASHEDSTATE" in columns
-            trash_filter = "WHERE ZTRASHEDSTATE = 0" if has_trashed else ""
-            trash_and = "AND ZTRASHEDSTATE = 0" if has_trashed else ""
+            def column(name: str) -> str:
+                return name if name in columns else "NULL"
 
-            # Kind breakdown
+            trash_filter = "WHERE ZTRASHEDSTATE = 0" if "ZTRASHEDSTATE" in columns else ""
+
+            # The card describes the photos the Photos screen lists: the ones
+            # whose original is in the backup, not those only in iCloud (#106).
+            # None means they couldn't be told apart, and the screen lists every row.
+            in_backup = self._photos().ids_in_backup(backup)
+
             kind_map = {0: "photo", 1: "video", 2: "live_photo", 3: "live_photo"}
-            kind_rows = c.execute(
-                f"SELECT ZKIND, COUNT(*) FROM {assets} {trash_filter} GROUP BY ZKIND"
-            ).fetchall()
-            by_kind = {}
-            total_photos = 0
-            total_videos = 0
-            for row in kind_rows:
-                kind_int = row[0] if row[0] is not None else 0
-                label = kind_map.get(kind_int, "other")
-                by_kind[label] = by_kind.get(label, 0) + row[1]
-                if label == "video":
-                    total_videos += row[1]
-                else:
-                    total_photos += row[1]
-
-            # Favorites
-            fav_col = "ZFAVORITE" if "ZFAVORITE" in columns else None
+            library_kinds = Counter()  # every library row, for total_photos/total_videos
+            kinds = Counter()
             total_favorites = 0
-            if fav_col:
-                total_favorites = c.execute(
-                    f"SELECT COUNT(*) FROM {assets} WHERE {fav_col} = 1 {trash_and}"
-                ).fetchone()[0]
-
-            # Location data. iOS writes -180 to both coordinates when a photo
-            # has no location; it doesn't leave them NULL.
             with_location = 0
-            if "ZLATITUDE" in columns and "ZLONGITUDE" in columns:
-                with_location = c.execute(
-                    f"SELECT COUNT(*) FROM {assets} WHERE ZLATITUDE IS NOT NULL AND ZLATITUDE NOT IN (0, -180) "
-                    f"AND ZLONGITUDE IS NOT NULL AND ZLONGITUDE != -180 {trash_and}"
-                ).fetchone()[0]
-
-            # Date range
-            date_col = "ZDATECREATED" if "ZDATECREATED" in columns else None
-            earliest = None
-            latest = None
-            if date_col:
-                date_row = c.execute(
-                    f"SELECT MIN({date_col}), MAX({date_col}) FROM {assets} {trash_filter}"
-                ).fetchone()
-                earliest = _apple_ts_to_iso(date_row[0])
-                latest = _apple_ts_to_iso(date_row[1])
-
-            # Total video duration
+            dates = []
             total_video_duration = 0.0
-            if "ZDURATION" in columns:
-                dur_row = c.execute(
-                    f"SELECT SUM(ZDURATION) FROM {assets} WHERE ZKIND = 1 {trash_and}"
-                ).fetchone()
-                total_video_duration = float(dur_row[0] or 0)
+            for pk, kind, favorite, latitude, longitude, created, duration in c.execute(
+                f"SELECT Z_PK, ZKIND, {column('ZFAVORITE')}, {column('ZLATITUDE')}, {column('ZLONGITUDE')}, "
+                f"{column('ZDATECREATED')}, {column('ZDURATION')} FROM {assets} {trash_filter}"
+            ):
+                label = kind_map.get(kind if kind is not None else 0, "other")
+                library_kinds[label] += 1
+                if in_backup is not None and pk not in in_backup:
+                    continue
+                kinds[label] += 1
+                if favorite == 1:
+                    total_favorites += 1
+                # iOS writes -180 to both coordinates when a photo has no
+                # location; it doesn't leave them NULL.
+                if latitude is not None and latitude not in (0, -180) and longitude is not None and longitude != -180:
+                    with_location += 1
+                if created is not None:
+                    dates.append(created)
+                if kind == 1 and duration:
+                    total_video_duration += float(duration)
+
+            # In ZKIND order, as the breakdown shows them.
+            by_kind = {label: kinds[label] for label in ("photo", "video", "live_photo", "other") if kinds[label]}
+            total_videos = library_kinds["video"]
+            total_photos = sum(library_kinds.values()) - total_videos
+            earliest = _apple_ts_to_iso(min(dates)) if dates else None
+            latest = _apple_ts_to_iso(max(dates)) if dates else None
 
             return {
                 "by_kind": by_kind,
@@ -399,6 +400,15 @@ class StatsComputer:
             }
         finally:
             conn.close()
+
+    def _photos(self):
+        if self._photo_extractor is None:
+            from photos import PhotoExtractor
+            self._photo_extractor = PhotoExtractor()
+        return self._photo_extractor
+
+    def _photos_in_backup(self, backup) -> int:
+        return self._photos().library_in_backup(backup)
 
     def _empty_photo_stats(self) -> dict:
         return {

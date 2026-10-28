@@ -5,6 +5,7 @@ const fs = require('fs');
 const { pathToFileURL } = require('url');
 import { PythonSidecar } from './sidecar';
 import { initUpdater } from './updater';
+import { exportMessagesPdf, PdfExportMethod, removeStaleStagingDirs } from './pdfExport';
 
 let mainWindow: any = null;
 let sidecar: any = null;
@@ -202,6 +203,18 @@ app.whenReady().then(async () => {
           `[${ts}] [Electron] open_backup FAILED: ${error.message} | udid=${params?.udid} dir=${params?.backup_dir}\n`);
       }
       return { success: false, error: error.message };
+    }
+  });
+
+  // ── PDF export of conversations (#91) ───────────────────────────────────
+  removeStaleStagingDirs();
+  ipcMain.handle('export:pdf', async (_event: any, method: PdfExportMethod, params: any) => {
+    try {
+      const data = await exportMessagesPdf(sidecar, method, params);
+      return { success: true, data };
+    } catch (error: any) {
+      console.error('PDF export failed', error);
+      return { success: false, error: error?.message || String(error) };
     }
   });
 
