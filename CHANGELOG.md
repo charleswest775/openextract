@@ -25,3 +25,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Stats dashboard counted every conversation as a group chat
 - Photos on iOS 13 and earlier backups had no dates, albums or stats
 - Photo details on iOS 15+ were missing the modified date and burst ID
+- Message exports and the conversation view say what a message without text is ("You started sharing your location", "Audio message not in this backup", "Conversation event") instead of "[Attachment]" or a code like "[location_started_by_me]"; HTML exports name each attachment ("[Image: IMG_0042.HEIC]")

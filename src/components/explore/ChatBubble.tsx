@@ -30,6 +30,26 @@ interface Props {
   udid: string;
 }
 
+// What a message with no text and no attachment says, by the engine's
+// message_type. Exports use the same words (_EVENT_LABELS in
+// python/messages.py, which explains the "Conversation event" fallback).
+const EVENT_LABELS: Record<string, string> = {
+  location_started_by_me: 'You started sharing your location',
+  location_stopped_by_me: 'You stopped sharing your location',
+  location_started_by_them: 'Started sharing their location',
+  location_stopped_by_them: 'Stopped sharing their location',
+  audio: 'Audio message not in this backup',
+  attachment: 'Attachment',
+  link: 'Link',
+  payment: 'Apple Pay payment',
+  digital_touch: 'Digital Touch message',
+  handwriting: 'Handwritten message',
+  fitness: 'Fitness activity',
+  game: 'Game message',
+  app: 'Message from an iMessage app',
+};
+const EVENT_FALLBACK = 'Conversation event';
+
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.heic', '.heif', '.webp', '.bmp', '.tiff', '.tif'];
 
 function isImageAttachment(a: Attachment): boolean {
@@ -135,7 +155,7 @@ export default function ChatBubble({ message, showSender, udid }: Props) {
           )}
           {!message.text && !message.has_attachments && (
             <p className={`text-xs italic ${isMine ? 'text-white/75' : 'text-gray-400'}`}>
-              [{message.message_type}]
+              [{EVENT_LABELS[message.message_type] ?? EVENT_FALLBACK}]
             </p>
           )}
         </div>
