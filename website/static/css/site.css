@@ -723,6 +723,7 @@ details.qa p {
   display: flex; flex-direction: column; gap: 14px;
   color: var(--ink);
 }
+.blog-post-card--wide { grid-column: 1 / -1; }
 .blog-post-card h3 { font-size: 24px; font-weight: 500; letter-spacing: -0.015em; line-height: 1.15; }
 .blog-post-card p { font-size: 15px; color: var(--ink-soft); line-height: 1.55; }
 .blog-post-card__cta { margin-top: auto; padding-top: 6px; font-size: 13px; font-weight: 600; }
