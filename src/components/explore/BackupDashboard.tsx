@@ -216,7 +216,7 @@ function DashboardContent({ stats, onNavigate }: { stats: BackupStats; onNavigat
         />
         <StatCard
           icon={CameraIcon}
-          value={overview.total_photos + overview.total_videos}
+          value={overview.photos_in_backup}
           label="Photos & Videos"
           onClick={() => onNavigate('photos')}
         />

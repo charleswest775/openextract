@@ -226,7 +226,7 @@ ABSENT_CHECKS = {
     "voicemail": (lambda ctx: ctx.voicemails_result.get("voicemails", []), ("total_voicemails",)),
     "notes": (lambda ctx: ctx.notes_result.get("notes", []), ("total_notes",)),
     "photos": (lambda ctx: ctx.photos_result.get("photos", []) + ctx.albums_result.get("albums", []),
-               ("total_photos", "total_videos")),
+               ("total_photos", "total_videos", "photos_in_backup")),
     "browser_history": (lambda ctx: ctx.browser_result.get("visits", []), ()),
 }
 

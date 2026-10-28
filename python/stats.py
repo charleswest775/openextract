@@ -51,6 +51,11 @@ def _apple_ts_to_iso(ts) -> Optional[str]:
 class StatsComputer:
     """Computes comprehensive backup statistics in a single call."""
 
+    def __init__(self, photo_extractor=None):
+        # The Photos screen's extractor, so the Overview counts photos the same
+        # way and from the same per-backup cache.
+        self._photo_extractor = photo_extractor
+
     def compute(self, backup, contacts: dict) -> dict:
         """Return all stats for a backup. Each section is independent — failures are isolated."""
         errors = []
@@ -111,6 +116,14 @@ class StatsComputer:
         overview["total_conversations"] = msg_stats.get("total_conversations", 0)
         overview["total_photos"] = photo_stats.get("total_photos", 0)
         overview["total_videos"] = photo_stats.get("total_videos", 0)
+        # total_photos/total_videos count every row in the Photos library. With
+        # iCloud Photos most of those can be only in iCloud (#106), so the
+        # Photos tile shows this: what the Photos screen lists from the backup.
+        try:
+            overview["photos_in_backup"] = self._photos_in_backup(backup)
+        except Exception as e:
+            overview["photos_in_backup"] = overview["total_photos"] + overview["total_videos"]
+            errors.append(f"photos in backup: {e}")
         overview["total_contacts"] = contact_count
         overview["total_calls"] = call_stats.get("total", 0)
         overview["total_notes"] = note_stats.get("total", 0)
@@ -399,6 +412,12 @@ class StatsComputer:
             }
         finally:
             conn.close()
+
+    def _photos_in_backup(self, backup) -> int:
+        if self._photo_extractor is None:
+            from photos import PhotoExtractor
+            self._photo_extractor = PhotoExtractor()
+        return self._photo_extractor.library_in_backup(backup)
 
     def _empty_photo_stats(self) -> dict:
         return {

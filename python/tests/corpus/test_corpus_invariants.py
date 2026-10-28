@@ -451,6 +451,8 @@ def test_stats_agree_with_lists(ctx):
         "overview.total_contacts": (overview.get("total_contacts"), len(ctx.contacts)),
         "overview.total_notes": (overview.get("total_notes"), len(ctx.notes_result.get("notes", []))),
         "overview.total_voicemails": (overview.get("total_voicemails"), len(ctx.voicemails_result.get("voicemails", []))),
+        # The Photos tile shows photos_in_backup; total_photos + total_videos count library rows.
+        "overview.photos_in_backup": (overview.get("photos_in_backup"), ctx.photos_result.get("in_backup")),
         "overview.total_photos + total_videos": (
             (overview.get("total_photos") or 0) + (overview.get("total_videos") or 0), ctx.photos_result.get("total")
         ),

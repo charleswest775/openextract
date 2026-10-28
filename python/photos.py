@@ -156,6 +156,15 @@ class PhotoExtractor:
             out["not_in_backup"] = max(total - in_backup, 0)
         return out
 
+    def library_in_backup(self, backup) -> int:
+        """The count the Photos screen shows for All Photos, for the Overview tile.
+
+        That is list_photos' ``in_backup`` (including the DCIM fallback), or its
+        ``total`` when the library couldn't be counted, as the Photos screen does.
+        """
+        page = self.list_photos(backup, 0, 1)
+        return page.get("in_backup", page.get("total", 0))
+
     def get_photo_metadata(self, backup, asset_uuid: str) -> dict:
         """Return full metadata for a single asset by UUID, including album names.
 

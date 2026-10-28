@@ -15,6 +15,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from photos import PhotoExtractor  # noqa: E402
+from stats import StatsComputer  # noqa: E402
 
 ALBUM = "10"
 EMPTY_ALBUM = "11"
@@ -155,6 +156,12 @@ class _PhotoCountTests:
         out = os.path.join(self._tmp.name, "export")
         result = self.extractor.export_photos(self.backup, out)
         self.assertEqual((result["exported"], result["errors"], result["not_in_backup"]), (3, 0, 5))
+
+    def test_overview_tile_counts_what_the_photos_screen_shows(self):
+        # The tile showed library rows (8 here; 6,000 for the reporter, with about 300 in the backup).
+        overview = StatsComputer(self.extractor).compute(self.backup, {})["overview"]
+        self.assertEqual(overview["photos_in_backup"], 3)
+        self.assertEqual(overview["total_photos"] + overview["total_videos"], 8)
 
 
 class TestPhotoCountsUnencrypted(_PhotoCountTests, unittest.TestCase):
