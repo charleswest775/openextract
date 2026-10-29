@@ -316,11 +316,25 @@ class MessageExtractor:
         return {"file": filepath, "message_count": len(messages)}
 
     def _export_html(self, messages, chat_id, output_dir, *, backup):
+        """Export one message to one HTML file with embedded/exported attachments.
+
+        Images are embedded as base64 data (with compression), while videos are
+        saved to an attachments folder and referenced via relative paths.
+
+        Args:
+            messages: List of message dictionaries to export.
+            chat_id: The conversation ID for the filename.
+            output_dir: Directory where the HTML file will be saved.
+            backup: The backup object used to fetch attachment data.
+
+        Returns:
+            dict: Contains 'file' (path to the HTML file) and 'message_count'.
+        """
         filename = f"conversation_{chat_id}.html"
         filepath = os.path.join(output_dir, filename)
 
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write("""<!DOCTYPE html>
+        with open(filepath, "w", encoding="utf-8") as html_out_file:
+            html_out_file.write("""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Conversation Export</title>
 <style>
 body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
@@ -337,25 +351,40 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
             for msg in messages:
                 css_class = "sent" if msg["is_from_me"] else "received"
                 date = msg["date"] or ""
-                f.write(f'<div class="meta">{date}</div>\n')
+                html_out_file.write(f'<div class="meta">{date}</div>\n')
                 if not msg["is_from_me"]:
-                    f.write(f'<div class="sender">{msg["sender"]}</div>\n')
-                f.write(f'<div class="msg {css_class}">')
+                    html_out_file.write(f'<div class="sender">{msg["sender"]}</div>\n')
+                html_out_file.write(f'<div class="msg {css_class}">')
 
                 # Add text if present
                 if msg.get("text"):
-                    f.write(msg["text"])
+                    html_out_file.write(msg["text"])
 
                 # insert image and video attachments
                 if msg.get("has_attachments"):
-                    self._embed_attachements(f, backup, msg, output_dir)
+                    self._add_attachements_to_output(html_out_file, backup, msg)
 
-                f.write('</div>\n')
-            f.write("</body></html>")
+                html_out_file.write('</div>\n')
+            html_out_file.write("</body></html>")
         return {"file": filepath, "message_count": len(messages)}
 
 
-    def _embed_attachements(self, file, backup, msg, output_dir:str):
+    def _add_attachements_to_output(self, html_out_file, backup, msg):
+        """Add message image/video attachments to the HTML output.
+
+        Images are embedded as base64-encoded data (with compression applied),
+        while videos are saved to an attachments folder and referenced via relative
+        paths with poster images. Other attachment types are shown as text labels.
+
+        Parameters:
+            html_out_file: File object to write HTML to.
+            backup: The backup object used to fetch attachment data
+            msg: Message dictionary containing attachments.
+        """
+
+
+        # Create attachments folder based on output_file name
+        attachments_folder = os.path.splitext(html_out_file.name)[0] + "_attachments"
 
         for att in msg.get("attachments"):
 
@@ -371,27 +400,23 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
 
                     compressed_data = self.reduce_image_size(att_result["data"], att_result["mime_type"], att_result["filename"])
                     output_mime = "image/jpeg" if att_result["mime_type"] in ("image/heic", "image/heif") else att_result["mime_type"]
-                    file.write(f'<img src="data:{output_mime};base64,{compressed_data}" alt="{att_result["filename"]}" title="{att_result["filename"]}">')
+                    html_out_file.write(f'<img src="data:{output_mime};base64,{compressed_data}" alt="{att_result["filename"]}" title="{att_result["filename"]}">')
 
                 elif "error" not in att_result:
                     # Fallback to label if attachment exists but can't be loaded
                     label = self._attachment_label(msg)
-                    file.write(f" {label}")
+                    html_out_file.write(f" {label}")
 
             elif mime_type.startswith("video/"):
                 # save video files externally and embed with poster image
 
+                os.makedirs(attachments_folder, exist_ok=True)
                 att_result = self.get_attachment(backup, att["attachment_id"])
 
                 if "data" in att_result:
 
-                    # Create attachments folder in output directory
-                    filename = att_result["filename"]  # as we come from a file system, should have no problems with filename
-                    # FIXME: we do want the export html filename as attachment folder name, not the image file name
-                    attachments_folder = os.path.join(output_dir, f"{os.path.splitext(filename)[0]}_files")
-                    os.makedirs(attachments_folder, exist_ok=True)
-
                     # Save video to attachments folder
+                    filename = att_result["filename"]  # as we come from a file system, should have no problems with filename
                     video_path = os.path.join(attachments_folder, filename)
                     with open(video_path, "wb") as video_file:
                         video_file.write(base64.b64decode(att_result["data"]))
@@ -399,19 +424,19 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
                     # Extract 1st frame as poster image from data and get as b64 encoded jpg
                     poster_data = self.get_video_frame_as_b64_jpg(att_result["data"])
 
-                    # Embed with video tag
-                    relative_path = os.path.relpath(video_path, output_dir)
+                    # Embed with video tag as relative path from HTML file
+                    relative_path = os.path.relpath(video_path, os.path.dirname(html_out_file.name))
                     poster_attr = f' poster="data:image/jpeg;base64,{poster_data}"' if poster_data else ''
-                    file.write(f'<video controls src="{relative_path}" type="{mime_type}" title="{att_result["filename"]}"{poster_attr}></video>')
-                    file.write(f'<a href="{relative_path}">Download {att_result["filename"]}</a>')
+                    html_out_file.write(f'<video controls src="{relative_path}" type="{mime_type}" title="{att_result["filename"]}"{poster_attr}></video>')
+                    html_out_file.write(f'<a href="{relative_path}">Download {att_result["filename"]}</a>')
 
                 elif "error" in att_result:
                     label = self._attachment_label(msg)
-                    file.write(f" {label}")
+                    html_out_file.write(f" {label}")
             else:
                 # Non-image, non-video attachment: show label
                 label = self._attachment_label(msg)
-                file.write(f" {label}")
+                html_out_file.write(f" {label}")
 
     @staticmethod
     def get_video_frame_as_b64_jpg(data: bytes | str) -> str:
@@ -419,8 +444,7 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
         get the 1st frame of the video data as b64 encoded jpg
 
         Parameters:
-            data (bytes | str): video data as bytes, or b64 encoded video data as string
-            filename (str): filename of the video data, to get proper reader
+            data (bytes | str): video data as bytes, or b64 encoded video data as string (to stay more flexible)
 
         Returns:
             str: b64 encoded jpg of the 1st frame of the video data
@@ -561,15 +585,25 @@ body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto;
                 ])
         return {"files": [filepath], "message_count": len(messages)}
 
-    def _export_merged_html(self, messages, output_dir, *, backup):
+    def _export_merged_html(self, messages, output_dir, backup):
+        """Export all messages to one HTML file with embedded/exported attachments.
+
+        Images are embedded as base64 data (with compression), while videos are
+        saved to an attachments folder and referenced via relative paths.
+
+        Args:
+            messages: List of message dictionaries to export.
+            output_dir: Directory where the HTML file will be saved.
+            backup: The backup object used to fetch attachment data.
+
+        Returns:
+            dict: Contains 'file' (path to the HTML file) and 'message_count'.
+        """
+
         filepath = os.path.join(output_dir, "all_conversations.html")
 
-        # Create attachments folder
-        attachments_folder = os.path.join(output_dir, "all_conversations_files")
-        os.makedirs(attachments_folder, exist_ok=True)
-
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write("""<!DOCTYPE html>
+        with open(filepath, "w", encoding="utf-8") as html_out_file:
+            html_out_file.write("""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Merged Conversations Export</title>
 <style>
 body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
@@ -589,19 +623,19 @@ body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 0 auto;
                 date = msg["date"] or ""
                 conv = msg["_conversation"]
                 direction = "to" if msg["is_from_me"] else "from"
-                f.write(f'<div class="meta">{date} <span class="conv-label">({direction} {conv})</span></div>\n')
+                html_out_file.write(f'<div class="meta">{date} <span class="conv-label">({direction} {conv})</span></div>\n')
                 if not msg["is_from_me"]:
-                    f.write(f'<div class="sender">{msg["sender"]}</div>\n')
-                f.write(f'<div class="msg {css_class}">')
+                    html_out_file.write(f'<div class="sender">{msg["sender"]}</div>\n')
+                html_out_file.write(f'<div class="msg {css_class}">')
 
                 # Add text if present
                 if msg.get("text"):
-                    f.write(msg["text"])
+                    html_out_file.write(msg["text"])
 
                 # Add image and video attachments
                 if msg.get("has_attachments"):
-                    self._embed_attachements(f, backup, msg, output_dir)
+                    self._add_attachements_to_output(html_out_file, backup, msg)
 
-                f.write('</div>\n')
-            f.write("</body></html>")
+                html_out_file.write('</div>\n')
+            html_out_file.write("</body></html>")
         return {"files": [filepath], "message_count": len(messages)}
