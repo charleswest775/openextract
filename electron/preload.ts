@@ -57,4 +57,14 @@ contextBridge.exposeInMainWorld('openextract', {
   removeSession: (id: string) => ipcRenderer.invoke('remove-session', id),
   getRecentSessions: () => ipcRenderer.invoke('get-recent-sessions'),
   incrementExportCount: () => ipcRenderer.invoke('increment-export-count'),
+
+  // One-time "star or tell a friend" prompt after the first successful export.
+  onSharePrompt: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('share-prompt:show', listener);
+    return () => ipcRenderer.removeListener('share-prompt:show', listener);
+  },
+
+  // Clipboard (used by the share prompt's Copy link)
+  copyText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
 });

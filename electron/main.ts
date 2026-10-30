@@ -1,5 +1,5 @@
 export {};
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, protocol, net, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -77,6 +77,8 @@ const store = new JsonStore({
   stats: { totalExports: 0 },
   // null until the user answers the "check for updates automatically?" question.
   updatesAutoCheck: null,
+  // True once the "star or tell a friend" prompt has been shown. It shows at most once.
+  sharePromptShown: false,
 });
 
 function createWindow() {
@@ -323,11 +325,21 @@ app.whenReady().then(async () => {
     return store.get('sessions', []);
   });
 
-  ipcMain.handle('increment-export-count', () => {
+  ipcMain.handle('increment-export-count', (event: any) => {
     const stats = store.get('stats', { totalExports: 0 }) as any;
     stats.totalExports = (stats.totalExports || 0) + 1;
     store.set('stats', stats);
+    // Every export calls this after it succeeds, so this is where the one-time
+    // share prompt starts. Remembered locally; nothing is sent anywhere.
+    if (!store.get('sharePromptShown', false)) {
+      store.set('sharePromptShown', true);
+      event.sender.send('share-prompt:show');
+    }
     return stats.totalExports;
+  });
+
+  ipcMain.handle('clipboard:writeText', (_event: any, text: string) => {
+    clipboard.writeText(String(text ?? ''));
   });
 });
 
