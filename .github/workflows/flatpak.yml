@@ -33,7 +33,6 @@ jobs:
       options: --privileged
     env:
       MANIFEST: packaging/flathub/app.openextract.OpenExtract.yml
-      METAINFO: packaging/flathub/app.openextract.OpenExtract.metainfo.xml
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -43,11 +42,18 @@ jobs:
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak install --user -y --noninteractive flathub org.flatpak.Builder
 
+      # The linter runs inside its own sandbox, which can't write to the
+      # checkout (owned by the runner's user), so lint a copy under $HOME.
       - name: Lint the manifest
-        run: flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest "$MANIFEST"
+        run: |
+          rm -rf "$HOME/flathub-lint" && cp -r packaging/flathub "$HOME/flathub-lint"
+          cd "$HOME/flathub-lint"
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest app.openextract.OpenExtract.yml
 
       - name: Lint the store text (metainfo)
-        run: flatpak run --command=flatpak-builder-lint org.flatpak.Builder appstream "$METAINFO"
+        run: |
+          cd "$HOME/flathub-lint"
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder appstream app.openextract.OpenExtract.metainfo.xml
 
       - name: Build
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
@@ -58,4 +64,6 @@ jobs:
           upload-artifact: true
 
       - name: Lint the built repo
-        run: flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo repo
+        run: |
+          rm -rf "$HOME/flathub-repo" && cp -r repo "$HOME/flathub-repo"
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo "$HOME/flathub-repo"
