@@ -43,7 +43,6 @@
     <keyword>voicemail</keyword>
   </keywords>
   <screenshots>
-    <!-- Flathub wants PNG or JPEG. These PNGs go live once site PR #148 merges. -->
     <screenshot type="default">
       <caption>A conversation, with its photos</caption>
       <image>https://www.openextract.app/img/screens/messages-2000.png</image>
@@ -59,6 +58,12 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.8.1" date="2026-11-02">
+      <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.8.1</url>
+      <description>
+        <p>OpenExtract's own app icon. Typing no longer downloads spell-check dictionaries. Calls from other apps show readable names, and calls match contacts saved in national or international format.</p>
+      </description>
+    </release>
     <release version="0.8.0" date="2026-10-28">
       <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.8.0</url>
       <description>
