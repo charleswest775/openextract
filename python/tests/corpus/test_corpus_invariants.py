@@ -9,6 +9,7 @@ screens agree with each other, and that no value is impossible.
 import base64
 import os
 import shutil
+import unicodedata
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -42,6 +43,15 @@ def _latest(ctx) -> datetime:
 def _sample(values, limit=5):
     values = list(values)
     return f"{values[:limit]}{' …' if len(values) > limit else ''} ({len(values)} total)"
+
+
+def _readable(text: str) -> str:
+    """Text without hidden characters: Teams fills ZADDRESS with control characters around the name."""
+    kept = "".join(
+        c for c in text
+        if c == "‍" or (unicodedata.category(c) not in ("Cc", "Cf", "Co", "Cs", "Cn") and c != "�")
+    )
+    return " ".join(kept.split())
 
 
 # ── opening the backup ───────────────────────────────────────────────────────
@@ -243,8 +253,10 @@ def test_calls_agree_with_call_history(ctx):
         # Before iOS 17 ZADDRESS is a BLOB of UTF-8; short codes are INTEGERs.
         raw = row["ZADDRESS"]
         address = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else ("" if raw is None else str(raw))
-        if call["address"] != address:
+        if call["address"] != _readable(address):
             problems.append(f"call {row['Z_PK']}: address {call['address']!r}, ZADDRESS holds {address!r}")
+        if call["contact_name"] != _readable(call["contact_name"]):
+            problems.append(f"call {row['Z_PK']}: contact name has hidden characters: {call['contact_name']!r}")
         if row["ZORIGINATED"] is not None:
             direction = "outgoing" if row["ZORIGINATED"] else "incoming"
             if call["direction"] != direction:

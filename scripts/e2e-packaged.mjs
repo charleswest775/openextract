@@ -9,8 +9,9 @@
 //
 // Drives the packaged app with Playwright: opens each backup, checks the Overview tile
 // against the Photos header, pages the Photos grid to the end, and exports PDFs (single,
-// again without overwriting, bulk separate, bulk merged). Writes <out-dir>/results.json and
-// exits 1 if any check failed.
+// again without overwriting, bulk separate, bulk merged). Also types in a search box with
+// Chromium's net log on, and fails if the app contacted any other computer. Writes
+// <out-dir>/results.json and exits 1 if any check failed.
 //
 // Hickman's terms forbid screenshots and redistribution: only counts are recorded for it,
 // and its PDFs go to a temp folder that is deleted. Maren is fictional, so its screenshots
@@ -55,9 +56,9 @@ function pdfStats(file) {
 }
 const leftoverTemp = () => fs.readdirSync(os.tmpdir()).filter(n => n.startsWith('openextract-pdf-'));
 
-async function withApp(label, fn) {
+async function withApp(label, fn, extraArgs = []) {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'oe-e2e-profile-'));
-  const args = [`--user-data-dir=${profile}`];
+  const args = [`--user-data-dir=${profile}`, ...extraArgs];
   if (process.platform === 'linux') args.push('--no-sandbox');
   const app = await electron.launch({ executablePath: exe, args, timeout: 120_000 });
   const page = await app.firstWindow();
@@ -222,6 +223,28 @@ await withApp('maren-encrypted', async c => {
   await photos(c, 'maren-encrypted', 170, 0);
   await exportSingle(c, 'maren-encrypted', 'Karin Lindqvist', path.join(outDir, 'pdf-encrypted'), 7);
 });
+
+// The app promises no network requests beyond the opt-in update check, and a fresh profile
+// hasn't opted in. Chromium's spell checker fetches its dictionaries from the browser process
+// on Windows and Linux, which page.on('request') never sees, so read Chromium's own net log.
+const netLogDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oe-e2e-netlog-'));
+const netLog = path.join(netLogDir, 'net.json');
+await withApp('maren-network', async c => {
+  if (!(await openBackup(c, 'maren-network', marenPlain))) return;
+  await c.click('Messages'); await sleep(1500);
+  const box = c.page.locator('input[placeholder="Search conversations..."]');
+  check('maren-network: search box to type in', (await box.count()) > 0);
+  await box.first().click();
+  await c.page.keyboard.type('hello wrold, is this spelled rihgt', { delay: 50 });
+  await sleep(20_000);
+}, [`--log-net-log=${netLog}`]);
+// The log is complete only once the app has closed, which withApp has done by now.
+const netLogText = fs.existsSync(netLog) ? fs.readFileSync(netLog, 'utf8') : '';
+const contacted = [...new Set([...netLogText.matchAll(/"(?:url|original_url)":"(?:https?|wss?):\/\/([^"/:]+)/g)].map(m => m[1]))]
+  .filter(h => !['localhost', '127.0.0.1', '[::1]'].includes(h));
+check('maren-network: net log was written', netLogText.length > 0, { kb: Math.round(netLogText.length / 1024) });
+check('maren-network: no other computer contacted', contacted.length === 0, contacted);
+fs.rmSync(netLogDir, { recursive: true, force: true });
 
 const hickmanOut = fs.mkdtempSync(path.join(os.tmpdir(), 'oe-e2e-hickman-'));
 await withApp('hickman-15.3.1', async c => {
