@@ -33,6 +33,8 @@ modules:
         path: app.openextract.OpenExtract.desktop
       - type: file
         path: app.openextract.OpenExtract.metainfo.xml
+      - type: file
+        path: app.openextract.OpenExtract.svg
       - type: script
         dest-filename: openextract.sh
         commands:
@@ -45,10 +47,8 @@ modules:
       # The Flatpak sandbox replaces Chromium's setuid helper.
       - rm -f /app/OpenExtract/chrome-sandbox
       - install -Dm755 openextract.sh /app/bin/openextract
-      - |
-        for s in 16 32 48 64 128 256; do
-          install -Dm644 usr/share/icons/hicolor/${s}x${s}/apps/openextract.png \
-            /app/share/icons/hicolor/${s}x${s}/apps/app.openextract.OpenExtract.png
-        done
+      # The v0.8.0 .deb still carries Electron's default icon, so install
+      # OpenExtract's own mark (the same as website/static/img/logo.svg).
+      - install -Dm644 app.openextract.OpenExtract.svg /app/share/icons/hicolor/scalable/apps/app.openextract.OpenExtract.svg
       - install -Dm644 app.openextract.OpenExtract.desktop /app/share/applications/app.openextract.OpenExtract.desktop
       - install -Dm644 app.openextract.OpenExtract.metainfo.xml /app/share/metainfo/app.openextract.OpenExtract.metainfo.xml
