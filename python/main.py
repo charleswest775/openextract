@@ -44,6 +44,7 @@ from browser_history import BrowserHistoryExtractor  # noqa: E402
 from message_recovery import MessageRecoveryExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
 from stats import StatsComputer  # noqa: E402
+from year_counts import YearCounter  # noqa: E402
 
 
 class SidecarServer:
@@ -59,6 +60,10 @@ class SidecarServer:
         self.message_recovery_extractor = MessageRecoveryExtractor()
         self.device_backup_manager = DeviceBackupManager()
         self.stats_computer = StatsComputer(self.photo_extractor)
+        self.year_counter = YearCounter(
+            self.message_extractor, self.photo_extractor, self.call_extractor,
+            self.note_extractor, self.browser_history_extractor,
+        )
 
         # Method dispatch table
         self.methods = {
@@ -100,6 +105,9 @@ class SidecarServer:
             # Aggregate stats
             "get_aggregate_stats": self.get_aggregate_stats,
             "get_backup_stats": self.get_backup_stats,
+            # Year view
+            "get_year_counts": self.get_year_counts,
+            "get_messages_on_day": self.get_messages_on_day,
             # Live device backup
             "backup.list_devices": self.backup_list_devices,
             "backup.start": self.backup_start,
@@ -390,6 +398,26 @@ class SidecarServer:
         backup = self.backup_manager.get_open_backup(udid)
         contacts = self.contact_resolver.load_contacts(backup)
         return self.stats_computer.compute(backup, contacts)
+
+    # ── Year view ────────────────────────────────────────────────────────────
+
+    def get_year_counts(self, params):
+        """Return counts per day per type for one year, plus the years the backup holds."""
+        udid = params["udid"]
+        year = int(params["year"])
+        types = params.get("types")
+        identifiers = params.get("identifiers")
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        return self.year_counter.year_counts(backup, contacts, year, types, identifiers)
+
+    def get_messages_on_day(self, params):
+        """Return every message on one local day (YYYY-MM-DD), by conversation."""
+        udid = params["udid"]
+        day = params["day"]
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        return self.year_counter.messages_on_day(backup, contacts, day)
 
     # ── Aggregate stats ──────────────────────────────────────────────────────
 

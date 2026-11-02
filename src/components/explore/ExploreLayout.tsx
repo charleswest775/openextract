@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { RecentSession } from '../../lib/appState';
 import {
   LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon,
-  VoicemailIcon, GlobeIcon, ClockIcon, ChartIcon, ArrowLeftIcon, ExportIcon,
+  VoicemailIcon, GlobeIcon, ClockIcon, CalendarIcon, ChartIcon, ArrowLeftIcon, ExportIcon,
   RecoverIcon,
 } from '../shared/Icons';
 import BackupDashboard from './BackupDashboard';
@@ -16,9 +16,11 @@ import BrowserHistoryExplorer from './BrowserHistoryExplorer';
 import RecordRecoveryView from './RecordRecoveryView';
 import ExportPanel from './ExportPanel';
 import TimelineView from '../timeline/TimelineView';
+import YearView, { DEFAULT_YEAR_SELECTION, YearSelection } from '../year/YearView';
+import type { TimelineFilters } from '../../types/timeline';
 import type { HistoryVisit } from '../../lib/browserHistoryStats';
 
-type Tab = 'dashboard' | 'timeline' | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'record_recovery' | 'export';
+type Tab = 'dashboard' | 'timeline' | 'year' | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'record_recovery' | 'export';
 
 interface Props {
   udid: string;
@@ -29,6 +31,7 @@ interface Props {
 const allNavItems: { id: Tab; label: string; icon: typeof LinesIcon; comingSoon?: boolean }[] = [
   { id: 'dashboard', label: 'Overview', icon: ChartIcon },
   { id: 'timeline', label: 'Timeline', icon: ClockIcon },
+  { id: 'year', label: 'Year', icon: CalendarIcon },
   { id: 'messages', label: 'Messages', icon: LinesIcon },
   { id: 'photos', label: 'Photos', icon: CameraIcon },
   { id: 'contacts', label: 'Contacts', icon: ContactIcon },
@@ -42,12 +45,22 @@ const allNavItems: { id: Tab; label: string; icon: typeof LinesIcon; comingSoon?
 
 export default function ExploreLayout({ udid, session, onBack }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
-  const handleNavigate = (tab: string) => setActiveTab(tab as Tab);
+  // What the Timeline opens on after a click on a day. The Timeline tab itself opens on everything.
+  const [timelineStart, setTimelineStart] = useState<Partial<TimelineFilters> | null>(null);
+  // Kept here so coming back from a day finds the same year, types and person.
+  const [yearSelection, setYearSelection] = useState<YearSelection>(DEFAULT_YEAR_SELECTION);
+  const openTab = (tab: Tab) => {
+    setTimelineStart(null);
+    setActiveTab(tab);
+  };
+  const handleNavigate = (tab: string) => openTab(tab as Tab);
   const [hasBrowserHistory, setHasBrowserHistory] = useState(false);
   const [preloadedBrowserHistory, setPreloadedBrowserHistory] = useState<HistoryVisit[] | null>(null);
   const [browserHistoryPreloading, setBrowserHistoryPreloading] = useState(false);
 
   useEffect(() => {
+    setTimelineStart(null);
+    setYearSelection(DEFAULT_YEAR_SELECTION);
     setPreloadedBrowserHistory(null);
     setBrowserHistoryPreloading(false);
     window.openextract.call('has_browser_history', { udid }).then((res: any) => {
@@ -111,7 +124,7 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
                 <button
                   key={item.id}
                   title={item.label}
-                  onClick={() => !item.comingSoon && setActiveTab(item.id)}
+                  onClick={() => !item.comingSoon && openTab(item.id)}
                   className={`w-[68px] h-[64px] rounded-[14px] flex flex-col items-center justify-center gap-[3px] transition-all ${
                     isActive ? 'bg-surface border border-rule' : 'border border-transparent hover:bg-surface/60'
                   } ${item.comingSoon ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
@@ -155,7 +168,24 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
           {/* Content area */}
           <div className="flex-1 overflow-hidden min-w-0">
             {activeTab === 'dashboard' && <BackupDashboard udid={udid} onNavigate={handleNavigate} />}
-            {activeTab === 'timeline' && <TimelineView udid={udid} />}
+            {activeTab === 'timeline' && (
+              <TimelineView
+                key={timelineStart ? 'day' : 'everything'}
+                udid={udid}
+                startingFilters={timelineStart ?? undefined}
+              />
+            )}
+            {activeTab === 'year' && (
+              <YearView
+                udid={udid}
+                selection={yearSelection}
+                onSelectionChange={setYearSelection}
+                onOpenDay={filters => {
+                  setTimelineStart(filters);
+                  setActiveTab('timeline');
+                }}
+              />
+            )}
             {activeTab === 'messages' && <MessageExplorer udid={udid} />}
             {activeTab === 'photos' && <PhotoExplorer udid={udid} />}
             {activeTab === 'contacts' && <ContactExplorer udid={udid} />}

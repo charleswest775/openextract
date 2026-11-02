@@ -7,6 +7,13 @@ import {
   ContactOption,
   DEFAULT_FILTERS,
 } from '../types/timeline';
+import {
+  identifiersMatch,
+  IdentifierGroupMap,
+  buildIdentifierGroupMap,
+  buildContactOptions,
+  rowsForPerson,
+} from '../lib/people';
 import type { Conversation, Message } from './useMessages';
 import type { PhotoAsset } from '../types';
 
@@ -25,26 +32,9 @@ const MESSAGES_PER_CONV = 500;
 const MAX_MESSAGES = 200000;
 const PAGE_SIZE = 100;
 
-// ── Phone-number normalizer ────────────────────────────────────────────────────
-// Strips all non-digits and returns the last 10 digits so that "+1 (555) 123-4567",
-// "15551234567", "+15551234567", and "5551234567" all compare equal.
-function normPhone(s: string): string {
-  const d = s.replace(/\D/g, '');
-  return d.length >= 10 ? d.slice(-10) : d;
-}
-
-// Returns true when two contact identifiers refer to the same entity.
-// Falls back to normalised phone comparison when exact strings differ.
-function identifiersMatch(a: string, b: string): boolean {
-  if (a === b) return true;
-  const na = normPhone(a);
-  const nb = normPhone(b);
-  return na.length >= 7 && nb.length >= 7 && na === nb;
-}
-
 // ── Normalizers ────────────────────────────────────────────────────────────────
 
-function normalizeMessage(msg: Message, conv: Conversation): TimelineEntry {
+export function normalizeMessage(msg: Message, conv: Conversation): TimelineEntry {
   return {
     id: `message:${msg.message_id}`,
     type: 'message',
@@ -62,7 +52,7 @@ function normalizeMessage(msg: Message, conv: Conversation): TimelineEntry {
   };
 }
 
-interface RawCall {
+export interface RawCall {
   call_id: number;
   address: string;
   contact_name: string;
@@ -73,7 +63,7 @@ interface RawCall {
   app: string;
 }
 
-function normalizeCall(call: RawCall): TimelineEntry {
+export function normalizeCall(call: RawCall): TimelineEntry {
   const isUuid = UUID_RE.test(call.address ?? '');
   // contact_name sometimes echoes back the UUID address when no real contact is found
   const realName = call.contact_name && !UUID_RE.test(call.contact_name) ? call.contact_name : null;
@@ -116,7 +106,7 @@ function normalizePhoto(photo: PhotoAsset): TimelineEntry | null {
   };
 }
 
-interface RawVoicemail {
+export interface RawVoicemail {
   id: number;
   phone_number: string;
   contact_name: string;
@@ -126,7 +116,7 @@ interface RawVoicemail {
   transcript?: string;
 }
 
-function normalizeVoicemail(vm: RawVoicemail): TimelineEntry {
+export function normalizeVoicemail(vm: RawVoicemail): TimelineEntry {
   const name = vm.contact_name || vm.phone_number;
   return {
     id: `voicemail:${vm.id}`,
@@ -214,61 +204,34 @@ export interface UseTimelineReturn {
   refresh: () => void;
 }
 
-// Maps any identifier (phone / email) to the set of ALL identifiers
-// belonging to the same address-book contact.  Built from list_contacts.
-type IdentifierGroupMap = Map<string, Set<string>>;
-
-function buildIdentifierGroupMap(
-  contacts: { phones: string[]; emails: string[] }[]
-): IdentifierGroupMap {
-  const map: IdentifierGroupMap = new Map();
-  for (const c of contacts) {
-    // Collect every raw and normalised form of this contact's identifiers
-    const group = new Set<string>();
-    for (const p of c.phones) {
-      group.add(p);
-      const np = normPhone(p);
-      if (np) group.add(np);
-    }
-    for (const e of c.emails) {
-      group.add(e);
-      group.add(e.toLowerCase());
-    }
-    // Point every form back to the full group
-    for (const id of group) {
-      map.set(id, group);
-    }
-  }
-  return map;
-}
-
-// Return all identifiers belonging to the same contact as `id`,
-// checking raw, normalised, and +1-prefixed variants.
-function getContactGroup(id: string, idMap: IdentifierGroupMap): Set<string> | null {
-  if (idMap.has(id)) return idMap.get(id)!;
-  const np = normPhone(id);
-  if (np && idMap.has(np)) return idMap.get(np)!;
-  if (np && idMap.has(`+1${np}`)) return idMap.get(`+1${np}`)!;
-  return null;
-}
-
-export function useTimeline(udid: string): UseTimelineReturn {
+// `startingFilters` opens the Timeline on a filter, such as a day from the Year view.
+export function useTimeline(udid: string, startingFilters?: Partial<TimelineFilters>): UseTimelineReturn {
   const [rawEntries, setRawEntries] = useState<TimelineEntry[]>([]);
   const [loadingTypes, setLoadingTypes] = useState<Set<TimelineEntryType>>(
     new Set(['message', 'call', 'photo', 'voicemail', 'note'])
   );
   const [errors, setErrors] = useState<Partial<Record<TimelineEntryType, string>>>({});
   const [messageCap, setMessageCap] = useState<{ loaded: number; total: number } | null>(null);
-  const [filters, setFiltersState] = useState<TimelineFilters>(DEFAULT_FILTERS);
+  const [filters, setFiltersState] = useState<TimelineFilters>({ ...DEFAULT_FILTERS, ...startingFilters });
   const [page, setPage] = useState(0);
   const loadEpochRef = useRef(0);
   const [identifierGroupMap, setIdentifierGroupMap] = useState<IdentifierGroupMap>(new Map());
+  // The day to load in full first, when opening on one with messages showing.
+  const openDay = startingFilters?.dateFrom
+    && startingFilters.dateFrom === startingFilters.dateTo
+    && (startingFilters.types?.has('message') ?? true)
+    ? startingFilters.dateFrom
+    : null;
 
   const addEntries = useCallback((incoming: TimelineEntry[], type: TimelineEntryType) => {
     setRawEntries(prev => {
-      // Deduplicate by id in case of re-fetch
-      const existingIds = new Set(prev.filter(e => e.type === type).map(e => e.id));
-      const fresh = incoming.filter(e => !existingIds.has(e.id));
+      // Replaces this type's entries. A message can be in two chats: show it once.
+      const seen = new Set<string>();
+      const fresh = incoming.filter(e => {
+        if (seen.has(e.id)) return false;
+        seen.add(e.id);
+        return true;
+      });
       return [...prev.filter(e => e.type !== type), ...fresh];
     });
     setLoadingTypes(prev => {
@@ -295,6 +258,27 @@ export function useTimeline(udid: string): UseTimelineReturn {
       );
       if (loadEpochRef.current !== epoch) return;
 
+      // Opening on a day: show all of it now, even if the cap below would leave it out.
+      const dayEntries: TimelineEntry[] = [];
+      if (openDay) {
+        try {
+          const byId = new Map(conversations.map(c => [c.chat_id, c]));
+          const day = await sidecarCall<{ conversations: { chat_id: number; messages: Message[] }[] }>(
+            'get_messages_on_day',
+            { udid, day: openDay }
+          );
+          if (loadEpochRef.current !== epoch) return;
+          for (const { chat_id, messages } of day.conversations) {
+            const conv = byId.get(chat_id);
+            if (!conv) continue;
+            dayEntries.push(...messages.filter(m => !m.is_reaction).map(m => normalizeMessage(m, conv)));
+          }
+          setRawEntries(prev => [...prev.filter(e => e.type !== 'message'), ...dayEntries]);
+        } catch {
+          // The full load below still shows what it reaches
+        }
+      }
+
       // Sort by most recent, then cap total messages fetched
       const sorted = [...conversations].sort((a, b) =>
         (b.last_message_date || '').localeCompare(a.last_message_date || '')
@@ -302,7 +286,7 @@ export function useTimeline(udid: string): UseTimelineReturn {
 
       let loaded = 0;
       const totalAcross = sorted.reduce((s, c) => s + c.message_count, 0);
-      const entries: TimelineEntry[] = [];
+      const entries: TimelineEntry[] = [...dayEntries];
 
       for (const conv of sorted) {
         if (loaded >= MAX_MESSAGES) break;
@@ -335,7 +319,7 @@ export function useTimeline(udid: string): UseTimelineReturn {
     } catch (e: any) {
       markError('message', e.message || 'Failed to load messages');
     }
-  }, [udid, addEntries, markError]);
+  }, [udid, openDay, addEntries, markError]);
 
   const fetchCalls = useCallback(async (epoch: number) => {
     try {
@@ -446,6 +430,10 @@ export function useTimeline(udid: string): UseTimelineReturn {
 
   useEffect(() => {
     load();
+    // Leaving stops the load, so hopping between Year and Timeline doesn't stack them up.
+    return () => {
+      loadEpochRef.current += 1;
+    };
   }, [load]);
 
   // Load all messages (user-triggered, removes the cap)
@@ -481,22 +469,7 @@ export function useTimeline(udid: string): UseTimelineReturn {
   }, [udid, messageCap, addEntries, markError]);
 
   // ── Derived contact list ──────────────────────────────────────────────────
-  const allContacts = useMemo((): ContactOption[] => {
-    // Keyed by normalised phone / raw identifier so the same person isn't
-    // listed twice when calls use "+15551234567" and messages use "5551234567".
-    const seen = new Map<string, ContactOption>();
-    for (const e of rawEntries) {
-      if (e.contactIdentifier && e.contactName) {
-        const np = normPhone(e.contactIdentifier);
-        const key = np.length >= 7 ? np : e.contactIdentifier.toLowerCase();
-        if (!seen.has(key)) {
-          seen.set(key, { identifier: e.contactIdentifier, name: e.contactName });
-        }
-      }
-    }
-    return Array.from(seen.values())
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [rawEntries]);
+  const allContacts = useMemo((): ContactOption[] => buildContactOptions(rawEntries), [rawEntries]);
 
   // ── Counts per type (unfiltered) ──────────────────────────────────────────
   const counts = useMemo((): Record<TimelineEntryType, number> => {
@@ -517,7 +490,7 @@ export function useTimeline(udid: string): UseTimelineReturn {
     // respected regardless of their UTC offset.  Appending 'T00:00:00' (no Z)
     // makes the Date constructor treat it as local time, matching 'T23:59:59'.
     const fromMs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() : null;
-    const toMs = dateTo ? new Date(dateTo + 'T23:59:59').getTime() : null;
+    const toMs = dateTo ? new Date(dateTo + 'T23:59:59.999').getTime() : null;
 
     // ── Contact matching ───────────────────────────────────────────────────
     // When a contact is selected we match entries three ways:
@@ -531,41 +504,18 @@ export function useTimeline(udid: string): UseTimelineReturn {
       const selectedContact = allContacts.find(c => identifiersMatch(contactIdentifier, c.identifier));
       const selectedName = selectedContact?.name?.toLowerCase() ?? '';
 
-      // Use the address-book identifier group to get ALL identifiers
-      // (phones + emails) belonging to the same contact.
-      const abGroup = getContactGroup(contactIdentifier, identifierGroupMap);
-
       // Collect every raw identifier seen in rawEntries that belongs to
       // this contact, plus track the communication-window timestamps.
       const contactIds = new Set<string>();
       let minTs = Infinity;
       let maxTs = -Infinity;
 
-      for (const e of rawEntries) {
-        if (!e.contactIdentifier) continue;
-
-        // Check: direct identifier match
-        const idMatch = identifiersMatch(contactIdentifier, e.contactIdentifier);
-
-        // Check: address-book group match (phone ↔ email for same person)
-        const abMatch = !idMatch && abGroup != null && (
-          abGroup.has(e.contactIdentifier)
-          || abGroup.has(e.contactIdentifier.toLowerCase())
-          || abGroup.has(normPhone(e.contactIdentifier))
-        );
-
-        // Check: display-name match (bridges identifiers the AB doesn't link)
-        const nameMatch = !idMatch && !abMatch
-          && selectedName !== ''
-          && e.contactName?.toLowerCase() === selectedName;
-
-        if (idMatch || abMatch || nameMatch) {
-          contactIds.add(e.contactIdentifier);
-          if (e.timestamp) {
-            const ts = new Date(e.timestamp).getTime();
-            if (ts < minTs) minTs = ts;
-            if (ts > maxTs) maxTs = ts;
-          }
+      for (const e of rowsForPerson(contactIdentifier, rawEntries, allContacts, identifierGroupMap)) {
+        contactIds.add(e.contactIdentifier!);
+        if (e.timestamp) {
+          const ts = new Date(e.timestamp).getTime();
+          if (ts < minTs) minTs = ts;
+          if (ts > maxTs) maxTs = ts;
         }
       }
 
