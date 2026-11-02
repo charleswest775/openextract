@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>app.openextract.OpenExtract</id>
+  <name>OpenExtract</name>
+  <summary>Get your texts off an iPhone backup and search them</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="app.openextract">
+    <name>Charles West</name>
+  </developer>
+  <description>
+    <p>
+      Getting your text messages off an iPhone is harder than it should be. OpenExtract opens an
+      iPhone backup on your own computer and lets you read, search and save everything in it:
+      messages and iMessages, photos, voicemails, contacts, call history and notes.
+    </p>
+    <p>
+      It is free with no strings attached. There is no account, no trial and no paid tier, and
+      nothing you open is ever uploaded. This Flatpak has no network access at all.
+    </p>
+    <ul>
+      <li>Read whole conversations as chat bubbles, with photos</li>
+      <li>Search inside a conversation, and find conversations by name</li>
+      <li>Save a conversation as a PDF, with its photos</li>
+      <li>Export conversations as HTML, CSV or plain text</li>
+      <li>Save voicemails as audio files and photos as ordinary image files</li>
+      <li>Opens encrypted backups with the backup password</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">app.openextract.OpenExtract.desktop</launchable>
+  <url type="homepage">https://www.openextract.app</url>
+  <url type="bugtracker">https://github.com/charleswest775/openextract/issues</url>
+  <url type="vcs-browser">https://github.com/charleswest775/openextract</url>
+  <url type="contribute">https://github.com/charleswest775/openextract/blob/main/CONTRIBUTING.md</url>
+  <categories>
+    <category>Utility</category>
+  </categories>
+  <keywords>
+    <keyword>iPhone</keyword>
+    <keyword>iMessage</keyword>
+    <keyword>text messages</keyword>
+    <keyword>backup</keyword>
+    <keyword>voicemail</keyword>
+  </keywords>
+  <screenshots>
+    <!-- Flathub wants PNG or JPEG. These PNGs go live once site PR #148 merges. -->
+    <screenshot type="default">
+      <caption>A conversation, with its photos</caption>
+      <image>https://www.openextract.app/img/screens/messages-2000.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Everything in the backup at a glance</caption>
+      <image>https://www.openextract.app/img/screens/overview-2000.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Voicemails you can play and save</caption>
+      <image>https://www.openextract.app/img/screens/voicemail-2000.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.8.0" date="2026-10-28">
+      <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.8.0</url>
+      <description>
+        <p>Save a conversation as a PDF, with its photos. Photo counts now cover only the photos in the backup, and exports say what a message without text is.</p>
+      </description>
+    </release>
+    <release version="0.7.0" date="2026-10-17">
+      <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.7.0</url>
+    </release>
+  </releases>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+</component>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>openextract</id>
+    <version>0.8.0</version>
+    <title>OpenExtract</title>
+    <authors>Charles West</authors>
+    <owners>Charles West</owners>
+    <projectUrl>https://www.openextract.app</projectUrl>
+    <packageSourceUrl>https://github.com/charleswest775/openextract/tree/main/packaging/chocolatey</packageSourceUrl>
+    <projectSourceUrl>https://github.com/charleswest775/openextract</projectSourceUrl>
+    <bugTrackerUrl>https://github.com/charleswest775/openextract/issues</bugTrackerUrl>
+    <licenseUrl>https://github.com/charleswest775/openextract/blob/main/LICENSE</licenseUrl>
+    <copyright>Copyright (c) 2026 Charles West</copyright>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <tags>iphone ios backup imessage text-messages sms voicemail export backup-viewer privacy foss</tags>
+    <summary>Free, open-source app that gets your text messages, photos and voicemails off your iPhone backup and makes them searchable.</summary>
+    <description>OpenExtract reads the iPhone and iPad backups that iTunes or the Apple Devices app saves on your computer, including encrypted backups when you know the password. Browse, search and export text messages (as PDF with photos, HTML, CSV or text), photos and videos, voicemails, call history, contacts, notes and Safari history. Everything runs locally: nothing is uploaded, no account is needed, and there are no strings attached.</description>
+    <releaseNotes>https://github.com/charleswest775/openextract/releases/tag/v0.8.0</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
