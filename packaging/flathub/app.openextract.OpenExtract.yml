@@ -1,0 +1,54 @@
+# Flathub manifest draft for OpenExtract. Repackages the upstream .deb that
+# the project's own release CI builds; see README.md for what to check first.
+app-id: app.openextract.OpenExtract
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+base: org.electronjs.Electron2.BaseApp
+base-version: '24.08'
+command: openextract
+separate-locales: false
+finish-args:
+  - --share=ipc
+  - --socket=x11
+  - --device=dri
+  # iPhone backups live in ~/MobileSync/Backup by default (python/backup.py),
+  # the engine keeps a size cache in ~/.openextract, and exports are written
+  # wherever the user picks. Read-write home is the simplest honest grant.
+  - --filesystem=home
+  - --talk-name=org.freedesktop.Notifications
+  # No --share=network on purpose: nothing the app does needs the internet,
+  # and in a Flatpak updates come from Flathub, not the in-app updater.
+modules:
+  - name: openextract
+    buildsystem: simple
+    sources:
+      - type: file
+        url: https://github.com/charleswest775/openextract/releases/download/v0.8.0/openextract_0.8.0_amd64.deb
+        sha256: 19eade50744aa1aabac57fe1f5fc1c55dee30c216b7fb133b4e8e53ac6b3082a
+        dest-filename: openextract.deb
+        only-arches:
+          - x86_64
+      - type: file
+        path: app.openextract.OpenExtract.desktop
+      - type: file
+        path: app.openextract.OpenExtract.metainfo.xml
+      - type: script
+        dest-filename: openextract.sh
+        commands:
+          - export TMPDIR="$XDG_RUNTIME_DIR/app/$FLATPAK_ID"
+          - exec zypak-wrapper /app/OpenExtract/openextract "$@"
+    build-commands:
+      - ar x openextract.deb
+      - tar -xf data.tar.xz
+      - mv opt/OpenExtract /app/OpenExtract
+      # The Flatpak sandbox replaces Chromium's setuid helper.
+      - rm -f /app/OpenExtract/chrome-sandbox
+      - install -Dm755 openextract.sh /app/bin/openextract
+      - |
+        for s in 16 32 48 64 128 256; do
+          install -Dm644 usr/share/icons/hicolor/${s}x${s}/apps/openextract.png \
+            /app/share/icons/hicolor/${s}x${s}/apps/app.openextract.OpenExtract.png
+        done
+      - install -Dm644 app.openextract.OpenExtract.desktop /app/share/applications/app.openextract.OpenExtract.desktop
+      - install -Dm644 app.openextract.OpenExtract.metainfo.xml /app/share/metainfo/app.openextract.OpenExtract.metainfo.xml
