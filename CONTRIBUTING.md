@@ -29,6 +29,38 @@ cd python && pip install -r requirements.txt && cd ..
 npm run dev
 ```
 
+## Before You Open a Pull Request
+
+These are the checks CI runs on every pull request. Running them first saves a round trip:
+
+```bash
+npx tsc --noEmit                          # renderer types
+npx tsc --noEmit -p tsconfig.electron.json  # Electron main-process types
+pip install -r python/requirements-dev.txt  # ruff and pytest, once
+ruff check python/ corpus/                # Python lint
+pytest python/tests/ -v                   # Python tests
+npm run build                             # build check
+```
+
+Changes to backup parsing can also be checked against real public iPhone backups.
+See `corpus/README.md` for how to fetch them, then run
+`pytest python/tests/corpus -m corpus -v`.
+
+A few more asks:
+
+- Fill in the pull request template, and link the issue you're fixing (`Closes #123`).
+- If people using the app will notice the change, add a line to `CHANGELOG.md` under **Unreleased**.
+- New parsing logic needs a test. Use a small made-up fixture, never data from a real person's
+  backup, and redact screenshots and logs too.
+- The parsing engine lives in [ios-backup-core](https://github.com/charleswest775/ios-backup-core).
+  If a bug is in how a database is read (calls, contacts, voicemail and so on), the fix may belong there.
+
+## Questions and Ideas
+
+Not sure where to start, or want to talk an idea through before writing code? Open a thread in
+[GitHub Discussions](https://github.com/charleswest775/openextract/discussions). Issues labeled
+`good first issue` are a good place to begin.
+
 ## Commit Convention
 
 We use [Conventional Commits](https://www.conventionalcommits.org/):

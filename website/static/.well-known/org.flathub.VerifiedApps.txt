@@ -1,0 +1,7 @@
+# Flathub website verification for openextract.app
+# https://docs.flathub.org/docs/for-app-authors/verification
+# Once app.openextract.OpenExtract is accepted on Flathub, paste the token from
+# Developer Portal > OpenExtract > Verification on its own line under the app ID.
+# Lines starting with # are ignored by Flathub.
+
+# app.openextract.OpenExtract
