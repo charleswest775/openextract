@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { sidecarCall, saveFolder } from '../../lib/ipc';
+import { sidecarCall, saveFolder, exportMessagesPdf } from '../../lib/ipc';
 import { formatRelative, formatDate } from '../../lib/dates';
 import { SearchIcon, ExportIcon } from '../shared/Icons';
 import ChatBubble from './ChatBubble';
@@ -29,6 +29,8 @@ interface Message {
   attachments?: { attachment_id: number; filename: string; mime_type: string; transfer_name: string; total_bytes: number }[];
 }
 
+type ExportFormat = 'txt' | 'csv' | 'html' | 'pdf';
+
 const PAGE_SIZE = 200;
 const LOAD_MORE_SIZE = 200;
 
@@ -52,7 +54,7 @@ export default function MessageExplorer({ udid }: Props) {
   const [selectedChats, setSelectedChats] = useState<Set<number>>(new Set());
   const [showBulkExportDialog, setShowBulkExportDialog] = useState(false);
   const [bulkExportMode, setBulkExportMode] = useState<'merged' | 'separate'>('separate');
-  const [bulkExportFormat, setBulkExportFormat] = useState<'txt' | 'csv' | 'html'>('html');
+  const [bulkExportFormat, setBulkExportFormat] = useState<ExportFormat>('html');
 
   const offsetRef = useRef(0);
   const epochRef = useRef(0);
@@ -136,17 +138,24 @@ export default function MessageExplorer({ udid }: Props) {
     }
   }
 
-  async function handleExport(format: 'txt' | 'csv' | 'html') {
+  async function handleExport(format: ExportFormat) {
     if (activeChat === null) return;
     const outputDir = await saveFolder();
     if (!outputDir) return;
     setExporting(true);
     try {
-      await sidecarCall('export_conversation', {
-        udid, chat_id: activeChat, format, output_dir: outputDir,
+      const params = {
+        udid, chat_id: activeChat, output_dir: outputDir,
         display_name: activeConvo?.display_name,
-      });
+      };
+      if (format === 'pdf') {
+        await exportMessagesPdf('export_conversation', params);
+      } else {
+        await sidecarCall('export_conversation', { ...params, format });
+      }
       window.openextract.incrementExportCount();
+    } catch (err: any) {
+      alert(`Export failed: ${err.message}`);
     } finally {
       setExporting(false);
     }
@@ -202,12 +211,15 @@ export default function MessageExplorer({ udid }: Props) {
           conversationNames[c.chat_id] = c.display_name || c.chat_identifier;
         }
       }
-      const result = await sidecarCall<{ files: string[]; message_count: number }>(
-        'export_conversations', {
-          udid, chat_ids: chatIds, conversation_names: conversationNames,
-          format: bulkExportFormat, output_dir: outputDir, mode: bulkExportMode,
-        }
-      );
+      const params = {
+        udid, chat_ids: chatIds, conversation_names: conversationNames,
+        output_dir: outputDir, mode: bulkExportMode,
+      };
+      const result = bulkExportFormat === 'pdf'
+        ? await exportMessagesPdf('export_conversations', params)
+        : await sidecarCall<{ files: string[]; message_count: number }>(
+          'export_conversations', { ...params, format: bulkExportFormat }
+        );
       window.openextract.incrementExportCount();
       if (result) {
         const fileList = result.files.join('\n');
@@ -432,13 +444,15 @@ export default function MessageExplorer({ udid }: Props) {
                 </div>
                 <div className="relative group">
                   <button
-                    className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                    className="flex items-center gap-1.5 p-1.5 rounded-md hover:bg-gray-100 transition-colors"
                     disabled={exporting}
                   >
+                    {exporting && <span className="text-xs text-gray-400">Exporting...</span>}
                     <ExportIcon className="text-gray-500" size={16} />
                   </button>
                   <div className="hidden group-hover:block absolute right-0 top-full pt-1 z-10">
-                  <div className="bg-white border border-gray-200 rounded-md shadow-lg py-1">
+                  <div className="bg-white border border-gray-200 rounded-md shadow-lg py-1 whitespace-nowrap">
+                    <button onClick={() => handleExport('pdf')} className="block w-full px-3 py-1.5 text-sm text-left hover:bg-gray-50">PDF (with images)</button>
                     <button onClick={() => handleExport('html')} className="block w-full px-3 py-1.5 text-sm text-left hover:bg-gray-50">HTML</button>
                     <button onClick={() => handleExport('csv')} className="block w-full px-3 py-1.5 text-sm text-left hover:bg-gray-50">CSV</button>
                     <button onClick={() => handleExport('txt')} className="block w-full px-3 py-1.5 text-sm text-left hover:bg-gray-50">Text</button>
@@ -528,10 +542,11 @@ export default function MessageExplorer({ udid }: Props) {
                 <label className="text-xs text-gray-500">Format</label>
                 <select
                   value={bulkExportFormat}
-                  onChange={(e) => setBulkExportFormat(e.target.value as 'txt' | 'csv' | 'html')}
+                  onChange={(e) => setBulkExportFormat(e.target.value as ExportFormat)}
                   className="w-full mt-1 text-sm bg-gray-50 text-gray-900 rounded-md px-2 py-1.5 border border-gray-200 focus:outline-none focus:border-emerald-400"
                 >
                   <option value="html">HTML</option>
+                  <option value="pdf">PDF (with images)</option>
                   <option value="csv">CSV</option>
                   <option value="txt">Text</option>
                 </select>

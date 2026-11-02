@@ -25,6 +25,12 @@ class _FakeBackup:
             return self.photos_db
         return None
 
+    def list_files(self, domain=None, path_like=None):
+        # Every photo's original is in the backup, so the dashboard counts them all.
+        paths = [f"Media/DCIM/100APPLE/IMG_000{n}.HEIC" for n in range(1, 6)]
+        prefix = (path_like or "").rstrip("%")
+        return [{"hash": f"{n:040d}", "path": p} for n, p in enumerate(paths, 1) if p.startswith(prefix)]
+
 
 class TestPhotoLocation(unittest.TestCase):
 

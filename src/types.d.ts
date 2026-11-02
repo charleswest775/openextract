@@ -6,6 +6,11 @@ declare global {
   interface Window {
     openextract: {
       call: (method: string, params?: any) => Promise<{ success: boolean; data?: any; error?: string }>;
+      /** Export conversations as PDF; same params as export_conversation(s) minus format. */
+      exportPdf: (
+        method: 'export_conversation' | 'export_conversations',
+        params: any,
+      ) => Promise<{ success: boolean; data?: { files: string[]; message_count: number }; error?: string }>;
       selectFolder: () => Promise<string | null>;
       saveFolder: () => Promise<string | null>;
       saveFile: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<string | null>;

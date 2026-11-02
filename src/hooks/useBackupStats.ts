@@ -20,8 +20,11 @@ export interface BackupStatsOverview {
   size_gb: number;
   total_messages: number;
   total_conversations: number;
+  // Rows in the Photos library, including ones only in iCloud (#106).
   total_photos: number;
   total_videos: number;
+  // Photos and videos the backup has a file for: the Photos screen's count.
+  photos_in_backup: number;
   total_contacts: number;
   total_calls: number;
   total_notes: number;
@@ -44,6 +47,8 @@ export interface MessageStats {
   last_message_date: string | null;
 }
 
+// The photos the backup has a file for, like the Photos screen lists, except
+// total_photos/total_videos, which are rows in the Photos library (#106).
 export interface PhotoStats {
   by_kind: Record<string, number>;
   total_photos: number;

@@ -1,6 +1,7 @@
 import { useBackupStats, type BackupStats } from '../../hooks/useBackupStats';
 import CountUp from '../shared/CountUp';
 import OrganicLoader from '../shared/OrganicLoader';
+import { allOnlyInIcloud, moreOnlyInIcloud } from '../../lib/photoCounts';
 import {
   LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon, VoicemailIcon,
   LockIcon, ClockIcon,
@@ -170,6 +171,8 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 
 function DashboardContent({ stats, onNavigate }: { stats: BackupStats; onNavigate: (tab: string) => void }) {
   const { overview, messages, photos, calls, notes, voicemails } = stats;
+  // Library rows the backup has no file for (#106), as the Photos screen counts them.
+  const photosOnlyInIcloud = Math.max(overview.total_photos + overview.total_videos - overview.photos_in_backup, 0);
 
   const dateRange = (from: string | null, to: string | null) => {
     if (!from && !to) return '';
@@ -216,7 +219,7 @@ function DashboardContent({ stats, onNavigate }: { stats: BackupStats; onNavigat
         />
         <StatCard
           icon={CameraIcon}
-          value={overview.total_photos + overview.total_videos}
+          value={overview.photos_in_backup}
           label="Photos & Videos"
           onClick={() => onNavigate('photos')}
         />
@@ -298,45 +301,53 @@ function DashboardContent({ stats, onNavigate }: { stats: BackupStats; onNavigat
           </InsightCard>
         )}
 
-        {/* Photos Insight */}
+        {/* Photos Insight: the photos in the backup, as the tile counts them */}
         {(overview.total_photos + overview.total_videos) > 0 && (
           <InsightCard title="Photos & Videos" icon={CameraIcon} onViewAll={() => onNavigate('photos')}>
-            <div className="space-y-4">
-              {Object.keys(photos.by_kind).length > 0 && (
-                <div>
-                  <div className="text-xs font-medium text-gray-500 mb-2">Breakdown</div>
-                  {(() => {
-                    const kindColors: Record<string, string> = {
-                      photo: '#3b82f6',
-                      video: '#f97316',
-                      live_photo: '#8b5cf6',
-                      other: '#6b7280',
-                    };
-                    const items = Object.entries(photos.by_kind).map(([kind, count]) => ({
-                      label: kind.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()),
-                      value: count,
-                      color: kindColors[kind] || '#9ca3af',
-                    }));
-                    return <ProportionBar items={items} />;
-                  })()}
-                </div>
-              )}
+            {overview.photos_in_backup === 0 ? (
+              <p className="text-xs text-gray-500">{allOnlyInIcloud(photosOnlyInIcloud)}</p>
+            ) : (
+              <div className="space-y-4">
+                {Object.keys(photos.by_kind).length > 0 && (
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 mb-2">Breakdown</div>
+                    {(() => {
+                      const kindColors: Record<string, string> = {
+                        photo: '#3b82f6',
+                        video: '#f97316',
+                        live_photo: '#8b5cf6',
+                        other: '#6b7280',
+                      };
+                      const items = Object.entries(photos.by_kind).map(([kind, count]) => ({
+                        label: kind.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()),
+                        value: count,
+                        color: kindColors[kind] || '#9ca3af',
+                      }));
+                      return <ProportionBar items={items} />;
+                    })()}
+                  </div>
+                )}
 
-              <div className="border-t border-gray-100 pt-3 space-y-0.5">
-                {photos.total_favorites > 0 && (
-                  <MiniStat label="Favorites" value={photos.total_favorites.toLocaleString()} />
+                {photosOnlyInIcloud > 0 && (
+                  <p className="text-xs text-gray-500">{moreOnlyInIcloud(photosOnlyInIcloud)}</p>
                 )}
-                {photos.with_location > 0 && (
-                  <MiniStat label="With location" value={photos.with_location.toLocaleString()} />
-                )}
-                {photos.total_video_duration_seconds > 0 && (
-                  <MiniStat label="Video duration" value={formatDuration(photos.total_video_duration_seconds)} />
-                )}
-                {(photos.earliest_date || photos.latest_date) && (
-                  <MiniStat label="Date range" value={dateRange(photos.earliest_date, photos.latest_date)} />
-                )}
+
+                <div className="border-t border-gray-100 pt-3 space-y-0.5">
+                  {photos.total_favorites > 0 && (
+                    <MiniStat label="Favorites" value={photos.total_favorites.toLocaleString()} />
+                  )}
+                  {photos.with_location > 0 && (
+                    <MiniStat label="With location" value={photos.with_location.toLocaleString()} />
+                  )}
+                  {photos.total_video_duration_seconds > 0 && (
+                    <MiniStat label="Video duration" value={formatDuration(photos.total_video_duration_seconds)} />
+                  )}
+                  {(photos.earliest_date || photos.latest_date) && (
+                    <MiniStat label="Date range" value={dateRange(photos.earliest_date, photos.latest_date)} />
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </InsightCard>
         )}
 

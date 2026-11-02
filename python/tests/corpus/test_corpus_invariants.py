@@ -9,6 +9,7 @@ screens agree with each other, and that no value is impossible.
 import base64
 import os
 import shutil
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -439,6 +440,9 @@ def test_stats_agree_with_lists(ctx):
     ctx.require_open()
     overview = ctx.stats.get("overview", {})
     message_stats = ctx.stats.get("messages", {})
+    photo_stats = ctx.stats.get("photos", {})
+    photos = ctx.photos_result.get("photos", [])
+    photo_dates = sorted(d for p in photos if (d := parse_iso(p.get("date_created"))))
     expected = {
         "overview.total_conversations": (overview.get("total_conversations"), len(ctx.conversations)),
         "overview.total_messages": (overview.get("total_messages"), sum(c["message_count"] for c in ctx.conversations)),
@@ -451,8 +455,27 @@ def test_stats_agree_with_lists(ctx):
         "overview.total_contacts": (overview.get("total_contacts"), len(ctx.contacts)),
         "overview.total_notes": (overview.get("total_notes"), len(ctx.notes_result.get("notes", []))),
         "overview.total_voicemails": (overview.get("total_voicemails"), len(ctx.voicemails_result.get("voicemails", []))),
+        # The Photos tile shows photos_in_backup; total_photos + total_videos count library rows.
+        "overview.photos_in_backup": (overview.get("photos_in_backup"), ctx.photos_result.get("in_backup")),
         "overview.total_photos + total_videos": (
             (overview.get("total_photos") or 0) + (overview.get("total_videos") or 0), ctx.photos_result.get("total")
+        ),
+        # The Photos card describes the photos the Photos screen lists, not every library row.
+        "photos.by_kind total": (sum(photo_stats.get("by_kind", {}).values()), ctx.photos_result.get("in_backup")),
+        "photos.by_kind": (  # list_photos calls an unknown ZKIND "unknown", the stats "other"
+            photo_stats.get("by_kind"),
+            dict(Counter("other" if p.get("kind") == "unknown" else p.get("kind") for p in photos)),
+        ),
+        "photos.total_favorites": (photo_stats.get("total_favorites"), sum(1 for p in photos if p.get("favorite"))),
+        # The stats also count latitude 0 as no location.
+        "photos.with_location": (
+            photo_stats.get("with_location"), sum(1 for p in photos if p.get("latitude") not in (None, 0))
+        ),
+        "photos.earliest_date": (parse_iso(photo_stats.get("earliest_date")), photo_dates[0] if photo_dates else None),
+        "photos.latest_date": (parse_iso(photo_stats.get("latest_date")), photo_dates[-1] if photo_dates else None),
+        "photos.total_video_duration_seconds": (
+            round(photo_stats.get("total_video_duration_seconds") or 0, 1),
+            round(sum(p.get("duration") or 0 for p in photos if p.get("kind") == "video"), 1),
         ),
     }
     try:
@@ -495,6 +518,26 @@ def test_export_conversation_round_trip(ctx, tmp_path):
     assert exported.is_file() and exported.stat().st_size > 0, f"export didn't produce a file: {result}"
     shown = len(ctx.message_pages[biggest["chat_id"]]["messages"])
     assert result["message_count"] == shown, f"exported {result['message_count']} messages, the app shows {shown}"
+
+
+def test_exports_never_call_a_bare_message_an_attachment(ctx, tmp_path):
+    """Location sharing, group changes and audio messages missing from the backup
+    have no text and no attachment; exports say what they are, not "[Attachment]"."""
+    ctx.require_open()
+    bare = [m for m in ctx.messages if not m.get("text") and not m.get("attachments")]
+    if not bare:
+        pytest.skip("no messages without text or attachments")
+    chat_ids = sorted({m["chat_id"] for m in bare})
+    for fmt in ("html", "txt"):
+        result = ctx.rpc("export_conversations", chat_ids=chat_ids, format=fmt,
+                         output_dir=str(tmp_path), mode="merged")
+        assert "error" not in result, result
+        # Count, don't assert `not in content`: pytest would print the export.
+        called_attachment = Path(result["files"][0]).read_text(encoding="utf-8-sig").count("[Attachment]")
+        assert called_attachment == 0, (
+            f"{fmt} export calls {called_attachment} of {len(bare)} bare messages an attachment; "
+            f"their types: {dict(Counter(m.get('message_type') for m in bare))}"
+        )
 
 
 def _what_every_screen_shows(c) -> dict:

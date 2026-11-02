@@ -59,6 +59,7 @@ export default function PhotoExplorer({ udid }: Props) {
   const [notInBackup, setNotInBackup] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<string>('all');
   const [exporting, setExporting] = useState(false);
@@ -69,6 +70,8 @@ export default function PhotoExplorer({ udid }: Props) {
   const gridRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
   const mountedRef = useRef(true);
+  // Bumped by every load, so a load still running when the album changes drops its results.
+  const requestRef = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -89,13 +92,24 @@ export default function PhotoExplorer({ udid }: Props) {
   async function loadPhotos(offset: number, albumId?: string | null) {
     if (loadingRef.current) return;
     loadingRef.current = true;
+    const request = ++requestRef.current;
     setLoading(true);
+    setLoadError(null);
     try {
-      const result = await sidecarCall<PhotoPage>(
-        'list_photos',
-        { udid, offset, limit: BATCH_SIZE, album_id: albumId ?? undefined }
-      );
-      if (!mountedRef.current) return;
+      // offset and total count rows in the Photos library, not photos returned:
+      // the engine leaves out assets it can't show (Shared Album items, files
+      // not in the backup), so a page can come back short or even empty with
+      // more photos after it. Step by the page size and skip empty pages.
+      let next = offset;
+      let result: PhotoPage;
+      do {
+        result = await sidecarCall<PhotoPage>(
+          'list_photos',
+          { udid, offset: next, limit: BATCH_SIZE, album_id: albumId ?? undefined }
+        );
+        if (!mountedRef.current || request !== requestRef.current) return;
+        next += BATCH_SIZE;
+      } while (result.photos.length === 0 && next < result.total);
 
       if (offset === 0) {
         setPhotos(result.photos);
@@ -105,8 +119,8 @@ export default function PhotoExplorer({ udid }: Props) {
       setInBackup(result.in_backup ?? null);
       setNotInBackup(result.not_in_backup ?? 0);
       setTotal(result.total);
-      offsetRef.current = offset + result.photos.length;
-      setHasMore(offset + result.photos.length < result.total);
+      offsetRef.current = next;
+      setHasMore(next < result.total);
 
       // Hydrate state from module-level cache for photos we already have
       const cachedThumbs: Record<string, string> = {};
@@ -130,9 +144,17 @@ export default function PhotoExplorer({ udid }: Props) {
       if (needFetch.length > 0) {
         loadThumbnailBatch(needFetch);
       }
+    } catch (err: any) {
+      // Stop paging: retrying on every render would hammer a failing engine.
+      if (mountedRef.current && request === requestRef.current) {
+        setHasMore(false);
+        setLoadError(err?.message || 'Unknown error');
+      }
     } finally {
-      setLoading(false);
-      loadingRef.current = false;
+      if (request === requestRef.current) {
+        setLoading(false);
+        loadingRef.current = false;
+      }
     }
   }
 
@@ -258,6 +280,16 @@ export default function PhotoExplorer({ udid }: Props) {
     if (search && !p.filename.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+
+  // A short page (or a filter that hides most of it) can leave the grid too
+  // short to scroll, and then no scroll event comes to load the next page.
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el || loading || !hasMore) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
+      loadPhotos(offsetRef.current, selectedAlbum);
+    }
+  }, [filteredPhotos.length, loading, hasMore, selectedAlbum]);
 
   return (
     <div className="h-full flex flex-col">
@@ -391,7 +423,10 @@ export default function PhotoExplorer({ udid }: Props) {
               <OrganicLoader size={56} />
             </div>
           )}
-          {!loading && filteredPhotos.length === 0 && (
+          {loadError && (
+            <div className="text-center py-8 text-sm text-gray-400">Couldn't load more photos: {loadError}</div>
+          )}
+          {!loading && !loadError && !hasMore && filteredPhotos.length === 0 && (
             <div className="text-center py-8 text-sm text-gray-400">
               {shownCount === 0 && notInBackup > 0 ? allOnlyInIcloud(notInBackup) : 'No photos found'}
             </div>
