@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - Windows and Linux: typing in a text field no longer downloads spell-check dictionaries from Google. Text fields no longer underline misspelled words
+- Calls: calls from Teams, Skype and other apps show a readable name instead of unreadable characters
+- Calls: numbers saved in a national format, like 06 12 34 56 78, now match calls logged in international format, like +33 6 12 34 56 78
+- Calls: backups with the older call history format no longer fail to list their calls
 
 ## [0.8.0] - 2026-10-28
 
