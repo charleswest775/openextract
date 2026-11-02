@@ -6,6 +6,7 @@ const { pathToFileURL } = require('url');
 import { PythonSidecar } from './sidecar';
 import { initUpdater } from './updater';
 import { exportMessagesPdf, PdfExportMethod, removeStaleStagingDirs } from './pdfExport';
+import { FeedbackRecorder } from './feedback';
 
 let mainWindow: any = null;
 let sidecar: any = null;
@@ -79,7 +80,12 @@ const store = new JsonStore({
   updatesAutoCheck: null,
   // True once the "star or tell a friend" prompt has been shown. It shows at most once.
   sharePromptShown: false,
+  // True once the user picks "Don't ask again" on the "Did this export come out right?" card.
+  exportCheckOptOut: false,
 });
+
+// The export check shows at most once per run, and never on the same export as the share prompt.
+let exportCheckShownThisRun = false;
 
 function createWindow() {
   Menu.setApplicationMenu(null);
@@ -169,6 +175,7 @@ app.whenReady().then(async () => {
   // Start the Python sidecar
   const logPath = path.join(app.getPath('userData'), 'python_log.txt');
   sidecar = new PythonSidecar(getPythonPath(), getPythonArgs(), logPath);
+  const feedback = new FeedbackRecorder(logPath, app.getVersion());
 
   sidecar.notificationHandler = (notification: any) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -202,6 +209,7 @@ app.whenReady().then(async () => {
     try {
       const timeoutMs = method === 'backup.start' ? 7_200_000 : undefined;
       const result = await sidecar.call(method, params, timeoutMs);
+      feedback.recordCall(method, params, { ok: true, result });
       if (method === 'open_backup') {
         const ts = new Date().toTimeString().slice(0, 8);
         const status = (result as any)?.status ?? 'unknown';
@@ -211,6 +219,7 @@ app.whenReady().then(async () => {
       return { success: true, data: result };
     } catch (error: any) {
       console.error(`Sidecar call failed: ${method}`, error);
+      feedback.recordCall(method, params, { ok: false, error: String(error?.message ?? error) });
       if (method === 'open_backup') {
         const ts = new Date().toTimeString().slice(0, 8);
         fs.appendFileSync(logPath,
@@ -228,6 +237,7 @@ app.whenReady().then(async () => {
       return { success: true, data };
     } catch (error: any) {
       console.error('PDF export failed', error);
+      feedback.recordCall(`pdf:${method}`, params, { ok: false, error: String(error?.message ?? error) });
       return { success: false, error: error?.message || String(error) };
     }
   });
@@ -337,7 +347,18 @@ app.whenReady().then(async () => {
     return store.get('sessions', []);
   });
 
-  ipcMain.handle('increment-export-count', (event: any) => {
+  // ── In-app feedback ─────────────────────────────────────────────────────
+  // Returns the scrubbed facts for the feedback form. The renderer shows them to
+  // the user, who sends the report from their own browser or email app.
+  ipcMain.handle('feedback:get-diagnostics', (_event: any, reportedError?: string) => {
+    return feedback.diagnostics(typeof reportedError === 'string' ? reportedError : undefined);
+  });
+
+  ipcMain.handle('feedback:export-check-opt-out', () => {
+    store.set('exportCheckOptOut', true);
+  });
+
+  ipcMain.handle('increment-export-count', (event: any, area?: string) => {
     const stats = store.get('stats', { totalExports: 0 }) as any;
     stats.totalExports = (stats.totalExports || 0) + 1;
     store.set('stats', stats);
@@ -346,6 +367,11 @@ app.whenReady().then(async () => {
     if (!store.get('sharePromptShown', false)) {
       store.set('sharePromptShown', true);
       event.sender.send('share-prompt:show');
+    } else if (!exportCheckShownThisRun && !store.get('exportCheckOptOut', false)) {
+      // "Did this export come out right?" catches exports that finish without
+      // an error but come out empty or wrong. The answer stays on this computer.
+      exportCheckShownThisRun = true;
+      event.sender.send('export-check:show', typeof area === 'string' ? area : undefined);
     }
     return stats.totalExports;
   });

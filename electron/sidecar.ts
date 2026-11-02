@@ -66,6 +66,10 @@ export class PythonSidecar {
       this.process.on('exit', (code: number) => {
         console.log(`Python sidecar exited with code ${code}`);
         require('fs').appendFileSync(this.logPath, `[EXIT] code ${code}\n`);
+        // `killed` stays false when the engine exits on its own (a crash), so
+        // without this, later calls would be written to a dead process and
+        // hang until their timeout instead of failing right away.
+        this.process = null;
         // Reject all pending requests
         for (const [id, req] of this.pending) {
           clearTimeout(req.timeout);

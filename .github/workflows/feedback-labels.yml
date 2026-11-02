@@ -1,0 +1,72 @@
+name: Label in-app feedback
+
+# Feedback opened from the app (.github/ISSUE_TEMPLATE/in_app_feedback.yml)
+# says what kind it is and which part of the app it's about. This turns those
+# answers into the labels triage uses. Only labels from the lists below are
+# ever added, whatever the issue text says. Runs on "opened" only, so a label
+# a maintainer removes stays removed.
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  label:
+    if: contains(github.event.issue.body, '### Part of the app')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            // Kind and area names must match FEEDBACK_KINDS / FEEDBACK_AREAS in src/lib/feedback.ts
+            // (scripts/feedback.test.mjs checks this).
+            const KIND_LABELS = {
+              "Something's broken": ['bug'],
+              "Something in my backup is missing or wrong": ['bug'],
+              "An idea or request": ['enhancement'],
+              "Something else": [],
+            };
+            const AREA_LABELS = {
+              'The app in general': ['ui'],
+              'Opening a backup': ['python-engine'],
+              'Making a backup': ['python-engine'],
+              'Overview': ['ui'],
+              'Timeline': ['ui'],
+              'Year': ['ui'],
+              'Messages': ['messages'],
+              'Photos': ['photos'],
+              'Contacts': ['python-engine'],
+              'Calls': ['python-engine'],
+              'Notes': ['python-engine'],
+              'Voicemail': ['voicemail'],
+              'Browser history': ['python-engine'],
+              'Recovering deleted messages': ['messages'],
+              'Exporting': ['export'],
+            };
+
+            const body = context.payload.issue.body || '';
+            // Issue forms render each field as "### <label>\n\n<answer>".
+            const field = (heading) => {
+              const at = body.indexOf(`### ${heading}`);
+              if (at < 0) return '';
+              const rest = body.slice(at + heading.length + 4).replace(/^\s+/, '');
+              return rest.split('\n')[0].trim();
+            };
+
+            const labels = new Set(['feedback']);
+            for (const l of KIND_LABELS[field('Type')] || []) labels.add(l);
+            for (const l of AREA_LABELS[field('Part of the app')] || []) labels.add(l);
+            // An iOS version newer than anything we've tested is worth a look on its own.
+            const ios = body.match(/· iOS (\d+)/);
+            if (ios && Number(ios[1]) >= 27) labels.add('ios-compat');
+
+            await github.rest.issues.addLabels({
+              ...context.repo,
+              issue_number: context.issue.number,
+              labels: [...labels],
+            });
+            core.info(`Added labels: ${[...labels].join(', ')}`);

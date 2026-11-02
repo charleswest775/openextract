@@ -56,7 +56,8 @@ contextBridge.exposeInMainWorld('openextract', {
   addSession: (session: any) => ipcRenderer.invoke('add-session', session),
   removeSession: (id: string) => ipcRenderer.invoke('remove-session', id),
   getRecentSessions: () => ipcRenderer.invoke('get-recent-sessions'),
-  incrementExportCount: () => ipcRenderer.invoke('increment-export-count'),
+  // `area` (e.g. 'calls') only labels the follow-up "did it come out right?" card.
+  incrementExportCount: (area?: string) => ipcRenderer.invoke('increment-export-count', area),
 
   // One-time "star or tell a friend" prompt after the first successful export.
   onSharePrompt: (callback: () => void) => {
@@ -65,6 +66,18 @@ contextBridge.exposeInMainWorld('openextract', {
     return () => ipcRenderer.removeListener('share-prompt:show', listener);
   },
 
-  // Clipboard (used by the share prompt's Copy link)
+  // In-app feedback. Nothing is sent from the app: the renderer opens a
+  // pre-filled GitHub issue or email in the user's own browser or mail app.
+  feedback: {
+    getDiagnostics: (reportedError?: string) => ipcRenderer.invoke('feedback:get-diagnostics', reportedError),
+    optOutOfExportCheck: () => ipcRenderer.invoke('feedback:export-check-opt-out'),
+    onExportCheck: (callback: (area?: string) => void) => {
+      const listener = (_event: any, area?: string) => callback(area);
+      ipcRenderer.on('export-check:show', listener);
+      return () => ipcRenderer.removeListener('export-check:show', listener);
+    },
+  },
+
+  // Clipboard (used by the share prompt's Copy link and the feedback form)
   copyText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
 });

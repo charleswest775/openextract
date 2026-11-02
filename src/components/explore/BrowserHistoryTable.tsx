@@ -30,7 +30,7 @@ export default function BrowserHistoryTable({
     setExporting(true);
     try {
       await window.openextract.call('export_browser_history', { udid, output_dir: outputDir });
-      window.openextract.incrementExportCount();
+      window.openextract.incrementExportCount('browser_history');
     } finally {
       setExporting(false);
     }

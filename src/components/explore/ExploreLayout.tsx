@@ -19,6 +19,8 @@ import TimelineView from '../timeline/TimelineView';
 import YearView, { DEFAULT_YEAR_SELECTION, YearSelection } from '../year/YearView';
 import type { TimelineFilters } from '../../types/timeline';
 import type { HistoryVisit } from '../../lib/browserHistoryStats';
+import { MessageSquare } from 'lucide-react';
+import { useFeedback } from '../shared/Feedback';
 
 type Tab = 'dashboard' | 'timeline' | 'year' | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'record_recovery' | 'export';
 
@@ -54,6 +56,7 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
     setActiveTab(tab);
   };
   const handleNavigate = (tab: string) => openTab(tab as Tab);
+  const { openFeedback } = useFeedback();
   const [hasBrowserHistory, setHasBrowserHistory] = useState(false);
   const [preloadedBrowserHistory, setPreloadedBrowserHistory] = useState<HistoryVisit[] | null>(null);
   const [browserHistoryPreloading, setBrowserHistoryPreloading] = useState(false);
@@ -147,6 +150,15 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
               );
             })}
             <div className="flex-1" />
+            {/* Feedback about whatever is on screen */}
+            <button
+              onClick={() => openFeedback({ area: activeTab })}
+              title="Send feedback"
+              className="w-[68px] h-[52px] rounded-[12px] flex flex-col items-center justify-center gap-[3px] text-text-secondary hover:bg-surface transition-colors border border-transparent"
+            >
+              <MessageSquare size={15} />
+              <span className="text-[10px]">Feedback</span>
+            </button>
             {/* Back home */}
             <button
               onClick={onBack}

@@ -8,6 +8,7 @@ import { formatDate } from '../../lib/dates';
 import { saveFolder } from '../../lib/ipc';
 import { formatTimeline, FORMAT_FILTERS, ExportFormat } from '../../lib/timelineExport';
 import OrganicLoader from '../shared/OrganicLoader';
+import { ReportProblemButton } from '../shared/Feedback';
 
 interface Props {
   udid: string;
@@ -82,7 +83,7 @@ export default function TimelineView({ udid, startingFilters }: Props) {
           content,
         });
       }
-      await window.openextract.incrementExportCount();
+      await window.openextract.incrementExportCount('timeline');
     } catch (e: any) {
       console.error('Timeline export failed:', e);
     } finally {
@@ -202,6 +203,7 @@ export default function TimelineView({ udid, startingFilters }: Props) {
             }}>
               <AlertTriangle size={13} style={{ color: 'var(--error)', flexShrink: 0 }} />
               {LOADING_LABELS[type]}: {msg}
+              <ReportProblemButton error={`${LOADING_LABELS[type]}: ${msg}`} area="timeline" className="ml-1" />
             </div>
           ))}
         </div>
