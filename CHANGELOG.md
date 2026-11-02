@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- After the first successful export, a one-time card asks for a GitHub star or a word to a friend (Star on GitHub, Copy link, Get release notes, Not now). It shows once, is remembered on this computer, and sends nothing anywhere
 - Website: eight how-to guides under /use-cases (printing texts for court, saving voicemails, texts to a Windows PC, a Windows backup viewer, recovering deleted texts, keeping messages when moving to Android, iMessage to PDF, finding a backup on Windows), linked from the blog and listed in the sitemap
 
 ### Fixed
