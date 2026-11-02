@@ -63,20 +63,9 @@ jobs:
           cache-key: flatpak-builder-${{ github.sha }}
           upload-artifact: true
           # Flathub's build bot copies the store screenshots to its own
-          # server and the repo linter checks for that, so do the same.
+          # server and the repo linter checks for that, so do the same. The
+          # action also commits them to the repo's screenshots ref.
           mirror-screenshots-url: https://dl.flathub.org/media/
-
-      # Newer flatpak-builder commits the mirrored screenshots to the repo
-      # itself; older ones need it done by hand.
-      - name: Keep the mirrored screenshots in the repo
-        run: |
-          if ostree refs --repo=repo | grep -q '^screenshots/'; then
-            echo "screenshots ref already there"
-          else
-            ostree commit --repo=repo --canonical-permissions \
-              --branch=screenshots/x86_64 flatpak_app/files/share/app-info/media
-          fi
-          ostree refs --repo=repo
 
       - name: Lint the built repo
         run: |
