@@ -3,7 +3,7 @@ import type { RecentSession } from '../../lib/appState';
 import {
   LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon,
   VoicemailIcon, GlobeIcon, ClockIcon, ChartIcon, ArrowLeftIcon, ExportIcon,
-  RecoverIcon,
+  RecoverIcon, HeartIcon,
 } from '../shared/Icons';
 import BackupDashboard from './BackupDashboard';
 import MessageExplorer from './MessageExplorer';
@@ -13,12 +13,13 @@ import CallExplorer from './CallExplorer';
 import NoteExplorer from './NoteExplorer';
 import VoicemailExplorer from './VoicemailExplorer';
 import BrowserHistoryExplorer from './BrowserHistoryExplorer';
+import HealthExplorer from './HealthExplorer';
 import RecordRecoveryView from './RecordRecoveryView';
 import ExportPanel from './ExportPanel';
 import TimelineView from '../timeline/TimelineView';
 import type { HistoryVisit } from '../../lib/browserHistoryStats';
 
-type Tab = 'dashboard' | 'timeline' | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'record_recovery' | 'export';
+type Tab = 'dashboard' | 'timeline' | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'health' | 'record_recovery' | 'export';
 
 interface Props {
   udid: string;
@@ -36,6 +37,7 @@ const allNavItems: { id: Tab; label: string; icon: typeof LinesIcon; comingSoon?
   { id: 'notes', label: 'Notes', icon: NoteIcon },
   { id: 'voicemail', label: 'Voicemail', icon: VoicemailIcon },
   { id: 'browser_history', label: 'History', icon: GlobeIcon },
+  { id: 'health', label: 'Health', icon: HeartIcon },
   { id: 'record_recovery', label: 'Recover', icon: RecoverIcon },
   { id: 'export', label: 'Export', icon: ExportIcon },
 ];
@@ -170,6 +172,7 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
               />
             )}
             {activeTab === 'record_recovery' && <RecordRecoveryView udid={udid} />}
+            {activeTab === 'health' && <HealthExplorer udid={udid} />}
             {activeTab === 'export' && <ExportPanel udid={udid} />}
           </div>
         </div>
