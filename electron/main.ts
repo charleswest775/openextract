@@ -1,5 +1,5 @@
 export {};
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, protocol, net, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, protocol, net, session, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -94,6 +94,9 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // Chromium's spell checker downloads dictionaries from Google on Windows
+      // and Linux. The app promises no network calls beyond update checks.
+      spellcheck: false,
     },
   });
 
@@ -139,6 +142,15 @@ function getPythonArgs(): string[] {
 }
 
 app.whenReady().then(async () => {
+  // Belt and braces for the spellcheck: false above: with no languages set,
+  // the default session has no dictionary to fetch. No-op on macOS.
+  try {
+    session.defaultSession.setSpellCheckerEnabled(false);
+    session.defaultSession.setSpellCheckerLanguages([]);
+  } catch {
+    // macOS uses the system spell checker and rejects language changes.
+  }
+
   // Register custom protocol to serve local media files (videos, images)
   // This avoids web security issues with file:// URLs
   protocol.handle('local-media', (request: any) => {
