@@ -3,6 +3,7 @@ import { sidecarCall, saveFolder, exportMessagesPdf } from '../../lib/ipc';
 import { formatRelative, formatDate } from '../../lib/dates';
 import { SearchIcon, ExportIcon } from '../shared/Icons';
 import ChatBubble from './ChatBubble';
+import SearchAllMessages, { SEARCH_LIMIT, type MessageTarget } from './SearchAllMessages';
 
 interface Conversation {
   chat_id: number;
@@ -36,9 +37,11 @@ const LOAD_MORE_SIZE = 200;
 
 interface Props {
   udid: string;
+  /** A conversation (and message) to open on arrival, from a search on the Overview. */
+  openTarget?: MessageTarget | null;
 }
 
-export default function MessageExplorer({ udid }: Props) {
+export default function MessageExplorer({ udid, openTarget }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeChat, setActiveChat] = useState<number | null>(null);
@@ -46,6 +49,10 @@ export default function MessageExplorer({ udid }: Props) {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  // The query whose matches are showing in place of the conversation
+  const [searchedFor, setSearchedFor] = useState<string | null>(null);
+  // Message to scroll to and mark, when the conversation was opened from a search result
+  const [focusedMessageId, setFocusedMessageId] = useState<number | null>(null);
   const [convoSearch, setConvoSearch] = useState('');
   const [minMessageCount, setMinMessageCount] = useState(0);
   const [convDateFilter, setConvDateFilter] = useState('');
@@ -68,6 +75,10 @@ export default function MessageExplorer({ udid }: Props) {
     loadConversations();
   }, [udid]);
 
+  useEffect(() => {
+    if (openTarget) openFromSearch(openTarget);
+  }, [openTarget]);
+
   async function loadConversations() {
     setLoading(true);
     try {
@@ -78,13 +89,21 @@ export default function MessageExplorer({ udid }: Props) {
     }
   }
 
-  // Scroll to bottom after messages update when switching conversations
+  // Scroll to bottom after messages update when switching conversations, or to
+  // the message a search result pointed at when it's in the loaded page.
+  // Skips the empty list set while the next conversation loads, and waits for
+  // the conversation list when a search result opened a chat before it arrived.
   useEffect(() => {
-    if (scrollToBottomRef.current && messageContainerRef.current) {
+    const container = messageContainerRef.current;
+    if (scrollToBottomRef.current && container && messages.length > 0) {
       scrollToBottomRef.current = false;
-      messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
+      const target = focusedMessageId !== null
+        ? container.querySelector(`[data-message-id="${focusedMessageId}"]`)
+        : null;
+      if (target) target.scrollIntoView({ block: 'center' });
+      else container.scrollTop = container.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, conversations]);
 
   async function loadMessages(chatId: number, offset = 0) {
     setLoading(true);
@@ -94,6 +113,8 @@ export default function MessageExplorer({ udid }: Props) {
       setHasMore(false);
       setActiveChat(chatId);
       setSearch('');
+      setSearchedFor(null);
+      setFocusedMessageId(null);
       offsetRef.current = 0;
       epochRef.current += 1;
       scrollToBottomRef.current = true;
@@ -122,17 +143,24 @@ export default function MessageExplorer({ udid }: Props) {
     }
   }
 
+  function openFromSearch(target: MessageTarget) {
+    loadMessages(target.chatId);
+    setFocusedMessageId(target.messageId);
+  }
+
+  // Searches the open conversation; with none open, SearchAllMessages searches them all
   async function handleSearch() {
     if (!search.trim()) return;
     setLoading(true);
     epochRef.current += 1;
     try {
       const result = await sidecarCall<{ results: Message[] }>(
-        'search_messages', { udid, query: search, chat_id: activeChat ?? undefined, limit: 500 }
+        'search_messages', { udid, query: search, chat_id: activeChat ?? undefined, limit: SEARCH_LIMIT }
       );
       setMessages(result.results);
       setTotalMessages(result.results.length);
       setHasMore(false);
+      setSearchedFor(search.trim());
     } finally {
       setLoading(false);
     }
@@ -426,8 +454,25 @@ export default function MessageExplorer({ udid }: Props) {
                   {activeConvo.display_name || activeConvo.chat_identifier}
                 </div>
                 <div className="text-xs text-text-secondary truncate mt-0.5">
-                  {totalMessages.toLocaleString()} messages
-                  {activeConvo.is_group && ' · Group'}
+                  {searchedFor !== null ? (
+                    <>
+                      {totalMessages >= SEARCH_LIMIT
+                        ? `Showing the first ${SEARCH_LIMIT} matches`
+                        : `${totalMessages.toLocaleString()} ${totalMessages === 1 ? 'match' : 'matches'}`}
+                      {` for "${searchedFor}" · `}
+                      <button
+                        onClick={() => activeChat !== null && loadMessages(activeChat)}
+                        className="text-emerald-600 hover:text-emerald-700"
+                      >
+                        Show all messages
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {totalMessages.toLocaleString()} messages
+                      {activeConvo.is_group && ' · Group'}
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
@@ -435,7 +480,7 @@ export default function MessageExplorer({ udid }: Props) {
                   <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                   <input
                     type="text"
-                    placeholder="Search messages..."
+                    placeholder="Search this conversation"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -475,12 +520,18 @@ export default function MessageExplorer({ udid }: Props) {
                     <span className="text-[11px] text-gray-400 bg-gray-50 px-2.5 py-0.5 rounded-full">{group.date}</span>
                   </div>
                   {group.messages.map((msg) => (
-                    <ChatBubble
+                    <div
                       key={msg.message_id}
-                      message={msg}
-                      showSender={activeConvo.is_group}
-                      udid={udid}
-                    />
+                      data-message-id={msg.message_id}
+                      className="rounded-lg transition-colors"
+                      style={msg.message_id === focusedMessageId ? { background: 'var(--accent-subtle)' } : undefined}
+                    >
+                      <ChatBubble
+                        message={msg}
+                        showSender={activeConvo.is_group}
+                        udid={udid}
+                      />
+                    </div>
                   ))}
                 </div>
               ))}
@@ -488,11 +539,20 @@ export default function MessageExplorer({ udid }: Props) {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center text-gray-400">
-              <LinesIconPlaceholder />
-              <p className="text-sm mt-2">Select a conversation to view messages</p>
-            </div>
+          <div className="flex-1 min-h-0 p-5">
+            <SearchAllMessages
+              udid={udid}
+              onOpen={openFromSearch}
+              fill
+              placeholder={
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center text-gray-400">
+                    <LinesIconPlaceholder />
+                    <p className="text-sm mt-2">Select a conversation to view messages, or search them all</p>
+                  </div>
+                </div>
+              }
+            />
           </div>
         )}
       </div>

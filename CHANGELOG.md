@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 - After the first successful export, a one-time card asks for a GitHub star or a word to a friend (Star on GitHub, Copy link, Get release notes, Not now). It shows once, is remembered on this computer, and sends nothing anywhere
+- Search all your messages from the Overview screen as soon as a backup opens: each match shows the conversation, sender, date and the message with your words highlighted, and clicking one opens that conversation. The Messages view searches every conversation when none is selected, and says when it is showing only the first 500 matches
 
 ### Fixed
 - Windows and Linux: typing in a text field no longer downloads spell-check dictionaries from Google. Text fields no longer underline misspelled words
