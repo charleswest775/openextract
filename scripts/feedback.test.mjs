@@ -1,5 +1,5 @@
 // Tests for the in-app feedback report: what gets scrubbed, what the log
-// excerpt keeps, and that the GitHub/email links stay within their limits.
+// excerpt keeps, and that the GitHub link stays within its limit.
 // Run with: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -173,10 +173,7 @@ test('long reports are shortened to fit and say so', () => {
   assert.match(diagnostics, /full report is on your clipboard/);
   assert.equal((diagnostics.match(/```/g) || []).length % 2, 0);
 
-  const mail = lib.mailtoUrl(form);
-  assert.ok(mail.url.length <= lib.MAILTO_URL_BUDGET, `mailto url ${mail.url.length}`);
-  assert.equal(mail.shortened, true);
-  assert.match(decodeURIComponent(mail.url), /What happened:\nIt crashed/);
+  assert.match(lib.fullReport(form), /What happened:\nIt crashed\n/);
 });
 
 test('a very long description still fits in the GitHub link', () => {

@@ -1,8 +1,8 @@
 import type { FeedbackDiagnostics } from '../types';
 
 /**
- * Builds the feedback report and the links that hand it to the user's browser
- * or mail app. OpenExtract never sends it: the user sees the full text in the
+ * Builds the feedback report and the link that opens it as a GitHub issue in
+ * the user's browser. OpenExtract never sends it: the user sees the full text in the
  * form, can edit it, and submits it themselves.
  *
  * The GitHub issue form (.github/ISSUE_TEMPLATE/in_app_feedback.yml) and the
@@ -11,7 +11,6 @@ import type { FeedbackDiagnostics } from '../types';
  */
 
 export const FEEDBACK_REPO = 'charleswest775/openextract';
-export const FEEDBACK_EMAIL = 'feedback@openextract.app';
 export const FEEDBACK_TEMPLATE = 'in_app_feedback.yml';
 
 export type FeedbackKind = 'broken' | 'missing' | 'idea' | 'other';
@@ -59,10 +58,8 @@ export interface FeedbackForm {
   diagnostics: string;
 }
 
-// GitHub rejects issue URLs much over 8 KB. Windows hands mailto: links to the
-// mail app through a ~2 KB limit, so emails get a much smaller budget.
+// GitHub rejects issue URLs much over 8 KB.
 export const GITHUB_URL_BUDGET = 7500;
-export const MAILTO_URL_BUDGET = 1900;
 export const SHORTENED_NOTE = '\n\n(Shortened to fit. The full report is on your clipboard; paste it here to include the rest.)';
 
 export function kindLabel(kind: FeedbackKind): string {
@@ -147,7 +144,7 @@ function fitToBudget(text: string, budget: number, build: (t: string) => string)
   return { text: closeFence(cut) + SHORTENED_NOTE, shortened: true };
 }
 
-/** The full report, used for the clipboard copy and the email body. */
+/** The full report, put on the clipboard so nothing is lost if the link is shortened. */
 export function fullReport(form: FeedbackForm): string {
   return [
     `Type: ${kindLabel(form.kind)}`,
@@ -178,12 +175,4 @@ export function githubIssueUrl(form: FeedbackForm): { url: string; shortened: bo
   // Very long description: shorten that too. The clipboard still has all of it.
   const details = fitToBudget(form.details, GITHUB_URL_BUDGET, t => build(SHORTENED_NOTE.trim(), t));
   return { url: build(SHORTENED_NOTE.trim(), details.text), shortened: true };
-}
-
-export function mailtoUrl(form: FeedbackForm): { url: string; shortened: boolean } {
-  const subject = `OpenExtract feedback: ${areaLabel(form.area)} (${kindLabel(form.kind)})`;
-  const build = (body: string) =>
-    `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  const fitted = fitToBudget(fullReport(form), MAILTO_URL_BUDGET, build);
-  return { url: build(fitted.text), shortened: fitted.shortened };
 }

@@ -95,10 +95,6 @@ gh issue list --state open --label feedback --limit 100 --json number,title,labe
   message text or an un-scrubbed path, recommend editing it out immediately (maintainer edit)
   and note which pattern slipped through so `electron/feedback.ts` `scrubText` can be fixed.
 - **Ideas** (`enhancement`) → merge into an existing feature issue if one matches, else keep.
-- **Email reports** (subject `OpenExtract feedback: …`, sent to the address in
-  `src/lib/feedback.ts`) have the same format. If a mail connector is available, list them
-  too and propose filing each actionable one as an issue (scrubbed), never posting the
-  sender's address.
 
 For each feedback group the recommendation is one of: **fix** (with the suspected file and a
 one-line plan), **needs info** (drafted reply asking for exactly what's missing), **duplicate**,

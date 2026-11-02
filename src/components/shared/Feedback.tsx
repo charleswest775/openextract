@@ -1,14 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { MessageSquare } from 'lucide-react';
 import {
-  FEEDBACK_AREAS, FEEDBACK_EMAIL, FEEDBACK_KINDS, formatDiagnostics, fullReport, githubIssueUrl, mailtoUrl,
+  FEEDBACK_AREAS, FEEDBACK_KINDS, formatDiagnostics, fullReport, githubIssueUrl,
   type FeedbackArea, type FeedbackForm, type FeedbackKind, type FeedbackRequest,
 } from '../../lib/feedback';
 
 /**
  * In-app feedback. Any component can open the form with useFeedback(), or show
  * <ReportProblemButton> next to an error. The form opens a pre-filled GitHub
- * issue or email in the user's own browser or mail app; OpenExtract itself
+ * issue in the user's own browser; OpenExtract itself
  * sends nothing, and the user sees and can edit every word first.
  */
 
@@ -50,7 +50,7 @@ export function ReportProblemButton({ error, area, className = '' }: {
   );
 }
 
-type Sent = { via: 'github' | 'email'; shortened: boolean } | null;
+type Sent = { shortened: boolean } | null;
 
 function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClose: () => void }) {
   const [kind, setKind] = useState<FeedbackKind>(request.kind ?? 'broken');
@@ -93,23 +93,22 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
     }
   };
 
-  const send = async (via: 'github' | 'email') => {
+  const send = async () => {
     if (!ready) return;
-    // Copy first: if the link had to be shortened, or the browser/mail app
-    // doesn't open, the whole report is still on the clipboard.
+    // Copy first: if the link had to be shortened, or the browser doesn't
+    // open, the whole report is still on the clipboard.
     await copyReport();
-    const { url, shortened } = via === 'github' ? githubIssueUrl(form) : mailtoUrl(form);
+    const { url, shortened } = githubIssueUrl(form);
     window.openextract.openExternal(url);
-    setSent({ via, shortened });
+    setSent({ shortened });
   };
 
   if (sent) {
     return (
       <Shell onClose={onClose}>
         <p className="text-sm text-text-primary mb-2">
-          {sent.via === 'github'
-            ? 'Your browser should now show the report on GitHub. Check it over, then click "Create" to send it.'
-            : `Your email app should now have a message to ${FEEDBACK_EMAIL}. Check it over, then send it.`}
+          Your browser should now show the report on GitHub. Check it over, then click "Create" to send it.
+          If GitHub asks you to sign in, you'll come back to the report afterwards.
         </p>
         <p className="text-xs text-text-secondary mb-4">
           {sent.shortened
@@ -188,8 +187,9 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
       </label>
 
       <p className="text-xs text-text-secondary mb-4">
-        OpenExtract doesn't send this itself. It opens the report in your browser or email app so
-        you can check it before sending. GitHub reports are public.
+        OpenExtract doesn't send this itself. It opens the report on GitHub in your browser so you
+        can check it before sending. GitHub reports are public, and you need a free GitHub account
+        to send one.
       </p>
 
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -205,10 +205,7 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
         >
           {copied ? 'Copied' : 'Copy report'}
         </button>
-        <button className="hearth-ghost-btn" disabled={!ready} onClick={() => send('email')} title="For people without a GitHub account">
-          Send by email instead
-        </button>
-        <button className="hearth-primary-btn" disabled={!ready} onClick={() => send('github')}>
+        <button className="hearth-primary-btn" disabled={!ready} onClick={() => send()}>
           Open on GitHub
         </button>
       </div>
