@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=OpenExtract
+Comment=Get your texts, photos and voicemails off an iPhone backup and search them
+Exec=openextract %U
+Terminal=false
+Type=Application
+Icon=app.openextract.OpenExtract
+StartupWMClass=OpenExtract
+Categories=Utility;
+Keywords=iPhone;iMessage;SMS;text messages;backup;voicemail;photos;export;
