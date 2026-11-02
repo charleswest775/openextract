@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { saveFolder, sidecarCall } from '../../lib/ipc';
 import { ArrowLeftIcon, PhoneIcon, FolderIcon, LockIcon, DownloadIcon } from '../shared/Icons';
+import { ReportProblemButton } from '../shared/Feedback';
 
 interface DeviceInfo {
   udid: string;
@@ -356,6 +357,10 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                 <p className="text-xs text-gray-500 mt-0.5">
                   {backupError?.replace(/^(TRUST_REQUIRED|PASSCODE_REQUIRED): /, '')}
                 </p>
+                {/* Trust/passcode prompts are steps on the phone, not bugs. */}
+                {!backupError?.match(/^(TRUST_REQUIRED|PASSCODE_REQUIRED):/) && (
+                  <ReportProblemButton error={backupError} area="create_backup" className="mt-1.5" />
+                )}
               </div>
             </div>
           )}

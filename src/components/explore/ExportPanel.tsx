@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { saveFolder, sidecarCall } from '../../lib/ipc';
 import { photoExportSummary, PhotoExportResult } from '../../lib/photoCounts';
+import { ReportProblemButton } from '../shared/Feedback';
 import { ExportIcon, LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon, GlobeIcon, ContactIcon } from '../shared/Icons';
 
 interface Props {
@@ -22,9 +23,11 @@ const exportOptions: { id: ExportType; label: string; description: string; icon:
 export default function ExportPanel({ udid }: Props) {
   const [exporting, setExporting] = useState<ExportType | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [lastType, setLastType] = useState<ExportType>('messages');
 
   async function handleExport(type: ExportType) {
     setExporting(type);
+    setLastType(type);
     setStatus(null);
     try {
       if (type === 'notes') {
@@ -60,7 +63,7 @@ export default function ExportPanel({ udid }: Props) {
       `Title: ${n.title}\nCreated: ${n.created}\nModified: ${n.modified}\n${'='.repeat(40)}\n\n${n.body}`
     ).join('\n\n' + '-'.repeat(60) + '\n\n');
     await window.openextract.writeFile(filePath, content);
-    window.openextract.incrementExportCount();
+    window.openextract.incrementExportCount('notes');
     setStatus(`${notes.length} notes exported successfully`);
   }
 
@@ -102,7 +105,7 @@ export default function ExportPanel({ udid }: Props) {
     } finally {
       document.body.style.cursor = '';
     }
-    window.openextract.incrementExportCount();
+    window.openextract.incrementExportCount('messages');
     setStatus(`Messages exported successfully`);
   }
 
@@ -131,7 +134,7 @@ export default function ExportPanel({ udid }: Props) {
       ].map(v => csvEscape(v || '')).join(','));
     }
     await window.openextract.writeFile(filePath, rows.join('\n'));
-    window.openextract.incrementExportCount();
+    window.openextract.incrementExportCount('contacts');
     setStatus(`${contacts.length} contacts exported successfully`);
   }
 
@@ -170,7 +173,7 @@ export default function ExportPanel({ udid }: Props) {
         return;
     }
     const result = await sidecarCall(method, params);
-    window.openextract.incrementExportCount();
+    window.openextract.incrementExportCount(type);
     if (type === 'photos') {
       setStatus(`Photos: ${photoExportSummary(result as PhotoExportResult)}`);
     } else {
@@ -211,6 +214,9 @@ export default function ExportPanel({ udid }: Props) {
         {status && (
           <div className={`mt-4 text-sm ${status.includes('failed') ? 'text-apple-error' : 'text-apple-success'}`}>
             {status}
+            {status.includes('failed') && (
+              <ReportProblemButton error={status} area={lastType} className="ml-2" />
+            )}
           </div>
         )}
       </div>

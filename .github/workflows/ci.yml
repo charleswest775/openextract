@@ -36,6 +36,9 @@ jobs:
       - name: Build verification
         run: npm run build
 
+      - name: JS tests
+        run: npm test
+
   # The engine reads backups with paths, temp files and SQLite handles that behave
   # differently on each OS, so its tests run on all three we ship for. Hosted runners
   # only: this repo is public, and a self-hosted runner would run fork PRs' code.

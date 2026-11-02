@@ -52,7 +52,7 @@ export default function ContactExplorer({ udid }: Props) {
     a.download = 'contacts.csv';
     a.click();
     URL.revokeObjectURL(url);
-    window.openextract.incrementExportCount();
+    window.openextract.incrementExportCount('contacts');
   }
 
   const filtered = contacts

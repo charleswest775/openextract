@@ -3,6 +3,7 @@ import { sidecarCall, saveFolder } from '../../lib/ipc';
 import { SearchIcon, ExportIcon } from '../shared/Icons';
 import { formatDateTime } from '../../lib/dates';
 import OrganicLoader from '../shared/OrganicLoader';
+import { ReportProblemButton } from '../shared/Feedback';
 
 interface Call {
   call_id: number;
@@ -75,7 +76,7 @@ export default function CallExplorer({ udid }: Props) {
     setExporting(true);
     try {
       await window.openextract.call('export_calls', { udid, output_dir: outputDir });
-      window.openextract.incrementExportCount();
+      window.openextract.incrementExportCount('calls');
     } finally {
       setExporting(false);
     }
@@ -163,7 +164,10 @@ export default function CallExplorer({ udid }: Props) {
           calls.length > 0 ? (
             <div className="text-center py-8 text-sm text-gray-400">No calls match your search</div>
           ) : error ? (
-            <div className="text-center py-8 text-sm text-apple-error">{error}</div>
+            <div className="text-center py-8 text-sm text-apple-error">
+              {error}
+              <div><ReportProblemButton error={error} area="calls" className="mt-2" /></div>
+            </div>
           ) : emptyReason === 'requires_encryption' ? (
             <div className="max-w-md mx-auto text-center py-8">
               <div className="text-sm font-medium text-text-primary">Call history needs an encrypted backup</div>
