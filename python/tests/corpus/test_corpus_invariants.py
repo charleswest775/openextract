@@ -520,6 +520,26 @@ def test_export_conversation_round_trip(ctx, tmp_path):
     assert result["message_count"] == shown, f"exported {result['message_count']} messages, the app shows {shown}"
 
 
+def test_exports_never_call_a_bare_message_an_attachment(ctx, tmp_path):
+    """Location sharing, group changes and audio messages missing from the backup
+    have no text and no attachment; exports say what they are, not "[Attachment]"."""
+    ctx.require_open()
+    bare = [m for m in ctx.messages if not m.get("text") and not m.get("attachments")]
+    if not bare:
+        pytest.skip("no messages without text or attachments")
+    chat_ids = sorted({m["chat_id"] for m in bare})
+    for fmt in ("html", "txt"):
+        result = ctx.rpc("export_conversations", chat_ids=chat_ids, format=fmt,
+                         output_dir=str(tmp_path), mode="merged")
+        assert "error" not in result, result
+        # Count, don't assert `not in content`: pytest would print the export.
+        called_attachment = Path(result["files"][0]).read_text(encoding="utf-8-sig").count("[Attachment]")
+        assert called_attachment == 0, (
+            f"{fmt} export calls {called_attachment} of {len(bare)} bare messages an attachment; "
+            f"their types: {dict(Counter(m.get('message_type') for m in bare))}"
+        )
+
+
 def _what_every_screen_shows(c) -> dict:
     conversations = c.result_or_empty("conversations_result").get("conversations", [])
     return {

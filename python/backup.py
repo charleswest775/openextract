@@ -120,6 +120,20 @@ class OpenBackup(LocalBackupAccessor):
         """
         return self._get_manifest_db()
 
+    def close(self) -> None:
+        """Close the cached Manifest.db connection and delete the temp files.
+
+        An unclosed sqlite3 connection sits in a reference cycle with its
+        statement cache, so it stays open until the garbage collector runs.
+        On Windows an open file can't be deleted or moved, which would keep
+        the backup folder locked until then.
+        """
+        conn = self._manifest_conn
+        self._manifest_conn = None
+        if conn is not None:
+            conn.close()
+        self.cleanup()
+
 
 class BackupManager:
     """Discovers iPhone backups and tracks opened ones across RPC calls."""
@@ -416,6 +430,8 @@ class BackupManager:
             decrypted_backup=accessor._decrypted_backup,
         )
 
+        # Opening a backup again replaces the earlier one; release its files.
+        self.close_backup(backup_info["udid"])
         self._open_backups[self._norm_udid(backup_info["udid"])] = backup
 
         # For encrypted backups, pre-decrypt the most-accessed files now so that
@@ -513,3 +529,9 @@ class BackupManager:
         if key not in self._open_backups:
             raise ValueError(f"Backup not open: {udid}. Call open_backup first.")
         return self._open_backups[key]
+
+    def close_backup(self, udid: str) -> None:
+        """Close an opened backup, releasing its database handles and temp files."""
+        backup = self._open_backups.pop(self._norm_udid(udid), None)
+        if backup is not None:
+            backup.close()

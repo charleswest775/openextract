@@ -100,25 +100,33 @@ class _FakeEncryptedBackup:
 class TestCallsVoicemailEmptyStates(unittest.TestCase):
 
     def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
-        self.backup_dir = os.path.join(self._tmp.name, UDID)
+        tmp = tempfile.TemporaryDirectory()
+        # Cleanups run last-registered first, so this one runs after every
+        # backup is closed: Windows can't delete a database that is still open.
+        self.addCleanup(tmp.cleanup)
+        self._tmp = tmp.name
 
-    def tearDown(self):
-        self._tmp.cleanup()
+    def _new_backup_dir(self) -> str:
+        return os.path.join(tempfile.mkdtemp(dir=self._tmp), UDID)
 
     def _open(self, files: dict):
         """Open an unencrypted backup the way the open_backup RPC does."""
-        _make_backup(self.backup_dir, files)
+        backup_dir = self._new_backup_dir()
+        _make_backup(backup_dir, files)
         mgr = BackupManager()
-        self.assertEqual(mgr.open_backup(UDID, backup_dir=self.backup_dir)["status"], "open")
+        self.assertEqual(mgr.open_backup(UDID, backup_dir=backup_dir)["status"], "open")
+        self.addCleanup(mgr.close_backup, UDID)
         return mgr.get_open_backup(UDID)
 
     def _open_encrypted(self, files: dict):
-        _make_backup(self.backup_dir, files, encrypted=True)
-        return OpenBackup(
-            backup_dir=self.backup_dir, udid=UDID, info={}, encrypted=True,
-            decrypted_backup=_FakeEncryptedBackup(self.backup_dir),
+        backup_dir = self._new_backup_dir()
+        _make_backup(backup_dir, files, encrypted=True)
+        backup = OpenBackup(
+            backup_dir=backup_dir, udid=UDID, info={}, encrypted=True,
+            decrypted_backup=_FakeEncryptedBackup(backup_dir),
         )
+        self.addCleanup(backup.close)
+        return backup
 
     def test_unencrypted_without_call_history_keeps_encryption_hint(self):
         backup = self._open({})
@@ -137,7 +145,6 @@ class TestCallsVoicemailEmptyStates(unittest.TestCase):
     def test_empty_call_history_is_an_empty_state(self):
         for open_backup in (self._open, self._open_encrypted):
             with self.subTest(open_backup.__name__):
-                shutil.rmtree(self.backup_dir, ignore_errors=True)
                 backup = open_backup({CALL_DB: EMPTY_CALL_HISTORY})
                 result = CallExtractor().list_calls(backup, {})
                 self.assertEqual(result["calls"], [])
@@ -147,7 +154,6 @@ class TestCallsVoicemailEmptyStates(unittest.TestCase):
     def test_missing_voicemail_db_is_an_empty_state(self):
         for open_backup in (self._open, self._open_encrypted):
             with self.subTest(open_backup.__name__):
-                shutil.rmtree(self.backup_dir, ignore_errors=True)
                 backup = open_backup({})
                 result = VoicemailExtractor().list_voicemails(backup, {})
                 self.assertEqual(result, {"voicemails": [], "empty_reason": "not_in_backup"})
@@ -159,7 +165,7 @@ class TestCallsVoicemailEmptyStates(unittest.TestCase):
 
     def test_exporting_without_voicemail_db_is_not_an_error(self):
         backup = self._open({})
-        out_dir = os.path.join(self._tmp.name, "export")
+        out_dir = os.path.join(self._tmp, "export")
         result = VoicemailExtractor().export_voicemails(backup, {}, out_dir)
         self.assertEqual(result, {"status": "success", "exported": 0})
 
