@@ -74,6 +74,30 @@ _ATTACHMENT_CSS = """.msg img { display: block; max-width: 100%; max-height: 420
 }
 """
 
+# What exports write for a message with no text and no attachment file, by
+# the engine's message_type. The thread view (src/components/explore/
+# ChatBubble.tsx) uses the same words. Anything not listed is a "Conversation
+# event": the engine calls group changes (renamed, someone added or removed),
+# unsent messages and FaceTime notices "system" without saying which, and
+# its plain "location" is mostly sms.db item_type 3 (someone left, group
+# photo changed), so a more specific label wouldn't be true.
+_EVENT_LABELS = {
+    "location_started_by_me": "You started sharing your location",
+    "location_stopped_by_me": "You stopped sharing your location",
+    "location_started_by_them": "Started sharing their location",
+    "location_stopped_by_them": "Stopped sharing their location",
+    "audio": "Audio message not in this backup",
+    "attachment": "Attachment",
+    "link": "Link",
+    "payment": "Apple Pay payment",
+    "digital_touch": "Digital Touch message",
+    "handwriting": "Handwritten message",
+    "fitness": "Fitness activity",
+    "game": "Game message",
+    "app": "Message from an iMessage app",
+}
+_EVENT_FALLBACK = "Conversation event"
+
 # Extensions we try to render as images when sms.db has no mime type.
 _IMAGE_EXTENSIONS = (
     ".jpg", ".jpeg", ".png", ".gif", ".heic", ".heif", ".webp", ".bmp", ".tif", ".tiff",
@@ -284,13 +308,22 @@ class MessageExtractor:
             parts.append(label)
         return " ".join(parts)
 
+    @staticmethod
+    def _event_label(msg) -> str:
+        """Label for a message with no text and no attachment file, e.g.
+        "[You started sharing your location]". Only a message flagged as
+        having attachments we know nothing about is an "[Attachment]"."""
+        if msg.get("has_attachments"):
+            return "[Attachment]"
+        return f"[{_EVENT_LABELS.get(msg.get('message_type'), _EVENT_FALLBACK)}]"
+
     def _message_text(self, msg) -> str:
         """Return the display text for a message, replacing binary attachment data with labels."""
         if msg.get("has_attachments"):
             label = self._attachment_label(msg)
             text = (msg.get("text") or "").strip()
             return f"{text} {label}".strip() if text else label
-        return msg.get("text") or ""
+        return msg.get("text") or self._event_label(msg)
 
     @staticmethod
     def _html_escape(value, preserve_newlines: bool = False) -> str:
@@ -358,17 +391,21 @@ class MessageExtractor:
     def _message_html(self, msg, attachments=None) -> str:
         """Inner HTML of one message bubble.
 
-        Without ``attachments`` (the plain HTML export) this is the escaped
-        text. With a ``_PrintAttachmentWriter`` (the PDF export) images are
-        drawn inline and other attachments get a short label.
+        With a ``_PrintAttachmentWriter`` (the PDF export) images are drawn
+        inline and other attachments get a short label; without one (the
+        plain HTML export) every attachment gets a label. A message with no
+        text and no attachment file gets a label saying what it is.
         """
         text = self._html_escape(msg.get("text") or "", preserve_newlines=True)
-        if attachments is not None and msg.get("attachments"):
-            parts = [attachments.render(a) for a in msg["attachments"]]
+        if msg.get("attachments"):
+            render = attachments.render if attachments is not None else _PrintAttachmentWriter._label
+            parts = [render(a) for a in msg["attachments"]]
             if text:
                 parts.append(f'<div class="text">{text}</div>')
             return "".join(parts)
-        return text or "[Attachment]"
+        if text:
+            return text
+        return f'<div class="attachment-label">{self._html_escape(self._event_label(msg))}</div>'
 
     def _export_html(self, messages, chat_id, output_dir, display_name = "",
                      attachments=None):

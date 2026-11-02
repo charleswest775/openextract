@@ -205,17 +205,19 @@ class TestExportConversationDispatch(unittest.TestCase):
         self.assertIn("error", result)
 
 
-class TestHtmlExportUnchangedForAttachments(unittest.TestCase):
-    """The plain HTML export keeps its text-only behaviour (images there are #83)."""
+class TestHtmlExportLabelsAttachments(unittest.TestCase):
+    """The plain HTML export names attachments but draws no images (that's #83)."""
 
-    def test_attachment_only_message_still_reads_attachment(self):
+    def test_attachment_only_message_is_labelled_not_drawn(self):
         ext = MessageExtractor.__new__(MessageExtractor)
         with tempfile.TemporaryDirectory() as tmp:
             messages = [_msg(1, "", [_att(1, "~/a/IMG.png", "image/png")])]
             result = ext._export_html(messages, 1, tmp, "Mom")
             with open(result["file"], encoding="utf-8") as f:
                 content = f.read()
-            self.assertIn('<div class="msg received">[Attachment]</div>', content)
+            self.assertIn('<div class="msg received"><div class="attachment-label">[Image: IMG.png]</div></div>',
+                          content)
+            self.assertNotIn("[Attachment]", content)
             self.assertNotIn("<img", content)
             self.assertFalse(os.path.exists(os.path.join(tmp, "attachments")))
 
