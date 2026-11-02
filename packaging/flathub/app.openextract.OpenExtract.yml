@@ -2,10 +2,10 @@
 # the project's own release CI builds; see README.md for what to check first.
 app-id: app.openextract.OpenExtract
 runtime: org.freedesktop.Platform
-runtime-version: '24.08'
+runtime-version: '26.08'
 sdk: org.freedesktop.Sdk
 base: org.electronjs.Electron2.BaseApp
-base-version: '24.08'
+base-version: '26.08'
 command: openextract
 separate-locales: false
 finish-args:
