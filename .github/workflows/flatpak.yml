@@ -1,0 +1,73 @@
+name: Flatpak
+
+# Builds and lints the Flathub package in packaging/flathub with the same
+# tools Flathub's own build bot uses, so it can be checked without a Linux
+# machine. Nothing is published: the built bundle is only kept as a workflow
+# artifact for a few days.
+
+on:
+  pull_request:
+    paths:
+      - 'packaging/flathub/**'
+      - '.github/workflows/flatpak.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'packaging/flathub/**'
+      - '.github/workflows/flatpak.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: flatpak-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  flatpak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08
+      options: --privileged
+    env:
+      MANIFEST: packaging/flathub/app.openextract.OpenExtract.yml
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Flathub's builder and linter
+        run: |
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive flathub org.flatpak.Builder
+
+      # The linter runs inside its own sandbox, which can't write to the
+      # checkout (owned by the runner's user), so lint a copy under $HOME.
+      - name: Lint the manifest
+        run: |
+          rm -rf "$HOME/flathub-lint" && cp -r packaging/flathub "$HOME/flathub-lint"
+          cd "$HOME/flathub-lint"
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest app.openextract.OpenExtract.yml
+
+      - name: Lint the store text (metainfo)
+        run: |
+          cd "$HOME/flathub-lint"
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder appstream app.openextract.OpenExtract.metainfo.xml
+
+      - name: Build
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: ${{ env.MANIFEST }}
+          bundle: openextract.flatpak
+          cache-key: flatpak-builder-${{ github.sha }}
+          upload-artifact: true
+          # Flathub's build bot copies the store screenshots to its own
+          # server and the repo linter checks for that, so do the same. The
+          # action also commits them to the repo's screenshots ref.
+          mirror-screenshots-url: https://dl.flathub.org/media/
+
+      - name: Lint the built repo
+        run: |
+          rm -rf "$HOME/flathub-repo" && cp -r repo "$HOME/flathub-repo"
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo "$HOME/flathub-repo"

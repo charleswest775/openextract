@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - Windows and Linux: typing in a text field no longer downloads spell-check dictionaries from Google. Text fields no longer underline misspelled words
 - The Timeline's date filter no longer leaves out items in the last second of the end date
+- The app icon is OpenExtract's own coral "o" mark instead of the default Electron icon, and the website's tab icon matches it instead of a placeholder
+- Windows: the DLLs that come with Electron (ffmpeg.dll, libEGL.dll, libGLESv2.dll, vk_swiftshader.dll, vulkan-1.dll) are signed along with the app, as the Microsoft Store requires
 
 ## [0.8.0] - 2026-10-28
 

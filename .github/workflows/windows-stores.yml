@@ -1,0 +1,129 @@
+name: Windows stores
+
+# Checks the winget and Chocolatey packages in packaging/ against the real
+# release installer on a Windows machine, so they can be tested without one:
+# the checksum, a silent install with /S (what winget, Chocolatey and the
+# Microsoft Store all use), which installed files are unsigned (the Store needs
+# every .exe and .dll signed), and a Chocolatey install from the packed package.
+#
+# Publishing to Chocolatey happens only when you run this workflow by hand with
+# "Push to Chocolatey" ticked, and only if the CHOCOLATEY_API_KEY secret is set.
+
+on:
+  pull_request:
+    paths:
+      - 'packaging/winget/**'
+      - 'packaging/chocolatey/**'
+      - '.github/workflows/windows-stores.yml'
+  workflow_dispatch:
+    inputs:
+      push_chocolatey:
+        description: 'Push to Chocolatey (needs the CHOCOLATEY_API_KEY secret)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: windows-stores-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Read the version and installer from the winget manifest
+        id: pkg
+        run: |
+          $dirs = Get-ChildItem packaging/winget -Directory | Sort-Object { [version]$_.Name }
+          $dir = $dirs[-1].FullName
+          $inst = Get-Content (Join-Path $dir 'OpenExtract.OpenExtract.installer.yaml') -Raw
+          $url = [regex]::Match($inst, 'InstallerUrl:\s*(\S+)').Groups[1].Value
+          $sha = [regex]::Match($inst, 'InstallerSha256:\s*(\S+)').Groups[1].Value
+          $ver = [regex]::Match($inst, 'PackageVersion:\s*(\S+)').Groups[1].Value
+          if (-not $url -or -not $sha -or -not $ver) { throw "Couldn't read the installer manifest in $dir" }
+          if ($dirs[-1].Name -ne $ver) { throw "Folder $($dirs[-1].Name) doesn't match PackageVersion $ver" }
+          "url=$url" >> $env:GITHUB_OUTPUT
+          "sha=$sha" >> $env:GITHUB_OUTPUT
+          "ver=$ver" >> $env:GITHUB_OUTPUT
+          "dir=$dir" >> $env:GITHUB_OUTPUT
+
+      - name: Check every manifest and the Chocolatey files agree
+        run: |
+          $ver = '${{ steps.pkg.outputs.ver }}'; $sha = '${{ steps.pkg.outputs.sha }}'; $url = '${{ steps.pkg.outputs.url }}'
+          Get-ChildItem '${{ steps.pkg.outputs.dir }}' -Filter *.yaml | ForEach-Object {
+            if ((Get-Content $_.FullName -Raw) -notmatch "PackageVersion:\s*$([regex]::Escape($ver))\b") { throw "$($_.Name) has the wrong PackageVersion" }
+          }
+          [xml]$nuspec = Get-Content packaging/chocolatey/openextract.nuspec
+          if ($nuspec.package.metadata.version -ne $ver) { throw "nuspec version $($nuspec.package.metadata.version) is not $ver" }
+          $ps1 = Get-Content packaging/chocolatey/tools/chocolateyinstall.ps1 -Raw
+          if ($ps1 -notmatch [regex]::Escape($url)) { throw "chocolateyinstall.ps1 doesn't use $url" }
+          if ($ps1 -notmatch "(?i)$sha") { throw "chocolateyinstall.ps1 doesn't use checksum $sha" }
+          Write-Host "winget $ver and Chocolatey $ver agree on $url"
+
+      - name: Download the installer and check its checksum
+        run: |
+          Invoke-WebRequest '${{ steps.pkg.outputs.url }}' -OutFile setup.exe
+          $got = (Get-FileHash setup.exe -Algorithm SHA256).Hash
+          if ($got -ne '${{ steps.pkg.outputs.sha }}') { throw "Checksum is $got, manifest says ${{ steps.pkg.outputs.sha }}" }
+          $sig = Get-AuthenticodeSignature setup.exe
+          Write-Host "Installer signature: $($sig.Status) ($($sig.SignerCertificate.Subject))"
+
+      - name: Install silently with /S
+        run: |
+          $p = Start-Process .\setup.exe -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Silent install exited with $($p.ExitCode)" }
+          $app = Join-Path $env:LOCALAPPDATA 'Programs\OpenExtract'
+          if (-not (Test-Path (Join-Path $app 'OpenExtract.exe'))) { throw "OpenExtract.exe not found under $app" }
+          Write-Host "Installed to $app"
+
+      - name: List installed files that aren't signed (Microsoft Store needs all of them signed)
+        run: |
+          $app = Join-Path $env:LOCALAPPDATA 'Programs\OpenExtract'
+          $files = Get-ChildItem $app -Recurse -Include *.exe,*.dll
+          $unsigned = $files | Get-AuthenticodeSignature | Where-Object Status -ne 'Valid'
+          Write-Host "$($files.Count) .exe and .dll files, $(@($unsigned).Count) not validly signed"
+          $unsigned | ForEach-Object { Write-Host "  $($_.Status)  $($_.Path.Substring($app.Length + 1))" }
+          $summary = "### Signing check`n`n$($files.Count) .exe and .dll files installed, $(@($unsigned).Count) not validly signed.`n"
+          if (@($unsigned).Count -gt 0) {
+            $summary += "`n| Status | File |`n|---|---|`n"
+            $unsigned | ForEach-Object { $summary += "| $($_.Status) | $($_.Path.Substring($app.Length + 1)) |`n" }
+          }
+          $summary >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Uninstall
+        run: |
+          $u = Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Programs\OpenExtract') -Filter 'Uninstall*.exe' | Select-Object -First 1
+          if ($u) { Start-Process $u.FullName -ArgumentList '/S' -Wait }
+          Start-Sleep -Seconds 5
+
+      - name: Pack the Chocolatey package and install it from the local file
+        run: |
+          choco pack packaging/chocolatey/openextract.nuspec --outputdirectory choco-out
+          choco install openextract --source "$PWD\choco-out" -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "choco install failed with $LASTEXITCODE" }
+          choco uninstall openextract -y --no-progress
+
+      - name: Keep the packed Chocolatey package
+        uses: actions/upload-artifact@v4
+        with:
+          name: chocolatey-package
+          path: choco-out/*.nupkg
+          retention-days: 7
+
+      - name: Push to Chocolatey
+        if: github.event_name == 'workflow_dispatch' && inputs.push_chocolatey
+        env:
+          CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+        run: |
+          if (-not $env:CHOCOLATEY_API_KEY) { throw "Add the CHOCOLATEY_API_KEY secret first (Settings > Secrets and variables > Actions)" }
+          $nupkg = Get-ChildItem choco-out -Filter *.nupkg | Select-Object -First 1
+          choco push $nupkg.FullName --source https://push.chocolatey.org/ --api-key $env:CHOCOLATEY_API_KEY
