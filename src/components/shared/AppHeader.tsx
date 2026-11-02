@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import SettingsDialog from './SettingsDialog';
+import { useFeedback } from './Feedback';
 
 interface Props {
   showVersion?: boolean;
@@ -9,6 +10,7 @@ interface Props {
 export default function AppHeader({ showVersion = true, showSettings = true }: Props) {
   const [version, setVersion] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const { openFeedback } = useFeedback();
 
   useEffect(() => {
     window.openextract?.getVersion?.().then(setVersion).catch(() => {});
@@ -31,12 +33,20 @@ export default function AppHeader({ showVersion = true, showSettings = true }: P
         )}
       </div>
       {showSettings && (
-        <button
-          onClick={() => setSettingsOpen(true)}
-          className="text-sm text-text-secondary hover:text-text-primary transition-colors"
-        >
-          Settings
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => openFeedback()}
+            className="text-sm text-text-secondary hover:text-text-primary transition-colors"
+          >
+            Feedback
+          </button>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="text-sm text-text-secondary hover:text-text-primary transition-colors"
+          >
+            Settings
+          </button>
+        </div>
       )}
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
     </div>

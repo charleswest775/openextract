@@ -4,6 +4,7 @@ import { saveFolder } from '../../lib/ipc';
 import { ExportIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
 import { formatDateTime, formatDuration } from '../../lib/dates';
+import { ReportProblemButton } from '../shared/Feedback';
 
 interface Voicemail {
   id: number;
@@ -167,7 +168,7 @@ export default function VoicemailExplorer({ udid }: Props) {
     setExporting(true);
     try {
       await window.openextract.call('export_voicemails', { udid, output_dir: outputDir });
-      window.openextract.incrementExportCount();
+      window.openextract.incrementExportCount('voicemail');
     } finally {
       setExporting(false);
     }
@@ -197,7 +198,10 @@ export default function VoicemailExplorer({ udid }: Props) {
         )}
         {!loading && voicemails.length === 0 && (
           error ? (
-            <div className="text-center py-8 text-sm text-apple-error">{error}</div>
+            <div className="text-center py-8 text-sm text-apple-error">
+              {error}
+              <div><ReportProblemButton error={error} area="voicemail" className="mt-2" /></div>
+            </div>
           ) : (
             <div className="text-center py-8 text-sm text-gray-400">
               No voicemails in this backup

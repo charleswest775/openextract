@@ -3,6 +3,7 @@ import { sidecarCall, saveFolder } from '../../lib/ipc';
 import { SearchIcon, ExportIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
 import { allOnlyInIcloud, moreOnlyInIcloud, photoExportSummary, PhotoExportResult } from '../../lib/photoCounts';
+import { ReportProblemButton } from '../shared/Feedback';
 
 interface PhotoAsset {
   uuid: string;
@@ -242,7 +243,7 @@ export default function PhotoExplorer({ udid }: Props) {
           include_metadata_sidecar: false,
         },
       });
-      window.openextract.incrementExportCount();
+      window.openextract.incrementExportCount('photos');
       setExportSummary(photoExportSummary(result));
     } catch (err: any) {
       setExportSummary(`Export failed: ${err?.message || 'Unknown error'}`);
@@ -308,7 +309,12 @@ export default function PhotoExplorer({ udid }: Props) {
         </div>
         <div className="flex items-center gap-2">
           {exportSummary && (
-            <span className="text-xs text-text-tertiary">{exportSummary}</span>
+            <span className="text-xs text-text-tertiary">
+              {exportSummary}
+              {exportSummary.startsWith('Export failed') && (
+                <ReportProblemButton error={exportSummary} area="photos" className="ml-2" />
+              )}
+            </span>
           )}
           <select
             value={kindFilter}

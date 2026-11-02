@@ -153,7 +153,7 @@ export default function MessageExplorer({ udid }: Props) {
       } else {
         await sidecarCall('export_conversation', { ...params, format });
       }
-      window.openextract.incrementExportCount();
+      window.openextract.incrementExportCount('messages');
     } catch (err: any) {
       alert(`Export failed: ${err.message}`);
     } finally {
@@ -220,7 +220,7 @@ export default function MessageExplorer({ udid }: Props) {
         : await sidecarCall<{ files: string[]; message_count: number }>(
           'export_conversations', { ...params, format: bulkExportFormat }
         );
-      window.openextract.incrementExportCount();
+      window.openextract.incrementExportCount('messages');
       if (result) {
         const fileList = result.files.join('\n');
         alert(`Exported ${result.message_count} messages across ${result.files.length} file(s):\n${fileList}`);

@@ -68,6 +68,42 @@ the reason). Credit contributors in the squash message.
   milestone or closing if superseded by shipped releases.
 - Tag small, well-specified ones `good first issue`.
 
+## 3b. In-app feedback (`feedback` label)
+
+Reports from the app's Send feedback form use `.github/ISSUE_TEMPLATE/in_app_feedback.yml`,
+and `.github/workflows/feedback-labels.yml` adds `feedback` plus kind/area labels when the issue
+is opened. Work these as their own group, before other issues:
+
+```bash
+gh issue list --state open --label feedback --limit 100 --json number,title,labels,createdAt,body
+```
+
+- **Group by cause, not by title.** The Diagnostics block has `Failed:` method names, a
+  `Recent errors:` list and engine tracebacks. Same method + same exception (e.g.
+  `list_voicemails … KeyError: 'ZDATE'`) = one bug: pick the clearest report as canonical,
+  propose closing the rest as duplicates pointing at it, and record how many users hit it
+  (that count is the priority signal).
+- **Check the version.** `App: OpenExtract X.Y.Z` older than the latest release → check
+  whether that release fixed it before investigating; if so, propose a reply asking them to update.
+- **Reproduce from the facts.** Model, iOS version and encrypted/not tell you which corpus
+  backup to try (`corpus/README.md`); a traceback usually points at
+  `charleswest775/ios-backup-core` extractors.
+- **"Missing or wrong" with no errors** (from the post-export check) is the silent-failure
+  class: compare `Loaded OK:` against what they say is missing; ask for the export type and
+  roughly how many items they expected vs. got.
+- **Privacy check every report.** If the body still has a real name, phone number, email,
+  message text or an un-scrubbed path, recommend editing it out immediately (maintainer edit)
+  and note which pattern slipped through so `electron/feedback.ts` `scrubText` can be fixed.
+- **Ideas** (`enhancement`) → merge into an existing feature issue if one matches, else keep.
+- **Email reports** (subject `OpenExtract feedback: …`, sent to the address in
+  `src/lib/feedback.ts`) have the same format. If a mail connector is available, list them
+  too and propose filing each actionable one as an issue (scrubbed), never posting the
+  sender's address.
+
+For each feedback group the recommendation is one of: **fix** (with the suspected file and a
+one-line plan), **needs info** (drafted reply asking for exactly what's missing), **duplicate**,
+**already fixed** (release link), or **won't do** (with the reason).
+
 ## 4. Report
 
 Output a single table: `# | type | age | recommendation | why`, followed by drafted

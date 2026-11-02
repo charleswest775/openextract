@@ -36,13 +36,34 @@ declare global {
       addSession: (session: RecentSession) => Promise<void>;
       removeSession: (id: string) => Promise<void>;
       getRecentSessions: () => Promise<RecentSession[]>;
-      incrementExportCount: () => Promise<number>;
+      /** `area` (e.g. 'calls') labels the follow-up "did it come out right?" card. */
+      incrementExportCount: (area?: string) => Promise<number>;
       /** Called once, after the first successful export, to show the share prompt. Returns a cleanup function. */
       onSharePrompt: (callback: () => void) => () => void;
+      feedback: {
+        /** Scrubbed facts for the feedback form (no backup content, paths or names). */
+        getDiagnostics: (reportedError?: string) => Promise<FeedbackDiagnostics>;
+        optOutOfExportCheck: () => Promise<void>;
+        /** Shown at most once per run after an export. Returns a cleanup function. */
+        onExportCheck: (callback: (area?: string) => void) => () => void;
+      };
       /** Copy text to the system clipboard. */
       copyText: (text: string) => Promise<void>;
     };
   }
+}
+
+// ─── Feedback types (mirror electron/feedback.ts) ────────────────────────────
+
+export interface FeedbackDiagnostics {
+  appVersion: string;
+  os: string;
+  backup: { model?: string; iosVersion?: string; encrypted?: boolean; sizeGB?: number | null } | null;
+  loaded: string[];
+  failed: string[];
+  recentErrors: { at: string; method: string; message: string; count: number }[];
+  logExcerpt: string;
+  reportedError?: string;
 }
 
 // ─── Auto-update types (mirror electron/updater.ts) ──────────────────────────

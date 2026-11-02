@@ -17,6 +17,8 @@ import RecordRecoveryView from './RecordRecoveryView';
 import ExportPanel from './ExportPanel';
 import TimelineView from '../timeline/TimelineView';
 import type { HistoryVisit } from '../../lib/browserHistoryStats';
+import { MessageSquare } from 'lucide-react';
+import { useFeedback } from '../shared/Feedback';
 
 type Tab = 'dashboard' | 'timeline' | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'record_recovery' | 'export';
 
@@ -43,6 +45,7 @@ const allNavItems: { id: Tab; label: string; icon: typeof LinesIcon; comingSoon?
 export default function ExploreLayout({ udid, session, onBack }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const handleNavigate = (tab: string) => setActiveTab(tab as Tab);
+  const { openFeedback } = useFeedback();
   const [hasBrowserHistory, setHasBrowserHistory] = useState(false);
   const [preloadedBrowserHistory, setPreloadedBrowserHistory] = useState<HistoryVisit[] | null>(null);
   const [browserHistoryPreloading, setBrowserHistoryPreloading] = useState(false);
@@ -134,6 +137,15 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
               );
             })}
             <div className="flex-1" />
+            {/* Feedback about whatever is on screen */}
+            <button
+              onClick={() => openFeedback({ area: activeTab })}
+              title="Send feedback"
+              className="w-[68px] h-[52px] rounded-[12px] flex flex-col items-center justify-center gap-[3px] text-text-secondary hover:bg-surface transition-colors border border-transparent"
+            >
+              <MessageSquare size={15} />
+              <span className="text-[10px]">Feedback</span>
+            </button>
             {/* Back home */}
             <button
               onClick={onBack}

@@ -6,6 +6,7 @@ import {
   LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon, VoicemailIcon,
   LockIcon, ClockIcon,
 } from '../shared/Icons';
+import { ReportProblemButton } from '../shared/Feedback';
 
 interface Props {
   udid: string;
@@ -450,6 +451,7 @@ export default function BackupDashboard({ udid, onNavigate }: Props) {
         <div className="text-center">
           <div className="text-sm text-gray-500 mb-1">Failed to load dashboard</div>
           <div className="text-xs text-red-500">{error}</div>
+          <ReportProblemButton error={error} area="dashboard" className="mt-2" />
         </div>
       </div>
     );

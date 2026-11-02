@@ -9,6 +9,8 @@ import type { RecentSession } from './lib/appState';
 import FullDiskAccessDialog, { FULL_DISK_ACCESS_PREFIX } from './components/shared/FullDiskAccessDialog';
 import UpdateNotice from './components/shared/UpdateNotice';
 import SharePrompt from './components/shared/SharePrompt';
+import ExportCheckPrompt from './components/shared/ExportCheckPrompt';
+import { FeedbackProvider, ReportProblemButton } from './components/shared/Feedback';
 
 type Screen = 'home' | 'explore' | 'create-backup';
 
@@ -98,6 +100,7 @@ export default function App() {
   }, [pendingOpen, backup]);
 
   return (
+    <FeedbackProvider>
     <div className="h-screen flex flex-col bg-base text-text-primary">
       {screen === 'home' && (
         <HomeScreen
@@ -155,6 +158,7 @@ export default function App() {
       {/* Bottom-right notices, stacked so they never overlap */}
       <div className="fixed right-6 bottom-6 z-40 flex flex-col items-end gap-3">
         <SharePrompt />
+        <ExportCheckPrompt />
         <UpdateNotice />
       </div>
 
@@ -180,6 +184,7 @@ export default function App() {
           <div className="flex-1 min-w-0">
             <div className="font-medium mb-0.5">Couldn't open backup</div>
             <div className="text-xs text-text-secondary break-words">{openError}</div>
+            <ReportProblemButton error={openError} area="open_backup" className="mt-1.5" />
           </div>
           <button
             onClick={() => setOpenError(null)}
@@ -214,5 +219,6 @@ export default function App() {
         />
       )}
     </div>
+    </FeedbackProvider>
   );
 }

@@ -3,6 +3,7 @@ import { sidecarCall, saveFolder } from '../../lib/ipc';
 import { formatRelative, formatDate } from '../../lib/dates';
 import { SearchIcon, RecoverIcon, ExportIcon } from '../shared/Icons';
 import ChatBubble from './ChatBubble';
+import { ReportProblemButton } from '../shared/Feedback';
 
 type ExportFormat = 'csv' | 'html' | 'pdf';
 
@@ -92,7 +93,7 @@ export default function RecordRecoveryView({ udid }: Props) {
         'export_recovered_messages',
         { udid, format, output_dir: outputDir },
       );
-      window.openextract?.incrementExportCount?.();
+      window.openextract?.incrementExportCount?.('record_recovery');
     } catch (e: any) {
       setExportError(e?.message || 'Export failed');
     } finally {
@@ -163,6 +164,7 @@ export default function RecordRecoveryView({ udid }: Props) {
               {error && (
                 <div className="mt-4 p-3 rounded-md border border-red-200 bg-red-50 text-sm text-red-700 max-w-md">
                   {error}
+                  <div><ReportProblemButton error={error} area="record_recovery" className="mt-1.5" /></div>
                 </div>
               )}
             </>
@@ -197,7 +199,9 @@ export default function RecordRecoveryView({ udid }: Props) {
         </div>
         <div className="flex items-center gap-2">
           {exportError && (
-            <span className="text-xs text-red-600" title={exportError}>Export failed</span>
+            <span className="text-xs text-red-600" title={exportError}>
+              Export failed <ReportProblemButton error={exportError} area="record_recovery" className="ml-1" />
+            </span>
           )}
           <div className="relative group">
             <button

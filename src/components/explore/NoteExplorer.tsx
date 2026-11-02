@@ -47,7 +47,7 @@ export default function NoteExplorer({ udid }: Props) {
         format,
         output_dir: outputDir,
       });
-      window.openextract.incrementExportCount();
+      window.openextract.incrementExportCount('notes');
     } catch (err) {
       console.error('Export failed:', err);
     }

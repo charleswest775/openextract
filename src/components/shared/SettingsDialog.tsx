@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useUpdates, releaseNotesUrl } from '../../hooks/useUpdates';
 import { SettingsIcon } from './Icons';
+import { useFeedback } from './Feedback';
 import type { UpdateStatus } from '../../types';
 
 interface Props {
@@ -8,10 +9,10 @@ interface Props {
 }
 
 const WEBSITE_URL = 'https://www.openextract.app';
-const ISSUES_URL = 'https://github.com/charleswest775/openextract/issues';
 
 export default function SettingsDialog({ onClose }: Props) {
   const { state, setAutoCheck, check, download, install } = useUpdates();
+  const { openFeedback } = useFeedback();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -80,7 +81,7 @@ export default function SettingsDialog({ onClose }: Props) {
         <div className="flex flex-wrap gap-2">
           <button className="hearth-ghost-btn" onClick={() => open(WEBSITE_URL)}>Website</button>
           <button className="hearth-ghost-btn" onClick={() => open(state?.releasesUrl ?? WEBSITE_URL)}>Release notes</button>
-          <button className="hearth-ghost-btn" onClick={() => open(ISSUES_URL)}>Report a problem</button>
+          <button className="hearth-ghost-btn" onClick={() => { onClose(); openFeedback(); }}>Report a problem or send feedback</button>
         </div>
       </div>
     </div>

@@ -1,0 +1,41 @@
+name: Feedback from the app
+description: Opened by OpenExtract's "Send feedback" button, with details filled in. You can also fill it in by hand.
+title: "[Feedback]: "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for telling us. **This report will be public.** Check the boxes below, especially Diagnostics, and delete anything you don't want to share. Please don't include message text, contact names or phone numbers from your backup.
+
+  # Field ids (kind, area, details, diagnostics) are filled in by the app
+  # (src/lib/feedback.ts). The headings are read by .github/workflows/feedback-labels.yml.
+  - type: input
+    id: kind
+    attributes:
+      label: Type
+      description: "Something's broken / Something in my backup is missing or wrong / An idea or request / Something else"
+    validations:
+      required: true
+
+  - type: input
+    id: area
+    attributes:
+      label: Part of the app
+      placeholder: Messages, Photos, Calls, Exporting, Opening a backup…
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead? For ideas, what would it help you with?
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: App and system versions, phone model and iOS version, and recent errors. Folder names, device names, emails and phone numbers are replaced with placeholders by the app.
