@@ -8,6 +8,7 @@ import BackupChooserDialog from './components/shared/BackupChooserDialog';
 import type { RecentSession } from './lib/appState';
 import FullDiskAccessDialog, { FULL_DISK_ACCESS_PREFIX } from './components/shared/FullDiskAccessDialog';
 import UpdateNotice from './components/shared/UpdateNotice';
+import SharePrompt from './components/shared/SharePrompt';
 
 type Screen = 'home' | 'explore' | 'create-backup';
 
@@ -151,7 +152,11 @@ export default function App() {
         />
       )}
 
-      <UpdateNotice />
+      {/* Bottom-right notices, stacked so they never overlap */}
+      <div className="fixed right-6 bottom-6 z-40 flex flex-col items-end gap-3">
+        <SharePrompt />
+        <UpdateNotice />
+      </div>
 
       {openError?.startsWith(FULL_DISK_ACCESS_PREFIX) && (
         <FullDiskAccessDialog message={openError} onClose={() => setOpenError(null)} />
