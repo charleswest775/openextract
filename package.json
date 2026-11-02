@@ -83,6 +83,9 @@
     },
     "win": {
       "target": "nsis",
+      "signExts": [
+        ".dll"
+      ],
       "azureSignOptions": {
         "publisherName": "Charles West",
         "endpoint": "https://eus.codesigning.azure.net/",
