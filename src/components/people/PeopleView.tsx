@@ -52,7 +52,7 @@ export default function PeopleView({ ctx, query, person }: Props) {
   const [choosing, setChoosing] = useState(false);
   const { busy, run } = useSaveAction('timeline');
 
-  const shown = people.filter(p => p.key === asked?.key || matches(query, p.name, ...p.ids));
+  const shown = people.filter(p => p.key === asked?.key || matches(query, p.name, ...p.numbers, ...p.ids));
   const individuals = shown.filter(p => !p.isGroup);
   const groups = shown.filter(p => p.isGroup);
   const selected = people.find(p => p.key === (selectedKey ?? asked?.key))

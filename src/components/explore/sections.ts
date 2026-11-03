@@ -49,20 +49,28 @@ export function sectionFor(tab: Tab): Section | undefined {
   return [DETAILS, TIMELINE, YEAR, RECOVER, SAVE, ...DATA_SECTIONS].find(s => s.id === tab);
 }
 
+/** How the top search box reads on a screen it filters in place. */
+export interface Scope {
+  /** What the empty box says. */
+  placeholder: string;
+  /** What the screen's list holds, as its count line says it: "Showing only page visits that match …" */
+  items: string;
+}
+
 /**
  * Screens the top search box filters in place, and what it says there.
  * Everywhere else (home, Photos, Year, Save) it searches the whole backup.
  */
-export const SCOPED: Partial<Record<Tab, string>> = {
-  people: 'Search people',
-  contacts: 'Search the address book',
-  messages: 'Search messages',
-  calls: 'Search calls',
-  notes: 'Search notes',
-  voicemail: 'Search voicemail',
-  browser_history: 'Search web history',
-  timeline: 'Search the timeline',
-  record_recovery: 'Search recovered messages',
+export const SCOPED: Partial<Record<Tab, Scope>> = {
+  people: { placeholder: 'Search people', items: 'people' },
+  contacts: { placeholder: 'Search the address book', items: 'cards' },
+  messages: { placeholder: 'Search messages', items: 'messages' },
+  calls: { placeholder: 'Search calls', items: 'calls' },
+  notes: { placeholder: 'Search notes', items: 'notes' },
+  voicemail: { placeholder: 'Search voicemail', items: 'voicemails' },
+  browser_history: { placeholder: 'Search web history', items: 'page visits' },
+  timeline: { placeholder: 'Search the timeline', items: 'events' },
+  record_recovery: { placeholder: 'Search deleted messages', items: 'deleted messages' },
 };
 
 /** The data sections this backup has. Until the overview numbers arrive, all of them. */

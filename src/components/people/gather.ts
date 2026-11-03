@@ -16,6 +16,8 @@ export interface Person {
   identifier: string;
   /** Every number and address seen for them, as `idKey`s. */
   ids: Set<string>;
+  /** The same, as the backup has them, for searching: "+33612345678" keeps its country code. */
+  numbers: Set<string>;
   counts: Record<PersonKind, number>;
   total: number;
   last: string;
@@ -45,13 +47,14 @@ export function gatherPeople(entries: TimelineEntry[]): Person[] {
     let p = byKey.get(key);
     if (!p) {
       p = {
-        key, name, identifier: e.contactIdentifier, ids: new Set(),
+        key, name, identifier: e.contactIdentifier, ids: new Set(), numbers: new Set(),
         counts: { message: 0, call: 0, voicemail: 0 }, total: 0, last: '',
         isGroup: false,
       };
       byKey.set(key, p);
     }
     p.ids.add(idKey(e.contactIdentifier));
+    p.numbers.add(e.contactIdentifier);
     p.counts[e.type as PersonKind]++;
     p.total++;
     if (e.timestamp > p.last) p.last = e.timestamp;
