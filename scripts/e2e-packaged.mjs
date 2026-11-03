@@ -77,9 +77,32 @@ async function withApp(label, fn, extraArgs = []) {
       if (!el) return false; el.click(); return true;
     }, t),
     text: () => page.evaluate(() => document.body.innerText),
+    // A screen from the backup's home page, by its tile ("Messages", "Photos"): home first, then the tile.
+    open: async name => {
+      await page.evaluate(() => document.querySelector('.titlebar button[title=Home]')?.click());
+      await sleep(500);
+      return page.evaluate(n => {
+        const tile = [...document.querySelectorAll('button[aria-label]')].find(b => b.getAttribute('aria-label').split(',')[0] === n);
+        if (!tile) return null;
+        const label = tile.getAttribute('aria-label');
+        tile.click();
+        return label;
+      }, name);
+    },
     shot: async name => { if (label.startsWith('maren')) await page.screenshot({ path: path.join(outDir, `${name}.png`) }); },
-    captureAlerts: () => page.evaluate(() => { window.__alerts = []; window.alert = m => window.__alerts.push(String(m)); }),
-    alerts: () => page.evaluate(() => window.__alerts || []),
+    // Saves report in in-app notices (role=status for success, role=alert for errors).
+    notices: () => page.evaluate(() => [...document.querySelectorAll('[aria-live] > [role=status], [aria-live] > [role=alert]')]
+      .map(n => ({ kind: n.getAttribute('role'), text: n.innerText.trim() }))),
+    clearNotices: () => page.evaluate(() => document.querySelectorAll('[aria-live] button[aria-label=Dismiss]').forEach(b => b.click())),
+    // The shared Save dialog: pick a format (and, for several conversations, one file or many), then Save.
+    saveAs: (format, mode) => page.evaluate(async ([format, mode]) => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      for (let i = 0; i < 20 && !document.querySelector('[role=dialog]'); i++) await sleep(100);
+      document.querySelector(`[role=dialog] input[name=save-format][value=${format}]`)?.click();
+      if (mode) [...document.querySelectorAll('[role=dialog] input[name=save-mode]')][mode === 'merged' ? 1 : 0]?.click();
+      await sleep(100);
+      [...document.querySelectorAll('[role=dialog] button')].find(b => b.textContent.trim() === 'Save').click();
+    }, [format, mode]),
   };
   try { await fn(ctx); }
   catch (e) { check(`${label}: no exception`, false, String(e.stack || e).slice(0, 800)); }
@@ -92,31 +115,32 @@ async function withApp(label, fn, extraArgs = []) {
 
 async function openBackup(c, label, dir, password) {
   await c.stubFolder(dir);
-  for (let i = 0; i < 60 && !(await c.click('Explore my data')); i++) await sleep(500);
+  for (let i = 0; i < 60 && !(await c.click('Open a backup folder')); i++) await sleep(500);
   let state;
   for (let i = 0; i < 240; i++) {
     await sleep(500);
     state = await c.page.evaluate(() => ({
       password: !!document.querySelector('input[type=password]'),
-      overview: document.body.innerText.includes('OVERVIEW'),
+      opened: !!document.querySelector('.titlebar input[type=search]'),
       error: [...document.querySelectorAll('[role=alert], .text-red-600, .text-apple-error')].map(e => e.textContent.trim()).filter(Boolean)[0],
     }));
-    if (state.overview) break;
+    if (state.opened) break;
     if (state.password && password) { await c.page.fill('input[type=password]', password); await c.click('Unlock'); password = null; }
     if (state.error) break;
   }
-  check(`${label}: backup opens`, state.overview, state.error);
-  return state.overview;
+  check(`${label}: backup opens`, state.opened, state.error);
+  return state.opened;
 }
 
 async function photos(c, label, expectInBackup, expectIcloud) {
-  await c.click('Overview'); await sleep(2500);
-  const ov = await c.text();
-  const tile = num(ov.match(/([\d,]+)\nPhotos & Videos/)?.[1]);
-  await c.shot(`${label}-overview`);
-  await c.click('Photos'); await sleep(3000);
+  // The home page's Photos tile says how many there are ("Photos, 170")
+  await c.page.evaluate(() => document.querySelector('.titlebar button[title=Home]')?.click()); await sleep(2500);
+  const tile = num((await c.page.evaluate(() =>
+    document.querySelector('button[aria-label^="Photos,"]')?.getAttribute('aria-label')))?.match(/([\d,]+)$/)?.[1]);
+  await c.shot(`${label}-home`);
+  await c.open('Photos'); await sleep(3000);
   const t = await c.text();
-  const header = num(t.match(/PHOTOS · ([\d,]+) IN THIS BACKUP/i)?.[1]);
+  const header = num(t.match(/([\d,]+) photos? (?:and videos|or video) in this backup/i)?.[1]);
   const icloud = num(t.match(/([\d,]+) more are only in iCloud/)?.[1]) ?? 0;
   const grid = await c.page.evaluate(async () => {
     const g = [...document.querySelectorAll('div.grid')].find(g => g.querySelector('.aspect-square'));
@@ -134,41 +158,44 @@ async function photos(c, label, expectInBackup, expectIcloud) {
     return { tiles: tiles.length, unique: new Set(ids).size, counts, error: (document.body.innerText.match(/Couldn't load more photos[^\n]*/) || [null])[0] };
   });
   await c.shot(`${label}-photos-end`);
-  check(`${label}: Overview tile = ${expectInBackup}`, tile === expectInBackup, tile);
+  check(`${label}: home Photos tile = ${expectInBackup}`, tile === expectInBackup, tile);
   check(`${label}: Photos header = ${expectInBackup}`, header === expectInBackup, header);
   check(`${label}: iCloud-only note = ${expectIcloud}`, icloud === expectIcloud, icloud);
   check(`${label}: grid pages to all ${expectInBackup}, no duplicates, no error`, grid.tiles === expectInBackup && grid.unique === grid.tiles && !grid.error, grid);
   check(`${label}: no failed thumbnails`, !grid.counts?.failed, grid.counts);
 }
 
-async function waitAlert(c, ms = 300_000) {
+async function waitNotice(c, ms = 300_000) {
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { const a = await c.alerts(); if (a.length) return { secs: (Date.now() - t0) / 1000, alert: a[0] }; await sleep(500); }
-  return { secs: ms / 1000, alert: null };
+  while (Date.now() - t0 < ms) { const n = await c.notices(); if (n.length) return { secs: (Date.now() - t0) / 1000, notice: n[0] }; await sleep(500); }
+  return { secs: ms / 1000, notice: null };
 }
 
 async function exportSingle(c, label, convo, dir, expectPhotos) {
-  await c.click('Messages'); await sleep(2000);
+  await c.open('Messages'); await sleep(2000);
   check(`${label}: open "${convo}"`, await c.click(convo));
   await sleep(2500); await c.shot(`${label}-thread`);
-  fs.mkdirSync(dir, { recursive: true }); await c.stubFolder(dir); await c.captureAlerts();
+  fs.mkdirSync(dir, { recursive: true }); await c.stubFolder(dir); await c.clearNotices();
   const files = [];
+  const errors = [];
   for (const round of [1, 2]) {
     const t0 = Date.now();
-    await c.page.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'PDF (with images)').click());
+    await c.click('Save conversation');
+    await c.saveAs('pdf');
     let pdfs = [];
     while (Date.now() - t0 < 300_000) {
       await sleep(500);
       pdfs = fs.readdirSync(dir).filter(f => f.endsWith('.pdf'));
-      const busy = await c.page.evaluate(() => document.body.innerText.includes('Exporting...'));
-      if ((pdfs.length >= round && !busy) || (await c.alerts()).length) break;
+      const busy = await c.page.evaluate(() => document.body.innerText.includes('Saving…'));
+      const failed = (await c.notices()).filter(n => n.kind === 'alert');
+      if (failed.length) { errors.push(...failed); break; }
+      if (pdfs.length >= round && !busy) break;
     }
     files.push({ round, secs: (Date.now() - t0) / 1000, pdfs });
   }
-  const alerts = await c.alerts();
   const pdfs = fs.readdirSync(dir).filter(f => f.endsWith('.pdf')).sort();
   const stats = pdfs.map(f => ({ f, ...pdfStats(path.join(dir, f)) }));
-  check(`${label}: single PDF export, no error alert`, alerts.length === 0, alerts);
+  check(`${label}: single PDF export, no error notice`, errors.length === 0, errors);
   check(`${label}: second export kept the first ("(2)" file)`, pdfs.length === 2 && pdfs.some(f => f.includes(' (2).pdf')), { files, stats });
   check(`${label}: PDF valid with ${expectPhotos} photos`, stats.length > 0 && stats[0].header && stats[0].pages > 0 && stats[0].photos === expectPhotos, stats[0]);
   return stats;
@@ -176,32 +203,25 @@ async function exportSingle(c, label, convo, dir, expectPhotos) {
 
 async function exportBulk(c, label, convos, mode, dir, expectPhotos) {
   fs.mkdirSync(dir, { recursive: true });
-  await c.click('Messages'); await sleep(1500);
-  if (!(await c.page.evaluate(() => document.body.innerText.includes('Cancel select')))) await c.click('Select');
+  await c.open('Messages'); await sleep(1500);
+  if (!(await c.page.evaluate(() => [...document.querySelectorAll('button')].some(b => b.textContent.trim() === 'Done')))) await c.click('Select');
   await sleep(300);
   if (convos === 'all') await c.click('Select all');
   else for (const n of convos) await c.click(n);
   await sleep(300);
-  const selected = await c.page.evaluate(() => document.body.innerText.match(/Export (\d+)/)?.[1]);
-  await c.stubFolder(dir); await c.captureAlerts();
-  await c.page.evaluate(async mode => {
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
-    [...document.querySelectorAll('button')].find(b => /^Export \d+/.test(b.textContent.trim())).click(); await sleep(400);
-    [...document.querySelectorAll('input[type=radio]')][mode === 'merged' ? 1 : 0].click(); await sleep(100);
-    const sel = [...document.querySelectorAll('select')].find(s => [...s.options].some(o => o.value === 'pdf'));
-    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(sel, 'pdf');
-    sel.dispatchEvent(new Event('change', { bubbles: true })); await sleep(200);
-    [...document.querySelectorAll('button')].filter(b => b.textContent.trim() === 'Export').at(-1).click();
-  }, mode);
-  const { secs, alert } = await waitAlert(c);
+  const selected = await c.page.evaluate(() => document.body.innerText.match(/Save (\d+) conversations?/)?.[1]);
+  await c.stubFolder(dir); await c.clearNotices();
+  await c.page.evaluate(() => [...document.querySelectorAll('button')].find(b => /^Save \d+ conversation/.test(b.textContent.trim())).click());
+  await c.saveAs('pdf', mode);
+  const { secs, notice } = await waitNotice(c);
   const pdfs = fs.readdirSync(dir).filter(f => f.endsWith('.pdf'));
   const stats = pdfs.map(f => ({ f: f.slice(0, 40), ...pdfStats(path.join(dir, f)) }));
   const want = mode === 'merged' ? 1 : Number(selected);
   const photoCount = stats.reduce((a, s) => a + s.photos, 0);
   check(`${label}: bulk ${mode} PDF export of ${selected}${expectPhotos === undefined ? '' : ` with ${expectPhotos} photos`}`,
-    alert?.startsWith('Exported') && pdfs.length === want && stats.every(s => s.header && s.pages > 0) && (expectPhotos === undefined || photoCount === expectPhotos),
-    { secs, alert: alert?.split('\n')[0], files: pdfs.length, totalKB: stats.reduce((a, s) => a + s.kb, 0), photos: photoCount, pages: stats.reduce((a, s) => a + s.pages, 0) });
-  await c.click('Cancel select'); await sleep(300);
+    notice?.kind === 'status' && notice.text.startsWith('Saved') && pdfs.length === want && stats.every(s => s.header && s.pages > 0) && (expectPhotos === undefined || photoCount === expectPhotos),
+    { secs, notice: notice?.text.split('\n')[0], files: pdfs.length, totalKB: stats.reduce((a, s) => a + s.kb, 0), photos: photoCount, pages: stats.reduce((a, s) => a + s.pages, 0) });
+  await c.click('Done'); await sleep(300);
   return stats;
 }
 
@@ -231,8 +251,8 @@ const netLogDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oe-e2e-netlog-'));
 const netLog = path.join(netLogDir, 'net.json');
 await withApp('maren-network', async c => {
   if (!(await openBackup(c, 'maren-network', marenPlain))) return;
-  await c.click('Messages'); await sleep(1500);
-  const box = c.page.locator('input[placeholder="Search conversations..."]');
+  await c.open('Messages'); await sleep(1500);
+  const box = c.page.locator('.titlebar input[type=search]');
   check('maren-network: search box to type in', (await box.count()) > 0);
   await box.first().click();
   await c.page.keyboard.type('hello wrold, is this spelled rihgt', { delay: 50 });

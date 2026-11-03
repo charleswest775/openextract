@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { RecentSession } from '../../lib/appState';
-import {
-  LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon,
-  VoicemailIcon, GlobeIcon, ClockIcon, CalendarIcon, ChartIcon, ArrowLeftIcon, ExportIcon,
-  RecoverIcon,
-} from '../shared/Icons';
+import { ArrowLeftIcon } from '../shared/Icons';
+import SettingsDialog from '../shared/SettingsDialog';
+import { useBackupStats } from '../../hooks/useBackupStats';
+import { useBackupIndex, useTimeline } from '../../hooks/useTimeline';
 import BackupDashboard from './BackupDashboard';
 import MessageExplorer from './MessageExplorer';
 import PhotoExplorer from './PhotoExplorer';
@@ -17,12 +16,20 @@ import RecordRecoveryView from './RecordRecoveryView';
 import ExportPanel from './ExportPanel';
 import TimelineView from '../timeline/TimelineView';
 import YearView, { DEFAULT_YEAR_SELECTION, YearSelection } from '../year/YearView';
-import type { TimelineFilters } from '../../types/timeline';
+import PeopleView from '../people/PeopleView';
+import SearchBox from '../search/SearchBox';
+import SearchResults from '../search/SearchResults';
+import { DEFAULT_FILTERS } from '../../types/timeline';
 import type { HistoryVisit } from '../../lib/browserHistoryStats';
-import { MessageSquare } from 'lucide-react';
+import type { FeedbackArea } from '../../lib/feedback';
 import { useFeedback } from '../shared/Feedback';
-
-type Tab = 'dashboard' | 'timeline' | 'year' | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'record_recovery' | 'export';
+import TitleBar from './TitleBar';
+import HomeCrumb from './HomeCrumb';
+import BackupHome from './BackupHome';
+import {
+  availableData, missingKinds, sectionFor, SCOPED,
+  type ExploreContext, type OpenOptions, type Tab,
+} from './sections';
 
 interface Props {
   udid: string;
@@ -30,39 +37,89 @@ interface Props {
   onBack: () => void;
 }
 
-const allNavItems: { id: Tab; label: string; icon: typeof LinesIcon; comingSoon?: boolean }[] = [
-  { id: 'dashboard', label: 'Overview', icon: ChartIcon },
-  { id: 'timeline', label: 'Timeline', icon: ClockIcon },
-  { id: 'year', label: 'Year', icon: CalendarIcon },
-  { id: 'messages', label: 'Messages', icon: LinesIcon },
-  { id: 'photos', label: 'Photos', icon: CameraIcon },
-  { id: 'contacts', label: 'Contacts', icon: ContactIcon },
-  { id: 'calls', label: 'Calls', icon: CallIcon },
-  { id: 'notes', label: 'Notes', icon: NoteIcon },
-  { id: 'voicemail', label: 'Voicemail', icon: VoicemailIcon },
-  { id: 'browser_history', label: 'History', icon: GlobeIcon },
-  { id: 'record_recovery', label: 'Recover', icon: RecoverIcon },
-  { id: 'export', label: 'Export', icon: ExportIcon },
-];
+const FEEDBACK_AREAS = new Set<string>([
+  'dashboard', 'people', 'timeline', 'year', 'messages', 'photos', 'contacts', 'calls', 'notes', 'voicemail',
+  'browser_history', 'record_recovery', 'export',
+]);
 
+/**
+ * Everything inside an open backup: a home page of tiles, one screen per kind of
+ * data, and one search box at the top. On a screen that has a list, the box
+ * filters that list in place; elsewhere it searches the whole backup.
+ */
 export default function ExploreLayout({ udid, session, onBack }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
-  // What the Timeline opens on after a click on a day. The Timeline tab itself opens on everything.
-  const [timelineStart, setTimelineStart] = useState<Partial<TimelineFilters> | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('home');
+  // What the active screen opens on: a day, a conversation, the record a search found
+  const [target, setTarget] = useState<OpenOptions>({});
   // Kept here so coming back from a day finds the same year, types and person.
   const [yearSelection, setYearSelection] = useState<YearSelection>(DEFAULT_YEAR_SELECTION);
-  const openTab = (tab: Tab) => {
-    setTimelineStart(null);
-    setActiveTab(tab);
-  };
-  const handleNavigate = (tab: string) => openTab(tab as Tab);
   const { openFeedback } = useFeedback();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const backupStats = useBackupStats(udid);
+  const overview = backupStats.stats?.overview ?? null;
   const [hasBrowserHistory, setHasBrowserHistory] = useState(false);
   const [preloadedBrowserHistory, setPreloadedBrowserHistory] = useState<HistoryVisit[] | null>(null);
   const [browserHistoryPreloading, setBrowserHistoryPreloading] = useState(false);
 
+  // Every record, read once for search, People and the Timeline
+  const index = useBackupIndex(udid);
+
+  // ── The search box ──────────────────────────────────────────────────────
+  const [text, setText] = useState('');
+  const [query, setQuery] = useState('');
+  // The "in Notes" tag was removed: search the whole backup from this screen
+  const [everywhere, setEverywhere] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const resultsKey = useRef<((e: React.KeyboardEvent<HTMLInputElement>) => void) | null>(null);
+
   useEffect(() => {
-    setTimelineStart(null);
+    const t = setTimeout(() => setQuery(text.trim()), 250);
+    return () => clearTimeout(t);
+  }, [text]);
+
+  const scopeLabel = SCOPED[activeTab] && !everywhere ? sectionFor(activeTab)?.label ?? null : null;
+  const searchingAll = query !== '' && !scopeLabel;
+  const screenQuery = scopeLabel ? query : '';
+
+  function changeText(next: string) {
+    // Clearing the box after searching everywhere brings the screen's tag back
+    if (next === '' && everywhere) setEverywhere(false);
+    setText(next);
+    if (next === '') setQuery('');
+  }
+
+  const openTab = useCallback((tab: Tab, opts: OpenOptions = {}) => {
+    setTarget(opts);
+    setActiveTab(tab);
+    setEverywhere(false);
+    if (!(opts.keepQuery && SCOPED[tab])) {
+      setText('');
+      setQuery('');
+    }
+  }, []);
+  const goHome = useCallback(() => openTab('home'), [openTab]);
+
+  // Cmd+K (Ctrl+K) from anywhere
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // The whole-backup results, filtered from the shared index
+  const results = useTimeline(index);
+  const { setFilters } = results;
+  useEffect(() => {
+    if (searchingAll) setFilters({ ...DEFAULT_FILTERS, types: new Set(DEFAULT_FILTERS.types), searchQuery: query });
+  }, [searchingAll, query, setFilters]);
+
+  useEffect(() => {
     setYearSelection(DEFAULT_YEAR_SELECTION);
     setPreloadedBrowserHistory(null);
     setBrowserHistoryPreloading(false);
@@ -80,142 +137,159 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
     }).catch(() => {});
   }, [udid]);
 
-  const navItems = allNavItems.filter(item =>
-    item.id !== 'browser_history' || hasBrowserHistory
+  const ctx: ExploreContext = {
+    udid,
+    session,
+    stats: backupStats.stats,
+    overview,
+    hasBrowserHistory,
+    index,
+    data: availableData(overview, hasBrowserHistory),
+    missing: missingKinds(overview, hasBrowserHistory),
+    activeTab,
+    openTab,
+    onBack,
+    openSettings: () => setSettingsOpen(true),
+  };
+
+  // A screen opened from a search result remounts on the new record
+  const select = target.select;
+  const selectKey = select?.id ?? '';
+
+  function renderSection(tab: Tab) {
+    switch (tab) {
+      case 'home':
+        return <BackupHome ctx={ctx} onSearch={() => inputRef.current?.focus()} />;
+      case 'dashboard':
+        return <BackupDashboard {...backupStats} onNavigate={t => openTab(t as Tab)} hasBrowserHistory={hasBrowserHistory} />;
+      case 'people':
+        return <PeopleView key={target.person ?? ''} ctx={ctx} query={screenQuery} person={target.person} />;
+      case 'timeline':
+        return (
+          <TimelineView
+            key={target.timeline ? JSON.stringify({ ...target.timeline, types: [...(target.timeline.types ?? [])] }) : 'everything'}
+            udid={udid}
+            index={index}
+            startingFilters={target.timeline}
+            query={screenQuery}
+          />
+        );
+      case 'year':
+        return (
+          <YearView
+            udid={udid}
+            selection={yearSelection}
+            onSelectionChange={setYearSelection}
+            onOpenDay={filters => openTab('timeline', { timeline: filters })}
+          />
+        );
+      case 'messages':
+        return (
+          <MessageExplorer
+            key={`chat-${target.chatId ?? select?.message?.chatId ?? ''}-${selectKey}`}
+            udid={udid}
+            index={index}
+            query={screenQuery}
+            openChatId={target.chatId ?? select?.message?.chatId ?? null}
+            openMessageId={select?.type === 'message' ? Number(select.id.slice('message:'.length)) : null}
+          />
+        );
+      case 'photos':
+        return <PhotoExplorer key={selectKey} udid={udid} open={select?.type === 'photo' ? select : undefined} />;
+      case 'contacts':
+        return (
+          <ContactExplorer
+            key={target.contactId ?? ''}
+            ctx={ctx}
+            query={screenQuery}
+            openContactId={target.contactId}
+          />
+        );
+      case 'calls':
+        return <CallExplorer key={selectKey} udid={udid} query={screenQuery} selectId={select?.type === 'call' ? select.id : undefined} />;
+      case 'notes':
+        return (
+          <NoteExplorer
+            key={`note-${select?.note?.noteId ?? ''}`}
+            udid={udid}
+            query={screenQuery}
+            openNoteId={select?.note?.noteId ?? null}
+          />
+        );
+      case 'voicemail':
+        return <VoicemailExplorer key={selectKey} udid={udid} query={screenQuery} selectId={select?.type === 'voicemail' ? select.id : undefined} />;
+      case 'browser_history':
+        return (
+          <BrowserHistoryExplorer
+            key={selectKey}
+            udid={udid}
+            query={screenQuery}
+            selectId={select?.type === 'browser' ? select.id : undefined}
+            preloadedVisits={preloadedBrowserHistory}
+            preloadedLoading={browserHistoryPreloading}
+          />
+        );
+      case 'record_recovery':
+        return <RecordRecoveryView udid={udid} query={screenQuery} />;
+      case 'export':
+        return <ExportPanel udid={udid} overview={overview} hasBrowserHistory={hasBrowserHistory} />;
+    }
+  }
+
+  const atHome = activeTab === 'home' && !searchingAll;
+  const section = sectionFor(activeTab);
+  const deviceName = overview?.device_name ?? session?.name ?? 'This backup';
+
+  const left = atHome ? (
+    <button
+      onClick={onBack}
+      title="Close this backup and go back to your backups"
+      className="hearth-ghost-btn !px-3 !py-1.5"
+    >
+      <ArrowLeftIcon size={18} />
+      All backups
+    </button>
+  ) : (
+    <HomeCrumb onHome={goHome} homeName={deviceName} current={searchingAll ? 'Search results' : section?.label} />
   );
 
-  const initial = (session?.name ?? 'B')[0]?.toUpperCase() ?? 'B';
+  const area = searchingAll ? 'search' : FEEDBACK_AREAS.has(activeTab) ? activeTab : 'general';
 
   return (
-    <div className="h-screen flex bg-base">
-      {/* Chrome header (mac traffic lights + device pill) */}
-      <div className="flex flex-col flex-1 min-w-0">
-        <div className="h-11 flex items-center px-4 border-b border-rule bg-base flex-shrink-0">
-          <div className="flex gap-[7px]">
-            <span className="w-3 h-3 rounded-full" style={{ background: '#ff5f57' }} />
-            <span className="w-3 h-3 rounded-full" style={{ background: '#febc2e' }} />
-            <span className="w-3 h-3 rounded-full" style={{ background: '#28c840' }} />
-          </div>
-          <div className="ml-4 flex items-baseline gap-2">
-            <div
-              className="w-[18px] h-[18px] rounded-full self-center"
-              style={{
-                background: 'radial-gradient(circle at 35% 35%, var(--cream), var(--accent) 80%)',
-              }}
-            />
-            <span className="font-serif text-[16px] font-medium tracking-tight text-text-primary">
-              OpenExtract
-            </span>
-          </div>
-          <div className="flex-1" />
-          {session && (
-            <div className="hearth-pill">
-              <span className="w-[7px] h-[7px] rounded-full" style={{ background: 'var(--sage)' }} />
-              {session.name}
-              {session.iosVersion ? ` · iOS ${session.iosVersion}` : ''}
-            </div>
-          )}
+    <div className="h-screen flex flex-col bg-base">
+      <TitleBar
+        left={left}
+        center={
+          <SearchBox
+            inputRef={inputRef}
+            text={text}
+            onText={changeText}
+            scope={scopeLabel}
+            onClearScope={() => setEverywhere(true)}
+            placeholder={scopeLabel ? SCOPED[activeTab]! : 'Search messages, notes, calls, voicemail, people…'}
+            onKey={e => searchingAll && resultsKey.current?.(e)}
+          />
+        }
+        onLogo={goHome}
+        onHelp={() => openFeedback({ area: area as FeedbackArea })}
+        onSettings={() => setSettingsOpen(true)}
+      />
+      {scopeLabel && query && (
+        <div className="flex-shrink-0 px-6 py-2 border-b border-rule bg-accent-wash flex items-center gap-3 text-sm">
+          <span className="text-text-secondary">
+            Showing only {scopeLabel.toLowerCase()} that match <span className="font-medium text-text-primary">“{query}”</span>
+          </span>
+          <button onClick={() => setEverywhere(true)} className="text-accent font-medium hover:underline">
+            Search all of {deviceName} →
+          </button>
         </div>
-
-        <div className="flex flex-1 min-h-0">
-          {/* Hearth icon-rail sidebar */}
-          <nav className="w-[86px] flex-shrink-0 border-r border-rule bg-base py-3.5 px-2 flex flex-col gap-1 items-center">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  title={item.label}
-                  onClick={() => !item.comingSoon && openTab(item.id)}
-                  className={`w-[68px] h-[64px] rounded-[14px] flex flex-col items-center justify-center gap-[3px] transition-all ${
-                    isActive ? 'bg-surface border border-rule' : 'border border-transparent hover:bg-surface/60'
-                  } ${item.comingSoon ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-                  style={
-                    isActive
-                      ? { boxShadow: '0 1px 2px rgba(30,26,22,.06), 0 4px 14px rgba(217,119,87,.10)' }
-                      : undefined
-                  }
-                >
-                  <Icon
-                    size={18}
-                    className={isActive ? 'text-accent' : 'text-text-secondary'}
-                  />
-                  <span
-                    className={`text-[10px] ${isActive ? 'text-accent font-medium' : 'text-text-secondary'}`}
-                  >
-                    {item.label}
-                  </span>
-                </button>
-              );
-            })}
-            <div className="flex-1" />
-            {/* Feedback about whatever is on screen */}
-            <button
-              onClick={() => openFeedback({ area: activeTab })}
-              title="Send feedback"
-              className="w-[68px] h-[52px] rounded-[12px] flex flex-col items-center justify-center gap-[3px] text-text-secondary hover:bg-surface transition-colors border border-transparent"
-            >
-              <MessageSquare size={15} />
-              <span className="text-[10px]">Feedback</span>
-            </button>
-            {/* Back home */}
-            <button
-              onClick={onBack}
-              title="Home"
-              className="w-[68px] h-[44px] rounded-[12px] flex items-center justify-center text-text-secondary hover:bg-surface transition-colors border border-transparent"
-            >
-              <ArrowLeftIcon size={15} />
-            </button>
-            {/* Session avatar */}
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center border border-rule font-serif text-[15px]"
-              style={{ background: 'oklch(82% 0.07 14)', color: '#fff' }}
-              title={session?.name ?? 'Backup'}
-            >
-              {initial}
-            </div>
-          </nav>
-
-          {/* Content area */}
-          <div className="flex-1 overflow-hidden min-w-0">
-            {activeTab === 'dashboard' && <BackupDashboard udid={udid} onNavigate={handleNavigate} />}
-            {activeTab === 'timeline' && (
-              <TimelineView
-                key={timelineStart ? 'day' : 'everything'}
-                udid={udid}
-                startingFilters={timelineStart ?? undefined}
-              />
-            )}
-            {activeTab === 'year' && (
-              <YearView
-                udid={udid}
-                selection={yearSelection}
-                onSelectionChange={setYearSelection}
-                onOpenDay={filters => {
-                  setTimelineStart(filters);
-                  setActiveTab('timeline');
-                }}
-              />
-            )}
-            {activeTab === 'messages' && <MessageExplorer udid={udid} />}
-            {activeTab === 'photos' && <PhotoExplorer udid={udid} />}
-            {activeTab === 'contacts' && <ContactExplorer udid={udid} />}
-            {activeTab === 'calls' && <CallExplorer udid={udid} />}
-            {activeTab === 'notes' && <NoteExplorer udid={udid} />}
-            {activeTab === 'voicemail' && <VoicemailExplorer udid={udid} />}
-            {activeTab === 'browser_history' && (
-              <BrowserHistoryExplorer
-                udid={udid}
-                preloadedVisits={preloadedBrowserHistory}
-                preloadedLoading={browserHistoryPreloading}
-              />
-            )}
-            {activeTab === 'record_recovery' && <RecordRecoveryView udid={udid} />}
-            {activeTab === 'export' && <ExportPanel udid={udid} />}
-          </div>
-        </div>
+      )}
+      <div className="flex-1 overflow-hidden min-w-0">
+        {searchingAll
+          ? <SearchResults ctx={ctx} timeline={results} query={query} keyRef={resultsKey} />
+          : renderSection(activeTab)}
       </div>
+      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

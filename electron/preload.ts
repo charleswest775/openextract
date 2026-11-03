@@ -26,6 +26,18 @@ contextBridge.exposeInMainWorld('openextract', {
   // Open a local file in the system default app (e.g. video player)
   openPath: (filePath: string) => ipcRenderer.invoke('shell:openPath', filePath),
 
+  // Reveal a saved file or folder in Finder / Explorer
+  showInFolder: (filePath: string) => ipcRenderer.invoke('shell:showItemInFolder', filePath),
+
+  // 'darwin', 'win32' or 'linux', for platform-specific window chrome
+  platform: process.platform,
+
+  // Text size (Settings): scales the whole window, like the View menu's zoom
+  textSize: {
+    get: () => ipcRenderer.invoke('text-size:get'),
+    set: (size: 'default' | 'large' | 'larger') => ipcRenderer.invoke('text-size:set', size),
+  },
+
   // Subscribe to JSON-RPC notifications pushed by the Python sidecar.
   onNotification: (callback: (notification: any) => void) => {
     const listener = (_event: any, notification: any) => callback(notification);

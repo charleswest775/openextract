@@ -14,6 +14,7 @@ import {
   buildContactOptions,
   rowsForPerson,
 } from '../lib/people';
+import { matchesTerms, parseQuery, searchText } from '../lib/search';
 import type { Conversation, Message } from './useMessages';
 import type { PhotoAsset } from '../types';
 
@@ -26,9 +27,7 @@ function appDisplayName(bundleId: string): string {
   return parts[parts.length - 1] || bundleId;
 }
 
-// Per-conversation cap ensures every contact is represented in the timeline.
-// Global cap prevents extremely large backups from overwhelming the UI.
-const MESSAGES_PER_CONV = 500;
+// Stops reading messages past this many, so a very large backup can't overwhelm the app.
 const MAX_MESSAGES = 200000;
 const PAGE_SIZE = 100;
 
@@ -48,6 +47,8 @@ export function normalizeMessage(msg: Message, conv: Conversation): TimelineEntr
       messageType: msg.message_type,
       conversationName: conv.display_name || conv.chat_identifier,
       service: conv.service,
+      chatId: conv.chat_id,
+      isGroup: conv.is_group,
     },
   };
 }
@@ -183,62 +184,85 @@ function normalizeBrowserVisit(v: RawBrowserVisit): TimelineEntry {
   };
 }
 
-// ── Hook ───────────────────────────────────────────────────────────────────────
+// ── The backup, read once ─────────────────────────────────────────────────────
 
-export interface UseTimelineReturn {
+/** A card from the phone's address book. */
+export interface AddressCard {
+  id: number;
+  first_name: string;
+  last_name: string;
+  display_name: string;
+  organization: string;
+  phones: string[];
+  emails: string[];
+  note: string;
+}
+
+export interface BackupIndex {
+  /** Every record read so far, newest first. */
   entries: TimelineEntry[];
-  filteredEntries: TimelineEntry[];
-  allContacts: ContactOption[];
+  /** Everyone the records mention, for picking a person. */
+  contacts: ContactOption[];
+  /** The address book; null until it's read. */
+  addressBook: AddressCard[] | null;
+  identifierGroupMap: IdentifierGroupMap;
   counts: Record<TimelineEntryType, number>;
-  totalFiltered: number;
   loading: boolean;
   loadingTypes: Set<TimelineEntryType>;
   errors: Partial<Record<TimelineEntryType, string>>;
   messageCap: { loaded: number; total: number } | null;
-  filters: TimelineFilters;
-  setFilters: (patch: Partial<TimelineFilters>) => void;
-  page: number;
-  setPage: (p: number) => void;
-  pageSize: number;
   loadAllMessages: () => Promise<void>;
+  /** Reads one day's messages ahead of the rest, for opening the Timeline on a day. */
+  loadDay: (day: string) => void;
   refresh: () => void;
 }
 
-// `startingFilters` opens the Timeline on a filter, such as a day from the Year view.
-export function useTimeline(udid: string, startingFilters?: Partial<TimelineFilters>): UseTimelineReturn {
+// While messages load, hand over what's read at most this often, so search fills in as it goes.
+const FLUSH_MS = 1500;
+
+function dedupe(entries: TimelineEntry[]): TimelineEntry[] {
+  // A message can be in two chats: keep it once.
+  const seen = new Set<string>();
+  return entries.filter(e => {
+    if (seen.has(e.id)) return false;
+    seen.add(e.id);
+    return true;
+  });
+}
+
+/**
+ * Reads every kind of record in the backup once, for search, People and the
+ * Timeline to share. Each kind arrives on its own; messages arrive in batches.
+ */
+export function useBackupIndex(udid: string): BackupIndex {
   const [rawEntries, setRawEntries] = useState<TimelineEntry[]>([]);
   const [loadingTypes, setLoadingTypes] = useState<Set<TimelineEntryType>>(
-    new Set(['message', 'call', 'photo', 'voicemail', 'note'])
+    new Set(['message', 'call', 'photo', 'voicemail', 'note', 'browser'])
   );
   const [errors, setErrors] = useState<Partial<Record<TimelineEntryType, string>>>({});
   const [messageCap, setMessageCap] = useState<{ loaded: number; total: number } | null>(null);
-  const [filters, setFiltersState] = useState<TimelineFilters>({ ...DEFAULT_FILTERS, ...startingFilters });
-  const [page, setPage] = useState(0);
-  const loadEpochRef = useRef(0);
+  const [addressBook, setAddressBook] = useState<AddressCard[] | null>(null);
   const [identifierGroupMap, setIdentifierGroupMap] = useState<IdentifierGroupMap>(new Map());
-  // The day to load in full first, when opening on one with messages showing.
-  const openDay = startingFilters?.dateFrom
-    && startingFilters.dateFrom === startingFilters.dateTo
-    && (startingFilters.types?.has('message') ?? true)
-    ? startingFilters.dateFrom
-    : null;
+  const loadEpochRef = useRef(0);
+  const conversationsRef = useRef<Conversation[] | null>(null);
+  const messagesDoneRef = useRef(false);
+  // Days read ahead of the full load, kept through its batches
+  const dayEntriesRef = useRef<TimelineEntry[]>([]);
+  const daysAskedRef = useRef(new Set<string>());
 
   const addEntries = useCallback((incoming: TimelineEntry[], type: TimelineEntryType) => {
-    setRawEntries(prev => {
-      // Replaces this type's entries. A message can be in two chats: show it once.
-      const seen = new Set<string>();
-      const fresh = incoming.filter(e => {
-        if (seen.has(e.id)) return false;
-        seen.add(e.id);
-        return true;
-      });
-      return [...prev.filter(e => e.type !== type), ...fresh];
-    });
+    const fresh = dedupe(incoming);
+    setRawEntries(prev => [...prev.filter(e => e.type !== type), ...fresh]);
     setLoadingTypes(prev => {
       const next = new Set(prev);
       next.delete(type);
       return next;
     });
+  }, []);
+
+  const putMessages = useCallback((loaded: TimelineEntry[]) => {
+    const all = dedupe([...loaded, ...dayEntriesRef.current]);
+    setRawEntries(prev => [...prev.filter(e => e.type !== 'message'), ...all]);
   }, []);
 
   const markError = useCallback((type: TimelineEntryType, msg: string) => {
@@ -257,41 +281,22 @@ export function useTimeline(udid: string, startingFilters?: Partial<TimelineFilt
         { udid }
       );
       if (loadEpochRef.current !== epoch) return;
+      conversationsRef.current = conversations;
 
-      // Opening on a day: show all of it now, even if the cap below would leave it out.
-      const dayEntries: TimelineEntry[] = [];
-      if (openDay) {
-        try {
-          const byId = new Map(conversations.map(c => [c.chat_id, c]));
-          const day = await sidecarCall<{ conversations: { chat_id: number; messages: Message[] }[] }>(
-            'get_messages_on_day',
-            { udid, day: openDay }
-          );
-          if (loadEpochRef.current !== epoch) return;
-          for (const { chat_id, messages } of day.conversations) {
-            const conv = byId.get(chat_id);
-            if (!conv) continue;
-            dayEntries.push(...messages.filter(m => !m.is_reaction).map(m => normalizeMessage(m, conv)));
-          }
-          setRawEntries(prev => [...prev.filter(e => e.type !== 'message'), ...dayEntries]);
-        } catch {
-          // The full load below still shows what it reaches
-        }
-      }
-
-      // Sort by most recent, then cap total messages fetched
+      // Newest conversations first, so recent messages are searchable soonest
       const sorted = [...conversations].sort((a, b) =>
         (b.last_message_date || '').localeCompare(a.last_message_date || '')
       );
 
       let loaded = 0;
       const totalAcross = sorted.reduce((s, c) => s + c.message_count, 0);
-      const entries: TimelineEntry[] = [...dayEntries];
+      const entries: TimelineEntry[] = [];
+      let flushedAt = Date.now();
 
       for (const conv of sorted) {
         if (loaded >= MAX_MESSAGES) break;
         try {
-          // Paginate through all messages in this conversation
+          // Every message in this conversation, a page at a time
           let offset = 0;
           const batchSize = 500;
           while (true) {
@@ -308,18 +313,24 @@ export function useTimeline(udid: string, startingFilters?: Partial<TimelineFilt
         } catch {
           // Skip one failed conversation, continue with others
         }
+        if (Date.now() - flushedAt > FLUSH_MS) {
+          putMessages(entries);
+          flushedAt = Date.now();
+        }
       }
 
-      addEntries(entries, 'message');
-      if (loaded < totalAcross) {
-        setMessageCap({ loaded, total: totalAcross });
-      } else {
-        setMessageCap(null);
-      }
+      messagesDoneRef.current = true;
+      putMessages(entries);
+      setLoadingTypes(prev => {
+        const next = new Set(prev);
+        next.delete('message');
+        return next;
+      });
+      setMessageCap(loaded < totalAcross ? { loaded, total: totalAcross } : null);
     } catch (e: any) {
       markError('message', e.message || 'Failed to load messages');
     }
-  }, [udid, openDay, addEntries, markError]);
+  }, [udid, putMessages, markError]);
 
   const fetchCalls = useCallback(async (epoch: number) => {
     try {
@@ -338,7 +349,6 @@ export function useTimeline(udid: string, startingFilters?: Partial<TimelineFilt
 
   const fetchPhotos = useCallback(async (epoch: number) => {
     try {
-      // Load all photos for the timeline
       const res = await sidecarCall<{ photos: PhotoAsset[]; total: number }>(
         'list_photos',
         { udid, offset: 0, limit: 999999 }
@@ -397,15 +407,15 @@ export function useTimeline(udid: string, startingFilters?: Partial<TimelineFilt
     }
   }, [udid, addEntries, markError]);
 
-  const fetchContactGroups = useCallback(async () => {
+  const fetchAddressBook = useCallback(async (epoch: number) => {
     try {
-      const res = await sidecarCall<{ contacts: { phones: string[]; emails: string[] }[] }>(
-        'list_contacts',
-        { udid }
-      );
-      setIdentifierGroupMap(buildIdentifierGroupMap(res.contacts));
+      const res = await sidecarCall<{ contacts: AddressCard[] }>('list_contacts', { udid });
+      if (loadEpochRef.current !== epoch) return;
+      setAddressBook(res.contacts ?? []);
+      setIdentifierGroupMap(buildIdentifierGroupMap(res.contacts ?? []));
     } catch {
-      // Non-critical — contact grouping is best-effort
+      // Non-critical: people are grouped by number alone, and the card links are left out
+      setAddressBook([]);
     }
   }, [udid]);
 
@@ -415,8 +425,12 @@ export function useTimeline(udid: string, startingFilters?: Partial<TimelineFilt
     setRawEntries([]);
     setErrors({});
     setMessageCap(null);
+    setAddressBook(null);
     setLoadingTypes(new Set(['message', 'call', 'photo', 'voicemail', 'note', 'browser']));
-    setPage(0);
+    conversationsRef.current = null;
+    messagesDoneRef.current = false;
+    dayEntriesRef.current = [];
+    daysAskedRef.current = new Set();
 
     // Fire all fetches in parallel; each one updates state independently
     fetchMessages(epoch);
@@ -425,16 +439,44 @@ export function useTimeline(udid: string, startingFilters?: Partial<TimelineFilt
     fetchVoicemail(epoch);
     fetchNotes(epoch);
     fetchBrowser(epoch);
-    fetchContactGroups();
-  }, [fetchMessages, fetchCalls, fetchPhotos, fetchVoicemail, fetchNotes, fetchBrowser, fetchContactGroups]);
+    fetchAddressBook(epoch);
+  }, [fetchMessages, fetchCalls, fetchPhotos, fetchVoicemail, fetchNotes, fetchBrowser, fetchAddressBook]);
 
   useEffect(() => {
     load();
-    // Leaving stops the load, so hopping between Year and Timeline doesn't stack them up.
+    // Closing the backup stops the load
     return () => {
       loadEpochRef.current += 1;
     };
   }, [load]);
+
+  const loadDay = useCallback(async (day: string) => {
+    if (messagesDoneRef.current || daysAskedRef.current.has(day)) return;
+    daysAskedRef.current.add(day);
+    const epoch = loadEpochRef.current;
+    try {
+      const conversations = conversationsRef.current
+        ?? (await sidecarCall<{ conversations: Conversation[] }>('list_conversations', { udid })).conversations;
+      const byId = new Map(conversations.map(c => [c.chat_id, c]));
+      const res = await sidecarCall<{ conversations: { chat_id: number; messages: Message[] }[] }>(
+        'get_messages_on_day',
+        { udid, day }
+      );
+      if (loadEpochRef.current !== epoch || messagesDoneRef.current) return;
+      const dayEntries: TimelineEntry[] = [];
+      for (const { chat_id, messages } of res.conversations) {
+        const conv = byId.get(chat_id);
+        if (conv) dayEntries.push(...messages.filter(m => !m.is_reaction).map(m => normalizeMessage(m, conv)));
+      }
+      dayEntriesRef.current = [...dayEntriesRef.current, ...dayEntries];
+      setRawEntries(prev => {
+        const have = new Set(prev.map(e => e.id));
+        return [...prev, ...dedupe(dayEntries).filter(e => !have.has(e.id))];
+      });
+    } catch {
+      // The full load still reaches that day
+    }
+  }, [udid]);
 
   // Load all messages (user-triggered, removes the cap)
   const loadAllMessages = useCallback(async () => {
@@ -468,10 +510,14 @@ export function useTimeline(udid: string, startingFilters?: Partial<TimelineFilt
     }
   }, [udid, messageCap, addEntries, markError]);
 
-  // ── Derived contact list ──────────────────────────────────────────────────
-  const allContacts = useMemo((): ContactOption[] => buildContactOptions(rawEntries), [rawEntries]);
+  // Sorted once here, so every filter downstream keeps the order for free
+  const entries = useMemo(
+    () => [...rawEntries].sort((a, b) => (b.timestamp ?? '').localeCompare(a.timestamp ?? '')),
+    [rawEntries],
+  );
 
-  // ── Counts per type (unfiltered) ──────────────────────────────────────────
+  const contacts = useMemo((): ContactOption[] => buildContactOptions(rawEntries), [rawEntries]);
+
   const counts = useMemo((): Record<TimelineEntryType, number> => {
     const c: Record<TimelineEntryType, number> = {
       message: 0, call: 0, photo: 0, voicemail: 0, note: 0, browser: 0,
@@ -482,10 +528,63 @@ export function useTimeline(udid: string, startingFilters?: Partial<TimelineFilt
     return c;
   }, [rawEntries, messageCap]);
 
-  // ── Filtered + sorted entries ─────────────────────────────────────────────
+  return useMemo(() => ({
+    entries,
+    contacts,
+    addressBook,
+    identifierGroupMap,
+    counts,
+    loading: loadingTypes.size > 0,
+    loadingTypes,
+    errors,
+    messageCap,
+    loadAllMessages,
+    loadDay,
+    refresh: load,
+  }), [entries, contacts, addressBook, identifierGroupMap, counts, loadingTypes, errors, messageCap, loadAllMessages, loadDay, load]);
+}
+
+// ── One filtered view of it ───────────────────────────────────────────────────
+
+export interface UseTimelineReturn {
+  /** Everything loaded, before any filter, newest first. */
+  allEntries: TimelineEntry[];
+  entries: TimelineEntry[];
+  filteredEntries: TimelineEntry[];
+  allContacts: ContactOption[];
+  counts: Record<TimelineEntryType, number>;
+  totalFiltered: number;
+  loading: boolean;
+  loadingTypes: Set<TimelineEntryType>;
+  errors: Partial<Record<TimelineEntryType, string>>;
+  messageCap: { loaded: number; total: number } | null;
+  filters: TimelineFilters;
+  setFilters: (patch: Partial<TimelineFilters>) => void;
+  page: number;
+  setPage: (p: number) => void;
+  pageSize: number;
+  loadAllMessages: () => Promise<void>;
+  refresh: () => void;
+}
+
+// `startingFilters` opens the view on a filter, such as a day from the Year view.
+export function useTimeline(index: BackupIndex, startingFilters?: Partial<TimelineFilters>): UseTimelineReturn {
+  const [filters, setFiltersState] = useState<TimelineFilters>({ ...DEFAULT_FILTERS, ...startingFilters });
+  const [page, setPage] = useState(0);
+  const { entries: allEntries, contacts: allContacts, identifierGroupMap, loadDay } = index;
+
+  // Opening on one day with messages showing: read that day ahead of the rest
+  const openDay = filters.dateFrom && filters.dateFrom === filters.dateTo && filters.types.has('message')
+    ? filters.dateFrom
+    : null;
+  useEffect(() => {
+    if (openDay) loadDay(openDay);
+  }, [openDay, loadDay]);
+
+  // ── Filtered entries, newest first ────────────────────────────────────────
   const filteredEntries = useMemo((): TimelineEntry[] => {
     const { types, contactIdentifier, dateFrom, dateTo, searchQuery } = filters;
-    const q = searchQuery.trim().toLowerCase();
+    const terms = parseQuery(searchQuery);
     // Use local midnight for both bounds so the user's chosen calendar day is
     // respected regardless of their UTC offset.  Appending 'T00:00:00' (no Z)
     // makes the Date constructor treat it as local time, matching 'T23:59:59'.
@@ -504,13 +603,13 @@ export function useTimeline(udid: string, startingFilters?: Partial<TimelineFilt
       const selectedContact = allContacts.find(c => identifiersMatch(contactIdentifier, c.identifier));
       const selectedName = selectedContact?.name?.toLowerCase() ?? '';
 
-      // Collect every raw identifier seen in rawEntries that belongs to
+      // Collect every raw identifier seen in the entries that belongs to
       // this contact, plus track the communication-window timestamps.
       const contactIds = new Set<string>();
       let minTs = Infinity;
       let maxTs = -Infinity;
 
-      for (const e of rowsForPerson(contactIdentifier, rawEntries, allContacts, identifierGroupMap)) {
+      for (const e of rowsForPerson(contactIdentifier, allEntries, allContacts, identifierGroupMap)) {
         contactIds.add(e.contactIdentifier!);
         if (e.timestamp) {
           const ts = new Date(e.timestamp).getTime();
@@ -543,40 +642,21 @@ export function useTimeline(udid: string, startingFilters?: Partial<TimelineFilt
       };
     }
 
-    return rawEntries
-      .filter(e => {
-        if (!types.has(e.type)) return false;
+    return allEntries.filter(e => {
+      if (!types.has(e.type)) return false;
 
-        if (matchesContact && !matchesContact(e)) return false;
+      if (matchesContact && !matchesContact(e)) return false;
 
-        if (fromMs || toMs) {
-          if (!e.timestamp) return false; // undated entries can't be placed in a date range
-          const ts = new Date(e.timestamp).getTime();
-          if (fromMs && ts < fromMs) return false;
-          if (toMs && ts > toMs) return false;
-        }
+      if (fromMs || toMs) {
+        if (!e.timestamp) return false; // undated entries can't be placed in a date range
+        const ts = new Date(e.timestamp).getTime();
+        if (fromMs && ts < fromMs) return false;
+        if (toMs && ts > toMs) return false;
+      }
 
-        if (q) {
-          const haystack = [
-            e.contactName,
-            e.message?.text,
-            e.message?.conversationName,
-            e.call?.app,
-            e.photo?.filename,
-            e.voicemail?.transcript,
-            e.note?.title,
-            e.note?.bodyPreview,
-            e.browser?.title,
-            e.browser?.domain,
-            e.browser?.url,
-          ].filter(Boolean).join(' ').toLowerCase();
-          if (!haystack.includes(q)) return false;
-        }
-
-        return true;
-      })
-      .sort((a, b) => (b.timestamp ?? '').localeCompare(a.timestamp ?? ''));
-  }, [rawEntries, filters, allContacts, identifierGroupMap]);
+      return terms.length === 0 || matchesTerms(searchText(e), terms);
+    });
+  }, [allEntries, filters, allContacts, identifierGroupMap]);
 
   // ── Paginated slice ───────────────────────────────────────────────────────
   const entries = useMemo(() => {
@@ -589,24 +669,23 @@ export function useTimeline(udid: string, startingFilters?: Partial<TimelineFilt
     setPage(0);
   }, []);
 
-  const loading = loadingTypes.size > 0;
-
   return {
+    allEntries,
     entries,
     filteredEntries,
     allContacts,
-    counts,
+    counts: index.counts,
     totalFiltered: filteredEntries.length,
-    loading,
-    loadingTypes,
-    errors,
-    messageCap,
+    loading: index.loading,
+    loadingTypes: index.loadingTypes,
+    errors: index.errors,
+    messageCap: index.messageCap,
     filters,
     setFilters,
     page,
     setPage,
     pageSize: PAGE_SIZE,
-    loadAllMessages,
-    refresh: load,
+    loadAllMessages: index.loadAllMessages,
+    refresh: index.refresh,
   };
 }

@@ -12,6 +12,7 @@ import SharePrompt from './components/shared/SharePrompt';
 import ExportCheckPrompt from './components/shared/ExportCheckPrompt';
 import FixedReportNotice from './components/shared/FixedReportNotice';
 import { FeedbackProvider, ReportProblemButton } from './components/shared/Feedback';
+import { NoticeProvider } from './components/shared/Notices';
 
 type Screen = 'home' | 'explore' | 'create-backup';
 
@@ -102,6 +103,7 @@ export default function App() {
 
   return (
     <FeedbackProvider>
+    <NoticeProvider>
     <div className="h-screen flex flex-col bg-base text-text-primary">
       {screen === 'home' && (
         <HomeScreen
@@ -221,6 +223,7 @@ export default function App() {
         />
       )}
     </div>
+    </NoticeProvider>
     </FeedbackProvider>
   );
 }

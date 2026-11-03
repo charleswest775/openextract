@@ -1,10 +1,14 @@
 import { useMemo, useState, KeyboardEvent, FocusEvent, MouseEvent } from 'react';
-import { AlertTriangle, CalendarDays, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { DayCounts, useYearCounts, useYearPeople } from '../../hooks/useYearCounts';
 import { TimelineEntryType, TimelineFilters } from '../../types/timeline';
 import { identifiersForPerson } from '../../lib/people';
 import { buildYearGrid, formatDay, shadeLevels } from '../../lib/yearGrid';
 import TimelineTypeChips, { TYPE_CONFIG } from '../timeline/TimelineTypeChips';
+import PageHeader from '../shared/PageHeader';
+import EmptyState from '../shared/EmptyState';
+import { CalendarIcon } from '../shared/Icons';
+import { plural } from '../../lib/saveData';
 import ContactPicker from '../timeline/ContactPicker';
 import OrganicLoader from '../shared/OrganicLoader';
 
@@ -185,29 +189,18 @@ export default function YearView({ udid, selection, onSelectionChange, onOpenDay
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      {/* Header */}
-      <div style={{
-        padding: '20px 28px 14px',
-        borderBottom: '1px solid var(--border-default)',
-        flexShrink: 0,
-      }}>
-        <div className="hearth-eyebrow mb-1.5">
-          Year
-          {counts && shownYear !== null && ` · ${shownYear} · ${yearTotal.toLocaleString()} event${yearTotal !== 1 ? 's' : ''}`}
-        </div>
-        <h1 className="hearth-title text-3xl">
-          One year, <span className="font-serif-italic text-accent">day by day.</span>
-        </h1>
-      </div>
+      <PageHeader
+        title="Year"
+        count={counts && shownYear !== null ? `${shownYear} · ${plural(yearTotal, 'event')}` : undefined}
+      />
 
       {/* Filters */}
       <div style={{
-        background: 'var(--bg-surface)',
-        borderBottom: '0.5px solid var(--border-default)',
-        padding: '10px 20px',
+        borderBottom: '1px solid var(--border-default)',
+        padding: '12px 24px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
+        gap: 10,
         flexShrink: 0,
       }}>
         <FilterRow label="Year">
@@ -218,13 +211,14 @@ export default function YearView({ udid, selection, onSelectionChange, onOpenDay
                 onClick={() => update({ year: y })}
                 aria-pressed={y === year}
                 style={{
-                  padding: '3px 10px',
-                  borderRadius: 6,
-                  border: '0.5px solid var(--border-strong)',
-                  background: y === year ? 'var(--accent-subtle)' : 'var(--bg-base)',
+                  height: 34,
+                  padding: '0 14px',
+                  borderRadius: 999,
+                  border: `1.5px solid ${y === year ? 'var(--accent)' : 'var(--border-default)'}`,
+                  background: y === year ? 'var(--accent-wash)' : 'transparent',
                   color: y === year ? 'var(--text-accent)' : 'var(--text-secondary)',
                   fontWeight: y === year ? 600 : 400,
-                  fontSize: 12,
+                  fontSize: 14,
                   fontFamily: 'inherit',
                   cursor: 'pointer',
                 }}
@@ -232,7 +226,7 @@ export default function YearView({ udid, selection, onSelectionChange, onOpenDay
                 {y}
               </button>
             ))}
-            {loading && <Loader2 size={13} className="animate-spin" style={{ color: 'var(--text-tertiary)', marginLeft: 4 }} />}
+            {loading && <Loader2 size={16} className="animate-spin" style={{ color: 'var(--text-tertiary)', marginLeft: 4 }} />}
           </div>
         </FilterRow>
         <FilterRow label="Type">
@@ -267,14 +261,12 @@ export default function YearView({ udid, selection, onSelectionChange, onOpenDay
 
       {/* Nothing dated at all */}
       {noData && (
-        <div style={{
-          flex: 1, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 8,
-          color: 'var(--text-tertiary)',
-        }}>
-          <CalendarDays size={40} strokeWidth={1} style={{ marginBottom: 4 }} />
-          <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-secondary)' }}>No dated activity in this backup</div>
-          <div style={{ fontSize: 13 }}>Messages, calls, photos, voicemail, notes and web visits would show here</div>
+        <div style={{ flex: 1 }}>
+          <EmptyState
+            icon={CalendarIcon}
+            title="No dated activity in this backup"
+            detail="Messages, calls, photos, voicemail, notes and web visits would show here."
+          />
         </div>
       )}
 
@@ -307,7 +299,7 @@ export default function YearView({ udid, selection, onSelectionChange, onOpenDay
                     ...(startMark.col < columns / 2
                       ? { left: `calc(28px + ${startMark.col} * (100% - 28px) / ${columns})` }
                       : { right: `calc((${columns - 1 - startMark.col}) * (100% - 28px) / ${columns})` }),
-                    fontSize: 11,
+                    fontSize: 13,
                     fontWeight: 600,
                     color: 'var(--text-primary)',
                     whiteSpace: 'nowrap',
@@ -321,7 +313,7 @@ export default function YearView({ udid, selection, onSelectionChange, onOpenDay
                 <div key={m.col} style={{
                   gridRow: 2,
                   gridColumn: `${m.col + 2} / span 4`,
-                  fontSize: 11,
+                  fontSize: 13,
                   color: 'var(--text-tertiary)',
                   whiteSpace: 'nowrap',
                 }}>
@@ -333,7 +325,7 @@ export default function YearView({ udid, selection, onSelectionChange, onOpenDay
                 <div key={row} style={{
                   gridRow: row + 3,
                   gridColumn: 1,
-                  fontSize: 10,
+                  fontSize: 12,
                   lineHeight: 1,
                   color: 'var(--text-tertiary)',
                   alignSelf: 'center',
@@ -390,7 +382,7 @@ export default function YearView({ udid, selection, onSelectionChange, onOpenDay
                     borderRadius: 6,
                     background: 'var(--text-primary)',
                     color: 'var(--bg-surface)',
-                    fontSize: 12,
+                    fontSize: 14,
                     whiteSpace: 'nowrap',
                     pointerEvents: 'none',
                   }}
@@ -404,7 +396,7 @@ export default function YearView({ udid, selection, onSelectionChange, onOpenDay
           {/* Legend */}
           <div style={{
             display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px 18px',
-            marginTop: 14, maxWidth: 1200, fontSize: 11, color: 'var(--text-secondary)',
+            marginTop: 14, maxWidth: 1200, fontSize: 13, color: 'var(--text-secondary)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
               <span style={{ marginRight: 3 }}>Less</span>
@@ -438,7 +430,7 @@ function HistoryNote({ year, start, end }: { year: number; start: string | null;
   }
   if (lines.length === 0) return null;
   return (
-    <div style={{ marginTop: 12, maxWidth: 720, fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+    <div style={{ marginTop: 12, maxWidth: 720, fontSize: 14, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
       {lines.map(line => <div key={line}>{line}</div>)}
     </div>
   );
@@ -447,7 +439,7 @@ function HistoryNote({ year, start, end }: { year: number; start: string | null;
 function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <span className="text-caption font-semibold text-text-tertiary uppercase tracking-wide" style={{ width: 44, flexShrink: 0 }}>
+      <span className="text-caption font-semibold text-text-tertiary uppercase tracking-wide" style={{ width: 48, flexShrink: 0 }}>
         {label}
       </span>
       {children}
@@ -461,9 +453,9 @@ function ErrorLine({ text }: { text: string }) {
       display: 'flex', alignItems: 'center', gap: 6,
       padding: '5px 10px', borderRadius: 6,
       background: 'rgba(255,59,48,0.08)', border: '0.5px solid rgba(255,59,48,0.2)',
-      fontSize: 12, color: 'var(--text-secondary)',
+      fontSize: 14, color: 'var(--text-secondary)',
     }}>
-      <AlertTriangle size={13} style={{ color: 'var(--error)', flexShrink: 0 }} />
+      <AlertTriangle size={16} style={{ color: 'var(--error)', flexShrink: 0 }} />
       {text}
     </div>
   );

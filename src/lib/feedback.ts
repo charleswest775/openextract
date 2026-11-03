@@ -33,23 +33,26 @@ export const FEEDBACK_KINDS: { id: FeedbackKind; label: string; hint: string }[]
 ];
 
 export type FeedbackArea =
-  | 'general' | 'open_backup' | 'create_backup' | 'dashboard' | 'timeline' | 'year' | 'messages' | 'photos'
-  | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'record_recovery' | 'export';
+  | 'general' | 'open_backup' | 'create_backup' | 'search' | 'dashboard' | 'people' | 'timeline' | 'year'
+  | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'record_recovery'
+  | 'export';
 
 export const FEEDBACK_AREAS: { id: FeedbackArea; label: string }[] = [
   { id: 'general', label: 'The app in general' },
   { id: 'open_backup', label: 'Opening a backup' },
   { id: 'create_backup', label: 'Making a backup' },
-  { id: 'dashboard', label: 'Overview' },
+  { id: 'search', label: 'Search' },
+  { id: 'dashboard', label: 'Backup details' },
+  { id: 'people', label: 'People' },
   { id: 'timeline', label: 'Timeline' },
   { id: 'year', label: 'Year' },
   { id: 'messages', label: 'Messages' },
   { id: 'photos', label: 'Photos' },
-  { id: 'contacts', label: 'Contacts' },
+  { id: 'contacts', label: 'Address book' },
   { id: 'calls', label: 'Calls' },
   { id: 'notes', label: 'Notes' },
   { id: 'voicemail', label: 'Voicemail' },
-  { id: 'browser_history', label: 'Browser history' },
+  { id: 'browser_history', label: 'Web history' },
   { id: 'record_recovery', label: 'Recovering deleted messages' },
   { id: 'export', label: 'Exporting' },
 ];

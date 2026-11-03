@@ -1,12 +1,23 @@
 import { TimelineEntryType } from '../../types/timeline';
 
+// One color per kind of event, from the Hearth chart palette (index.css --series-*).
+// Timeline cards, these chips and the Year view all use it.
+export const TYPE_COLORS: Record<TimelineEntryType, string> = {
+  message: '#c0603e',
+  call: '#6f8f6f',
+  photo: '#9a6a8a',
+  voicemail: '#c89a3a',
+  note: '#5f86a0',
+  browser: '#8a7f72',
+};
+
 export const TYPE_CONFIG: { type: TimelineEntryType; label: string; color: string }[] = [
-  { type: 'message',   label: 'Messages',  color: '#007AFF' },
-  { type: 'call',      label: 'Calls',     color: '#30d158' },
-  { type: 'photo',     label: 'Photos',    color: '#AF52DE' },
-  { type: 'voicemail', label: 'Voicemail', color: '#ff9f0a' },
-  { type: 'note',      label: 'Notes',     color: '#5AC8FA' },
-  { type: 'browser',   label: 'Web',       color: '#34C759' },
+  { type: 'message',   label: 'Messages',  color: TYPE_COLORS.message },
+  { type: 'call',      label: 'Calls',     color: TYPE_COLORS.call },
+  { type: 'photo',     label: 'Photos',    color: TYPE_COLORS.photo },
+  { type: 'voicemail', label: 'Voicemail', color: TYPE_COLORS.voicemail },
+  { type: 'note',      label: 'Notes',     color: TYPE_COLORS.note },
+  { type: 'browser',   label: 'Web',       color: TYPE_COLORS.browser },
 ];
 
 interface Props {
@@ -20,8 +31,9 @@ interface Props {
 
 export default function TimelineTypeChips({ active, counts, onToggle, unavailable, unavailableReason }: Props) {
   return (
-    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-      {TYPE_CONFIG.map(({ type, label, color }) => {
+    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+      {/* Kinds the backup has none of are left out */}
+      {TYPE_CONFIG.filter(({ type }) => counts[type] > 0).map(({ type, label, color }) => {
         const off = unavailable?.has(type) ?? false;
         const on = active.has(type) && !off;
         return (
@@ -34,13 +46,15 @@ export default function TimelineTypeChips({ active, counts, onToggle, unavailabl
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '5px',
-              padding: '3px 10px',
-              borderRadius: '20px',
-              border: `1px solid ${on ? 'transparent' : 'var(--border-strong)'}`,
-              background: on ? color : 'var(--bg-base)',
-              color: on ? '#fff' : 'var(--text-secondary)',
-              fontSize: '12px',
+              gap: '7px',
+              height: 34,
+              padding: '0 14px',
+              borderRadius: '999px',
+              border: `1.5px solid ${on ? color : 'var(--border-default)'}`,
+              background: on ? `color-mix(in srgb, ${color} 14%, var(--bg-surface))` : 'transparent',
+              color: on ? 'var(--text-primary)' : 'var(--text-secondary)',
+              fontSize: '14px',
+              fontWeight: on ? 500 : 400,
               cursor: off ? 'not-allowed' : 'pointer',
               opacity: off ? 0.45 : 1,
               transition: 'all 0.15s',
@@ -48,12 +62,13 @@ export default function TimelineTypeChips({ active, counts, onToggle, unavailabl
             }}
           >
             <span style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: on ? 'rgba(255,255,255,0.7)' : color,
+              width: 10, height: 10, borderRadius: '50%',
+              background: on ? color : 'transparent',
+              border: `2px solid ${color}`,
               flexShrink: 0,
             }} />
             {label}
-            <span style={{ fontSize: 11, opacity: 0.75 }}>{counts[type].toLocaleString()}</span>
+            <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{counts[type].toLocaleString()}</span>
           </button>
         );
       })}

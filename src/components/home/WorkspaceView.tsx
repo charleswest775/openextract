@@ -2,8 +2,8 @@ import type { AppStateData } from '../../lib/appState';
 import AppHeader from '../shared/AppHeader';
 import PrivacyFooter from '../shared/PrivacyFooter';
 import RecentSessionList from './RecentSessionList';
-import QuickActions from './QuickActions';
-import { PlusIcon } from '../shared/Icons';
+import { BACK_UP_LABEL, OPEN_FOLDER_LABEL } from './HomeActions';
+import { FolderIcon, PhoneIcon } from '../shared/Icons';
 
 interface Props {
   data: AppStateData;
@@ -17,32 +17,29 @@ export default function WorkspaceView({ data, onOpenSession, onGetMoreData, onBr
     <div className="h-screen flex flex-col bg-base">
       <AppHeader showVersion={false} />
 
-      <div className="flex-1 overflow-y-auto px-7 py-8">
-        {/* Header row */}
-        <div className="mb-6">
-          <div className="hearth-eyebrow mb-2">Your archive</div>
-          <div className="flex items-end justify-between gap-6">
-            <h1 className="text-4xl text-text-primary max-w-xl">
-              Your digital life,<br/>
-              <span className="font-serif-italic text-accent">in your hands.</span>
-            </h1>
-            <button onClick={onGetMoreData} className="hearth-primary-btn">
-              <PlusIcon className="text-white" size={14} />
-              Backup iPhone
-            </button>
+      <div className="flex-1 overflow-y-auto px-8 py-8">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-end justify-between gap-6 mb-6 flex-wrap">
+            <h1 className="text-4xl text-text-primary">Your backups</h1>
+            <div className="flex items-center gap-2">
+              <button onClick={onBrowseForBackup} className="hearth-ghost-btn">
+                <FolderIcon size={18} />
+                {OPEN_FOLDER_LABEL}
+              </button>
+              <button onClick={onGetMoreData} className="hearth-primary-btn">
+                <PhoneIcon className="text-white" size={18} />
+                {BACK_UP_LABEL}
+              </button>
+            </div>
           </div>
+
+          <RecentSessionList
+            sessions={data.sessions}
+            onOpenSession={onOpenSession}
+          />
+
+          <PrivacyFooter variant="compact" />
         </div>
-
-        <RecentSessionList
-          sessions={data.sessions}
-          onOpenSession={onOpenSession}
-        />
-
-        <QuickActions
-          onExploreData={onBrowseForBackup}
-        />
-
-        <PrivacyFooter variant="compact" />
       </div>
     </div>
   );

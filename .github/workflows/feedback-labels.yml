@@ -34,18 +34,24 @@ jobs:
               'The app in general': ['ui'],
               'Opening a backup': ['python-engine'],
               'Making a backup': ['python-engine'],
-              'Overview': ['ui'],
+              'Search': ['ui'],
+              'Backup details': ['ui'],
+              'People': ['ui'],
               'Timeline': ['ui'],
               'Year': ['ui'],
               'Messages': ['messages'],
               'Photos': ['photos'],
-              'Contacts': ['python-engine'],
+              'Address book': ['python-engine'],
               'Calls': ['python-engine'],
               'Notes': ['python-engine'],
               'Voicemail': ['voicemail'],
-              'Browser history': ['python-engine'],
+              'Web history': ['python-engine'],
               'Recovering deleted messages': ['messages'],
               'Exporting': ['export'],
+              // Names older versions of the app send
+              'Overview': ['ui'],
+              'Contacts': ['python-engine'],
+              'Browser history': ['python-engine'],
             };
 
             const body = context.payload.issue.body || '';

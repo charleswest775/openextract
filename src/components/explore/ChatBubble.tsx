@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { formatTime } from '../../lib/dates';
 import { sidecarCall } from '../../lib/ipc';
+import Highlight from '../shared/Highlight';
 
 interface Attachment {
   attachment_id: number;
@@ -28,6 +29,10 @@ interface Props {
   message: Message;
   showSender?: boolean;
   udid: string;
+  /** Words to mark in the text. */
+  query?: string;
+  /** The match a search is showing: outlined. */
+  current?: boolean;
 }
 
 // What a message with no text and no attachment says, by the engine's
@@ -80,19 +85,19 @@ function AttachmentItem({ udid, attachment, isMine }: { udid: string; attachment
 
   if (!isImageAttachment(attachment)) {
     return (
-      <div className={`text-xs truncate ${isMine ? 'text-white/75' : 'text-gray-400'}`}>
+      <div className={`text-xs truncate ${isMine ? 'text-white/75' : 'text-text-tertiary'}`}>
         📎 {attachment.transfer_name || attachment.filename}
       </div>
     );
   }
 
   if (loading) {
-    return <div className={`text-xs italic ${isMine ? 'text-white/75' : 'text-gray-400'}`}>Loading…</div>;
+    return <div className={`text-xs italic ${isMine ? 'text-white/75' : 'text-text-tertiary'}`}>Loading…</div>;
   }
 
   if (error || !data) {
     return (
-      <div className={`text-xs italic ${isMine ? 'text-white/75' : 'text-gray-400'}`}>
+      <div className={`text-xs italic ${isMine ? 'text-white/75' : 'text-text-tertiary'}`}>
         {attachment.transfer_name || attachment.filename}
       </div>
     );
@@ -108,23 +113,23 @@ function AttachmentItem({ udid, attachment, isMine }: { udid: string; attachment
   );
 }
 
-export default function ChatBubble({ message, showSender, udid }: Props) {
+export default function ChatBubble({ message, showSender, udid, query = '', current = false }: Props) {
   if (message.is_reaction) return null;
 
   const isMine = message.is_from_me;
 
   return (
-    <div className={`flex w-full ${isMine ? 'justify-end' : 'justify-start'} mb-1`}>
+    <div data-message-id={message.message_id} className={`flex w-full ${isMine ? 'justify-end' : 'justify-start'} mb-1`}>
       <div className={`max-w-[70%] ${isMine ? 'items-end' : 'items-start'}`}>
         {showSender && !isMine && message.sender && (
-          <div className="text-[11px] text-gray-400 mb-0.5 px-3">{message.sender}</div>
+          <div className="text-xs text-text-tertiary mb-0.5 px-3">{message.sender}</div>
         )}
         <div
           className={`px-4 py-2.5 ${
             isMine
               ? 'text-white'
               : 'text-text-primary'
-          }`}
+          } ${current ? 'outline outline-4 outline-amber-300 outline-offset-2' : ''}`}
           style={{
             background: isMine ? 'var(--bubble-me)' : 'var(--bubble-them)',
             borderRadius: 20,
@@ -136,7 +141,9 @@ export default function ChatBubble({ message, showSender, udid }: Props) {
           }}
         >
           {message.text && (
-            <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
+            <p className="text-sm whitespace-pre-wrap break-words">
+              <Highlight text={message.text} query={query} markClassName={isMine ? 'text-text-primary' : 'text-inherit'} />
+            </p>
           )}
           {message.link_preview?.url && (
             <div className={`mt-1.5 text-xs ${isMine ? 'text-white/75' : 'text-gray-500'}`}>
@@ -154,12 +161,12 @@ export default function ChatBubble({ message, showSender, udid }: Props) {
             </div>
           )}
           {!message.text && !message.has_attachments && (
-            <p className={`text-xs italic ${isMine ? 'text-white/75' : 'text-gray-400'}`}>
+            <p className={`text-xs italic ${isMine ? 'text-white/75' : 'text-text-tertiary'}`}>
               [{EVENT_LABELS[message.message_type] ?? EVENT_FALLBACK}]
             </p>
           )}
         </div>
-        <div className={`text-[10px] text-gray-400 mt-0.5 px-3 ${isMine ? 'text-right' : 'text-left'}`}>
+        <div className={`text-xs text-text-tertiary mt-0.5 px-3 ${isMine ? 'text-right' : 'text-left'}`}>
           {formatTime(message.date)}
         </div>
       </div>

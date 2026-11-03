@@ -1,9 +1,18 @@
-import { useState, useEffect } from 'react';
-import { sidecarCall, saveFolder } from '../../lib/ipc';
-import { SearchIcon, ExportIcon } from '../shared/Icons';
+import { useState, useEffect, useMemo } from 'react';
+import { PhoneIncoming, PhoneMissed, PhoneOutgoing } from 'lucide-react';
+import { saveFolder, sidecarCall } from '../../lib/ipc';
+import { CallIcon, LockIcon } from '../shared/Icons';
 import { formatDateTime } from '../../lib/dates';
+import { displayName, formatPhone } from '../../lib/people';
 import OrganicLoader from '../shared/OrganicLoader';
 import { ReportProblemButton } from '../shared/Feedback';
+import PageHeader from '../shared/PageHeader';
+import EmptyState from '../shared/EmptyState';
+import { SaveButton } from '../shared/SaveDialog';
+import { useSaveAction } from '../../hooks/useSaveAction';
+import { checkEngineResult, plural } from '../../lib/saveData';
+import { matches } from '../../lib/search';
+import Highlight from '../shared/Highlight';
 
 interface Call {
   call_id: number;
@@ -18,6 +27,10 @@ interface Call {
 
 interface Props {
   udid: string;
+  /** What the top search box holds; the list shows only calls that match. */
+  query: string;
+  /** The call a search found, as a timeline id ("call:12"): marked and scrolled to. */
+  selectId?: string;
 }
 
 function formatDuration(seconds: number): string {
@@ -32,12 +45,11 @@ function formatDuration(seconds: number): string {
   return parts.join(' ');
 }
 
-export default function CallExplorer({ udid }: Props) {
+export default function CallExplorer({ udid, query, selectId }: Props) {
   const [calls, setCalls] = useState<Call[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState('');
-  const [exporting, setExporting] = useState(false);
+  const { busy, run } = useSaveAction('calls');
   const [error, setError] = useState<string | null>(null);
   const [emptyReason, setEmptyReason] = useState<string | null>(null);
 
@@ -70,89 +82,75 @@ export default function CallExplorer({ udid }: Props) {
     }
   }
 
-  async function handleExport() {
-    const outputDir = await saveFolder();
-    if (!outputDir) return;
-    setExporting(true);
-    try {
-      await window.openextract.call('export_calls', { udid, output_dir: outputDir });
-      window.openextract.incrementExportCount('calls');
-    } finally {
-      setExporting(false);
-    }
+  function handleSave() {
+    run(async () => {
+      const outputDir = await saveFolder();
+      if (!outputDir) return null;
+      const result = checkEngineResult(await sidecarCall<{ path: string; count: number }>('export_calls', { udid, output_dir: outputDir }));
+      return { title: `Saved ${plural(result.count, 'call')}`, detail: 'Spreadsheet (CSV)', path: result.path };
+    });
   }
 
-  const filtered = calls.filter(c => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return c.contact_name.toLowerCase().includes(q) ||
-      c.address.toLowerCase().includes(q) ||
-      c.app.toLowerCase().includes(q);
-  });
+  const filtered = useMemo(
+    () => calls.filter(c => `call:${c.call_id}` === selectId || matches(
+      query, c.contact_name, c.address, c.app,
+      `${c.status === 'missed' ? 'missed' : c.direction} call`,
+    )),
+    [calls, query, selectId],
+  );
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-end justify-between gap-4 bg-base" style={{ padding: '20px 28px 14px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 }}>
-        <div>
-          <div className="hearth-eyebrow mb-1.5">
-            Calls{total > 0 && ` · ${total.toLocaleString()} records`}
-          </div>
-          <h1 className="hearth-title text-3xl">
-            Every call, <span className="font-serif-italic text-accent">inbound and out.</span>
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" size={13} />
-            <input
-              type="text"
-              placeholder="Search calls..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-3 py-1.5 text-sm bg-surface rounded-full border border-rule focus:outline-none focus:border-accent w-48"
-            />
-          </div>
-          <button onClick={handleExport} disabled={exporting} className="hearth-ghost-btn" title="Export">
-            <ExportIcon size={13} /> Export CSV
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Calls"
+        count={total > 0 ? (query ? `${filtered.length} of ${plural(total, 'call')}` : plural(total, 'call')) : undefined}
+        actions={<SaveButton onClick={handleSave} busy={busy} disabled={calls.length === 0} />}
+      />
       <div className="flex-1 overflow-y-auto">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-gray-50 border-b border-gray-200">
+          <thead className="sticky top-0 bg-base border-b border-rule">
             <tr>
-              <th className="text-left px-4 py-2 font-medium text-gray-500 text-xs">Contact</th>
-              <th className="text-left px-4 py-2 font-medium text-gray-500 text-xs">Date</th>
-              <th className="text-left px-4 py-2 font-medium text-gray-500 text-xs">Duration</th>
-              <th className="text-left px-4 py-2 font-medium text-gray-500 text-xs">Type</th>
-              <th className="text-left px-4 py-2 font-medium text-gray-500 text-xs">App</th>
+              <th className="text-left px-6 py-2.5 font-medium text-text-secondary text-xs">Who</th>
+              <th className="text-left px-4 py-2.5 font-medium text-text-secondary text-xs">When</th>
+              <th className="text-left px-4 py-2.5 font-medium text-text-secondary text-xs">How long</th>
+              <th className="text-left px-4 py-2.5 font-medium text-text-secondary text-xs">Call</th>
+              <th className="text-left px-4 py-2.5 font-medium text-text-secondary text-xs">App</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((c) => (
-              <tr key={c.call_id} className="border-b border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5">
-                  <div className="font-medium text-gray-900">{c.contact_name || c.address}</div>
-                  {c.contact_name && c.address && (
-                    <div className="text-xs text-gray-400">{c.address}</div>
-                  )}
-                </td>
-                <td className="px-4 py-2.5 text-gray-600">{formatDateTime(c.date)}</td>
-                <td className="px-4 py-2.5 text-gray-600">{formatDuration(c.duration)}</td>
-                <td className="px-4 py-2.5">
-                  <span className={`text-xs font-medium ${
-                    c.status === 'missed' ? 'text-red-500' :
-                    c.direction === 'incoming' ? 'text-blue-500' :
-                    'text-green-500'
-                  }`}>
-                    {c.status === 'missed' ? 'Missed' :
-                     c.direction === 'incoming' ? 'Incoming' :
-                     c.direction === 'outgoing' ? 'Outgoing' : 'Unknown'}
-                  </span>
-                </td>
-                <td className="px-4 py-2.5 text-gray-500">{c.app || 'Phone'}</td>
-              </tr>
-            ))}
+            {filtered.map((c) => {
+              const kind = c.status === 'missed'
+                ? { Icon: PhoneMissed, label: 'Missed', color: 'text-apple-error' }
+                : c.direction === 'incoming'
+                  ? { Icon: PhoneIncoming, label: 'Incoming', color: 'text-text-secondary' }
+                  : c.direction === 'outgoing'
+                    ? { Icon: PhoneOutgoing, label: 'Outgoing', color: 'text-text-secondary' }
+                    : { Icon: CallIcon, label: 'Unknown', color: 'text-text-tertiary' };
+              return (
+                <tr
+                  key={c.call_id}
+                  ref={`call:${c.call_id}` === selectId ? el => el?.scrollIntoView({ block: 'center' }) : undefined}
+                  aria-current={`call:${c.call_id}` === selectId ? 'true' : undefined}
+                  className={`border-b border-rule ${`call:${c.call_id}` === selectId ? 'bg-accent-wash' : 'hover:bg-surface'}`}
+                >
+                  <td className="px-6 py-3">
+                    <div className="font-medium text-text-primary"><Highlight text={displayName(c.contact_name, c.address)} query={query} /></div>
+                    {c.address && displayName(c.contact_name, c.address) !== formatPhone(c.address) && (
+                      <div className="text-xs text-text-tertiary">{formatPhone(c.address)}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-text-secondary">{formatDateTime(c.date)}</td>
+                  <td className="px-4 py-3 text-text-secondary tabular-nums">{formatDuration(c.duration)}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center gap-2 font-medium ${kind.color}`}>
+                      <kind.Icon size={18} />
+                      {kind.label}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-text-secondary">{c.app || 'Phone'}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {loading && (
@@ -162,23 +160,23 @@ export default function CallExplorer({ udid }: Props) {
         )}
         {!loading && filtered.length === 0 && (
           calls.length > 0 ? (
-            <div className="text-center py-8 text-sm text-gray-400">No calls match your search</div>
+            <EmptyState icon={CallIcon} title={`No calls match "${query}"`} detail="Try part of a name or a phone number." />
           ) : error ? (
-            <div className="text-center py-8 text-sm text-apple-error">
-              {error}
-              <div><ReportProblemButton error={error} area="calls" className="mt-2" /></div>
-            </div>
+            <EmptyState
+              icon={CallIcon}
+              title="Couldn't read the call history"
+              detail={<>{error}<div><ReportProblemButton error={error} area="calls" className="mt-2" /></div></>}
+            />
           ) : emptyReason === 'requires_encryption' ? (
-            <div className="max-w-md mx-auto text-center py-8">
-              <div className="text-sm font-medium text-text-primary">Call history needs an encrypted backup</div>
-              <p className="mt-1.5 text-sm text-text-secondary">
-                Apple leaves call history out of unencrypted backups. Make a new backup with
+            <EmptyState
+              icon={LockIcon}
+              title="Call history needs an encrypted backup"
+              detail={<>Apple leaves call history out of unencrypted backups. Make a new backup with
                 encryption on: tick "Encrypt backup" when backing up in OpenExtract, or turn on
-                "Encrypt local backup" in Finder or iTunes.
-              </p>
-            </div>
+                "Encrypt local backup" in Finder or iTunes.</>}
+            />
           ) : (
-            <div className="text-center py-8 text-sm text-gray-400">No calls in this backup</div>
+            <EmptyState icon={CallIcon} title="No calls in this backup" />
           )
         )}
       </div>

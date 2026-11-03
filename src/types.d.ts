@@ -17,6 +17,13 @@ declare global {
       writeFile: (filePath: string, content: string) => Promise<void>;
       openExternal: (url: string) => void;
       openPath: (filePath: string) => Promise<string>;
+      /** Reveal a file or folder in Finder / Explorer. */
+      showInFolder: (filePath: string) => Promise<void>;
+      platform: 'darwin' | 'win32' | 'linux' | string;
+      textSize: {
+        get: () => Promise<TextSize>;
+        set: (size: TextSize) => Promise<void>;
+      };
       relaunch: () => Promise<void>;
       /** Subscribe to JSON-RPC notifications from the Python sidecar (e.g. backup.progress). Returns a cleanup function. */
       onNotification: (callback: (notification: { method: string; params: Record<string, any> }) => void) => () => void;
@@ -61,6 +68,8 @@ declare global {
     };
   }
 }
+
+export type TextSize = 'default' | 'large' | 'larger';
 
 // ─── Feedback types (mirror electron/feedback.ts) ────────────────────────────
 

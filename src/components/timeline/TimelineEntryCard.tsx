@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MessageSquare, PhoneCall, Image, Phone, FileText, Globe, ChevronDown, ChevronUp, Loader2, X, ZoomIn } from 'lucide-react';
+import { MessageCircle, PhoneCall, Image, Voicemail, NotebookPen, Globe, ChevronDown, ChevronUp, Loader2, X, ZoomIn } from 'lucide-react';
 import { TimelineEntry } from '../../types/timeline';
+import { TYPE_COLORS } from './TimelineTypeChips';
 import { formatTime, formatDate, formatDuration } from '../../lib/dates';
 import { sidecarCall } from '../../lib/ipc';
 import AmrPlayer from '../voicemail/AmrPlayer';
@@ -14,7 +15,8 @@ interface LightboxProps {
   onClose: () => void;
 }
 
-function TimelinePhotoLightbox({ fileHash, udid, filename, onClose }: LightboxProps) {
+/** A photo full size over everything; Escape or a click outside closes it. */
+export function TimelinePhotoLightbox({ fileHash, udid, filename, onClose }: LightboxProps) {
   const [src, setSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +99,7 @@ function TimelinePhotoLightbox({ fileHash, udid, filename, onClose }: LightboxPr
 
       {/* Filename caption */}
       {src && (
-        <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 10 }}>
+        <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginTop: 10 }}>
           {filename}
         </div>
       )}
@@ -159,7 +161,7 @@ function MessageViewerModal({ text, displayText, isFromMe, conversationName, ser
             <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
               {isFromMe ? `Me → ${conversationName}` : conversationName}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: 2 }}>
               {service} · {formatDate(timestamp)} at {formatTime(timestamp)}
             </div>
           </div>
@@ -172,7 +174,7 @@ function MessageViewerModal({ text, displayText, isFromMe, conversationName, ser
               color: 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0,
             }}
           >
-            <X size={15} />
+            <X size={18} />
           </button>
         </div>
 
@@ -180,7 +182,7 @@ function MessageViewerModal({ text, displayText, isFromMe, conversationName, ser
         <div style={{
           flex: 1, overflowY: 'auto',
           padding: '16px 20px',
-          fontSize: 13, color: isSpecial ? 'var(--text-tertiary)' : 'var(--text-primary)',
+          fontSize: 15, color: isSpecial ? 'var(--text-tertiary)' : 'var(--text-primary)',
           fontStyle: isSpecial ? 'italic' : 'normal',
           lineHeight: 1.65,
           whiteSpace: 'pre-wrap',
@@ -240,7 +242,7 @@ function NoteViewerModal({ title, body, modified, onClose }: NoteViewerProps) {
         }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: 2 }}>
               Modified: {formatDate(modified)}
             </div>
           </div>
@@ -253,7 +255,7 @@ function NoteViewerModal({ title, body, modified, onClose }: NoteViewerProps) {
               color: 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0,
             }}
           >
-            <X size={15} />
+            <X size={18} />
           </button>
         </div>
 
@@ -261,7 +263,7 @@ function NoteViewerModal({ title, body, modified, onClose }: NoteViewerProps) {
         <div style={{
           flex: 1, overflowY: 'auto',
           padding: '16px 20px',
-          fontSize: 13, color: 'var(--text-primary)',
+          fontSize: 15, color: 'var(--text-primary)',
           lineHeight: 1.65,
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
@@ -276,16 +278,16 @@ function NoteViewerModal({ title, body, modified, onClose }: NoteViewerProps) {
 // ── Type config ───────────────────────────────────────────────────────────────
 
 const TYPE_CONFIG = {
-  message:   { color: '#007AFF', icon: MessageSquare, badge: 'MSG'   },
-  call:      { color: '#30d158', icon: PhoneCall,     badge: 'CALL'  },
-  photo:     { color: '#AF52DE', icon: Image,         badge: 'PHOTO' },
-  voicemail: { color: '#ff9f0a', icon: Phone,         badge: 'VM'    },
-  note:      { color: '#5AC8FA', icon: FileText,      badge: 'NOTE'  },
-  browser:   { color: '#34C759', icon: Globe,         badge: 'WEB'   },
-} as const;
+  message:   { color: TYPE_COLORS.message,   icon: MessageCircle, badge: 'Message'   },
+  call:      { color: TYPE_COLORS.call,      icon: PhoneCall,     badge: 'Call'      },
+  photo:     { color: TYPE_COLORS.photo,     icon: Image,         badge: 'Photo'     },
+  voicemail: { color: TYPE_COLORS.voicemail, icon: Voicemail,     badge: 'Voicemail' },
+  note:      { color: TYPE_COLORS.note,      icon: NotebookPen,   badge: 'Note'      },
+  browser:   { color: TYPE_COLORS.browser,   icon: Globe,         badge: 'Web'       },
+};
 
 function accentColor(entry: TimelineEntry): string {
-  if (entry.type === 'call' && entry.call?.status === 'missed') return '#ff3b30';
+  if (entry.type === 'call' && entry.call?.status === 'missed') return 'var(--error)';
   return TYPE_CONFIG[entry.type].color;
 }
 
@@ -373,12 +375,12 @@ function VoicemailPlayer({ voicemailId, udid }: VoicemailPlayerProps) {
   }, [voicemailId, udid]);
 
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-tertiary)', padding: '6px 0' }}>
-      <Loader2 size={13} className="animate-spin" /> Loading audio…
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: 'var(--text-tertiary)', padding: '6px 0' }}>
+      <Loader2 size={16} className="animate-spin" /> Loading audio…
     </div>
   );
   if (error) return (
-    <div style={{ fontSize: 12, color: 'var(--error)', padding: '4px 0' }}>{error}</div>
+    <div style={{ fontSize: 14, color: 'var(--error)', padding: '4px 0' }}>{error}</div>
   );
   if (!audioData) return null;
   return <AmrPlayer base64Data={audioData.data} mimeType={audioData.mime_type} />;
@@ -401,16 +403,11 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
 
   const metaLeft = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <span style={{
-        fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-        padding: '1px 5px', borderRadius: 3,
-        background: color, color: '#fff',
-      }}>
-        {badge}
-      </span>
-      <Icon size={12} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
-      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-        {formatTime(entry.timestamp)}
+      <Icon size={18} style={{ color, flexShrink: 0 }} />
+      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>{badge}</span>
+      <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
+        · {formatTime(entry.timestamp)}
+        {entry.type === 'message' && entry.message?.service && entry.message.service !== 'iMessage' && ` · ${entry.message.service}`}
       </span>
     </div>
   );
@@ -431,14 +428,11 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
           {metaLeft}
         </div>
-        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 1 }}>
+        <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 1 }}>
           {isFromMe ? `Me → ${conversationName}` : conversationName}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: 14, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {displayText}
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 1 }}>
-          {service} · {conversationName}
         </div>
         {msgOpen && (
           <MessageViewerModal
@@ -467,15 +461,15 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
       <>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
           {metaLeft}
-          <span style={{ fontSize: 11, color: isMissed ? '#ff3b30' : 'var(--text-secondary)', flexShrink: 0 }}>
+          <span style={{ fontSize: 13, color: isMissed ? 'var(--error)' : 'var(--text-secondary)', flexShrink: 0 }}>
             {[dirLabel, statusLabel].filter(Boolean).join(' · ')}
             {!isMissed && duration > 0 && `  ·  ${formatDuration(duration)}`}
           </span>
         </div>
-        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
+        <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)' }}>
           {entry.contactName || entry.contactIdentifier || 'Unknown'}
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 1 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: 1 }}>
           {entry.contactIdentifier && <span>{entry.contactIdentifier}</span>}
           {appLabel && <span>{entry.contactIdentifier ? ` · ${appLabel}` : appLabel}</span>}
         </div>
@@ -498,10 +492,10 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
             onClick={kind !== 'video' && kind !== 'live_photo' ? () => setLightboxOpen(true) : undefined}
           />
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {filename}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 1 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: 1 }}>
               {kindLabel}{dims}{dur}
             </div>
           </div>
@@ -530,24 +524,24 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
         >
           {metaLeft}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{formatDuration(duration)}</span>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{formatDuration(duration)}</span>
             {vmExpanded
-              ? <ChevronUp size={13} style={{ color: 'var(--text-tertiary)' }} />
-              : <ChevronDown size={13} style={{ color: 'var(--text-tertiary)' }} />}
+              ? <ChevronUp size={16} style={{ color: 'var(--text-tertiary)' }} />
+              : <ChevronDown size={16} style={{ color: 'var(--text-tertiary)' }} />}
           </div>
         </div>
         <div
-          style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', cursor: 'pointer' }}
+          style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', cursor: 'pointer' }}
           onClick={() => setVmExpanded(x => !x)}
         >
           {entry.contactName || phoneNumber}
         </div>
         {transcript && (
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 14, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             "{transcript}"
           </div>
         )}
-        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 1 }}>{phoneNumber}</div>
+        <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: 1 }}>{phoneNumber}</div>
 
         {/* Expanded player */}
         {vmExpanded && (
@@ -563,15 +557,15 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
     body = (
       <>
         <div style={{ marginBottom: 2 }}>{metaLeft}</div>
-        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
+        <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)' }}>
           {title}
         </div>
         {bodyPreview && (
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 14, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {bodyPreview}
           </div>
         )}
-        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 1 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: 1 }}>
           Modified: {formatDate(modified)}
         </div>
         {noteOpen && (
@@ -592,12 +586,12 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
       <>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
           {metaLeft}
-          <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}>{browserLabel}</span>
+          <span style={{ fontSize: 13, color: 'var(--text-tertiary)', flexShrink: 0 }}>{browserLabel}</span>
         </div>
-        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {title || domain}
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
           {domain || url}
         </div>
       </>
@@ -615,8 +609,8 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
     <div
       style={{
         display: 'flex',
-        borderRadius: 8,
-        border: '0.5px solid var(--border-default)',
+        borderRadius: 10,
+        border: '1px solid var(--border-default)',
         background: 'var(--bg-base)',
         overflow: 'hidden',
         cursor: isClickable ? 'pointer' : 'default',
@@ -627,9 +621,9 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
       onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg-base)')}
     >
       {/* Color accent bar */}
-      <div style={{ width: 3, flexShrink: 0, background: color }} />
+      <div style={{ width: 4, flexShrink: 0, background: color }} />
       {/* Content */}
-      <div style={{ flex: 1, padding: '8px 12px', minWidth: 0 }}>
+      <div style={{ flex: 1, padding: '10px 14px', minWidth: 0 }}>
         {body}
       </div>
     </div>

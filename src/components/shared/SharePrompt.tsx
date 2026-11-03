@@ -46,7 +46,7 @@ export default function SharePrompt() {
   };
 
   return (
-    <NoticeCard title="Your export is saved" icon={<Star size={16} />} onClose={close}>
+    <NoticeCard title="Your file is saved" icon={<Star size={16} />} onClose={close}>
       <p className="text-xs text-text-secondary leading-relaxed mb-3">
         OpenExtract is free and made by one person. If it helped, a GitHub star or telling a friend
         helps others find it.

@@ -15,6 +15,9 @@ import '@fontsource/ibm-plex-mono/500.css';
 
 import './index.css';
 
+// Lets CSS adapt the window chrome per platform (see .titlebar in index.css).
+document.documentElement.classList.add(`platform-${window.openextract?.platform ?? 'web'}`);
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />

@@ -8,13 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- A new look that's simpler to find your way around. A backup opens on a home page of large tiles, one for each kind of data with its count, and a search box sits at the top of every screen instead of the row of icons down the side. Kinds the backup doesn't have get a tile that says why. Every screen has a Home button and shows where you are, and a Tools row on the home page leads to Recover deleted messages, Save to this computer and Backup details
+- Overview is now called Backup details, Contacts is now Address book, and Browser history is now Web history
+- Each screen's own search box is gone; the one at the top filters the screen you're on (Messages had three search boxes, now it has one)
 - Send feedback no longer needs a GitHub account. Send delivers the report privately to OpenExtract's developer, with an optional email if you'd like a reply, and shows a reference number. If the report looks like a known problem, the fix appears right away. If sending fails, you can copy the report or post it on GitHub instead
 
 ### Added
+- Search the whole backup from the home page. Results are grouped by kind (notes, messages, voicemail, calls, photos, web history and people), with matches highlighted and a preview. Case and accents don't count, so "cafe" finds "Café"; every word must appear, in any order; text in quotes must appear as written; and phone numbers match however they're punctuated. Notes are searched in full, not just their first lines. ⌘K (Ctrl+K on Windows and Linux) jumps to the search box from anywhere
+- Opening a search result shows that exact record: a message inside its conversation, with "3 of 12 ↑ ↓" to step through the matches, a voicemail opened, a photo full size, or a call or web visit marked in its list
+- People: everyone you were in touch with by message, call or voicemail, most first. Each person has one page with all of it and Save everything, and links to their Address book card and back
 - When a problem you reported is fixed, OpenExtract tells you. While a report is open, the app checks on it every few days, sending only the report's number and a random code (see the privacy page)
 - Year view: a heatmap of the backup with one square per day, darker the more happened. Filter by type and person, hover for a day's counts, click a day to open it in the Timeline. Days the backup doesn't reach, such as messages kept only in iCloud, show as not in this backup instead of quiet
 
 ### Fixed
+- Clicking a photo opens it full size; it used to do nothing
+- A backup is read once when it opens, and Search, People and the Timeline share it, instead of each of them reading the whole backup again
 - Windows: the app opens backups on PCs with Smart App Control turned on. The engine used to unpack its libraries into a temporary folder each time it started, most of them unsigned, and Smart App Control stopped it before it could answer ("Python sidecar is not running"). It now ships as a folder in which every file is signed (#169)
 - If a library the engine needs only for encrypted backups can't be loaded, other backups still open
 - A feedback report about an engine that crashes as it starts now includes the error, not just its exit code

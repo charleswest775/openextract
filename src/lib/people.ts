@@ -126,3 +126,22 @@ export function identifiersForPerson(
   }
   return Array.from(ids);
 }
+
+// ── Display ────────────────────────────────────────────────────────────────────
+// Call and voicemail records carry raw numbers ("+14065550109"); Contacts shows
+// them grouped ("+1 406 555 0109"). Format North American numbers the same way
+// and leave everything else (other countries, emails, short codes) as it is.
+export function formatPhone(s: string): string {
+  if (!s) return s;
+  const nanp = s.match(/^\+?1(\d{3})(\d{3})(\d{4})$/);
+  if (nanp) return `+1 ${nanp[1]} ${nanp[2]} ${nanp[3]}`;
+  const local = s.match(/^(\d{3})(\d{3})(\d{4})$/);
+  if (local) return `${local[1]} ${local[2]} ${local[3]}`;
+  return s;
+}
+
+/** A record's name for display: the contact name, or the formatted number when there's none. */
+export function displayName(name: string | null | undefined, number: string): string {
+  if (!name || normPhone(name) === normPhone(number) && /^[+\d\s().-]+$/.test(name)) return formatPhone(number);
+  return name;
+}

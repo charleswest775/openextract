@@ -87,8 +87,9 @@ on a Retina screen (the window is 1440×900). **Look at them.**
 |---|---|
 | `launch [profile-dir]` | Starts Electron with a fresh throwaway profile, closes DevTools, sizes the window to 1440×900 |
 | `goto [url]` | Points the window at a renderer (default `http://127.0.0.1:5179`) |
-| `open-backup <folder> [password]` | Answers the folder picker, clicks "Explore my data", unlocks, waits for the Overview |
-| `tab <name>` | Sidebar: Overview, Timeline, Messages, Photos, Contacts, Calls, Notes, Voicemail, History, Recover, Export |
+| `open-backup <folder> [password]` | Answers the folder picker, clicks "Open a backup folder", unlocks, waits for the backup's home page |
+| `tab <name>` | A home-page tile by name: Messages, Photos, People, Address book, Calls, Notes, Voicemail, Web history, Timeline, Year (kinds the backup lacks are dashed, not clickable); else any button with that text, such as Backup details or Save to this computer |
+| `search <text>` | Types into the top search box. On home it searches the whole backup; on a screen with a list it filters that screen ("in Notes" tag) |
 | `click-text <text>` | Clicks the button/link whose text is, or starts with, `<text>` |
 | `ss <name>` | Screenshot |
 | `text`, `buttons` | The page's visible text; its buttons, links and inputs |
@@ -116,10 +117,13 @@ on a Retina screen (the window is 1440×900). **Look at them.**
   here, Node resolves the parent's (missing newer deps); without `.venv` here, Electron walks up
   and uses the parent's venv, with whatever ios-backup-core it has. Install both in the unit.
 - **`pytypedstream` imports as `typedstream`.**
-- **Message threads open at the newest message.** To show a photo bubble, scroll to the last
-  `img` in the thread (the `eval` above).
-- **Photos have no full-size viewer yet** (`PhotoExplorer.handlePhotoClick` only opens videos), so
-  clicking a photo does nothing.
+- **Message threads open at the newest message**, unless opened from a search result, which opens
+  at that message. To show a photo bubble, scroll to the last `img` in the thread (the `eval` above).
+- **Going home**: the logo is `.titlebar button[title=Home]`; on any other screen there's also a
+  Home button (`Back to <device>`). Typing a selector with spaces into `click` doesn't work (the
+  driver splits on spaces); use `eval "document.querySelector('…').click()"` instead.
+- **People and search fill in as the backup is read.** Messages arrive in batches for the first few
+  seconds; wait for "Still reading the backup" to go before counting results.
 - **Unlocking an encrypted backup takes 5–10 s**; `open-backup` waits for it.
 
 ## Troubleshooting

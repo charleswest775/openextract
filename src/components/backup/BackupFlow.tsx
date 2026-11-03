@@ -160,16 +160,15 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
   const canStart = selectedDevice !== null && outputDir !== '' && (!useEncryption || password !== '') && status === 'idle';
 
   return (
-    <div className="h-screen flex flex-col bg-white">
-      {/* Header */}
-      <div className="px-5 py-3 border-b border-gray-200 flex items-center gap-3">
-        <button onClick={onBack} className="text-gray-400 hover:text-gray-600 transition-colors">
+    <div className="h-screen flex flex-col bg-base">
+      {/* Top row; on macOS also the window's title bar */}
+      <div className="titlebar px-5 border-b border-rule flex items-center gap-3">
+        <button onClick={onBack} className="hearth-ghost-btn !px-3 !py-1.5">
           <ArrowLeftIcon size={18} />
+          Back
         </button>
-        <div>
-          <h2 className="text-sm font-medium text-gray-900">Create Backup</h2>
-          <p className="text-xs text-gray-400">Back up a connected iPhone or iPad</p>
-        </div>
+        <h1 className="text-xl text-text-primary">Back up my iPhone</h1>
+        <span className="text-sm text-text-tertiary">Make a new backup of a connected iPhone or iPad</span>
       </div>
 
       <div className="flex-1 overflow-y-auto px-7 py-6">
@@ -178,7 +177,7 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
           <section className="mb-6">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-900">1. Select device</h3>
-              <button onClick={loadDevices} disabled={loadingDevices} className="text-xs text-emerald-600 hover:text-emerald-700 disabled:opacity-50">
+              <button onClick={loadDevices} disabled={loadingDevices} className="text-xs text-accent hover:text-accent-hover disabled:opacity-50">
                 {loadingDevices ? 'Scanning...' : 'Refresh'}
               </button>
             </div>
@@ -188,17 +187,17 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
             )}
 
             {loadingDevices && devices.length === 0 && (
-              <div className="py-4 text-sm text-gray-400 flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-gray-300 border-t-emerald-500 rounded-full animate-spin" />
+              <div className="py-4 text-sm text-text-tertiary flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-gray-300 border-t-accent rounded-full animate-spin" />
                 Scanning for devices...
               </div>
             )}
 
             {!loadingDevices && devices.length === 0 && !deviceError && (
               <div className="py-6 text-center">
-                <PhoneIcon className="mx-auto text-gray-300 mb-2" size={28} />
+                <PhoneIcon className="mx-auto text-text-tertiary mb-2" size={28} />
                 <p className="text-sm text-gray-500">No devices found.</p>
-                <p className="text-xs text-gray-400 mt-1">Connect your iPhone via USB and unlock it, then tap Refresh.</p>
+                <p className="text-xs text-text-tertiary mt-1">Connect your iPhone via USB and unlock it, then tap Refresh.</p>
               </div>
             )}
 
@@ -210,15 +209,15 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                   disabled={status === 'running'}
                   className={`w-full text-left p-3.5 rounded-lg border transition-colors disabled:opacity-50 ${
                     selectedDevice?.udid === device.udid
-                      ? 'border-emerald-400 bg-emerald-50/50'
+                      ? 'border-accent bg-accent-wash/50'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <PhoneIcon className="text-emerald-500 flex-shrink-0" size={18} />
+                    <PhoneIcon className="text-accent flex-shrink-0" size={18} />
                     <div>
                       <div className="text-sm font-medium text-gray-900">{device.name}</div>
-                      <div className="text-xs text-gray-400">
+                      <div className="text-xs text-text-tertiary">
                         iOS {device.ios_version} · {device.connection_type === 'usb' ? 'USB' : 'Wi-Fi'}
                       </div>
                     </div>
@@ -233,14 +232,14 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
             <h3 className="text-sm font-medium text-gray-900 mb-2">2. Backup destination</h3>
             <div className="flex gap-2">
               <div className="flex-1 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-700 truncate">
-                {outputDir || <span className="text-gray-400">No folder selected</span>}
+                {outputDir || <span className="text-text-tertiary">No folder selected</span>}
               </div>
               <button
                 onClick={handleChooseDir}
                 disabled={status === 'running'}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm hover:border-gray-300 transition-colors disabled:opacity-50"
               >
-                <FolderIcon size={14} />
+                <FolderIcon size={18} />
                 Choose...
               </button>
             </div>
@@ -255,12 +254,12 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                 checked={useEncryption}
                 onChange={(e) => setUseEncryption(e.target.checked)}
                 disabled={status === 'running'}
-                className="w-4 h-4 rounded accent-emerald-500"
+                className="w-4 h-4 rounded accent-[var(--accent)]"
               />
               <span className="text-sm text-gray-700">Encrypt backup</span>
-              <LockIcon className="text-gray-400" size={13} />
+              <LockIcon className="text-text-tertiary" size={16} />
             </label>
-            <p className="text-xs text-gray-400 mt-1 ml-6">
+            <p className="text-xs text-text-tertiary mt-1 ml-6">
               Encrypted backups include Health data, saved passwords, and Wi-Fi credentials.
             </p>
             {useEncryption && (
@@ -271,11 +270,11 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={status === 'running'}
                   placeholder="Set a backup password"
-                  className="w-full px-3 py-2 bg-white text-sm rounded-md border border-gray-200 focus:outline-none focus:border-emerald-400"
+                  className="w-full px-3 py-2 bg-white text-sm rounded-md border border-gray-200 focus:outline-none focus:border-accent"
                 />
                 <button
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-text-tertiary hover:text-gray-600"
                 >
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
@@ -285,21 +284,21 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
 
           {/* Progress */}
           {status === 'running' && progress && (
-            <div className="mb-6 p-4 rounded-lg bg-emerald-50/50 border border-emerald-200">
+            <div className="mb-6 p-4 rounded-lg bg-accent-wash/50 border border-accent-line">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-4 h-4 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin flex-shrink-0" />
+                <div className="w-4 h-4 border-2 border-accent-line border-t-accent rounded-full animate-spin flex-shrink-0" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">{PHASE_LABELS[progress.phase]}</p>
                   {progress.files_total > 0 && (
                     <p className="text-xs text-gray-500">{progress.files_done.toLocaleString()} / {progress.files_total.toLocaleString()} files</p>
                   )}
                 </div>
-                <span className="text-sm font-medium text-emerald-600">{progress.percent}%</span>
+                <span className="text-sm font-medium text-accent">{progress.percent}%</span>
               </div>
               <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${Math.max(2, progress.percent)}%` }} />
+                <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: `${Math.max(2, progress.percent)}%` }} />
               </div>
-              <p className="text-xs text-gray-400 mt-2">Keep your device connected and unlocked.</p>
+              <p className="text-xs text-text-tertiary mt-2">Keep your device connected and unlocked.</p>
             </div>
           )}
 
@@ -314,9 +313,9 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                 </div>
               </div>
               {passwordRequired && (
-                <div className="p-4 rounded-lg bg-emerald-50/50 border border-emerald-200">
+                <div className="p-4 rounded-lg bg-accent-wash/50 border border-accent-line">
                   <div className="flex items-center gap-2 mb-2">
-                    <LockIcon className="text-emerald-500" size={14} />
+                    <LockIcon className="text-accent" size={18} />
                     <p className="text-sm font-medium text-gray-900">Backup is encrypted</p>
                   </div>
                   <p className="text-xs text-gray-500 mb-3">Enter the password you set when enabling encrypted backups.</p>
@@ -329,12 +328,12 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                       placeholder="Backup password"
                       disabled={openingBackup}
                       autoFocus
-                      className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 focus:outline-none focus:border-emerald-400 disabled:opacity-50"
+                      className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 focus:outline-none focus:border-accent disabled:opacity-50"
                     />
                     <button
                       onClick={handleSubmitOpenPassword}
                       disabled={!openPassword || openingBackup}
-                      className="px-4 py-2 bg-emerald-500 text-white rounded-md text-sm font-medium hover:bg-emerald-600 disabled:opacity-40 transition-colors"
+                      className="px-4 py-2 bg-accent text-white rounded-md text-sm font-medium hover:bg-accent-hover disabled:opacity-40 transition-colors"
                     >
                       {openingBackup ? 'Unlocking...' : 'Unlock'}
                     </button>
@@ -371,18 +370,18 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
               <button
                 onClick={handleStartBackup}
                 disabled={!canStart}
-                className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-400 text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
+                className="px-5 py-2.5 bg-accent text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
               >
                 Start Backup
               </button>
             )}
             {status === 'running' && (
-              <button disabled className="px-5 py-2.5 bg-emerald-500 text-white rounded-lg text-sm font-medium opacity-60 cursor-not-allowed">
+              <button disabled className="px-5 py-2.5 bg-accent text-white rounded-lg text-sm font-medium opacity-60 cursor-not-allowed">
                 Backing up...
               </button>
             )}
             {(status === 'success' || status === 'error') && (
-              <button onClick={handleReset} className="px-5 py-2.5 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors">
+              <button onClick={handleReset} className="px-5 py-2.5 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors">
                 {status === 'error' ? 'Retry' : 'Back Up Again'}
               </button>
             )}
