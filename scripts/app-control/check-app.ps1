@@ -14,7 +14,7 @@ $log = Join-Path $env:APPDATA 'OpenExtract\python_log.txt'
 Remove-Item -LiteralPath $log -ErrorAction SilentlyContinue
 
 try {
-  $app = Start-Process -FilePath $App -PassThru
+  $running = Start-Process -FilePath $App -PassThru
 } catch {
   Write-Output "::error::The app didn't start: $($_.Exception.GetBaseException().Message)"
   exit 1
@@ -27,11 +27,11 @@ $processes | ForEach-Object { Write-Output ("  {0,-24} pid {1,-6} parent {2,-6} 
 $appIds = @($processes | Where-Object Name -eq 'OpenExtract.exe' | ForEach-Object ProcessId)
 $engineExe = Join-Path (Split-Path $App) 'resources\python\openextract-engine.exe'
 $engines = @($processes | Where-Object { $_.ExecutablePath -eq $engineExe -and $_.ParentProcessId -in $appIds })
-if ($app.HasExited) { $failures += "the app exited with code $($app.ExitCode)" }
+if ($running.HasExited) { $failures += "the app exited with code $($running.ExitCode)" }
 if ($engines.Count -eq 0) { $failures += "the app's engine isn't running" }
 $text = if (Test-Path $log) { Get-Content -Raw -LiteralPath $log } else { '' }
 if ($text -match '\[EXIT\] code[^\r\n]*|\[ERROR STARTING\][^\r\n]*') { $failures += "the engine stopped: $($Matches[0])" }
-Write-Output "App running: $(-not $app.HasExited); engines started by it: $($engines.Count)"
+Write-Output "App running: $(-not $running.HasExited); engines started by it: $($engines.Count)"
 
 $processes | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 if (Test-Path $log) { Copy-Item -LiteralPath $log (Join-Path $LogDir 'app-python_log.txt') }
