@@ -1,0 +1,82 @@
+name: App Control proof (temporary)
+
+# Throwaway: proves the Windows App Control check fails on v0.9.0 and passes on a signed
+# build of main that includes #171. Lives only on the claude/app-control-proof branch.
+
+on:
+  push:
+    branches: [claude/app-control-proof]
+
+jobs:
+  v0_9_0:
+    permissions:
+      contents: write
+    uses: ./.github/workflows/windows-app-control.yml
+    with:
+      tag: v0.9.0
+
+  build-main:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      # The app's sources are main's (this branch only adds workflows and scripts), so
+      # one signed build serves every run.
+      - name: Signed installer from an earlier run
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: signed-installer
+          key: app-control-proof-${{ hashFiles('package.json', 'package-lock.json', 'python/**', 'electron/**', 'src/**', 'scripts/bundle-engine.mjs') }}
+
+      - name: Setup Node.js
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Python
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Build and sign, as release.yml does, without publishing
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          npm version 0.10.0-main --no-git-tag-version
+          npm install
+          git clone --depth=1 https://github.com/charleswest775/ios-backup-core.git "$GITHUB_WORKSPACE/../ios-backup-core"
+          (cd python && pip install pyinstaller -r requirements.txt)
+          npm run python:bundle
+          npm run build
+          npx electron-builder --win --publish never
+          mkdir -p signed-installer
+          cp release/*.exe signed-installer/
+
+      - name: Upload the signed installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-main
+          path: signed-installer/*.exe
+          retention-days: 3
+
+  main:
+    needs: build-main
+    permissions:
+      contents: write
+    uses: ./.github/workflows/windows-app-control.yml
+    with:
+      artifact: signed-main
