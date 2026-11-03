@@ -8,6 +8,8 @@ import EmptyState from '../shared/EmptyState';
 import { SaveButton } from '../shared/SaveDialog';
 import { useSaveAction } from '../../hooks/useSaveAction';
 import { checkEngineResult, plural } from '../../lib/saveData';
+import { TimelinePhotoLightbox } from '../timeline/TimelineEntryCard';
+import type { TimelineEntry } from '../../types/timeline';
 
 interface PhotoAsset {
   uuid: string;
@@ -51,9 +53,14 @@ const thumbnailInflight = new Set<string>();
 
 interface Props {
   udid: string;
+  /** A photo a search found: shown full size over the grid. */
+  open?: TimelineEntry;
 }
 
-export default function PhotoExplorer({ udid }: Props) {
+export default function PhotoExplorer({ udid, open }: Props) {
+  const [viewing, setViewing] = useState<{ fileHash: string; filename: string } | null>(
+    open?.photo ? { fileHash: open.photo.fileHash, filename: open.photo.filename } : null,
+  );
   const [photos, setPhotos] = useState<PhotoAsset[]>([]);
   const [albums, setAlbums] = useState<PhotoAlbum[]>([]);
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
@@ -65,7 +72,6 @@ export default function PhotoExplorer({ udid }: Props) {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<string>('all');
   const { busy, run } = useSaveAction('photos');
   const [videoLoading, setVideoLoading] = useState(false);
@@ -251,7 +257,10 @@ export default function PhotoExplorer({ udid }: Props) {
 
   async function handlePhotoClick(photo: PhotoAsset) {
     const isVideo = photo.kind === 'video' || photo.duration > 0;
-    if (!isVideo) return; // TODO: full-size image viewer
+    if (!isVideo) {
+      setViewing({ fileHash: photo.file_hash, filename: photo.filename });
+      return;
+    }
 
     setVideoLoading(true);
     try {
@@ -275,7 +284,6 @@ export default function PhotoExplorer({ udid }: Props) {
 
   const filteredPhotos = photos.filter(p => {
     if (kindFilter !== 'all' && p.kind !== kindFilter) return false;
-    if (search && !p.filename.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
@@ -294,7 +302,6 @@ export default function PhotoExplorer({ udid }: Props) {
       <PageHeader
         title="Photos"
         count={total > 0 ? `${plural(shownCount, 'photo or video', 'photos and videos')} in this backup` : undefined}
-        search={{ value: search, onChange: setSearch, placeholder: 'Search file names' }}
         actions={
           <>
             <select
@@ -411,12 +418,21 @@ export default function PhotoExplorer({ udid }: Props) {
           {!loading && !loadError && !hasMore && filteredPhotos.length === 0 && (
             <EmptyState
               icon={CameraIcon}
-              title={search ? `No file names match "${search}"` : kindFilter !== 'all' ? 'None of this type here' : 'No photos in this backup'}
+              title={kindFilter !== 'all' ? 'None of this type here' : 'No photos in this backup'}
               detail={shownCount === 0 && notInBackup > 0 ? allOnlyInIcloud(notInBackup) : undefined}
             />
           )}
         </div>
       </div>
+
+      {viewing && (
+        <TimelinePhotoLightbox
+          fileHash={viewing.fileHash}
+          udid={udid}
+          filename={viewing.filename}
+          onClose={() => setViewing(null)}
+        />
+      )}
 
       {/* Video loading overlay */}
       {videoLoading && (

@@ -1,14 +1,17 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
 import { sidecarCall } from '../../lib/ipc';
 import { formatRelative, formatDate } from '../../lib/dates';
-import { LinesIcon, SearchIcon } from '../shared/Icons';
+import { LinesIcon } from '../shared/Icons';
 import ChatBubble from './ChatBubble';
 import PageHeader from '../shared/PageHeader';
 import EmptyState from '../shared/EmptyState';
+import Highlight from '../shared/Highlight';
 import SaveDialog, { ConversationModeChoice, FORMATS, SaveButton } from '../shared/SaveDialog';
 import { useSaveAction } from '../../hooks/useSaveAction';
+import type { BackupIndex } from '../../hooks/useTimeline';
 import { plural, saveConversation, saveConversations, type ConversationFormat } from '../../lib/saveData';
+import { matches, matchesTerms, parseQuery, haystack } from '../../lib/search';
 
 interface Conversation {
   chat_id: number;
@@ -42,19 +45,25 @@ const LOAD_MORE_SIZE = 200;
 
 interface Props {
   udid: string;
+  /** Every message in the backup, read once: what the search box matches against. */
+  index: BackupIndex;
+  /** What the top search box holds: conversations without a match are hidden, matches are marked. */
+  query: string;
   /** Open this conversation instead of the most recent one. */
   openChatId?: number | null;
+  /** Open the conversation at this message (a search result) instead of at its newest. */
+  openMessageId?: number | null;
 }
 
-export default function MessageExplorer({ udid, openChatId }: Props) {
+export default function MessageExplorer({ udid, index, query, openChatId, openMessageId }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeChat, setActiveChat] = useState<number | null>(null);
   const [totalMessages, setTotalMessages] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  // Opened partway down a long conversation: there are newer messages below
+  const [hasNewer, setHasNewer] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState('');
-  const [convoSearch, setConvoSearch] = useState('');
   const [minMessageCount, setMinMessageCount] = useState(0);
   const [convDateFilter, setConvDateFilter] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -63,15 +72,40 @@ export default function MessageExplorer({ udid, openChatId }: Props) {
   // Which Save dialog is open: the conversation on screen, or the ones ticked in Select mode
   const [choosing, setChoosing] = useState<'one' | 'selected' | null>(null);
   const [bulkExportMode, setBulkExportMode] = useState<'merged' | 'separate'>('separate');
+  // The match being shown, as a message id
+  const [currentHit, setCurrentHit] = useState<number | null>(openMessageId ?? null);
   const { busy: exporting, run } = useSaveAction('messages');
 
+  // Offsets count from the newest message: [newest, oldest) is what's loaded
   const offsetRef = useRef(0);
+  const newestRef = useRef(0);
   const epochRef = useRef(0);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageContainerRef = useRef<HTMLDivElement>(null);
   const scrollToBottomRef = useRef(false);
+  const scrollToMessageRef = useRef<number | null>(null);
   const [slowLoading, setSlowLoading] = useState(false);
   const slowLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── What the search box matches ──────────────────────────────────────────
+  // Message ids that match, per conversation, oldest first
+  const hitsByChat = useMemo(() => {
+    const by = new Map<number, number[]>();
+    const terms = parseQuery(query);
+    if (terms.length === 0) return by;
+    for (const e of index.entries) {
+      if (e.type !== 'message' || e.message?.chatId == null || !e.message.text) continue;
+      if (!matchesTerms(haystack([e.message.text]), terms)) continue;
+      const list = by.get(e.message.chatId) ?? [];
+      list.push(Number(e.id.slice('message:'.length)));
+      by.set(e.message.chatId, list);
+    }
+    // The index is newest first; step through a conversation oldest first, like reading it
+    for (const list of by.values()) list.reverse();
+    return by;
+  }, [index.entries, query]);
+
+  const hits = activeChat !== null ? hitsByChat.get(activeChat) ?? [] : [];
+  const hitAt = currentHit !== null ? hits.indexOf(currentHit) : -1;
 
   useEffect(() => {
     loadConversations();
@@ -84,71 +118,143 @@ export default function MessageExplorer({ udid, openChatId }: Props) {
       setConversations(result.conversations);
       // Open on the asked-for conversation, else the most recent one rather than an empty pane
       const first = result.conversations.find(c => c.chat_id === openChatId) ?? result.conversations[0];
-      if (first) loadMessages(first.chat_id);
+      if (first) openChat(first.chat_id, first.chat_id === openChatId ? openMessageId ?? undefined : undefined);
     } finally {
       setLoading(false);
     }
   }
 
-  // Scroll to bottom after messages update when switching conversations
+  // After messages change: scroll to the message asked for, or to the bottom when switching conversations
   useEffect(() => {
-    if (scrollToBottomRef.current && messageContainerRef.current) {
+    const box = messageContainerRef.current;
+    if (!box) return;
+    if (scrollToMessageRef.current !== null) {
+      const el = box.querySelector(`[data-message-id="${scrollToMessageRef.current}"]`);
+      if (el) {
+        el.scrollIntoView({ block: 'center' });
+        scrollToMessageRef.current = null;
+        return;
+      }
+    }
+    if (scrollToBottomRef.current) {
       scrollToBottomRef.current = false;
-      messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
+      box.scrollTop = box.scrollHeight;
     }
   }, [messages]);
 
-  async function loadMessages(chatId: number, offset = 0) {
+  function startLoading() {
     setLoading(true);
-    if (offset === 0) {
-      setMessages([]);
-      setTotalMessages(0);
-      setHasMore(false);
-      setActiveChat(chatId);
-      setSearch('');
-      offsetRef.current = 0;
-      epochRef.current += 1;
-      scrollToBottomRef.current = true;
-      if (slowLoadingTimerRef.current) clearTimeout(slowLoadingTimerRef.current);
-      slowLoadingTimerRef.current = setTimeout(() => setSlowLoading(true), 500);
-    }
+    if (slowLoadingTimerRef.current) clearTimeout(slowLoadingTimerRef.current);
+    slowLoadingTimerRef.current = setTimeout(() => setSlowLoading(true), 500);
+  }
+
+  function stopLoading() {
+    setLoading(false);
+    if (slowLoadingTimerRef.current) clearTimeout(slowLoadingTimerRef.current);
+    setSlowLoading(false);
+  }
+
+  /** Open a conversation at its newest message, or around one message. */
+  async function openChat(chatId: number, atMessage?: number) {
+    epochRef.current += 1;
     const epoch = epochRef.current;
+    setActiveChat(chatId);
+    setMessages([]);
+    setTotalMessages(0);
+    setHasMore(false);
+    setHasNewer(false);
+    startLoading();
     try {
+      let start = 0;
+      if (atMessage != null) {
+        try {
+          const pos = await sidecarCall<{ offset: number; found: boolean }>(
+            'get_message_offset', { udid, chat_id: chatId, message_id: atMessage },
+          );
+          if (pos.found) start = Math.max(0, pos.offset - PAGE_SIZE / 2);
+        } catch {
+          // Open at the newest instead
+        }
+        if (epochRef.current !== epoch) return;
+      }
       const result = await sidecarCall<{ messages: Message[]; total: number; next_offset: number }>(
-        'get_messages', { udid, chat_id: chatId, offset, limit: offset === 0 ? PAGE_SIZE : LOAD_MORE_SIZE }
+        'get_messages', { udid, chat_id: chatId, offset: start, limit: PAGE_SIZE }
       );
       if (epochRef.current !== epoch) return;
-      if (offset === 0) {
-        setMessages(result.messages);
-      } else {
-        setMessages(prev => [...result.messages, ...prev]);
-      }
-      const newOffset = result.next_offset ?? offset + result.messages.length;
-      offsetRef.current = newOffset;
+      newestRef.current = start;
+      offsetRef.current = result.next_offset ?? start + result.messages.length;
       setTotalMessages(result.total);
-      setHasMore(newOffset < result.total);
+      setHasMore(offsetRef.current < result.total);
+      setHasNewer(start > 0);
+      if (atMessage != null) scrollToMessageRef.current = atMessage;
+      else scrollToBottomRef.current = true;
+      setMessages(result.messages);
     } finally {
-      setLoading(false);
-      if (slowLoadingTimerRef.current) clearTimeout(slowLoadingTimerRef.current);
-      setSlowLoading(false);
+      if (epochRef.current === epoch) stopLoading();
     }
   }
 
-  async function handleSearch() {
-    if (!search.trim()) return;
-    setLoading(true);
-    epochRef.current += 1;
+  async function loadOlder() {
+    if (activeChat === null) return;
+    const epoch = epochRef.current;
+    startLoading();
     try {
-      const result = await sidecarCall<{ results: Message[] }>(
-        'search_messages', { udid, query: search, chat_id: activeChat ?? undefined, limit: 500 }
+      const offset = offsetRef.current;
+      const result = await sidecarCall<{ messages: Message[]; total: number; next_offset: number }>(
+        'get_messages', { udid, chat_id: activeChat, offset, limit: LOAD_MORE_SIZE }
       );
-      setMessages(result.results);
-      setTotalMessages(result.results.length);
-      setHasMore(false);
+      if (epochRef.current !== epoch) return;
+      setMessages(prev => [...result.messages, ...prev]);
+      offsetRef.current = result.next_offset ?? offset + result.messages.length;
+      setTotalMessages(result.total);
+      setHasMore(offsetRef.current < result.total);
     } finally {
-      setLoading(false);
+      if (epochRef.current === epoch) stopLoading();
     }
   }
+
+  async function loadNewer() {
+    if (activeChat === null || newestRef.current === 0) return;
+    const epoch = epochRef.current;
+    startLoading();
+    try {
+      const start = Math.max(0, newestRef.current - LOAD_MORE_SIZE);
+      const result = await sidecarCall<{ messages: Message[]; total: number; next_offset: number }>(
+        'get_messages', { udid, chat_id: activeChat, offset: start, limit: newestRef.current - start }
+      );
+      if (epochRef.current !== epoch) return;
+      setMessages(prev => [...prev, ...result.messages]);
+      newestRef.current = start;
+      setHasNewer(start > 0);
+    } finally {
+      if (epochRef.current === epoch) stopLoading();
+    }
+  }
+
+  /** Show one message: scroll to it if it's loaded, else load the messages around it. */
+  function showMessage(messageId: number) {
+    setCurrentHit(messageId);
+    const box = messageContainerRef.current;
+    const el = box?.querySelector(`[data-message-id="${messageId}"]`);
+    if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    else if (activeChat !== null) openChat(activeChat, messageId);
+  }
+
+  // A new search, or a conversation picked while searching: once it's loaded, go to its newest match.
+  // Opened on a message a search found, stay on that message.
+  const jumpPending = useRef(openMessageId == null);
+  const lastQuery = useRef(query);
+  useEffect(() => {
+    if (lastQuery.current === query) return;
+    lastQuery.current = query;
+    setCurrentHit(null);
+    jumpPending.current = true;
+  }, [query]);
+  useEffect(() => {
+    if (!jumpPending.current || loading || hits.length === 0 || messages.length === 0) return;
+    jumpPending.current = false;
+    showMessage(hits[hits.length - 1]);
+  }, [query, activeChat, hits, messages.length, loading]);
 
   function saveOne(format: ConversationFormat) {
     setChoosing(null);
@@ -156,15 +262,8 @@ export default function MessageExplorer({ udid, openChatId }: Props) {
     if (convo) run(() => saveConversation(udid, convo, format));
   }
 
-  const filteredConversations = conversations.filter((c) => {
-    if (convoSearch) {
-      const q = convoSearch.toLowerCase();
-      if (
-        !c.display_name.toLowerCase().includes(q) &&
-        !c.chat_identifier.toLowerCase().includes(q) &&
-        !c.last_message_preview.toLowerCase().includes(q)
-      ) return false;
-    }
+  const filteredConversations = useMemo(() => conversations.filter((c) => {
+    if (query && !hitsByChat.has(c.chat_id) && !matches(query, c.display_name, c.chat_identifier)) return false;
     if (minMessageCount > 0 && c.message_count < minMessageCount) return false;
     if (convDateFilter) {
       if (!c.last_message_date) return false;
@@ -173,7 +272,13 @@ export default function MessageExplorer({ udid, openChatId }: Props) {
       if (convDate < filterDate) return false;
     }
     return true;
-  });
+  }), [conversations, query, hitsByChat, minMessageCount, convDateFilter]);
+
+  // A search that hides the open conversation opens the first one that matches
+  useEffect(() => {
+    if (!query || activeChat === null || filteredConversations.length === 0) return;
+    if (!filteredConversations.some(c => c.chat_id === activeChat)) openChat(filteredConversations[0].chat_id);
+  }, [filteredConversations]);
 
   function toggleChatSelection(chatId: number) {
     setSelectedChats(prev => {
@@ -198,18 +303,10 @@ export default function MessageExplorer({ udid, openChatId }: Props) {
     if (convos.length > 0) run(() => saveConversations(udid, convos, format, bulkExportMode));
   }
 
-  const loadMore = useCallback(() => {
-    if (activeChat !== null && hasMore && !loading) {
-      loadMessages(activeChat, offsetRef.current);
-    }
-  }, [activeChat, hasMore, loading]);
-
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
-    if (el.scrollTop < 100 && hasMore && !loading) {
-      loadMore();
-    }
-  }, [hasMore, loading, loadMore]);
+    if (el.scrollTop < 100 && hasMore && !loading) loadOlder();
+  }, [hasMore, loading, activeChat]);
 
   const activeConvo = conversations.find(c => c.chat_id === activeChat);
 
@@ -236,8 +333,11 @@ export default function MessageExplorer({ udid, openChatId }: Props) {
     <div className={`h-full flex flex-col${slowLoading ? ' cursor-wait' : ''}`}>
       <PageHeader
         title="Messages"
-        count={conversations.length > 0 ? plural(conversations.length, 'conversation') : undefined}
-        search={{ value: convoSearch, onChange: setConvoSearch, placeholder: 'Search conversations' }}
+        count={conversations.length > 0
+          ? (query
+            ? `${filteredConversations.length} of ${plural(conversations.length, 'conversation')}`
+            : plural(conversations.length, 'conversation'))
+          : undefined}
         actions={
           selectMode ? (
             <SaveButton
@@ -320,15 +420,23 @@ export default function MessageExplorer({ udid, openChatId }: Props) {
           )}
         </div>
         <div className="flex-1 overflow-y-auto">
+          {query && index.loadingTypes.has('message') && (
+            <div className="px-3 py-2 text-xs text-text-tertiary border-b border-rule">Still reading messages, more may match…</div>
+          )}
           {filteredConversations.map((c) => {
             const name = c.display_name || c.chat_identifier;
             const isOn = selectMode ? selectedChats.has(c.chat_id) : activeChat === c.chat_id;
+            const matched = hitsByChat.get(c.chat_id)?.length ?? 0;
             return (
               <button
                 key={c.chat_id}
                 onClick={() => {
                   if (selectMode) toggleChatSelection(c.chat_id);
-                  else loadMessages(c.chat_id);
+                  else {
+                    setCurrentHit(null);
+                    jumpPending.current = true;
+                    openChat(c.chat_id);
+                  }
                 }}
                 aria-current={!selectMode && activeChat === c.chat_id ? 'true' : undefined}
                 aria-pressed={selectMode ? selectedChats.has(c.chat_id) : undefined}
@@ -356,10 +464,16 @@ export default function MessageExplorer({ udid, openChatId }: Props) {
                 )}
                 <span className="flex-1 min-w-0">
                   <span className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-text-primary truncate">{name}</span>
+                    <span className="text-sm font-medium text-text-primary truncate"><Highlight text={name} query={query} /></span>
                     <span className="text-xs text-text-tertiary flex-shrink-0">{formatRelative(c.last_message_date)}</span>
                   </span>
-                  <span className="block text-xs text-text-secondary truncate mt-0.5">{c.last_message_preview}</span>
+                  {query ? (
+                    <span className="block text-xs text-accent font-medium mt-0.5">
+                      {matched > 0 ? plural(matched, 'match', 'matches') : 'Name matches'}
+                    </span>
+                  ) : (
+                    <span className="block text-xs text-text-secondary truncate mt-0.5">{c.last_message_preview}</span>
+                  )}
                   <span className="block text-xs text-text-tertiary mt-0.5">
                     {plural(c.message_count, 'message')}
                     {c.service !== 'iMessage' && ` · ${c.service}`}
@@ -370,10 +484,12 @@ export default function MessageExplorer({ udid, openChatId }: Props) {
           })}
           {filteredConversations.length === 0 && !loading && (
             <div className="p-4 text-sm text-text-secondary text-center">
-              {conversations.length > 0 ? 'No conversations match' : 'No conversations in this backup'}
+              {conversations.length === 0
+                ? 'No conversations in this backup'
+                : query ? `No messages match "${query}"` : 'No conversations match'}
             </div>
           )}
-          {filteredConversations.length > 0 && filteredConversations.length !== conversations.length && (
+          {!query && filteredConversations.length > 0 && filteredConversations.length !== conversations.length && (
             <div className="px-3 py-2 text-xs text-text-tertiary text-center">
               {filteredConversations.length} of {conversations.length} conversations
             </div>
@@ -402,24 +518,36 @@ export default function MessageExplorer({ udid, openChatId }: Props) {
                   {activeConvo.is_group && ' · Group'}
                 </div>
               </div>
-              <div className="relative flex-shrink-0">
-                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" size={18} />
-                <input
-                  type="search"
-                  aria-label="Search this conversation"
-                  placeholder="Search messages"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  className="h-10 pl-10 pr-3 text-sm bg-surface rounded-full border border-rule focus:outline-none focus:border-accent w-40 lg:w-56"
-                />
-              </div>
+              {/* Step through this conversation's matches */}
+              {query && hits.length > 0 && (
+                <div className="flex items-center gap-1 flex-shrink-0" role="group" aria-label="Matches in this conversation">
+                  <span className="text-sm text-text-secondary tabular-nums mr-1">
+                    {hitAt >= 0 ? `${hitAt + 1} of ${hits.length}` : plural(hits.length, 'match', 'matches')}
+                  </span>
+                  <button
+                    onClick={() => showMessage(hits[hitAt > 0 ? hitAt - 1 : hits.length - 1])}
+                    title="Earlier match"
+                    aria-label="Earlier match"
+                    className="w-9 h-9 rounded-full border border-rule flex items-center justify-center hover:bg-surface"
+                  >
+                    <ChevronUp size={18} />
+                  </button>
+                  <button
+                    onClick={() => showMessage(hits[hitAt >= 0 && hitAt < hits.length - 1 ? hitAt + 1 : 0])}
+                    title="Later match"
+                    aria-label="Later match"
+                    className="w-9 h-9 rounded-full border border-rule flex items-center justify-center hover:bg-surface"
+                  >
+                    <ChevronDown size={18} />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Messages */}
             <div ref={messageContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4" onScroll={handleScroll}>
               {hasMore && (
-                <button onClick={loadMore} className="w-full text-center text-sm text-accent py-2 hover:underline mb-2">
+                <button onClick={loadOlder} className="w-full text-center text-sm text-accent py-2 hover:underline mb-2">
                   Load older messages
                 </button>
               )}
@@ -434,11 +562,17 @@ export default function MessageExplorer({ udid, openChatId }: Props) {
                       message={msg}
                       showSender={activeConvo.is_group}
                       udid={udid}
+                      query={query}
+                      current={msg.message_id === currentHit}
                     />
                   ))}
                 </div>
               ))}
-              <div ref={messagesEndRef} />
+              {hasNewer && (
+                <button onClick={loadNewer} className="w-full text-center text-sm text-accent py-2 hover:underline mt-2">
+                  Load newer messages
+                </button>
+              )}
             </div>
           </>
         ) : (

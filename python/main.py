@@ -75,6 +75,7 @@ class SidecarServer:
             "list_conversations": self.list_conversations,
             "get_messages": self.get_messages,
             "get_attachment": self.get_attachment,
+            "get_message_offset": self.get_message_offset,
             "search_messages": self.search_messages,
             "list_albums": self.list_albums,
             "list_photos": self.list_photos,
@@ -192,6 +193,12 @@ class SidecarServer:
         attachment_id = params["attachment_id"]
         backup = self.backup_manager.get_open_backup(udid)
         return self.message_extractor.get_attachment(backup, attachment_id)
+
+    def get_message_offset(self, params):
+        """Where one message sits in its conversation, for opening the conversation at it."""
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.message_extractor.get_message_offset(backup, params["chat_id"], params["message_id"])
 
     def search_messages(self, params):
         udid = params["udid"]

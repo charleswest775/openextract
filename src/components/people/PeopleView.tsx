@@ -1,35 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { UseTimelineReturn } from '../../hooks/useTimeline';
-import type { TimelineEntry, TimelineEntryType } from '../../types/timeline';
-import { formatPhone, normPhone } from '../../lib/people';
+import { useTimeline } from '../../hooks/useTimeline';
+import type { TimelineEntryType } from '../../types/timeline';
+import { formatPhone } from '../../lib/people';
+import { matches } from '../../lib/search';
 import { formatDate } from '../../lib/dates';
 import { saveFolder } from '../../lib/ipc';
 import { formatTimeline, FORMAT_FILTERS, type ExportFormat } from '../../lib/timelineExport';
 import { plural } from '../../lib/saveData';
 import { useSaveAction } from '../../hooks/useSaveAction';
-import { SearchField } from '../shared/PageHeader';
+import Highlight from '../shared/Highlight';
 import EmptyState from '../shared/EmptyState';
 import OrganicLoader from '../shared/OrganicLoader';
 import SaveDialog, { FORMATS, SaveButton } from '../shared/SaveDialog';
-import { CallIcon, ContactIcon, LinesIcon, VoicemailIcon } from '../shared/Icons';
+import { CallIcon, ChevronRightIcon, ContactIcon, PeopleIcon, LinesIcon, VoicemailIcon } from '../shared/Icons';
 import TimelineEntryCard from '../timeline/TimelineEntryCard';
 import { groupByDay } from '../timeline/TimelineView';
 import type { ExploreContext } from '../explore/sections';
-
-type PersonKind = 'message' | 'call' | 'voicemail';
-const PERSON_KINDS: PersonKind[] = ['message', 'call', 'voicemail'];
-
-interface Person {
-  key: string;
-  name: string;
-  /** What the Timeline's person filter matches on. */
-  identifier: string;
-  counts: Record<PersonKind, number>;
-  total: number;
-  last: string;
-  isGroup: boolean;
-  chatId?: number;
-}
+import { gatherPeople, idKey, initials, linkCards, PERSON_KINDS, type Person, type PersonKind } from './gather';
 
 const KIND_LABEL: Record<PersonKind, [string, string]> = {
   message: ['message', 'messages'],
@@ -37,65 +24,40 @@ const KIND_LABEL: Record<PersonKind, [string, string]> = {
   voicemail: ['voicemail', 'voicemails'],
 };
 
-// "+14065550109" and "(406) 555-0109" are the same person; names compare without case.
-function personKey(name: string): string {
-  const digits = normPhone(name);
-  return /^[+\d\s().-]+$/.test(name) && digits.length >= 7 ? digits : name.trim().toLowerCase();
-}
-
-/** Everyone the backup has messages, calls or voicemail with, most in touch first. */
-function gatherPeople(entries: TimelineEntry[]): Person[] {
-  const byKey = new Map<string, Person>();
-  for (const e of entries) {
-    if (!PERSON_KINDS.includes(e.type as PersonKind) || !e.contactIdentifier) continue;
-    const name = e.contactName || e.contactIdentifier;
-    const key = personKey(name);
-    let p = byKey.get(key);
-    if (!p) {
-      p = {
-        key, name, identifier: e.contactIdentifier,
-        counts: { message: 0, call: 0, voicemail: 0 }, total: 0, last: '',
-        isGroup: false,
-      };
-      byKey.set(key, p);
-    }
-    p.counts[e.type as PersonKind]++;
-    p.total++;
-    if (e.timestamp > p.last) p.last = e.timestamp;
-    if (e.message?.isGroup) p.isGroup = true;
-    if (e.message?.chatId != null && p.chatId == null) p.chatId = e.message.chatId;
-  }
-  return [...byKey.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
-}
-
-function initials(name: string): string {
-  const words = name.split(/\s+/).filter(w => /^\p{L}/u.test(w));
-  if (words.length === 0) return '#';
-  return (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase();
-}
-
 function summary(p: Person): string {
   return PERSON_KINDS.filter(k => p.counts[k] > 0)
     .map(k => plural(p.counts[k], KIND_LABEL[k][0], KIND_LABEL[k][1]))
     .join(' · ');
 }
 
+interface Props {
+  ctx: ExploreContext;
+  /** What the top search box holds; the list shows only people who match. */
+  query: string;
+  /** Who to open, by phone number or email. */
+  person?: string;
+}
+
 /**
- * Direction 3's home: people on the left, ranked by how much you were in touch,
- * and one page per person with their messages, calls and voicemail in one stream.
+ * Who you were in touch with, most first, and one page per person with their
+ * messages, calls and voicemail in one stream. Saved cards are in the address book.
  */
-export default function PeopleView({ ctx, timeline }: { ctx: ExploreContext; timeline: UseTimelineReturn }) {
+export default function PeopleView({ ctx, query, person }: Props) {
+  const timeline = useTimeline(ctx.index);
   const people = useMemo(() => gatherPeople(timeline.allEntries), [timeline.allEntries]);
-  const [search, setSearch] = useState('');
+  const { cardOf } = useMemo(() => linkCards(people, ctx.index.addressBook ?? []), [people, ctx.index.addressBook]);
+  const asked = person ? people.find(p => p.ids.has(idKey(person))) : undefined;
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [kinds, setKinds] = useState<PersonKind | 'all'>('all');
   const [choosing, setChoosing] = useState(false);
   const { busy, run } = useSaveAction('timeline');
 
-  const shown = people.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()));
+  const shown = people.filter(p => p.key === asked?.key || matches(query, p.name, ...p.ids));
   const individuals = shown.filter(p => !p.isGroup);
   const groups = shown.filter(p => p.isGroup);
-  const selected = people.find(p => p.key === selectedKey) ?? individuals[0] ?? groups[0] ?? null;
+  const selected = people.find(p => p.key === (selectedKey ?? asked?.key))
+    ?? individuals[0] ?? groups[0] ?? null;
+  const card = selected ? cardOf.get(selected.key) : undefined;
 
   // The Timeline does the matching: one person across phone numbers, emails and their address-book card
   const { setFilters } = timeline;
@@ -137,7 +99,7 @@ export default function PeopleView({ ctx, timeline }: { ctx: ExploreContext; tim
           className="w-10 h-10 rounded-full bg-sand flex items-center justify-center flex-shrink-0 text-sm font-medium text-text-secondary before:content-[attr(data-initials)]"
         />
         <span className="flex-1 min-w-0">
-          <span className="block text-sm font-medium text-text-primary truncate">{formatPhone(p.name)}</span>
+          <span className="block text-sm font-medium text-text-primary truncate"><Highlight text={formatPhone(p.name)} query={query} /></span>
           <span className="block text-xs text-text-secondary truncate">{summary(p)}</span>
         </span>
       </button>
@@ -156,7 +118,7 @@ export default function PeopleView({ ctx, timeline }: { ctx: ExploreContext; tim
             <h1 className="text-2xl text-text-primary">People</h1>
             <span className="text-xs text-text-tertiary">Most in touch first</span>
           </div>
-          <SearchField value={search} onChange={setSearch} placeholder="Find a person" />
+          <p className="text-xs text-text-secondary">Everyone you messaged, called or got voicemail from. Saved cards are in the address book.</p>
         </div>
         <div className="flex-1 overflow-y-auto">
           {timeline.loading && people.length === 0 && (
@@ -174,23 +136,16 @@ export default function PeopleView({ ctx, timeline }: { ctx: ExploreContext; tim
           )}
           {!timeline.loading && shown.length === 0 && (
             <div className="px-4 py-6 text-sm text-text-secondary text-center">
-              {search ? `No one matches "${search}"` : 'No messages, calls or voicemail in this backup'}
+              {query ? `No one matches "${query}"` : 'No messages, calls or voicemail in this backup'}
             </div>
           )}
-          {/* The plain lists stay one click away */}
-          <div className="px-4 py-4 border-t border-rule mt-2 text-sm text-text-secondary flex flex-wrap gap-x-3 gap-y-1">
-            <span className="text-text-tertiary">All lists:</span>
-            {ctx.data.filter(s => ['messages', 'calls', 'voicemail', 'contacts'].includes(s.id)).map(s => (
-              <button key={s.id} onClick={() => ctx.openTab(s.id)} className="text-accent hover:underline">{s.label}</button>
-            ))}
-          </div>
         </div>
       </div>
 
       {/* One person */}
       <div className="flex-1 flex flex-col min-w-0">
         {!selected ? (
-          !timeline.loading && <EmptyState icon={ContactIcon} title="Pick someone to see everything with them" />
+          !timeline.loading && <EmptyState icon={PeopleIcon} title="Pick someone to see everything with them" />
         ) : (
           <>
             <div className="px-7 pt-6 pb-4 border-b border-rule flex flex-col gap-4">
@@ -206,6 +161,16 @@ export default function PeopleView({ ctx, timeline }: { ctx: ExploreContext; tim
                     {selected.isGroup ? 'Group conversation' : formatPhone(selected.identifier)}
                     {selected.last && ` · last in touch ${formatDate(selected.last)}`}
                   </div>
+                  {card && (
+                    <button
+                      onClick={() => ctx.openTab('contacts', { contactId: card.id })}
+                      className="mt-1 flex items-center gap-1.5 text-sm text-accent font-medium hover:underline"
+                    >
+                      <ContactIcon size={16} />
+                      In your address book{card.organization ? ` · ${card.organization}` : ''}
+                      <ChevronRightIcon size={16} />
+                    </button>
+                  )}
                 </div>
                 {selected.chatId != null && selected.counts.message > 0 && (
                   <button onClick={() => ctx.openTab('messages', { chatId: selected.chatId })} className="hearth-ghost-btn">

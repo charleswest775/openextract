@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import BenzAMRRecorder from 'benz-amr-recorder';
 import { ChevronDown } from 'lucide-react';
 import { saveFolder, sidecarCall } from '../../lib/ipc';
@@ -12,6 +12,8 @@ import EmptyState from '../shared/EmptyState';
 import { SaveButton } from '../shared/SaveDialog';
 import { useSaveAction } from '../../hooks/useSaveAction';
 import { checkEngineResult, plural } from '../../lib/saveData';
+import { matches } from '../../lib/search';
+import Highlight from '../shared/Highlight';
 
 interface Voicemail {
   id: number;
@@ -39,6 +41,10 @@ interface PlayerState {
 
 interface Props {
   udid: string;
+  /** What the top search box holds; the list shows only voicemail that matches. */
+  query: string;
+  /** The voicemail a search found, as a timeline id ("voicemail:7"): opened and scrolled to. */
+  selectId?: string;
 }
 
 function formatTime(seconds: number) {
@@ -48,7 +54,7 @@ function formatTime(seconds: number) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function VoicemailExplorer({ udid }: Props) {
+export default function VoicemailExplorer({ udid, query, selectId }: Props) {
   const [voicemails, setVoicemails] = useState<Voicemail[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -83,9 +89,13 @@ export default function VoicemailExplorer({ udid }: Props) {
         setVoicemails([]);
         setError(res.error || 'Failed to load voicemails');
       } else if (res.data) {
-        setVoicemails(res.data.voicemails || []);
+        const list: Voicemail[] = res.data.voicemails || [];
+        setVoicemails(list);
         setEmptyReason(res.data.empty_reason ?? null);
         if (res.data.error) setError(res.data.error);
+        // Opened from a search: play-ready, with its transcript showing
+        const found = list.find(vm => `voicemail:${vm.id}` === selectId);
+        if (found) toggleExpand(found.id);
       }
     } finally {
       setLoading(false);
@@ -180,11 +190,19 @@ export default function VoicemailExplorer({ udid }: Props) {
     });
   }
 
+  const shown = useMemo(
+    () => voicemails.filter(vm => `voicemail:${vm.id}` === selectId
+      || matches(query, vm.contact_name, vm.phone_number, vm.transcript, 'voicemail')),
+    [voicemails, query, selectId],
+  );
+
   return (
     <div className="h-full flex flex-col">
       <PageHeader
         title="Voicemail"
-        count={voicemails.length > 0 ? plural(voicemails.length, 'voicemail') : undefined}
+        count={voicemails.length > 0
+          ? (query ? `${shown.length} of ${plural(voicemails.length, 'voicemail')}` : plural(voicemails.length, 'voicemail'))
+          : undefined}
         actions={<SaveButton onClick={handleSave} busy={busy} disabled={voicemails.length === 0} label="Save all" />}
       />
       <div className="flex-1 overflow-y-auto">
@@ -210,12 +228,19 @@ export default function VoicemailExplorer({ udid }: Props) {
             />
           )
         )}
-        {voicemails.map((vm) => {
+        {!loading && voicemails.length > 0 && shown.length === 0 && (
+          <EmptyState icon={VoicemailIcon} title={`No voicemail matches "${query}"`} detail="Try a name, a number or a word they said." />
+        )}
+        {shown.map((vm) => {
           const ps = playerStates[vm.id];
           const progress = ps && ps.duration > 0 ? (ps.currentTime / ps.duration) * 100 : 0;
 
           return (
-            <div key={vm.id} className="border-b border-rule">
+            <div
+              key={vm.id}
+              ref={`voicemail:${vm.id}` === selectId ? el => el?.scrollIntoView({ block: 'center' }) : undefined}
+              className={`border-b border-rule ${`voicemail:${vm.id}` === selectId ? 'bg-accent-wash' : ''}`}
+            >
               <button
                 onClick={() => toggleExpand(vm.id)}
                 aria-expanded={expanded === vm.id}
@@ -228,7 +253,7 @@ export default function VoicemailExplorer({ udid }: Props) {
                 </span>
                 <div className="flex-1 min-w-0">
                   <div className="text-base font-medium text-text-primary">
-                    {displayName(vm.contact_name, vm.phone_number)}
+                    <Highlight text={displayName(vm.contact_name, vm.phone_number)} query={query} />
                     {!vm.is_read && <span className="ml-2 text-xs font-medium text-accent">Unheard</span>}
                   </div>
                   <div className="text-sm text-text-secondary">
@@ -282,7 +307,7 @@ export default function VoicemailExplorer({ udid }: Props) {
                   {vm.transcript && (
                     <div className="border-l-2 border-accent-line pl-3 py-1">
                       <div className="text-xs text-text-tertiary mb-1">Transcript</div>
-                      <div className="text-sm text-text-primary italic">{vm.transcript}</div>
+                      <div className="text-sm text-text-primary italic"><Highlight text={vm.transcript} query={query} /></div>
                     </div>
                   )}
                 </div>

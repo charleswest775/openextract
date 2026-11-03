@@ -207,7 +207,7 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
   const tiles = [
     { tab: 'messages', icon: LinesIcon, value: overview.total_messages, label: 'Messages' },
     { tab: 'photos', icon: CameraIcon, value: overview.photos_in_backup, label: 'Photos & Videos' },
-    { tab: 'contacts', icon: ContactIcon, value: overview.total_contacts, label: 'Contacts' },
+    { tab: 'contacts', icon: ContactIcon, value: overview.total_contacts, label: 'Address book' },
     { tab: 'calls', icon: CallIcon, value: overview.total_calls, label: 'Calls' },
     { tab: 'notes', icon: NoteIcon, value: overview.total_notes, label: 'Notes' },
     { tab: 'voicemail', icon: VoicemailIcon, value: overview.total_voicemails, label: 'Voicemails' },
@@ -219,6 +219,7 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
   ];
 
   const facts = [
+    overview.device_name,
     overview.ios_version && `iOS ${overview.ios_version}`,
     overview.last_backup && `Backed up ${formatFullDate(overview.last_backup)}`,
     overview.size_gb > 0 && `${overview.size_gb.toFixed(1)} GB`,
@@ -227,7 +228,7 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title={overview.device_name}
+        title="Backup details"
         count={
           <span className="inline-flex items-center gap-2">
             {facts}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { sidecarCall, saveFolder } from '../../lib/ipc';
 import { NoteIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
@@ -8,6 +8,8 @@ import EmptyState from '../shared/EmptyState';
 import SaveDialog, { FORMATS, SaveButton } from '../shared/SaveDialog';
 import { useSaveAction } from '../../hooks/useSaveAction';
 import { checkEngineResult, plural } from '../../lib/saveData';
+import { matches } from '../../lib/search';
+import Highlight from '../shared/Highlight';
 
 // Notes start with their title, so the list's preview skips it.
 function preview(note: { title: string; body: string }): string {
@@ -25,14 +27,15 @@ interface Note {
 
 interface Props {
   udid: string;
+  /** What the top search box holds; the list shows only notes that match. */
+  query: string;
   /** Open this note instead of the newest one. */
   openNoteId?: number | string | null;
 }
 
-export default function NoteExplorer({ udid, openNoteId }: Props) {
+export default function NoteExplorer({ udid, query, openNoteId }: Props) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Note | null>(null);
   const [choosing, setChoosing] = useState(false);
   const { busy, run } = useSaveAction('notes');
@@ -67,18 +70,18 @@ export default function NoteExplorer({ udid, openNoteId }: Props) {
     });
   }
 
-  const filtered = notes.filter(n => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q);
-  });
+  const filtered = useMemo(() => notes.filter(n => matches(query, n.title, n.body)), [notes, query]);
+
+  // A search that hides the open note opens the first one that matches
+  useEffect(() => {
+    if (selected && !filtered.includes(selected)) setSelected(filtered[0] ?? null);
+  }, [filtered]);
 
   return (
     <div className="h-full flex flex-col">
       <PageHeader
         title="Notes"
-        count={notes.length > 0 ? plural(notes.length, 'note') : undefined}
-        search={{ value: search, onChange: setSearch, placeholder: 'Search notes' }}
+        count={notes.length > 0 ? (query ? `${filtered.length} of ${plural(notes.length, 'note')}` : plural(notes.length, 'note')) : undefined}
         actions={<SaveButton onClick={() => setChoosing(true)} busy={busy} disabled={!selected} label="Save note" />}
       />
       <div className="flex-1 flex min-h-0">
@@ -98,14 +101,14 @@ export default function NoteExplorer({ udid, openNoteId }: Props) {
                 selected?.note_id === note.note_id ? 'bg-accent-wash' : 'hover:bg-surface'
               }`}
             >
-              <div className="text-sm font-medium text-text-primary truncate">{note.title || 'Untitled'}</div>
+              <div className="text-sm font-medium text-text-primary truncate"><Highlight text={note.title || 'Untitled'} query={query} /></div>
               <div className="text-xs text-text-tertiary mt-0.5">{formatDate(note.modified)}</div>
-              <div className="text-xs text-text-secondary line-clamp-2 mt-0.5">{preview(note)}</div>
+              <div className="text-xs text-text-secondary line-clamp-2 mt-0.5"><Highlight text={preview(note)} query={query} around={30} /></div>
             </button>
           ))}
           {!loading && filtered.length === 0 && (
             <div className="text-center px-4 py-6 text-sm text-text-secondary">
-              {search ? `No notes match "${search}"` : 'No notes in this backup'}
+              {query ? `No notes match "${query}"` : 'No notes in this backup'}
             </div>
           )}
         </div>
@@ -115,7 +118,7 @@ export default function NoteExplorer({ udid, openNoteId }: Props) {
           {selected ? (
             <div className="flex-1 overflow-y-auto px-10 py-8">
               <div className="text-sm text-text-tertiary mb-1">Edited {formatDate(selected.modified)}</div>
-              <h2 className="text-2xl text-text-primary mb-5">{selected.title || 'Untitled'}</h2>
+              <h2 className="text-2xl text-text-primary mb-5"><Highlight text={selected.title || 'Untitled'} query={query} /></h2>
               <div
                 className="whitespace-pre-wrap text-text-primary"
                 style={{
@@ -125,7 +128,7 @@ export default function NoteExplorer({ udid, openNoteId }: Props) {
                   maxWidth: 680,
                 }}
               >
-                {preview(selected)}
+                <Highlight text={preview(selected)} query={query} />
               </div>
             </div>
           ) : (

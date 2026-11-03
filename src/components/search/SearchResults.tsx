@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type MutableRefObject } from 'react';
 import type { UseTimelineReturn } from '../../hooks/useTimeline';
 import type { TimelineEntry, TimelineEntryType } from '../../types/timeline';
 import { formatDate, formatDuration } from '../../lib/dates';
 import { formatPhone } from '../../lib/people';
 import { plural } from '../../lib/saveData';
+import { matches } from '../../lib/search';
 import EmptyState from '../shared/EmptyState';
+import Highlight from '../shared/Highlight';
 import OrganicLoader from '../shared/OrganicLoader';
-import { ChevronRightIcon, ContactIcon, SearchIcon } from '../shared/Icons';
+import { ChevronRightIcon, ContactIcon, PeopleIcon, SearchIcon } from '../shared/Icons';
 import TimelineEntryCard from '../timeline/TimelineEntryCard';
 import { TYPE_COLORS } from '../timeline/TimelineTypeChips';
+import { gatherPeople, linkCards } from '../people/gather';
 import { DATA_SECTIONS, type ExploreContext, type Icon, type Tab } from '../explore/sections';
 
 const ORDER: TimelineEntryType[] = ['note', 'message', 'voicemail', 'call', 'photo', 'browser'];
@@ -21,9 +24,14 @@ const KIND: Record<TimelineEntryType, { one: string; many: string; tab: Tab }> =
   browser: { one: 'Web page', many: 'Web history', tab: 'browser_history' },
 };
 const PER_GROUP = 5;
+const PEOPLE_SHOWN = 4;
 
 function iconFor(type: TimelineEntryType): Icon {
   return DATA_SECTIONS.find(s => s.id === KIND[type].tab)!.icon;
+}
+
+function labelFor(type: TimelineEntryType): string {
+  return DATA_SECTIONS.find(s => s.id === KIND[type].tab)!.label;
 }
 
 /** A title and the line that matched, for one result. */
@@ -38,34 +46,59 @@ function describe(e: TimelineEntry): { title: string; text: string } {
   }
 }
 
-/** The part of `text` around the first match, with every match marked. */
-function Highlight({ text, query, around = 70 }: { text: string; query: string; around?: number }) {
-  const q = query.trim();
-  if (!q) return <>{text}</>;
-  const at = text.toLowerCase().indexOf(q.toLowerCase());
-  let shown = text;
-  if (around > 0 && at > around) shown = '…' + text.slice(at - Math.floor(around / 2));
-  const parts = shown.split(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
-  return (
-    <>
-      {parts.map((part, i) => (
-        part.toLowerCase() === q.toLowerCase()
-          ? <mark key={i} className="bg-amber-200 text-inherit rounded px-0.5">{part}</mark>
-          : <span key={i}>{part}</span>
-      ))}
-    </>
-  );
+/** One person or saved card that matches, opening their page or their card. */
+interface PersonHit {
+  key: string;
+  name: string;
+  line: string;
+  open: () => void;
+  saved: boolean;
 }
 
-/** Direction 4's results: every kind of record that matches, grouped, with a preview. */
-export default function SearchResults({ ctx, timeline, query }: { ctx: ExploreContext; timeline: UseTimelineReturn; query: string }) {
+interface Props {
+  ctx: ExploreContext;
+  timeline: UseTimelineReturn;
+  query: string;
+  /** The search box hands its arrow keys and Enter to the results. */
+  keyRef: MutableRefObject<((e: React.KeyboardEvent<HTMLInputElement>) => void) | null>;
+}
+
+/** Every kind of record that matches, grouped, with a preview of the one picked. */
+export default function SearchResults({ ctx, timeline, query, keyRef }: Props) {
   const [only, setOnly] = useState<TimelineEntryType | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 999px)').matches);
 
-  const people = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return timeline.allContacts.filter(c => c.name.toLowerCase().includes(q)).slice(0, 4);
-  }, [timeline.allContacts, query]);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 999px)');
+    const onChange = () => setNarrow(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  // People you were in touch with, then saved cards that aren't one of them
+  const allPeople = useMemo(() => gatherPeople(ctx.index.entries), [ctx.index.entries]);
+  const cards = ctx.index.addressBook;
+  const { personOf } = useMemo(() => linkCards(allPeople, cards ?? []), [allPeople, cards]);
+  const { openTab } = ctx;
+  const people = useMemo((): PersonHit[] => {
+    const hits: PersonHit[] = allPeople
+      .filter(p => !p.isGroup && matches(query, p.name, ...p.ids))
+      .map(p => ({
+        key: `p:${p.key}`, name: formatPhone(p.name), saved: false,
+        line: `${plural(p.total, 'event')} · messages, calls and voicemail`,
+        open: () => openTab('people', { person: p.identifier }),
+      }));
+    for (const c of cards ?? []) {
+      if (personOf.has(c.id) || !matches(query, c.display_name, c.organization, ...c.phones, ...c.emails)) continue;
+      hits.push({
+        key: `c:${c.id}`, name: c.display_name, saved: true,
+        line: ['Address book', c.organization, c.phones[0] ?? c.emails[0]].filter(Boolean).join(' · '),
+        open: () => openTab('contacts', { contactId: c.id }),
+      });
+    }
+    return hits;
+  }, [allPeople, cards, personOf, query, openTab]);
 
   const groups = useMemo(() => {
     const by = new Map<TimelineEntryType, TimelineEntry[]>();
@@ -79,16 +112,30 @@ export default function SearchResults({ ctx, timeline, query }: { ctx: ExploreCo
   useEffect(() => { setOnly(null); setSelectedId(null); }, [query]);
 
   const visible = groups.filter(g => !only || g.type === only);
-  const firstEntry = visible[0]?.entries[0] ?? null;
-  const selected = timeline.filteredEntries.find(e => e.id === selectedId) ?? firstEntry;
+  const listed = visible.flatMap(g => (only ? g.entries.slice(0, 100) : g.entries.slice(0, PER_GROUP)));
+  const selected = listed.find(e => e.id === selectedId) ?? listed[0] ?? null;
   const total = timeline.totalFiltered;
 
   function open(e: TimelineEntry) {
-    const tab = KIND[e.type].tab;
-    if (e.type === 'message') ctx.openTab(tab, { chatId: e.message!.chatId });
-    else if (e.type === 'note') ctx.openTab(tab, { noteId: e.note!.noteId });
-    else ctx.openTab(tab);
+    // The screen opens filtered to the same words, on the record that was picked
+    openTab(KIND[e.type].tab, { select: e, keepQuery: true });
   }
+
+  // ↑ and ↓ in the search box move through the results; Enter opens the one picked
+  keyRef.current = (e) => {
+    if (listed.length === 0) return;
+    const at = selected ? listed.indexOf(selected) : -1;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const next = listed[Math.max(0, Math.min(listed.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)))];
+      setSelectedId(next.id);
+      document.getElementById(`result-${next.id}`)?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter' && selected) {
+      e.preventDefault();
+      open(selected);
+    }
+  };
+  useEffect(() => () => { keyRef.current = null; }, [keyRef]);
 
   const chip = (label: string, n: number, on: boolean, onClick: () => void, color?: string) => (
     <button
@@ -109,7 +156,7 @@ export default function SearchResults({ ctx, timeline, query }: { ctx: ExploreCo
   return (
     <div className="h-full flex flex-col">
       <div className="px-6 py-3 border-b border-rule flex items-center gap-2 overflow-x-auto">
-        {chip('All', total, only === null, () => setOnly(null))}
+        {chip('All', total + people.length, only === null, () => setOnly(null))}
         {groups.map(g => chip(KIND[g.type].many, g.entries.length, only === g.type, () => setOnly(g.type), TYPE_COLORS[g.type]))}
         {timeline.loading && (
           <span className="ml-2 text-sm text-text-tertiary whitespace-nowrap">Still reading the backup, more may appear…</span>
@@ -119,30 +166,29 @@ export default function SearchResults({ ctx, timeline, query }: { ctx: ExploreCo
       {total === 0 && people.length === 0 ? (
         timeline.loading
           ? <div className="flex-1 flex items-center justify-center text-accent"><OrganicLoader size={72} /></div>
-          : <EmptyState icon={SearchIcon} title={`Nothing matches "${query}"`} detail="Try fewer letters, or another word from the message, note or name." />
+          : <EmptyState icon={SearchIcon} title={`Nothing matches "${query}"`} detail="Try fewer words, or another word from the message, note or name." />
       ) : (
         <div className="flex-1 flex min-h-0">
           {/* Results, grouped by kind */}
-          <div className="w-[440px] flex-shrink-0 border-r border-rule overflow-y-auto py-2">
+          <div className={`${narrow ? 'flex-1' : 'w-[440px] flex-shrink-0 border-r border-rule'} overflow-y-auto py-2`}>
             {!only && people.length > 0 && (
               <section>
                 <h2 className="font-mono text-[11.5px] tracking-[0.08em] uppercase text-text-tertiary px-5 pt-3 pb-1">People · {people.length}</h2>
-                {people.map(p => (
-                  <button
-                    key={p.identifier}
-                    onClick={() => ctx.openTab('timeline', { timeline: { contactIdentifier: p.identifier } })}
-                    className="w-full px-5 py-2.5 flex items-center gap-3 text-left hover:bg-surface"
-                  >
-                    <span className="w-9 h-9 rounded-full bg-sand flex items-center justify-center flex-shrink-0">
-                      <ContactIcon size={18} className="text-text-secondary" />
-                    </span>
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-sm font-medium text-text-primary truncate"><Highlight text={p.name} query={query} around={0} /></span>
-                      <span className="block text-xs text-text-tertiary">Everything with them, in the Timeline</span>
-                    </span>
-                    <ChevronRightIcon size={18} className="text-text-tertiary" />
-                  </button>
-                ))}
+                {people.slice(0, PEOPLE_SHOWN).map(p => {
+                  const I = p.saved ? ContactIcon : PeopleIcon;
+                  return (
+                    <button key={p.key} onClick={p.open} className="w-full px-5 py-2.5 flex items-center gap-3 text-left hover:bg-surface">
+                      <span className="w-9 h-9 rounded-full bg-sand flex items-center justify-center flex-shrink-0">
+                        <I size={18} className="text-text-secondary" />
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-sm font-medium text-text-primary truncate"><Highlight text={p.name} query={query} /></span>
+                        <span className="block text-xs text-text-tertiary truncate">{p.line}</span>
+                      </span>
+                      <ChevronRightIcon size={18} className="text-text-tertiary" />
+                    </button>
+                  );
+                })}
               </section>
             )}
             {visible.map(g => {
@@ -159,7 +205,8 @@ export default function SearchResults({ ctx, timeline, query }: { ctx: ExploreCo
                     return (
                       <button
                         key={e.id}
-                        onClick={() => setSelectedId(e.id)}
+                        id={`result-${e.id}`}
+                        onClick={() => (narrow ? open(e) : setSelectedId(e.id))}
                         onDoubleClick={() => open(e)}
                         aria-current={on ? 'true' : undefined}
                         className={`w-full px-5 py-2.5 flex gap-3 text-left transition-colors ${on ? 'bg-accent-wash' : 'hover:bg-surface'}`}
@@ -168,8 +215,8 @@ export default function SearchResults({ ctx, timeline, query }: { ctx: ExploreCo
                           <I size={18} />
                         </span>
                         <span className="flex-1 min-w-0">
-                          <span className="block text-sm font-medium text-text-primary truncate"><Highlight text={d.title} query={query} around={0} /></span>
-                          <span className="block text-sm text-text-secondary truncate"><Highlight text={d.text} query={query} /></span>
+                          <span className="block text-sm font-medium text-text-primary truncate"><Highlight text={d.title} query={query} /></span>
+                          <span className="block text-sm text-text-secondary truncate"><Highlight text={d.text} query={query} around={30} /></span>
                           <span className="block text-xs text-text-tertiary">{KIND[g.type].one} · {formatDate(e.timestamp)}</span>
                         </span>
                       </button>
@@ -183,34 +230,42 @@ export default function SearchResults({ ctx, timeline, query }: { ctx: ExploreCo
                 </section>
               );
             })}
+            {!only && people.length > PEOPLE_SHOWN && (
+              <p className="px-5 pt-4 text-sm text-text-tertiary">
+                {plural(people.length - PEOPLE_SHOWN, 'more person', 'more people')} match. Add a word to narrow it down.
+              </p>
+            )}
           </div>
 
           {/* Preview of the selected result */}
-          <div className="flex-1 min-w-0 overflow-y-auto px-8 py-6">
-            {selected && (() => {
-              const d = describe(selected);
-              return (
-                <div className="max-w-2xl flex flex-col gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-text-tertiary">{KIND[selected.type].one} · {formatDate(selected.timestamp)}</div>
-                      <h2 className="text-2xl text-text-primary mt-1"><Highlight text={d.title} query={query} around={0} /></h2>
+          {!narrow && (
+            <div className="flex-1 min-w-0 overflow-y-auto px-8 py-6">
+              {selected && (() => {
+                const d = describe(selected);
+                return (
+                  <div className="max-w-2xl flex flex-col gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-text-tertiary">{KIND[selected.type].one} · {formatDate(selected.timestamp)}</div>
+                        <h2 className="text-2xl text-text-primary mt-1"><Highlight text={d.title} query={query} /></h2>
+                      </div>
+                      <button onClick={() => open(selected)} className="hearth-primary-btn flex-shrink-0">
+                        Open in {labelFor(selected.type)}
+                        <ChevronRightIcon size={18} className="text-white" />
+                      </button>
                     </div>
-                    <button onClick={() => open(selected)} className="hearth-primary-btn flex-shrink-0">
-                      Open in {DATA_SECTIONS.find(s => s.id === KIND[selected.type].tab)?.label === 'Web' ? 'Web history' : DATA_SECTIONS.find(s => s.id === KIND[selected.type].tab)?.label}
-                      <ChevronRightIcon size={18} className="text-white" />
-                    </button>
+                    {(selected.type === 'note' || selected.type === 'message') && d.text && (
+                      <div className="hearth-card p-5 text-[17px] leading-relaxed whitespace-pre-wrap text-text-primary">
+                        <Highlight text={d.text} query={query} />
+                      </div>
+                    )}
+                    <TimelineEntryCard entry={selected} udid={ctx.udid} />
+                    <p className="text-xs text-text-tertiary">↑ ↓ to move through results · Enter to open</p>
                   </div>
-                  {(selected.type === 'note' || selected.type === 'message') && d.text && (
-                    <div className="hearth-card p-5 text-[17px] leading-relaxed whitespace-pre-wrap text-text-primary">
-                      <Highlight text={d.text} query={query} around={0} />
-                    </div>
-                  )}
-                  <TimelineEntryCard entry={selected} udid={ctx.udid} />
-                </div>
-              );
-            })()}
-          </div>
+                );
+              })()}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -77,6 +77,18 @@ async function withApp(label, fn, extraArgs = []) {
       if (!el) return false; el.click(); return true;
     }, t),
     text: () => page.evaluate(() => document.body.innerText),
+    // A screen from the backup's home page, by its tile ("Messages", "Photos"): home first, then the tile.
+    open: async name => {
+      await page.evaluate(() => document.querySelector('.titlebar button[title=Home]')?.click());
+      await sleep(500);
+      return page.evaluate(n => {
+        const tile = [...document.querySelectorAll('button[aria-label]')].find(b => b.getAttribute('aria-label').split(',')[0] === n);
+        if (!tile) return null;
+        const label = tile.getAttribute('aria-label');
+        tile.click();
+        return label;
+      }, name);
+    },
     shot: async name => { if (label.startsWith('maren')) await page.screenshot({ path: path.join(outDir, `${name}.png`) }); },
     // Saves report in in-app notices (role=status for success, role=alert for errors).
     notices: () => page.evaluate(() => [...document.querySelectorAll('[aria-live] > [role=status], [aria-live] > [role=alert]')]
@@ -109,23 +121,24 @@ async function openBackup(c, label, dir, password) {
     await sleep(500);
     state = await c.page.evaluate(() => ({
       password: !!document.querySelector('input[type=password]'),
-      overview: !!document.querySelector('nav [aria-current="page"]'),
+      opened: !!document.querySelector('.titlebar input[type=search]'),
       error: [...document.querySelectorAll('[role=alert], .text-red-600, .text-apple-error')].map(e => e.textContent.trim()).filter(Boolean)[0],
     }));
-    if (state.overview) break;
+    if (state.opened) break;
     if (state.password && password) { await c.page.fill('input[type=password]', password); await c.click('Unlock'); password = null; }
     if (state.error) break;
   }
-  check(`${label}: backup opens`, state.overview, state.error);
-  return state.overview;
+  check(`${label}: backup opens`, state.opened, state.error);
+  return state.opened;
 }
 
 async function photos(c, label, expectInBackup, expectIcloud) {
-  await c.click('Overview'); await sleep(2500);
-  const ov = await c.text();
-  const tile = num(ov.match(/([\d,]+)\nPhotos & Videos/)?.[1]);
-  await c.shot(`${label}-overview`);
-  await c.click('Photos'); await sleep(3000);
+  // The home page's Photos tile says how many there are ("Photos, 170")
+  await c.page.evaluate(() => document.querySelector('.titlebar button[title=Home]')?.click()); await sleep(2500);
+  const tile = num((await c.page.evaluate(() =>
+    document.querySelector('button[aria-label^="Photos,"]')?.getAttribute('aria-label')))?.match(/([\d,]+)$/)?.[1]);
+  await c.shot(`${label}-home`);
+  await c.open('Photos'); await sleep(3000);
   const t = await c.text();
   const header = num(t.match(/([\d,]+) photos? (?:and videos|or video) in this backup/i)?.[1]);
   const icloud = num(t.match(/([\d,]+) more are only in iCloud/)?.[1]) ?? 0;
@@ -145,7 +158,7 @@ async function photos(c, label, expectInBackup, expectIcloud) {
     return { tiles: tiles.length, unique: new Set(ids).size, counts, error: (document.body.innerText.match(/Couldn't load more photos[^\n]*/) || [null])[0] };
   });
   await c.shot(`${label}-photos-end`);
-  check(`${label}: Overview tile = ${expectInBackup}`, tile === expectInBackup, tile);
+  check(`${label}: home Photos tile = ${expectInBackup}`, tile === expectInBackup, tile);
   check(`${label}: Photos header = ${expectInBackup}`, header === expectInBackup, header);
   check(`${label}: iCloud-only note = ${expectIcloud}`, icloud === expectIcloud, icloud);
   check(`${label}: grid pages to all ${expectInBackup}, no duplicates, no error`, grid.tiles === expectInBackup && grid.unique === grid.tiles && !grid.error, grid);
@@ -159,7 +172,7 @@ async function waitNotice(c, ms = 300_000) {
 }
 
 async function exportSingle(c, label, convo, dir, expectPhotos) {
-  await c.click('Messages'); await sleep(2000);
+  await c.open('Messages'); await sleep(2000);
   check(`${label}: open "${convo}"`, await c.click(convo));
   await sleep(2500); await c.shot(`${label}-thread`);
   fs.mkdirSync(dir, { recursive: true }); await c.stubFolder(dir); await c.clearNotices();
@@ -190,7 +203,7 @@ async function exportSingle(c, label, convo, dir, expectPhotos) {
 
 async function exportBulk(c, label, convos, mode, dir, expectPhotos) {
   fs.mkdirSync(dir, { recursive: true });
-  await c.click('Messages'); await sleep(1500);
+  await c.open('Messages'); await sleep(1500);
   if (!(await c.page.evaluate(() => [...document.querySelectorAll('button')].some(b => b.textContent.trim() === 'Done')))) await c.click('Select');
   await sleep(300);
   if (convos === 'all') await c.click('Select all');
@@ -238,8 +251,8 @@ const netLogDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oe-e2e-netlog-'));
 const netLog = path.join(netLogDir, 'net.json');
 await withApp('maren-network', async c => {
   if (!(await openBackup(c, 'maren-network', marenPlain))) return;
-  await c.click('Messages'); await sleep(1500);
-  const box = c.page.locator('input[placeholder="Search conversations"]');
+  await c.open('Messages'); await sleep(1500);
+  const box = c.page.locator('.titlebar input[type=search]');
   check('maren-network: search box to type in', (await box.count()) > 0);
   await box.first().click();
   await c.page.keyboard.type('hello wrold, is this spelled rihgt', { delay: 50 });

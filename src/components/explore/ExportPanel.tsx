@@ -42,7 +42,7 @@ const KINDS: KindInfo[] = [
     formats: [FORMATS.originals],
   },
   {
-    id: 'contacts', label: 'Contacts', icon: ContactIcon, count: o => o.total_contacts,
+    id: 'contacts', label: 'Address book', icon: ContactIcon, count: o => o.total_contacts,
     what: n => `${n != null ? plural(n, 'contact') : 'Your address book'}, to import elsewhere or open in a spreadsheet`,
     formats: [FORMATS.vcf, FORMATS.csv],
   },

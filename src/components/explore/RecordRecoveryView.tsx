@@ -4,7 +4,9 @@ import { formatRelative, formatDate } from '../../lib/dates';
 import { RecoverIcon } from '../shared/Icons';
 import ChatBubble from './ChatBubble';
 import { ReportProblemButton } from '../shared/Feedback';
-import PageHeader, { SearchField } from '../shared/PageHeader';
+import PageHeader from '../shared/PageHeader';
+import Highlight from '../shared/Highlight';
+import { matches } from '../../lib/search';
 import EmptyState from '../shared/EmptyState';
 import SaveDialog, { FORMATS, SaveButton } from '../shared/SaveDialog';
 import { useSaveAction } from '../../hooks/useSaveAction';
@@ -50,6 +52,8 @@ interface RecoveryResult {
 
 interface Props {
   udid: string;
+  /** What the top search box holds; the list shows only conversations that match. */
+  query: string;
 }
 
 function sourceLabel(source: RecoverySource): string {
@@ -62,13 +66,12 @@ function sourceBadgeClass(source: RecoverySource): string {
     : 'bg-sand text-text-secondary border-rule';
 }
 
-export default function RecordRecoveryView({ udid }: Props) {
+export default function RecordRecoveryView({ udid, query }: Props) {
   const [scanned, setScanned] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RecoveryResult | null>(null);
   const [activeRecoveryId, setActiveRecoveryId] = useState<string | null>(null);
-  const [convoSearch, setConvoSearch] = useState('');
   const [choosing, setChoosing] = useState(false);
   const { busy: exporting, run } = useSaveAction('record_recovery');
 
@@ -101,15 +104,11 @@ export default function RecordRecoveryView({ udid }: Props) {
   }
 
   const conversations = result?.conversations ?? [];
-  const filteredConversations = useMemo(() => {
-    const q = convoSearch.trim().toLowerCase();
-    if (!q) return conversations;
-    return conversations.filter(c =>
-      c.display_name.toLowerCase().includes(q) ||
-      c.chat_identifier.toLowerCase().includes(q) ||
-      c.last_message_preview.toLowerCase().includes(q)
-    );
-  }, [conversations, convoSearch]);
+  const filteredConversations = useMemo(() => conversations.filter(c => matches(
+    query,
+    c.display_name, c.chat_identifier, c.last_message_preview,
+    ...(result?.messages_by_conversation[c.recovery_id] ?? []).map(m => m.text),
+  )), [conversations, result, query]);
 
   const activeConvo = conversations.find(c => c.recovery_id === activeRecoveryId) ?? null;
   const activeMessages = activeRecoveryId
@@ -195,9 +194,6 @@ export default function RecordRecoveryView({ udid }: Props) {
       <div className="flex-1 flex min-h-0">
         {/* Conversation list */}
         <div className="w-[300px] flex-shrink-0 border-r border-rule flex flex-col">
-          <div className="p-3 border-b border-rule">
-            <SearchField value={convoSearch} onChange={setConvoSearch} placeholder="Search conversations" />
-          </div>
           <div className="flex-1 overflow-y-auto">
             {filteredConversations.map((c) => (
               <button
@@ -210,7 +206,7 @@ export default function RecordRecoveryView({ udid }: Props) {
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-medium text-text-primary truncate flex-1 min-w-0">
-                    {c.display_name || c.chat_identifier || 'Unknown'}
+                    <Highlight text={c.display_name || c.chat_identifier || 'Unknown'} query={query} />
                   </span>
                   <span className="text-xs text-text-tertiary flex-shrink-0">
                     {formatRelative(c.last_message_date)}

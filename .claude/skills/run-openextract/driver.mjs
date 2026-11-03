@@ -66,7 +66,7 @@ const COMMANDS = {
     }, folder);
     return 'folder picker now returns ' + folder;
   },
-  // The whole open flow: pick the folder, enter the password if asked, wait for the Overview.
+  // The whole open flow: pick the folder, enter the password if asked, wait for the backup's home page.
   async 'open-backup'(folder, password) {
     await COMMANDS['stub-folder'](folder);
     const clicked = await COMMANDS['click-text']('Open', 'a', 'backup', 'folder');
@@ -75,10 +75,10 @@ const COMMANDS = {
       await sleep(500);
       const state = await page.evaluate(() => ({
         password: !!document.querySelector('input[type=password]'),
-        overview: !!document.querySelector('nav [aria-current="page"]'),
+        opened: !!document.querySelector('.titlebar input[type=search]'),
         error: [...document.querySelectorAll('[role=alert], .text-red-600, .text-apple-error')].map(e => e.textContent.trim()).filter(Boolean)[0],
       }));
-      if (state.overview) return 'opened';
+      if (state.opened) return 'opened';
       if (state.password && password) {
         await page.fill('input[type=password]', password);
         await COMMANDS['click-text']('Unlock');
@@ -88,9 +88,25 @@ const COMMANDS = {
       }
       if (state.error) return 'error: ' + state.error;
     }
-    return 'timed out waiting for the Overview';
+    return "timed out waiting for the backup's home page";
   },
-  async tab(name) { return COMMANDS['click-text'](name); },
+  // A home-page tile or tool by name ("Messages", "Address book"), else any button with that text.
+  async tab(...words) {
+    const name = words.join(' ');
+    const r = await page.evaluate(n => {
+      const el = [...document.querySelectorAll('button[aria-label]')].find(b => b.getAttribute('aria-label').startsWith(n));
+      if (!el) return null;
+      el.click();
+      return 'OK: ' + el.getAttribute('aria-label');
+    }, name);
+    return r ? `tab ${JSON.stringify(name)} -> ${r}` : COMMANDS['click-text'](...words);
+  },
+  // Type into the top search box (what's typed replaces what's there).
+  async search(...words) {
+    await page.fill('.titlebar input[type=search]', words.join(' '));
+    await sleep(600);
+    return 'searched ' + JSON.stringify(words.join(' '));
+  },
   async ss(name = `ss-${Date.now()}`) {
     const file = path.join(SHOT_DIR, name + '.png');
     await page.screenshot({ path: file });

@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, type ComponentType } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { RecentSession } from '../../lib/appState';
 import { ArrowLeftIcon } from '../shared/Icons';
 import SettingsDialog from '../shared/SettingsDialog';
 import { useBackupStats } from '../../hooks/useBackupStats';
+import { useBackupIndex, useTimeline } from '../../hooks/useTimeline';
 import BackupDashboard from './BackupDashboard';
 import MessageExplorer from './MessageExplorer';
 import PhotoExplorer from './PhotoExplorer';
@@ -15,17 +16,20 @@ import RecordRecoveryView from './RecordRecoveryView';
 import ExportPanel from './ExportPanel';
 import TimelineView from '../timeline/TimelineView';
 import YearView, { DEFAULT_YEAR_SELECTION, YearSelection } from '../year/YearView';
-import type { TimelineFilters } from '../../types/timeline';
+import PeopleView from '../people/PeopleView';
+import SearchBox from '../search/SearchBox';
+import SearchResults from '../search/SearchResults';
+import { DEFAULT_FILTERS } from '../../types/timeline';
 import type { HistoryVisit } from '../../lib/browserHistoryStats';
 import type { FeedbackArea } from '../../lib/feedback';
 import { useFeedback } from '../shared/Feedback';
-import TitleBar, { LAYOUTS, type LayoutId } from './TitleBar';
-import { availableData, missingKinds, type ExploreContext, type OpenOptions, type Tab } from './sections';
-import RailLayout from './layouts/RailLayout';
-import SidebarLayout from './layouts/SidebarLayout';
-import LaunchpadLayout from './layouts/LaunchpadLayout';
-import PeopleLayout from './layouts/PeopleLayout';
-import SearchLayout from './layouts/SearchLayout';
+import TitleBar from './TitleBar';
+import HomeCrumb from './HomeCrumb';
+import BackupHome from './BackupHome';
+import {
+  availableData, missingKinds, sectionFor, SCOPED,
+  type ExploreContext, type OpenOptions, type Tab,
+} from './sections';
 
 interface Props {
   udid: string;
@@ -33,54 +37,22 @@ interface Props {
   onBack: () => void;
 }
 
-// The layout to compare is remembered on this computer; it changes nothing else.
-const LAYOUT_KEY = 'openextract.layout';
-
-function savedLayout(): LayoutId {
-  try {
-    const v = localStorage.getItem(LAYOUT_KEY);
-    if (LAYOUTS.some(l => l.id === v)) return v as LayoutId;
-  } catch {
-    // No storage: use the default
-  }
-  return 'rail';
-}
-
-const LAYOUT_COMPONENTS: Record<LayoutId, ComponentType<{ ctx: ExploreContext }>> = {
-  rail: RailLayout,
-  sidebar: SidebarLayout,
-  launchpad: LaunchpadLayout,
-  people: PeopleLayout,
-  search: SearchLayout,
-};
-
-// Where each layout opens a backup
-const HOME: Record<LayoutId, Tab> = {
-  rail: 'dashboard',
-  sidebar: 'dashboard',
-  launchpad: 'launchpad',
-  people: 'people',
-  search: 'launchpad',
-};
-
 const FEEDBACK_AREAS = new Set<string>([
-  'dashboard', 'timeline', 'year', 'messages', 'photos', 'contacts', 'calls', 'notes', 'voicemail',
+  'dashboard', 'people', 'timeline', 'year', 'messages', 'photos', 'contacts', 'calls', 'notes', 'voicemail',
   'browser_history', 'record_recovery', 'export',
 ]);
 
 /**
- * Everything inside an open backup: the data every layout shares, and the screens.
- * The chosen layout (the title bar's Layout menu) decides how they're arranged.
+ * Everything inside an open backup: a home page of tiles, one screen per kind of
+ * data, and one search box at the top. On a screen that has a list, the box
+ * filters that list in place; elsewhere it searches the whole backup.
  */
 export default function ExploreLayout({ udid, session, onBack }: Props) {
-  const [layout, setLayoutState] = useState<LayoutId>(savedLayout);
-  const [activeTab, setActiveTab] = useState<Tab>(HOME[layout]);
-  // What the Timeline opens on after a click on a day, a person or a search. The Timeline tab itself opens on everything.
-  const [timelineStart, setTimelineStart] = useState<Partial<TimelineFilters> | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('home');
+  // What the active screen opens on: a day, a conversation, the record a search found
+  const [target, setTarget] = useState<OpenOptions>({});
   // Kept here so coming back from a day finds the same year, types and person.
   const [yearSelection, setYearSelection] = useState<YearSelection>(DEFAULT_YEAR_SELECTION);
-  const [openChatId, setOpenChatId] = useState<number | null>(null);
-  const [openNoteId, setOpenNoteId] = useState<number | string | null>(null);
   const { openFeedback } = useFeedback();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const backupStats = useBackupStats(udid);
@@ -89,21 +61,65 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
   const [preloadedBrowserHistory, setPreloadedBrowserHistory] = useState<HistoryVisit[] | null>(null);
   const [browserHistoryPreloading, setBrowserHistoryPreloading] = useState(false);
 
-  const openTab = useCallback((tab: Tab, opts: OpenOptions = {}) => {
-    setTimelineStart(opts.timeline ?? null);
-    setOpenChatId(opts.chatId ?? null);
-    setOpenNoteId(opts.noteId ?? null);
-    setActiveTab(tab);
-  }, []);
+  // Every record, read once for search, People and the Timeline
+  const index = useBackupIndex(udid);
 
-  function setLayout(next: LayoutId) {
-    setLayoutState(next);
-    try { localStorage.setItem(LAYOUT_KEY, next); } catch { /* not remembered */ }
-    openTab(HOME[next]);
-  }
+  // ── The search box ──────────────────────────────────────────────────────
+  const [text, setText] = useState('');
+  const [query, setQuery] = useState('');
+  // The "in Notes" tag was removed: search the whole backup from this screen
+  const [everywhere, setEverywhere] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const resultsKey = useRef<((e: React.KeyboardEvent<HTMLInputElement>) => void) | null>(null);
 
   useEffect(() => {
-    setTimelineStart(null);
+    const t = setTimeout(() => setQuery(text.trim()), 250);
+    return () => clearTimeout(t);
+  }, [text]);
+
+  const scopeLabel = SCOPED[activeTab] && !everywhere ? sectionFor(activeTab)?.label ?? null : null;
+  const searchingAll = query !== '' && !scopeLabel;
+  const screenQuery = scopeLabel ? query : '';
+
+  function changeText(next: string) {
+    // Clearing the box after searching everywhere brings the screen's tag back
+    if (next === '' && everywhere) setEverywhere(false);
+    setText(next);
+    if (next === '') setQuery('');
+  }
+
+  const openTab = useCallback((tab: Tab, opts: OpenOptions = {}) => {
+    setTarget(opts);
+    setActiveTab(tab);
+    setEverywhere(false);
+    if (!(opts.keepQuery && SCOPED[tab])) {
+      setText('');
+      setQuery('');
+    }
+  }, []);
+  const goHome = useCallback(() => openTab('home'), [openTab]);
+
+  // Cmd+K (Ctrl+K) from anywhere
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // The whole-backup results, filtered from the shared index
+  const results = useTimeline(index);
+  const { setFilters } = results;
+  useEffect(() => {
+    if (searchingAll) setFilters({ ...DEFAULT_FILTERS, types: new Set(DEFAULT_FILTERS.types), searchQuery: query });
+  }, [searchingAll, query, setFilters]);
+
+  useEffect(() => {
     setYearSelection(DEFAULT_YEAR_SELECTION);
     setPreloadedBrowserHistory(null);
     setBrowserHistoryPreloading(false);
@@ -121,16 +137,41 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
     }).catch(() => {});
   }, [udid]);
 
+  const ctx: ExploreContext = {
+    udid,
+    session,
+    stats: backupStats.stats,
+    overview,
+    hasBrowserHistory,
+    index,
+    data: availableData(overview, hasBrowserHistory),
+    missing: missingKinds(overview, hasBrowserHistory),
+    activeTab,
+    openTab,
+    onBack,
+    openSettings: () => setSettingsOpen(true),
+  };
+
+  // A screen opened from a search result remounts on the new record
+  const select = target.select;
+  const selectKey = select?.id ?? '';
+
   function renderSection(tab: Tab) {
     switch (tab) {
+      case 'home':
+        return <BackupHome ctx={ctx} onSearch={() => inputRef.current?.focus()} />;
       case 'dashboard':
         return <BackupDashboard {...backupStats} onNavigate={t => openTab(t as Tab)} hasBrowserHistory={hasBrowserHistory} />;
+      case 'people':
+        return <PeopleView key={target.person ?? ''} ctx={ctx} query={screenQuery} person={target.person} />;
       case 'timeline':
         return (
           <TimelineView
-            key={timelineStart ? JSON.stringify({ ...timelineStart, types: [...(timelineStart.types ?? [])] }) : 'everything'}
+            key={target.timeline ? JSON.stringify({ ...target.timeline, types: [...(target.timeline.types ?? [])] }) : 'everything'}
             udid={udid}
-            startingFilters={timelineStart ?? undefined}
+            index={index}
+            startingFilters={target.timeline}
+            query={screenQuery}
           />
         );
       case 'year':
@@ -143,78 +184,112 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
           />
         );
       case 'messages':
-        return <MessageExplorer key={`chat-${openChatId ?? ''}`} udid={udid} openChatId={openChatId} />;
+        return (
+          <MessageExplorer
+            key={`chat-${target.chatId ?? select?.message?.chatId ?? ''}-${selectKey}`}
+            udid={udid}
+            index={index}
+            query={screenQuery}
+            openChatId={target.chatId ?? select?.message?.chatId ?? null}
+            openMessageId={select?.type === 'message' ? Number(select.id.slice('message:'.length)) : null}
+          />
+        );
       case 'photos':
-        return <PhotoExplorer udid={udid} />;
+        return <PhotoExplorer key={selectKey} udid={udid} open={select?.type === 'photo' ? select : undefined} />;
       case 'contacts':
-        return <ContactExplorer udid={udid} />;
+        return (
+          <ContactExplorer
+            key={target.contactId ?? ''}
+            ctx={ctx}
+            query={screenQuery}
+            openContactId={target.contactId}
+          />
+        );
       case 'calls':
-        return <CallExplorer udid={udid} />;
+        return <CallExplorer key={selectKey} udid={udid} query={screenQuery} selectId={select?.type === 'call' ? select.id : undefined} />;
       case 'notes':
-        return <NoteExplorer key={`note-${openNoteId ?? ''}`} udid={udid} openNoteId={openNoteId} />;
+        return (
+          <NoteExplorer
+            key={`note-${select?.note?.noteId ?? ''}`}
+            udid={udid}
+            query={screenQuery}
+            openNoteId={select?.note?.noteId ?? null}
+          />
+        );
       case 'voicemail':
-        return <VoicemailExplorer udid={udid} />;
+        return <VoicemailExplorer key={selectKey} udid={udid} query={screenQuery} selectId={select?.type === 'voicemail' ? select.id : undefined} />;
       case 'browser_history':
         return (
           <BrowserHistoryExplorer
+            key={selectKey}
             udid={udid}
+            query={screenQuery}
+            selectId={select?.type === 'browser' ? select.id : undefined}
             preloadedVisits={preloadedBrowserHistory}
             preloadedLoading={browserHistoryPreloading}
           />
         );
       case 'record_recovery':
-        return <RecordRecoveryView udid={udid} />;
+        return <RecordRecoveryView udid={udid} query={screenQuery} />;
       case 'export':
         return <ExportPanel udid={udid} overview={overview} hasBrowserHistory={hasBrowserHistory} />;
-      default:
-        // launchpad, people and search are drawn by the layouts that have them
-        return null;
     }
   }
 
-  const ctx: ExploreContext = {
-    udid,
-    session,
-    stats: backupStats.stats,
-    overview,
-    hasBrowserHistory,
-    data: availableData(overview, hasBrowserHistory),
-    missing: missingKinds(overview, hasBrowserHistory),
-    activeTab,
-    openTab,
-    content: renderSection(activeTab),
-    titleBar: ({ left, center, showDevice, onLogo } = {}) => (
-      <TitleBar
-        session={session}
-        showDevice={showDevice}
-        onLogo={onLogo}
-        left={left ?? (
-          <button
-            onClick={onBack}
-            title="Close this backup and go back to your backups"
-            className="hearth-ghost-btn !px-3 !py-1.5"
-          >
-            <ArrowLeftIcon size={18} />
-            All backups
-          </button>
-        )}
-        center={center}
-        layout={layout}
-        onLayoutChange={setLayout}
-        onHelp={() => openFeedback({ area: (FEEDBACK_AREAS.has(activeTab) ? activeTab : 'general') as FeedbackArea })}
-        onSettings={() => setSettingsOpen(true)}
-      />
-    ),
-    onBack,
-    openSettings: () => setSettingsOpen(true),
-  };
+  const atHome = activeTab === 'home' && !searchingAll;
+  const section = sectionFor(activeTab);
+  const deviceName = overview?.device_name ?? session?.name ?? 'This backup';
 
-  const Layout = LAYOUT_COMPONENTS[layout];
+  const left = atHome ? (
+    <button
+      onClick={onBack}
+      title="Close this backup and go back to your backups"
+      className="hearth-ghost-btn !px-3 !py-1.5"
+    >
+      <ArrowLeftIcon size={18} />
+      All backups
+    </button>
+  ) : (
+    <HomeCrumb onHome={goHome} homeName={deviceName} current={searchingAll ? 'Search results' : section?.label} />
+  );
+
+  const area = searchingAll ? 'search' : FEEDBACK_AREAS.has(activeTab) ? activeTab : 'general';
 
   return (
-    <>
-      <Layout ctx={ctx} />
+    <div className="h-screen flex flex-col bg-base">
+      <TitleBar
+        left={left}
+        center={
+          <SearchBox
+            inputRef={inputRef}
+            text={text}
+            onText={changeText}
+            scope={scopeLabel}
+            onClearScope={() => setEverywhere(true)}
+            placeholder={scopeLabel ? SCOPED[activeTab]! : 'Search messages, notes, calls, voicemail, people…'}
+            onKey={e => searchingAll && resultsKey.current?.(e)}
+          />
+        }
+        onLogo={goHome}
+        onHelp={() => openFeedback({ area: area as FeedbackArea })}
+        onSettings={() => setSettingsOpen(true)}
+      />
+      {scopeLabel && query && (
+        <div className="flex-shrink-0 px-6 py-2 border-b border-rule bg-accent-wash flex items-center gap-3 text-sm">
+          <span className="text-text-secondary">
+            Showing only {scopeLabel.toLowerCase()} that match <span className="font-medium text-text-primary">“{query}”</span>
+          </span>
+          <button onClick={() => setEverywhere(true)} className="text-accent font-medium hover:underline">
+            Search all of {deviceName} →
+          </button>
+        </div>
+      )}
+      <div className="flex-1 overflow-hidden min-w-0">
+        {searchingAll
+          ? <SearchResults ctx={ctx} timeline={results} query={query} keyRef={resultsKey} />
+          : renderSection(activeTab)}
+      </div>
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
-    </>
+    </div>
   );
 }

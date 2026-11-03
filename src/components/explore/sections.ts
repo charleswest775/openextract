@@ -1,15 +1,15 @@
-import type { ReactNode } from 'react';
 import type { RecentSession } from '../../lib/appState';
 import type { BackupStats, BackupStatsOverview } from '../../hooks/useBackupStats';
-import type { TimelineFilters } from '../../types/timeline';
+import type { BackupIndex } from '../../hooks/useTimeline';
+import type { TimelineEntry, TimelineFilters } from '../../types/timeline';
 import {
-  LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon, VoicemailIcon, GlobeIcon, ClockIcon,
+  LinesIcon, CameraIcon, ContactIcon, PeopleIcon, CallIcon, NoteIcon, VoicemailIcon, GlobeIcon, ClockIcon,
   CalendarIcon, ChartIcon, ExportIcon, RecoverIcon,
 } from '../shared/Icons';
 
-/** Every screen inside a backup. launchpad, people and search are homes of the layouts that use them. */
+/** Every screen inside a backup. */
 export type Tab =
-  | 'dashboard' | 'launchpad' | 'people' | 'search'
+  | 'home' | 'dashboard' | 'people'
   | 'timeline' | 'year' | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail'
   | 'browser_history' | 'record_recovery' | 'export';
 
@@ -19,32 +19,53 @@ export interface Section {
   id: Tab;
   label: string;
   icon: Icon;
-  /** The Overview number that says whether the backup has this kind of data. */
+  /** The overview number that says whether the backup has this kind of data. */
   count?: (o: BackupStatsOverview) => number;
 }
 
-export const OVERVIEW: Section = { id: 'dashboard', label: 'Overview', icon: ChartIcon };
+export const DETAILS: Section = { id: 'dashboard', label: 'Backup details', icon: ChartIcon };
 export const TIMELINE: Section = { id: 'timeline', label: 'Timeline', icon: ClockIcon };
 export const YEAR: Section = { id: 'year', label: 'Year', icon: CalendarIcon };
-export const RECOVER: Section = { id: 'record_recovery', label: 'Recover', icon: RecoverIcon };
-export const SAVE: Section = { id: 'export', label: 'Save', icon: ExportIcon };
+export const RECOVER: Section = { id: 'record_recovery', label: 'Recover deleted', icon: RecoverIcon };
+export const SAVE: Section = { id: 'export', label: 'Save to computer', icon: ExportIcon };
+export const PEOPLE: Section = {
+  id: 'people', label: 'People', icon: PeopleIcon,
+  count: o => o.total_messages + o.total_calls + o.total_voicemails,
+};
 
-/** The kinds of data, in the order every layout lists them. */
+/** The kinds of data, in the order the home page lists them. */
 export const DATA_SECTIONS: Section[] = [
   { id: 'messages', label: 'Messages', icon: LinesIcon, count: o => o.total_messages },
   { id: 'photos', label: 'Photos', icon: CameraIcon, count: o => o.photos_in_backup },
-  { id: 'contacts', label: 'Contacts', icon: ContactIcon, count: o => o.total_contacts },
+  PEOPLE,
+  { id: 'contacts', label: 'Address book', icon: ContactIcon, count: o => o.total_contacts },
   { id: 'calls', label: 'Calls', icon: CallIcon, count: o => o.total_calls },
   { id: 'notes', label: 'Notes', icon: NoteIcon, count: o => o.total_notes },
   { id: 'voicemail', label: 'Voicemail', icon: VoicemailIcon, count: o => o.total_voicemails },
-  { id: 'browser_history', label: 'Web', icon: GlobeIcon },
+  { id: 'browser_history', label: 'Web history', icon: GlobeIcon },
 ];
 
 export function sectionFor(tab: Tab): Section | undefined {
-  return [OVERVIEW, TIMELINE, YEAR, RECOVER, SAVE, ...DATA_SECTIONS].find(s => s.id === tab);
+  return [DETAILS, TIMELINE, YEAR, RECOVER, SAVE, ...DATA_SECTIONS].find(s => s.id === tab);
 }
 
-/** The data sections this backup has. Until the Overview numbers arrive, all of them. */
+/**
+ * Screens the top search box filters in place, and what it says there.
+ * Everywhere else (home, Photos, Year, Save) it searches the whole backup.
+ */
+export const SCOPED: Partial<Record<Tab, string>> = {
+  people: 'Search people',
+  contacts: 'Search the address book',
+  messages: 'Search messages',
+  calls: 'Search calls',
+  notes: 'Search notes',
+  voicemail: 'Search voicemail',
+  browser_history: 'Search web history',
+  timeline: 'Search the timeline',
+  record_recovery: 'Search recovered messages',
+};
+
+/** The data sections this backup has. Until the overview numbers arrive, all of them. */
 export function availableData(overview: BackupStatsOverview | null, hasBrowserHistory: boolean): Section[] {
   return DATA_SECTIONS.filter(s => {
     if (s.id === 'browser_history') return hasBrowserHistory;
@@ -56,8 +77,8 @@ export function availableData(overview: BackupStatsOverview | null, hasBrowserHi
 export function missingKinds(overview: BackupStatsOverview | null, hasBrowserHistory: boolean): string[] {
   if (!overview) return [];
   const missing = DATA_SECTIONS
-    .filter(s => s.count && s.count(overview) === 0)
-    .map(s => (s.id === 'voicemail' ? 'voicemail' : s.label.toLowerCase()));
+    .filter(s => s.id !== 'people' && s.count && s.count(overview) === 0)
+    .map(s => s.label.toLowerCase());
   if (!hasBrowserHistory) missing.push('web history');
   return missing;
 }
@@ -74,26 +95,30 @@ export interface OpenOptions {
   timeline?: Partial<TimelineFilters>;
   /** Messages: the conversation to open. */
   chatId?: number;
-  /** Notes: the note to open. */
-  noteId?: number | string;
+  /** The record to show: the message, note, call, voicemail, photo or web visit a search found. */
+  select?: TimelineEntry;
+  /** People: who to open, by phone number or email. */
+  person?: string;
+  /** Address book: the card to show. */
+  contactId?: number;
+  /** Keep what's in the search box, so the screen opens filtered to it. */
+  keepQuery?: boolean;
 }
 
-/** What the explore shell gives each layout. */
+/** What the explore shell gives the screens it draws. */
 export interface ExploreContext {
   udid: string;
   session: RecentSession | null;
   stats: BackupStats | null;
   overview: BackupStatsOverview | null;
   hasBrowserHistory: boolean;
+  /** Every record in the backup, read once and shared. */
+  index: BackupIndex;
   /** The data sections this backup has. */
   data: Section[];
   missing: string[];
   activeTab: Tab;
   openTab: (tab: Tab, opts?: OpenOptions) => void;
-  /** The active screen, for every tab except a layout's own home. */
-  content: ReactNode;
-  /** The shared top row; `left` and `center` are the layout's own controls. */
-  titleBar: (slots?: { left?: ReactNode; center?: ReactNode; showDevice?: boolean; onLogo?: () => void }) => ReactNode;
   onBack: () => void;
   openSettings: () => void;
 }

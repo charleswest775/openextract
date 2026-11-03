@@ -1,4 +1,4 @@
-import { ChevronRightIcon, HomeIcon } from '../../shared/Icons';
+import { ChevronRightIcon, HomeIcon } from '../shared/Icons';
 
 /**
  * The way back to a layout's home page: a Home button that looks like one,

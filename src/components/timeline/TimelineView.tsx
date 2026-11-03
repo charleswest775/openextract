@@ -1,6 +1,6 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { useTimeline } from '../../hooks/useTimeline';
+import { useTimeline, type BackupIndex } from '../../hooks/useTimeline';
 import { TimelineEntry, TimelineEntryType, TimelineFilters } from '../../types/timeline';
 import TimelineFilterBar from './TimelineFilterBar';
 import TimelineEntryCard from './TimelineEntryCard';
@@ -24,7 +24,11 @@ const TIMELINE_FORMATS = [
 
 interface Props {
   udid: string;
+  /** The records, read once for the whole backup. */
+  index: BackupIndex;
   startingFilters?: Partial<TimelineFilters>;
+  /** What the top search box holds; the Timeline shows only events that match. */
+  query: string;
 }
 
 const LOADING_LABELS: Record<TimelineEntryType, string> = {
@@ -53,7 +57,7 @@ export function groupByDay(entries: TimelineEntry[]): { date: string; entries: T
   return groups;
 }
 
-export default function TimelineView({ udid, startingFilters }: Props) {
+export default function TimelineView({ udid, index, startingFilters, query }: Props) {
   const {
     entries,
     filteredEntries,
@@ -68,20 +72,15 @@ export default function TimelineView({ udid, startingFilters }: Props) {
     page,
     setPage,
     pageSize,
-  } = useTimeline(udid, startingFilters);
+  } = useTimeline(index, startingFilters);
 
   const [choosing, setChoosing] = useState(false);
   const { busy: exporting, run } = useSaveAction('timeline');
 
-  // The search field lives in the page header; typing waits a moment before filtering.
-  const [searchText, setSearchText] = useState(filters.searchQuery);
-  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  function handleSearchChange(val: string) {
-    setSearchText(val);
-    if (searchDebounce.current) clearTimeout(searchDebounce.current);
-    searchDebounce.current = setTimeout(() => setFilters({ searchQuery: val }), 300);
-  }
-  useEffect(() => () => { if (searchDebounce.current) clearTimeout(searchDebounce.current); }, []);
+  // The top search box filters the Timeline
+  useEffect(() => {
+    setFilters({ searchQuery: query });
+  }, [query, setFilters]);
 
   function handleExport(format: ExportFormat) {
     setChoosing(false);
@@ -112,7 +111,6 @@ export default function TimelineView({ udid, startingFilters }: Props) {
         count={loading
           ? <span className="inline-flex items-center gap-1.5"><Loader2 size={16} className="animate-spin" />Loading…</span>
           : plural(totalFiltered, 'event')}
-        search={{ value: searchText, onChange: handleSearchChange, placeholder: 'Search the timeline' }}
         actions={<SaveButton onClick={() => setChoosing(true)} busy={exporting} disabled={loading || totalFiltered === 0} />}
       />
 

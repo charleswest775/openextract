@@ -32,11 +32,15 @@ class BrowserHistoryErrorBoundary extends Component<
 
 interface Props {
   udid: string;
+  /** What the top search box holds; searching shows the list of visits that match. */
+  query: string;
+  /** The visit a search found, as a timeline id ("browser:…"): marked and scrolled to. */
+  selectId?: string;
   preloadedVisits?: HistoryVisit[] | null;
   preloadedLoading?: boolean;
 }
 
-export default function BrowserHistoryExplorer({ udid, preloadedVisits, preloadedLoading }: Props) {
+export default function BrowserHistoryExplorer({ udid, query, selectId, preloadedVisits, preloadedLoading }: Props) {
   const [visits, setVisits] = useState<HistoryVisit[]>([]);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<'overview' | 'history'>('overview');
@@ -105,16 +109,18 @@ export default function BrowserHistoryExplorer({ udid, preloadedVisits, preloade
 
   const isLoading = loading || (preloadedVisits === null && (preloadedLoading ?? false));
 
-  // In history view, BrowserHistoryTable renders its own header
-  if (view === 'history') {
+  // In history view, BrowserHistoryTable renders its own header. A search always lists the visits.
+  if (view === 'history' || query || selectId) {
     return (
       <div className="h-full flex flex-col">
         <BrowserHistoryTable
           visits={visits}
           udid={udid}
+          query={query}
+          selectId={selectId}
           initialDomainFilter={drillDomain}
           initialDateFilter={drillDate}
-          onBack={handleBackToOverview}
+          onBack={query || selectId ? undefined : handleBackToOverview}
           onSave={handleExport}
           saving={exporting}
         />

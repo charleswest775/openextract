@@ -1,5 +1,5 @@
 import {
-  ArchiveRestore, ArrowLeft, Briefcase, CalendarDays, ChevronRight, Clock, Download, FolderOpen,
+  ArchiveRestore, ArrowLeft, BookUser, Briefcase, CalendarDays, ChevronRight, Clock, Download, FolderOpen,
   Globe, House, Image, LayoutGrid, LifeBuoy, Lock, MessageCircle, NotebookPen, Phone, Play, Plus, Search,
   Settings, Smartphone, Users, Voicemail,
   type LucideIcon,
@@ -20,10 +20,11 @@ function icon(Glyph: LucideIcon) {
 }
 
 // Places and data
-export const ChartIcon = icon(LayoutGrid); // Overview
+export const ChartIcon = icon(LayoutGrid); // Backup details
 export const LinesIcon = icon(MessageCircle); // Messages
 export const CameraIcon = icon(Image); // Photos
-export const ContactIcon = icon(Users);
+export const ContactIcon = icon(BookUser); // Address book
+export const PeopleIcon = icon(Users); // who you were in touch with
 export const CallIcon = icon(Phone);
 export const VoicemailIcon = icon(Voicemail);
 export const NoteIcon = icon(NotebookPen);

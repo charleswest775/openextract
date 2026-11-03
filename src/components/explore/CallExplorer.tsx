@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { PhoneIncoming, PhoneMissed, PhoneOutgoing } from 'lucide-react';
 import { saveFolder, sidecarCall } from '../../lib/ipc';
 import { CallIcon, LockIcon } from '../shared/Icons';
@@ -11,6 +11,8 @@ import EmptyState from '../shared/EmptyState';
 import { SaveButton } from '../shared/SaveDialog';
 import { useSaveAction } from '../../hooks/useSaveAction';
 import { checkEngineResult, plural } from '../../lib/saveData';
+import { matches } from '../../lib/search';
+import Highlight from '../shared/Highlight';
 
 interface Call {
   call_id: number;
@@ -25,6 +27,10 @@ interface Call {
 
 interface Props {
   udid: string;
+  /** What the top search box holds; the list shows only calls that match. */
+  query: string;
+  /** The call a search found, as a timeline id ("call:12"): marked and scrolled to. */
+  selectId?: string;
 }
 
 function formatDuration(seconds: number): string {
@@ -39,11 +45,10 @@ function formatDuration(seconds: number): string {
   return parts.join(' ');
 }
 
-export default function CallExplorer({ udid }: Props) {
+export default function CallExplorer({ udid, query, selectId }: Props) {
   const [calls, setCalls] = useState<Call[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState('');
   const { busy, run } = useSaveAction('calls');
   const [error, setError] = useState<string | null>(null);
   const [emptyReason, setEmptyReason] = useState<string | null>(null);
@@ -86,20 +91,19 @@ export default function CallExplorer({ udid }: Props) {
     });
   }
 
-  const filtered = calls.filter(c => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return c.contact_name.toLowerCase().includes(q) ||
-      c.address.toLowerCase().includes(q) ||
-      c.app.toLowerCase().includes(q);
-  });
+  const filtered = useMemo(
+    () => calls.filter(c => `call:${c.call_id}` === selectId || matches(
+      query, c.contact_name, c.address, c.app,
+      `${c.status === 'missed' ? 'missed' : c.direction} call`,
+    )),
+    [calls, query, selectId],
+  );
 
   return (
     <div className="h-full flex flex-col">
       <PageHeader
         title="Calls"
-        count={total > 0 ? plural(total, 'call') : undefined}
-        search={{ value: search, onChange: setSearch, placeholder: 'Search calls' }}
+        count={total > 0 ? (query ? `${filtered.length} of ${plural(total, 'call')}` : plural(total, 'call')) : undefined}
         actions={<SaveButton onClick={handleSave} busy={busy} disabled={calls.length === 0} />}
       />
       <div className="flex-1 overflow-y-auto">
@@ -123,9 +127,14 @@ export default function CallExplorer({ udid }: Props) {
                     ? { Icon: PhoneOutgoing, label: 'Outgoing', color: 'text-text-secondary' }
                     : { Icon: CallIcon, label: 'Unknown', color: 'text-text-tertiary' };
               return (
-                <tr key={c.call_id} className="border-b border-rule hover:bg-surface">
+                <tr
+                  key={c.call_id}
+                  ref={`call:${c.call_id}` === selectId ? el => el?.scrollIntoView({ block: 'center' }) : undefined}
+                  aria-current={`call:${c.call_id}` === selectId ? 'true' : undefined}
+                  className={`border-b border-rule ${`call:${c.call_id}` === selectId ? 'bg-accent-wash' : 'hover:bg-surface'}`}
+                >
                   <td className="px-6 py-3">
-                    <div className="font-medium text-text-primary">{displayName(c.contact_name, c.address)}</div>
+                    <div className="font-medium text-text-primary"><Highlight text={displayName(c.contact_name, c.address)} query={query} /></div>
                     {c.address && displayName(c.contact_name, c.address) !== formatPhone(c.address) && (
                       <div className="text-xs text-text-tertiary">{formatPhone(c.address)}</div>
                     )}
@@ -151,7 +160,7 @@ export default function CallExplorer({ udid }: Props) {
         )}
         {!loading && filtered.length === 0 && (
           calls.length > 0 ? (
-            <EmptyState icon={CallIcon} title={`No calls match "${search}"`} detail="Try part of a name or a phone number." />
+            <EmptyState icon={CallIcon} title={`No calls match "${query}"`} detail="Try part of a name or a phone number." />
           ) : error ? (
             <EmptyState
               icon={CallIcon}

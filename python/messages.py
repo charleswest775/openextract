@@ -140,6 +140,30 @@ class MessageExtractor:
             date_from=date_from, date_to=date_to, limit=limit,
         )
 
+    # ── openextract-only: where one message sits in its conversation ─────────
+
+    def get_message_offset(self, backup, chat_id: int, message_id: int) -> dict:
+        """How many of a conversation's messages are newer than this one.
+
+        get_messages pages from the newest message down (by message id), so
+        this is the offset of the page that starts at the message. The UI uses
+        it to open a long conversation at a message a search found.
+        """
+        db_path = self._inner._get_sms_db(backup)
+        if not db_path:
+            return {"error": "sms.db not found"}
+
+        conn = self._inner._get_conn(db_path, backup)
+        newer = conn.execute(
+            "SELECT COUNT(DISTINCT message_id) FROM chat_message_join WHERE chat_id = ? AND message_id > ?",
+            (chat_id, message_id),
+        ).fetchone()[0]
+        found = conn.execute(
+            "SELECT 1 FROM chat_message_join WHERE chat_id = ? AND message_id = ? LIMIT 1",
+            (chat_id, message_id),
+        ).fetchone() is not None
+        return {"offset": newer, "found": found}
+
     # ── openextract-only: per-id attachment extraction ───────────────────────
 
     def get_attachment(self, backup, attachment_id: int) -> dict:

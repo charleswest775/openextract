@@ -15,7 +15,8 @@ interface LightboxProps {
   onClose: () => void;
 }
 
-function TimelinePhotoLightbox({ fileHash, udid, filename, onClose }: LightboxProps) {
+/** A photo full size over everything; Escape or a click outside closes it. */
+export function TimelinePhotoLightbox({ fileHash, udid, filename, onClose }: LightboxProps) {
   const [src, setSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
