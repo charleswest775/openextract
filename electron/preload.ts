@@ -66,10 +66,18 @@ contextBridge.exposeInMainWorld('openextract', {
     return () => ipcRenderer.removeListener('share-prompt:show', listener);
   },
 
-  // In-app feedback. Nothing is sent from the app: the renderer opens a
-  // pre-filled GitHub issue or email in the user's own browser or mail app.
+  // In-app feedback. A report is sent only when the user clicks Send in the form.
   feedback: {
     getDiagnostics: (reportedError?: string) => ipcRenderer.invoke('feedback:get-diagnostics', reportedError),
+    send: (input: any) => ipcRenderer.invoke('feedback:send', input),
+    savedEmail: () => ipcRenderer.invoke('feedback:saved-email'),
+    fixedReports: () => ipcRenderer.invoke('feedback:fixed-reports'),
+    markAnnounced: (reference: string) => ipcRenderer.invoke('feedback:mark-announced', reference),
+    onFixed: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on('feedback:fixed', listener);
+      return () => ipcRenderer.removeListener('feedback:fixed', listener);
+    },
     optOutOfExportCheck: () => ipcRenderer.invoke('feedback:export-check-opt-out'),
     onExportCheck: (callback: (area?: string) => void) => {
       const listener = (_event: any, area?: string) => callback(area);

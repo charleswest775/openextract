@@ -4,8 +4,8 @@ const fs = require('fs');
 
 /**
  * Facts for the in-app feedback form. Everything here stays in memory until
- * the user opens the form, sees it, edits it, and sends it themselves from
- * their browser or email app. OpenExtract never sends any of it.
+ * the user opens the form, sees it, edits it, and clicks Send
+ * (feedbackReports.ts). Nothing is sent otherwise.
  *
  * Nothing from inside a backup is kept: no message text, contact names,
  * file paths or device names. Error messages and log lines can still mention

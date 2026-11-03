@@ -43,6 +43,15 @@ declare global {
       feedback: {
         /** Scrubbed facts for the feedback form (no backup content, paths or names). */
         getDiagnostics: (reportedError?: string) => Promise<FeedbackDiagnostics>;
+        /** Sends the report to openextract.app. Only ever called from the form's Send button. */
+        send: (input: FeedbackSendInput) => Promise<FeedbackSendResult>;
+        /** The email typed last time, kept on this computer to fill in the form. */
+        savedEmail: () => Promise<string>;
+        /** Reports found to be fixed that the user hasn't been told about yet. */
+        fixedReports: () => Promise<FixedReport[]>;
+        markAnnounced: (reference: string) => Promise<void>;
+        /** A follow-up check found a fix. Returns a cleanup function. */
+        onFixed: (callback: () => void) => () => void;
         optOutOfExportCheck: () => Promise<void>;
         /** Shown at most once per run after an export. Returns a cleanup function. */
         onExportCheck: (callback: (area?: string) => void) => () => void;
@@ -64,6 +73,36 @@ export interface FeedbackDiagnostics {
   recentErrors: { at: string; method: string; message: string; count: number }[];
   logExcerpt: string;
   reportedError?: string;
+}
+
+// ─── Feedback reports (mirror electron/feedbackReports.ts) ───────────────────
+
+export interface FeedbackSendInput {
+  kind: string;
+  area: string;
+  details: string;
+  diagnostics: string;
+  email?: string;
+  token: string;
+}
+
+export interface KnownFix {
+  id: string;
+  title: string;
+  text: string;
+  url?: string;
+}
+
+export type FeedbackSendResult =
+  | { ok: true; reference: string; knownFixes: KnownFix[] }
+  | { ok: false; error: string };
+
+export interface FixedReport {
+  reference: string;
+  summary: string;
+  sentAt: string;
+  fixedIn?: string;
+  inThisVersion: boolean;
 }
 
 // ─── Auto-update types (mirror electron/updater.ts) ──────────────────────────

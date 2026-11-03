@@ -218,3 +218,286 @@ test('every area and kind in the app has a label the workflow maps', () => {
   for (const a of lib.FEEDBACK_AREAS) assert.ok(wf.includes(`'${a.label}'`), `workflow is missing area "${a.label}"`);
   for (const k of lib.FEEDBACK_KINDS) assert.ok(wf.includes(JSON.stringify(k.label)), `workflow is missing kind "${k.label}"`);
 });
+
+// ── Sending reports: the site's API (website/static/api) and the app's side (electron/feedbackReports.ts) ──
+
+const site = require(path.join(root, 'website/static/api/_lib/feedback.js'));
+const reports = load('electron/feedbackReports.ts');
+
+const TOKEN = 'a'.repeat(48);
+const goodReport = (over = {}) => ({
+  kind: 'broken',
+  area: 'open_backup',
+  details: 'It says the engine is not running',
+  diagnostics: 'App: OpenExtract 0.9.0 on Windows 10.0.26300 (x64)\nFailed: list_backups\n- 18:16:09 list_backups: Python sidecar is not running',
+  token: TOKEN,
+  ...over,
+});
+
+const reply = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
+
+/** Just enough of GitHub's issues API: create and get. */
+function fakeGitHub() {
+  const issues = new Map();
+  const calls = [];
+  let next = 1;
+  return {
+    issues,
+    calls,
+    fetch: async (url, init = {}) => {
+      calls.push({ url, init });
+      const m = url.match(/\/repos\/[^/]+\/[^/]+\/issues(?:\/(\d+))?$/);
+      if (!m) return reply(404, {});
+      if (!m[1] && init.method === 'POST') {
+        const b = JSON.parse(init.body);
+        const issue = { ...b, number: next++, state: 'open', labels: (b.labels || []).map(name => ({ name })) };
+        issues.set(issue.number, issue);
+        return reply(201, issue);
+      }
+      const issue = issues.get(Number(m[1]));
+      return issue ? reply(200, issue) : reply(404, {});
+    },
+  };
+}
+
+const env = { GITHUB_FEEDBACK_TOKEN: 'ghp_test' };
+let ipCounter = 0;
+const jsonReq = (body, ip = `198.51.100.${++ipCounter}`) => ({
+  method: 'POST',
+  headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
+  body,
+});
+
+function memoryStore() {
+  const data = {};
+  return {
+    data,
+    get: (k, fallback) => (k in data ? data[k] : fallback),
+    set: (k, v) => { data[k] = JSON.parse(JSON.stringify(v)); },
+  };
+}
+
+/** The app's fetch, answered by the site's functions instead of the network. */
+function siteFetch(gh, ip = '192.0.2.1') {
+  return async (url, init) => {
+    const fn = new URL(url).pathname === '/api/feedback' ? site.receiveReport : site.lookUpReport;
+    const out = await fn(jsonReq(JSON.parse(init.body), ip), env, gh.fetch);
+    return reply(out.status, out.body);
+  };
+}
+
+test('the site knows the same kinds and areas as the app, with the workflow\'s labels', () => {
+  const wf = fs.readFileSync(path.join(root, '.github/workflows/feedback-labels.yml'), 'utf-8');
+  const workflowLabels = (key) => {
+    const m = wf.match(new RegExp(`${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: \\[([^\\]]*)\\]`));
+    assert.ok(m, `workflow has no labels for ${key}`);
+    return [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]);
+  };
+  assert.deepEqual(Object.keys(site.KINDS), lib.FEEDBACK_KINDS.map(k => k.id));
+  assert.deepEqual(Object.keys(site.AREAS), lib.FEEDBACK_AREAS.map(a => a.id));
+  for (const k of lib.FEEDBACK_KINDS) {
+    assert.equal(site.KINDS[k.id].label, k.label);
+    assert.deepEqual(site.KINDS[k.id].labels, workflowLabels(JSON.stringify(k.label)));
+  }
+  for (const a of lib.FEEDBACK_AREAS) {
+    assert.equal(site.AREAS[a.id].label, a.label);
+    assert.deepEqual(site.AREAS[a.id].labels, workflowLabels(`'${a.label}'`));
+  }
+});
+
+test('the site rejects reports it can\'t file, with messages a user can act on', () => {
+  assert.match(site.validateReport(goodReport({ kind: 'nope' })).error, /type/);
+  assert.match(site.validateReport(goodReport({ details: '   ' })).error, /describe/);
+  assert.match(site.validateReport(goodReport({ details: 'x'.repeat(8001) })).error, /too long/);
+  assert.match(site.validateReport(goodReport({ email: 'not an email' })).error, /email/);
+  assert.match(site.validateReport(goodReport({ token: 'short' })).error, /update/i);
+  const ok = site.validateReport(goodReport({ email: '  pat@example.com ', details: '  spaced  ' }));
+  assert.equal(ok.report.email, 'pat@example.com');
+  assert.equal(ok.report.details, 'spaced');
+});
+
+test('a filed report has the issue form\'s headings, its labels, and the code\'s hash last', () => {
+  const report = site.validateReport(goodReport({ email: 'pat@example.com', diagnostics: 'Backup: iPhone17,1 · iOS 27.0' })).report;
+  assert.equal(site.issueTitle(report), lib.issueTitle({ ...report, diagnostics: '' }));
+  const body = site.issueBody(report);
+  for (const h of ['### Type', '### Part of the app', '### What happened?', '### Diagnostics', '### Reply to']) {
+    assert.ok(body.includes(h), h);
+  }
+  assert.ok(body.includes('`pat@example.com`'));
+  assert.ok(!body.includes(TOKEN), 'the code itself is never stored');
+  assert.ok(site.tokenMatches(body, TOKEN));
+  assert.ok(!site.tokenMatches(body, 'b'.repeat(48)));
+  assert.deepEqual(site.issueLabels(report).sort(), ['feedback', 'bug', 'python-engine', 'ios-compat', 'has-email'].sort());
+});
+
+test('a lookalike code line in the user\'s text doesn\'t unlock the report', () => {
+  const fake = site.issueBody(site.validateReport(goodReport({ token: 'b'.repeat(48) })).report).split('\n').pop();
+  const report = site.validateReport(goodReport({ details: `hello\n${fake}` })).report;
+  const body = site.issueBody(report);
+  assert.ok(!site.tokenMatches(body, 'b'.repeat(48)));
+  assert.ok(site.tokenMatches(body, TOKEN));
+});
+
+test('known fixes match on the error text and, where given, the system', () => {
+  const engine = site.matchKnownFixes(site.validateReport(goodReport()).report);
+  assert.deepEqual(engine.map(f => f.id), ['engine-did-not-start']);
+  const fda = (os) => site.matchKnownFixes(site.validateReport(goodReport({
+    diagnostics: `App: OpenExtract 0.9.0 on ${os}\n- open_backup: PermissionError: Operation not permitted`,
+  })).report).map(f => f.id);
+  assert.deepEqual(fda('macOS 15.1 (arm64)'), ['mac-full-disk-access']);
+  assert.deepEqual(fda('Windows 10.0.26300 (x64)'), []);
+  assert.deepEqual(site.matchKnownFixes(site.validateReport(goodReport({ details: 'Photos look fine', diagnostics: '' })).report), []);
+});
+
+test('a report\'s status comes from its labels, then open or closed', () => {
+  assert.deepEqual(site.reportStatus({ state: 'open', labels: [] }), { status: 'open' });
+  assert.deepEqual(site.reportStatus({ state: 'closed', labels: [{ name: 'duplicate' }] }), { status: 'closed' });
+  assert.deepEqual(site.reportStatus({ state: 'closed', labels: [{ name: 'bug' }, { name: 'fixed-in:0.9.2' }] }), { status: 'fixed', fixedIn: '0.9.2' });
+  assert.deepEqual(site.reportStatus({ state: 'open', labels: ['Fixed in v1.0.0'] }), { status: 'fixed', fixedIn: '1.0.0' });
+});
+
+test('POST /api/feedback files a private issue and answers with a reference', async () => {
+  const gh = fakeGitHub();
+  assert.equal((await site.receiveReport({ method: 'GET', headers: {} }, env, gh.fetch)).status, 405);
+  assert.equal((await site.receiveReport({ method: 'POST', headers: { 'content-type': 'text/plain' }, body: '' }, env, gh.fetch)).status, 415);
+  assert.equal((await site.receiveReport(jsonReq(goodReport()), {}, gh.fetch)).status, 503);
+  assert.equal((await site.receiveReport(jsonReq(goodReport({ area: 'x' })), env, gh.fetch)).status, 400);
+  assert.equal(gh.calls.length, 0);
+
+  const report = goodReport({ token: 'c'.repeat(48) });
+  const out = await site.receiveReport(jsonReq(report), env, gh.fetch);
+  assert.equal(out.status, 200);
+  assert.equal(out.body.reference, 'OE-1');
+  assert.deepEqual(out.body.knownFixes.map(f => f.id), ['engine-did-not-start']);
+  const call = gh.calls[0];
+  assert.equal(call.url, 'https://api.github.com/repos/charleswest775/openextract-feedback/issues');
+  assert.equal(call.init.headers.Authorization, 'Bearer ghp_test');
+  assert.ok(JSON.parse(call.init.body).labels.includes('feedback'));
+
+  // Pressing Send again on the same form gets the same answer, not a second issue.
+  const again = await site.receiveReport(jsonReq(report), env, gh.fetch);
+  assert.deepEqual(again.body, out.body);
+  assert.equal(gh.issues.size, 1);
+});
+
+test('POST /api/feedback keeps the report when labels fail, and says so when GitHub fails', async () => {
+  const calls = [];
+  const labelsRejected = async (url, init) => {
+    calls.push(JSON.parse(init.body));
+    return calls.length === 1 ? reply(422, {}) : reply(201, { number: 9 });
+  };
+  const out = await site.receiveReport(jsonReq(goodReport({ token: 'd'.repeat(48) })), env, labelsRejected);
+  assert.equal(out.body.reference, 'OE-9');
+  assert.equal(calls[1].labels, undefined);
+
+  const down = await site.receiveReport(jsonReq(goodReport({ token: 'e'.repeat(48) })), env, async () => reply(500, {}));
+  assert.equal(down.status, 502);
+});
+
+test('POST /api/feedback limits how often one network can send', async () => {
+  const gh = fakeGitHub();
+  const statuses = [];
+  for (let i = 0; i < 6; i++) {
+    const out = await site.receiveReport(jsonReq(goodReport({ token: String(i).repeat(48) }), '203.0.113.50'), env, gh.fetch);
+    statuses.push(out.status);
+  }
+  assert.deepEqual(statuses, [200, 200, 200, 200, 200, 429]);
+  const other = await site.receiveReport(jsonReq(goodReport({ token: 'f'.repeat(48) }), '203.0.113.51'), env, gh.fetch);
+  assert.equal(other.status, 200);
+});
+
+test('POST /api/feedback-status answers only to the code the report was sent with', async () => {
+  const gh = fakeGitHub();
+  const sent = await site.receiveReport(jsonReq(goodReport({ token: '1a'.repeat(24) })), env, gh.fetch);
+  const ask = (token, number = sent.body.number) => site.lookUpReport(jsonReq({ number, token }), env, gh.fetch);
+  assert.deepEqual((await ask('1a'.repeat(24))).body, { status: 'open' });
+  assert.equal((await ask('2b'.repeat(24))).status, 404);
+  assert.equal((await ask('1a'.repeat(24), 999)).status, 404);
+  assert.equal((await ask('not-hex')).status, 404);
+
+  const issue = gh.issues.get(sent.body.number);
+  issue.state = 'closed';
+  issue.labels.push({ name: 'fixed-in:0.9.2' });
+  assert.deepEqual((await ask('1a'.repeat(24))).body, { status: 'fixed', fixedIn: '0.9.2' });
+});
+
+test('compareVersions orders dotted versions numerically', () => {
+  assert.equal(reports.compareVersions('0.9.10', '0.9.2'), 1);
+  assert.equal(reports.compareVersions('0.9.1', '0.9.1'), 0);
+  assert.equal(reports.compareVersions('0.9', '0.9.1'), -1);
+});
+
+test('the app turns failures into plain messages and keeps nothing', async () => {
+  const offline = new reports.FeedbackReports(memoryStore(), async () => { throw new Error('ENOTFOUND'); }, '0.9.1');
+  assert.match((await offline.send(goodReport())).error, /internet connection/);
+
+  const busy = new reports.FeedbackReports(memoryStore(), async () => reply(429, { error: 'Too many reports were sent.' }), '0.9.1');
+  assert.equal((await busy.send(goodReport())).error, 'Too many reports were sent.');
+
+  const store = memoryStore();
+  const down = new reports.FeedbackReports(store, async () => reply(503, { error: 'internal detail' }), '0.9.1');
+  const res = await down.send(goodReport());
+  assert.match(res.error, /couldn't be sent right now/);
+  assert.equal(store.data.feedbackReports, undefined);
+});
+
+test('the app keeps the reference, and drops links in known fixes that point elsewhere', async () => {
+  const store = memoryStore();
+  const app = new reports.FeedbackReports(store, async () => reply(200, {
+    number: 12,
+    reference: 'OE-12',
+    knownFixes: [
+      { id: 'a', title: 'A', text: 'Do this', url: 'https://evil.example/x' },
+      { id: 'b', title: 'B', text: 'Do that', url: 'https://www.openextract.app/help' },
+    ],
+  }), '0.9.1');
+  const res = await app.send(goodReport({ email: ' pat@example.com ' }));
+  assert.equal(res.reference, 'OE-12');
+  assert.equal(res.knownFixes[0].url, undefined);
+  assert.equal(res.knownFixes[1].url, 'https://www.openextract.app/help');
+  assert.equal(store.data.feedbackEmail, 'pat@example.com');
+  assert.equal(store.data.feedbackReports.length, 1);
+  assert.equal(store.data.feedbackReports[0].token, TOKEN);
+  assert.equal(store.data.feedbackReports[0].summary, 'It says the engine is not running');
+});
+
+test('send, fix, and the app finds out: the whole loop', async () => {
+  const gh = fakeGitHub();
+  const store = memoryStore();
+  const app = new reports.FeedbackReports(store, siteFetch(gh), '0.9.1');
+
+  const sent = await app.send(goodReport({ token: '3c'.repeat(24) }));
+  assert.ok(sent.ok, sent.error);
+  const day = 24 * 60 * 60 * 1000;
+
+  // Nothing is asked for a few days after sending.
+  const before = gh.calls.length;
+  assert.equal(await app.checkIfDue(Date.now() + day), false);
+  assert.equal(gh.calls.length, before);
+
+  // Still open: asked once, nothing to tell.
+  assert.equal(await app.checkIfDue(Date.now() + 4 * day), false);
+  assert.equal(gh.calls.length, before + 1);
+  assert.deepEqual(app.fixedToAnnounce(), []);
+
+  // The maintainer ships the fix and labels the report.
+  const issue = [...gh.issues.values()][0];
+  issue.state = 'closed';
+  issue.labels.push({ name: 'fixed-in:0.9.2' });
+
+  assert.equal(await app.checkIfDue(Date.now() + 8 * day), true);
+  const [fixed] = app.fixedToAnnounce();
+  assert.equal(fixed.reference, sent.reference);
+  assert.equal(fixed.fixedIn, '0.9.2');
+  assert.equal(fixed.inThisVersion, false);
+
+  // On 0.9.2 the same report reads as fixed in this version; once shown, it isn't shown again.
+  assert.equal(new reports.FeedbackReports(store, siteFetch(gh), '0.9.2').fixedToAnnounce()[0].inThisVersion, true);
+  app.markAnnounced(sent.reference);
+  assert.deepEqual(app.fixedToAnnounce(), []);
+
+  // A fixed report isn't asked about again.
+  const calls = gh.calls.length;
+  await app.checkIfDue(Date.now() + 20 * day);
+  assert.equal(gh.calls.length, calls);
+});
