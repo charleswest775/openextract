@@ -82,22 +82,25 @@ export default function SearchResults({ ctx, timeline, query, keyRef }: Props) {
   const { personOf } = useMemo(() => linkCards(allPeople, cards ?? []), [allPeople, cards]);
   const { openTab } = ctx;
   const people = useMemo((): PersonHit[] => {
-    const hits: PersonHit[] = allPeople
-      .filter(p => !p.isGroup && matches(query, p.name, ...p.ids))
-      .map(p => ({
-        key: `p:${p.key}`, name: formatPhone(p.name), saved: false,
-        line: `${plural(p.total, 'event')} · messages, calls and voicemail`,
-        open: () => openTab('people', { person: p.identifier }),
-      }));
+    const found = new Set(allPeople.filter(p => !p.isGroup && matches(query, p.name, ...p.numbers, ...p.ids)));
+    const saved: PersonHit[] = [];
     for (const c of cards ?? []) {
-      if (personOf.has(c.id) || !matches(query, c.display_name, c.organization, ...c.phones, ...c.emails)) continue;
-      hits.push({
+      if (!matches(query, c.display_name, c.organization, ...c.phones, ...c.emails)) continue;
+      // A card that's someone you were in touch with finds them, even by a number only the card has
+      const p = personOf.get(c.id);
+      if (p) found.add(p);
+      else saved.push({
         key: `c:${c.id}`, name: c.display_name, saved: true,
         line: ['Address book', c.organization, c.phones[0] ?? c.emails[0]].filter(Boolean).join(' · '),
         open: () => openTab('contacts', { contactId: c.id }),
       });
     }
-    return hits;
+    const hits: PersonHit[] = allPeople.filter(p => found.has(p)).map(p => ({
+      key: `p:${p.key}`, name: formatPhone(p.name), saved: false,
+      line: `${plural(p.total, 'event')} · messages, calls and voicemail`,
+      open: () => openTab('people', { person: p.identifier }),
+    }));
+    return [...hits, ...saved];
   }, [allPeople, cards, personOf, query, openTab]);
 
   const groups = useMemo(() => {

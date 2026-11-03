@@ -349,6 +349,136 @@ test('known fixes match on the error text and, where given, the system', () => {
   assert.deepEqual(site.matchKnownFixes(site.validateReport(goodReport({ details: 'Photos look fine', diagnostics: '' })).report), []);
 });
 
+// Known fixes against what the app really says. Each error below is copied from the
+// code that produces it, so a fix whose pattern drifts from the real wording fails
+// here instead of quietly never showing.
+
+const { KNOWN_FIXES } = require(path.join(root, 'website/static/api/_lib/known-fixes.js'));
+const MAC = 'macOS 15.1 (arm64)';
+const WINDOWS = 'Windows 10.0.26300 (x64)';
+let fixReports = 0;
+
+/** Known fixes the site answers with, for a report built the way the app builds one. */
+async function knownFixesFor({ kind = 'broken', area = 'open_backup', details = "Something isn't working", os = MAC, errors = [], log = '', reportedError } = {}) {
+  const logPath = path.join(tmp, `engine-log-${++fixReports}.txt`);
+  fs.writeFileSync(logPath, log);
+  const rec = new main.FeedbackRecorder(logPath, '0.9.1');
+  for (const [method, error] of errors) rec.recordCall(method, {}, { ok: false, error });
+  const diagnostics = lib.formatDiagnostics({ ...rec.diagnostics(reportedError), os });
+  const report = goodReport({ kind, area, details, diagnostics, token: fixReports.toString(16).padStart(48, '7') });
+  const out = await site.receiveReport(jsonReq(report), env, fakeGitHub().fetch);
+  assert.equal(out.status, 200, JSON.stringify(out.body));
+  return out.body.knownFixes.map(f => f.id);
+}
+
+// iphone_backup_decrypt's IncorrectPassphraseError, wrapped by open_local_backup() in
+// ios-backup-core (src/ios_backup_core/backup.py) and passed on by python/backup.py.
+const WRONG_PASSWORD = 'Failed to decrypt backup: Failed to decrypt keys: incorrect passphrase?';
+
+test('the password fix shows for the engine\'s real wrong-password error', async () => {
+  // What the unlock dialog shows, which the report lists under recent errors.
+  assert.deepEqual(await knownFixesFor({ errors: [['open_backup', WRONG_PASSWORD]] }), ['backup-password']);
+  assert.deepEqual(await knownFixesFor({ os: WINDOWS, errors: [['open_backup', WRONG_PASSWORD]] }), ['backup-password']);
+  // The same failure in the engine log (python/main.py writes "[RPC ERROR] <method>: <traceback>").
+  const log = [
+    '[RPC ERROR] open_backup: Traceback (most recent call last):',
+    '  File "ios_backup_core/backup.py", line 432, in open_local_backup',
+    '  File "iphone_backup_decrypt/iphone_backup.py", line 126, in _read_and_unlock_keybag',
+    'iphone_backup_decrypt.exceptions.IncorrectPassphraseError: Failed to decrypt keys: incorrect passphrase?',
+    '',
+    'The above exception was the direct cause of the following exception:',
+    '',
+    'Traceback (most recent call last):',
+    '  File "main.py", line 508, in handle_request',
+    '  File "backup.py", line 419, in open_backup',
+    `ValueError: ${WRONG_PASSWORD}`,
+  ].join('\n');
+  assert.deepEqual(await knownFixesFor({ log }), ['backup-password']);
+});
+
+test('the password fix shows when people describe the problem in their own words', async () => {
+  for (const details of [
+    'It keeps saying wrong passphrase',
+    'I forgot the password I used for the backup',
+    "I can't remember my backup password",
+    "I've forgotten the encryption password",
+    'It says my password is incorrect',
+  ]) {
+    assert.deepEqual(await knownFixesFor({ details }), ['backup-password'], details);
+  }
+});
+
+test('the password fix doesn\'t show for other decryption, passcode or password problems', async () => {
+  // A damaged backup: iphone_backup_decrypt's _open_temp_database(), wrapped by ios-backup-core.
+  assert.deepEqual(await knownFixesFor({ errors: [['open_backup', 'Failed to decrypt backup: Manifest.db file does not contain any data!']] }), []);
+  // The iPhone's own lock while making a backup (python/device_backup.py).
+  assert.deepEqual(await knownFixesFor({
+    errors: [['backup.start', 'PASSCODE_REQUIRED: Your iPhone is locked. Unlock it with your passcode, keep it unlocked while the backup starts, then click Retry.']],
+  }), []);
+  assert.deepEqual(await knownFixesFor({ details: 'Could the app remember my password?' }), []);
+  // Other passwords people forget. The fix tells them to Reset All Settings, which erases
+  // the saved Wi-Fi passwords some of them are hoping to get back.
+  for (const [kind, area, details] of [
+    ['idea', 'general', 'I forgot my Wi-Fi password. Can OpenExtract show saved Wi-Fi passwords from my backup?'],
+    ['other', 'general', "I don't remember my Apple ID password, can I still use this?"],
+    ['idea', 'general', "I can't remember my Instagram password, does the backup have my saved passwords"],
+    ['missing', 'notes', "Forgot my notes password and the locked notes don't show"],
+    ['missing', 'general', 'Forgot to mention: passwords from Keychain are missing too'],
+    ['other', 'general', "I can't remember my Screen Time passcode or password"],
+  ]) {
+    assert.deepEqual(await knownFixesFor({ kind, area, details }), [], details);
+  }
+});
+
+// One real error per known fix; the last test checks that every fix has one.
+const REAL_ERRORS = [
+  // electron/sidecar.ts call(), once the engine has stopped (#169).
+  { fix: 'engine-did-not-start', os: WINDOWS, errors: [['list_backups', 'Python sidecar is not running']] },
+  // electron/sidecar.ts start(): the launch failed, written to the engine log.
+  { fix: 'engine-did-not-start', log: '[ERROR STARTING] spawn /Applications/OpenExtract.app/Contents/Resources/engine/openextract-engine ENOENT' },
+  // python/backup.py _permission_error() on macOS.
+  {
+    fix: 'mac-full-disk-access',
+    errors: [['list_backups', 'FULL_DISK_ACCESS_REQUIRED: macOS is blocking OpenExtract from reading /Users/jane/Library/Application Support/MobileSync/Backup. Open System Settings → Privacy & Security → Full Disk Access, turn on OpenExtract, then quit and reopen OpenExtract.']],
+  },
+  // The same, for a folder whose long path pushes "Full Disk Access" past where the report cuts the line.
+  {
+    fix: 'mac-full-disk-access',
+    errors: [['open_backup', `FULL_DISK_ACCESS_REQUIRED: macOS is blocking OpenExtract from reading /Volumes/Backups 2TB/${'Old Mac Migration/'.repeat(10)}MobileSync/Backup. Open System Settings → Privacy & Security → Full Disk Access, turn on OpenExtract, then quit and reopen OpenExtract.`]],
+  },
+  // Python's own error for a folder macOS blocks, in the engine log.
+  {
+    fix: 'mac-full-disk-access',
+    log: "[RPC ERROR] get_backup_size: Traceback (most recent call last):\n  File \"backup.py\", line 505, in get_backup_size\nPermissionError: [Errno 1] Operation not permitted: '/Users/jane/Library/Application Support/MobileSync/Backup/00008030-001A2B3C4D5E6F70'",
+  },
+  // src/App.tsx, after browsing to a folder with no backup in it; sent with "Report this problem".
+  {
+    fix: 'no-backups-found',
+    reportedError: 'No iPhone backups found in /Users/jane/Desktop/iPhone stuff. Pick the parent folder that contains a UDID-named subfolder (e.g. MobileSync/Backup).',
+  },
+  { fix: 'backup-password', errors: [['open_backup', WRONG_PASSWORD]] },
+];
+
+test('each known fix shows for the app\'s real error, and only that fix', async () => {
+  for (const [i, c] of REAL_ERRORS.entries()) {
+    assert.deepEqual(await knownFixesFor(c), [c.fix], `REAL_ERRORS[${i}]`);
+  }
+  assert.deepEqual([...new Set(REAL_ERRORS.map(c => c.fix))].sort(), KNOWN_FIXES.map(f => f.id).sort());
+});
+
+test('reports about something else get no known fix', async () => {
+  // electron/sidecar.ts call() timing out, and an engine error from python/main.py, on both systems.
+  for (const os of [MAC, WINDOWS]) {
+    assert.deepEqual(await knownFixesFor({
+      os,
+      errors: [['list_photos', 'Sidecar call timed out: list_photos'], ['list_voicemails', "'ZDATE'"]],
+      log: "[RPC ERROR] list_voicemails: Traceback (most recent call last):\n  File \"voicemail.py\", line 10, in list\nKeyError: 'ZDATE'",
+    }), []);
+  }
+  // Full Disk Access is only a macOS setting.
+  assert.deepEqual(await knownFixesFor({ ...REAL_ERRORS[2], os: WINDOWS }), []);
+});
+
 test('a report\'s status comes from its labels, then open or closed', () => {
   assert.deepEqual(site.reportStatus({ state: 'open', labels: [] }), { status: 'open' });
   assert.deepEqual(site.reportStatus({ state: 'closed', labels: [{ name: 'duplicate' }] }), { status: 'closed' });

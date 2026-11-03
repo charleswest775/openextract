@@ -25,7 +25,7 @@ export default function SearchBox({ inputRef, text, onText, scope, onClearScope,
           <button
             onClick={() => { onClearScope(); inputRef.current?.focus(); }}
             title="Search the whole backup instead"
-            aria-label={`Stop searching only ${scope}`}
+            aria-label="Search the whole backup instead"
             className="w-5 h-5 rounded flex items-center justify-center hover:bg-[var(--accent-soft)] hover:text-white"
           >
             ×

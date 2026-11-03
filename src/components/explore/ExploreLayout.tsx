@@ -77,7 +77,9 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
     return () => clearTimeout(t);
   }, [text]);
 
-  const scopeLabel = SCOPED[activeTab] && !everywhere ? sectionFor(activeTab)?.label ?? null : null;
+  const scope = everywhere ? undefined : SCOPED[activeTab];
+  // The tag names the screen the same way the breadcrumb beside it does
+  const scopeLabel = scope ? sectionFor(activeTab)?.label ?? null : null;
   const searchingAll = query !== '' && !scopeLabel;
   const screenQuery = scopeLabel ? query : '';
 
@@ -266,7 +268,7 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
             onText={changeText}
             scope={scopeLabel}
             onClearScope={() => setEverywhere(true)}
-            placeholder={scopeLabel ? SCOPED[activeTab]! : 'Search messages, notes, calls, voicemail, people…'}
+            placeholder={scope ? scope.placeholder : 'Search messages, notes, calls, voicemail, people…'}
             onKey={e => searchingAll && resultsKey.current?.(e)}
           />
         }
@@ -274,10 +276,10 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
         onHelp={() => openFeedback({ area: area as FeedbackArea })}
         onSettings={() => setSettingsOpen(true)}
       />
-      {scopeLabel && query && (
+      {scope && query && (
         <div className="flex-shrink-0 px-6 py-2 border-b border-rule bg-accent-wash flex items-center gap-3 text-sm">
           <span className="text-text-secondary">
-            Showing only {scopeLabel.toLowerCase()} that match <span className="font-medium text-text-primary">“{query}”</span>
+            Showing only {scope.items} that match <span className="font-medium text-text-primary">“{query}”</span>
           </span>
           <button onClick={() => setEverywhere(true)} className="text-accent font-medium hover:underline">
             Search all of {deviceName} →
