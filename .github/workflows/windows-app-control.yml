@@ -117,21 +117,23 @@ jobs:
           name: ${{ inputs.artifact }}
           path: installer
 
-      # The installer sometimes crashes on these runners (0xC0000005), before App Control
-      # is on, so try again; the Application log names the faulting module.
+      # On windows-2025 runners the installer's NSIS System.dll plugin crashes on about
+      # half the attempts (0xC0000005), before App Control is on. Try again; the
+      # Application log has the crash details.
       - name: Install silently with /S
         id: install
         run: |
           $exe = @(Get-ChildItem installer -Filter '*.exe')
           if ($exe.Count -ne 1) { throw "Expected one installer, found $($exe.Count): $($exe.Name -join ', ')" }
-          foreach ($attempt in 1..3) {
-            $started = Get-Date
+          $began = Get-Date
+          foreach ($attempt in 1..5) {
             $p = Start-Process -FilePath $exe[0].FullName -ArgumentList '/S' -Wait -PassThru
             if ($p.ExitCode -eq 0) { break }
             Write-Output "::warning::Silent install attempt $attempt exited with $($p.ExitCode)"
-            Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Id = 1000; StartTime = $started } -ErrorAction SilentlyContinue |
-              ForEach-Object { Write-Output ($_.Message -split "`r?`n" | Select-Object -First 3) }
+            Start-Sleep -Seconds 5
           }
+          Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Id = 1000; StartTime = $began } -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Output ($_.Message -split "`r?`n" | Select-Object -First 4) }
           if ($p.ExitCode -ne 0) { throw "Silent install exited with $($p.ExitCode)" }
           $app = Join-Path $env:LOCALAPPDATA 'Programs\OpenExtract'
           if (-not (Test-Path (Join-Path $app 'OpenExtract.exe'))) { throw "OpenExtract.exe not found under $app" }
