@@ -379,26 +379,29 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
-      # electron-builder signs an extraResources executable only when the entry copies a
-      # directory (a single-file `from` skips the signing hook), which is why
-      # win.extraResources copies python/dist with a filter. Check the engine along with
-      # the app and installer; failing here keeps the release in draft.
+      # electron-builder signs an extraResources file only when the entry copies a
+      # directory (a single-file `from` skips the signing hook), and then only .exe files
+      # and the win.signExts extensions. The engine is a folder on Windows, so this
+      # covers every DLL and .pyd in it: Smart App Control refuses to load unsigned ones
+      # (#169), and the Microsoft Store requires every .exe and .dll to be signed. Check
+      # all of them along with the installer; failing here keeps the release in draft.
       - name: Verify Authenticode signatures
         shell: pwsh
         run: |
-          $files = @(
-            'release/win-unpacked/OpenExtract.exe',
-            'release/win-unpacked/resources/python/openextract-engine.exe',
-            'release/OpenExtract Setup ${{ inputs.version }}.exe'
-          )
-          $unsigned = 0
-          foreach ($file in $files) {
-            $sig = Get-AuthenticodeSignature -LiteralPath $file
-            Write-Output ("{0,-10} {1}  ({2})" -f $sig.Status, $file, $sig.SignerCertificate.Subject)
-            if ($sig.Status -ne 'Valid') { $unsigned++ }
+          $files = @(Get-ChildItem -LiteralPath 'release/win-unpacked' -Recurse -File -Include *.exe, *.dll, *.pyd)
+          $files += Get-Item -LiteralPath 'release/OpenExtract Setup ${{ inputs.version }}.exe'
+          if (-not (Test-Path 'release/win-unpacked/resources/python/_internal')) {
+            Write-Output "::error::The engine is not the folder build (resources/python/_internal is missing)"
+            exit 1
           }
-          if ($unsigned -gt 0) {
-            Write-Output "::error::$unsigned Windows executable(s) are not validly Authenticode-signed"
+          $unsigned = @($files | Where-Object { (Get-AuthenticodeSignature -LiteralPath $_.FullName).Status -ne 'Valid' })
+          Write-Output "$($files.Count - $unsigned.Count) of $($files.Count) executables, DLLs and .pyd files are signed"
+          foreach ($file in $unsigned) {
+            $sig = Get-AuthenticodeSignature -LiteralPath $file.FullName
+            Write-Output ("{0,-10} {1}" -f $sig.Status, $file.FullName)
+          }
+          if ($unsigned.Count -gt 0) {
+            Write-Output "::error::$($unsigned.Count) Windows executable(s) or DLL(s) are not validly Authenticode-signed"
             exit 1
           }
 

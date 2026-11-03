@@ -32,10 +32,12 @@ from ios_backup_core.backup import (
 
 # Re-export for any code paths still importing EncryptedBackup directly via
 # this module (none in main.py, but kept to avoid surprises).
+# OSError too: pycryptodome raises it when Windows refuses to load one of its
+# DLLs (Smart App Control, #169), and the engine must still start.
 try:
     from iphone_backup_decrypt import EncryptedBackup  # noqa: F401
     HAS_DECRYPT = True
-except ImportError:
+except (ImportError, OSError):
     HAS_DECRYPT = False
 
 
