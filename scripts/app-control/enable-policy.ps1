@@ -27,17 +27,32 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $signed = @(Get-PeFiles $InstallDir | ForEach-Object { Get-SignerInfo $_.FullName } |
   Where-Object { Test-Publisher $_ $Publisher $RootThumbprint })
 if ($signed.Count -eq 0) { throw "No file under $InstallDir is signed by $Publisher through Azure Trusted Signing" }
-$rules = @()
+$samples = New-Item -ItemType Directory -Force -Path (Join-Path $OutDir 'samples')
 foreach ($group in $signed | Group-Object IssuingCAThumbprint) {
   $file = $group.Group[0].Path
   Write-Output "Publisher rule from $file ($($group.Group[0].IssuingCA), $($group.Count) files)"
-  $rules += New-CIPolicyRule -Level Publisher -DriverFilePath $file
+  Copy-Item -LiteralPath $file -Destination (Join-Path $samples "$($group.Name)$([IO.Path]::GetExtension($file))")
 }
-$ours = Join-Path $OutDir 'openextract.xml'
-New-CIPolicy -FilePath $ours -Rules $rules -UserPEs | Out-Null
+# Scan only those copies, and without a shadow copy of the drive, which takes minutes.
+$drivers = Get-SystemDriver -ScanPath $samples.FullName -UserPEs -NoShadowCopy
+$rules = New-CIPolicyRule -DriverFiles $drivers -Level Publisher
 
+# The example policies can't be opened in place.
+$base = Join-Path $OutDir 'AllowMicrosoft.xml'
+Copy-Item -LiteralPath (Join-Path $examples 'AllowMicrosoft.xml') -Destination $base
 $policy = Join-Path $OutDir 'policy.xml'
-Merge-CIPolicy -PolicyPaths (Join-Path $examples 'AllowMicrosoft.xml'), $ours -OutputFilePath $policy | Out-Null
+Merge-CIPolicy -PolicyPaths $base -Rules $rules -OutputFilePath $policy | Out-Null
+
+# Our signer has to be allowed for user-mode code (signing scenario 12), not just drivers.
+$xml = [xml](Get-Content -Raw $policy)
+$ourSigners = @($xml.SiPolicy.Signers.Signer | Where-Object { $_.CertPublisher.Value -eq $Publisher })
+$userAllowed = @(($xml.SiPolicy.SigningScenarios.SigningScenario | Where-Object Value -eq 12).ProductSigners.AllowedSigners.AllowedSigner.SignerId)
+if ($ourSigners.Count -eq 0 -or @($ourSigners | Where-Object { $_.ID -in $userAllowed }).Count -ne $ourSigners.Count) {
+  throw "The policy doesn't allow $Publisher's user-mode code; see $policy"
+}
+Write-Output "Signers for ${Publisher}:"
+$ourSigners | ForEach-Object { Write-Output "  $($_.ID): $($_.Name), publisher '$($_.CertPublisher.Value)'" }
+
 Set-RuleOption -FilePath $policy -Option 0            # Enabled:UMCI (user-mode code, not just drivers)
 Set-RuleOption -FilePath $policy -Option 3 -Delete    # not Audit Mode: enforce
 Set-RuleOption -FilePath $policy -Option 14 -Delete   # no Intelligent Security Graph (reputation)
@@ -48,10 +63,6 @@ $id = ([xml](Get-Content -Raw $policy)).SiPolicy.PolicyID
 $cip = Join-Path $OutDir "$id.cip"
 ConvertFrom-CIPolicy -XmlFilePath $policy -BinaryFilePath $cip | Out-Null
 
-Write-Output "Signers:"
-([xml](Get-Content -Raw $ours)).SiPolicy.Signers.Signer | ForEach-Object {
-  Write-Output "  $($_.Name): publisher '$($_.CertPublisher.Value)'"
-}
 Write-Output "Options:"
 ([xml](Get-Content -Raw $policy)).SiPolicy.Rules.Rule | ForEach-Object { Write-Output "  $($_.Option)" }
 
