@@ -1,18 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- One <url> per page, using the page's <link rel="canonical"> href. Add new pages here. -->
+<!-- One <url> per page, using the page's <link rel="canonical"> href. Add new pages here,
+     and set <lastmod> to the date a page's content last changed. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://www.openextract.app/</loc></url>
-  <url><loc>https://www.openextract.app/how-it-works</loc></url>
-  <url><loc>https://www.openextract.app/screenshots</loc></url>
-  <url><loc>https://www.openextract.app/vs-imazing</loc></url>
-  <url><loc>https://www.openextract.app/about</loc></url>
-  <url><loc>https://www.openextract.app/use-cases/free-imazing-alternative</loc></url>
-  <url><loc>https://www.openextract.app/use-cases/export-iphone-messages</loc></url>
-  <url><loc>https://www.openextract.app/use-cases/export-iphone-data</loc></url>
-  <url><loc>https://www.openextract.app/blog</loc></url>
-  <url><loc>https://www.openextract.app/blog/what-is-in-an-iphone-backup</loc></url>
-  <url><loc>https://www.openextract.app/blog/encrypted-backups-are-better</loc></url>
-  <url><loc>https://www.openextract.app/blog/recovering-voicemails-from-loved-ones</loc></url>
-  <url><loc>https://www.openextract.app/blog/switching-to-android-with-your-data</loc></url>
-  <url><loc>https://www.openextract.app/blog/open-source-trust-model</loc></url>
+  <url><loc>https://www.openextract.app/</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://www.openextract.app/how-it-works</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://www.openextract.app/screenshots</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://www.openextract.app/vs-imazing</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://www.openextract.app/vs-iexplorer</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://www.openextract.app/vs-ibackup-viewer</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://www.openextract.app/vs-reincubate</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://www.openextract.app/about</loc><lastmod>2026-10-28</lastmod></url>
+  <url><loc>https://www.openextract.app/privacy</loc><lastmod>2026-11-03</lastmod></url>
+  <url><loc>https://www.openextract.app/use-cases/free-imazing-alternative</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://www.openextract.app/use-cases/export-iphone-messages</loc><lastmod>2026-10-28</lastmod></url>
+  <url><loc>https://www.openextract.app/use-cases/export-iphone-data</loc><lastmod>2026-10-15</lastmod></url>
+  <url><loc>https://www.openextract.app/use-cases/free-iphone-backup-viewer</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://www.openextract.app/use-cases/iphone-backup-extractor-linux</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://www.openextract.app/blog</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://www.openextract.app/blog/what-is-in-an-iphone-backup</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://www.openextract.app/blog/encrypted-backups-are-better</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://www.openextract.app/blog/recovering-voicemails-from-loved-ones</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://www.openextract.app/blog/switching-to-android-with-your-data</loc><lastmod>2026-11-02</lastmod></url>
+  <url><loc>https://www.openextract.app/blog/open-source-trust-model</loc><lastmod>2026-11-02</lastmod></url>
 </urlset>

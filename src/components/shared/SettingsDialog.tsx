@@ -100,6 +100,11 @@ export default function SettingsDialog({ onClose }: Props) {
                   />
                 </div>
               </>
+            ) : state.flatpak ? (
+              <p className="text-sm text-text-secondary">
+                This copy of OpenExtract was installed from Flathub, which keeps it up to date.
+                Updates show up in your software center.
+              </p>
             ) : (
               <p className="text-sm text-text-secondary">
                 This copy of OpenExtract can't update itself. Get new versions from{' '}

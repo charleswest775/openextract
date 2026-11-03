@@ -50,6 +50,15 @@ declare global {
       feedback: {
         /** Scrubbed facts for the feedback form (no backup content, paths or names). */
         getDiagnostics: (reportedError?: string) => Promise<FeedbackDiagnostics>;
+        /** Sends the report to openextract.app. Only ever called from the form's Send button. */
+        send: (input: FeedbackSendInput) => Promise<FeedbackSendResult>;
+        /** The email typed last time, kept on this computer to fill in the form. */
+        savedEmail: () => Promise<string>;
+        /** Reports found to be fixed that the user hasn't been told about yet. */
+        fixedReports: () => Promise<FixedReport[]>;
+        markAnnounced: (reference: string) => Promise<void>;
+        /** A follow-up check found a fix. Returns a cleanup function. */
+        onFixed: (callback: () => void) => () => void;
         optOutOfExportCheck: () => Promise<void>;
         /** Shown at most once per run after an export. Returns a cleanup function. */
         onExportCheck: (callback: (area?: string) => void) => () => void;
@@ -75,6 +84,36 @@ export interface FeedbackDiagnostics {
   reportedError?: string;
 }
 
+// ─── Feedback reports (mirror electron/feedbackReports.ts) ───────────────────
+
+export interface FeedbackSendInput {
+  kind: string;
+  area: string;
+  details: string;
+  diagnostics: string;
+  email?: string;
+  token: string;
+}
+
+export interface KnownFix {
+  id: string;
+  title: string;
+  text: string;
+  url?: string;
+}
+
+export type FeedbackSendResult =
+  | { ok: true; reference: string; knownFixes: KnownFix[] }
+  | { ok: false; error: string };
+
+export interface FixedReport {
+  reference: string;
+  summary: string;
+  sentAt: string;
+  fixedIn?: string;
+  inThisVersion: boolean;
+}
+
 // ─── Auto-update types (mirror electron/updater.ts) ──────────────────────────
 
 export type UpdateState =
@@ -97,6 +136,8 @@ export interface UpdateStatus {
 export interface UpdatesState {
   /** False in development and for installs that can't update themselves (e.g. an extracted AppImage). */
   supported: boolean;
+  /** Running as a Flatpak, which Flathub keeps up to date. */
+  flatpak?: boolean;
   /** null until the user has answered the "check automatically?" question. */
   autoCheck: boolean | null;
   currentVersion: string;

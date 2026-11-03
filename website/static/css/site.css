@@ -182,6 +182,7 @@ img { max-width: 100%; display: block; }
 }
 .cta-strip__label { font-size: 28px; font-weight: 500; letter-spacing: -0.01em; }
 .cta-strip__sub { font-size: 14px; color: rgba(250,246,241,0.6); margin-top: 6px; }
+.cta-strip__sub a { text-decoration: underline; text-underline-offset: 3px; }
 .cta-strip__btn {
   background: var(--coral); color: white;
   padding: 16px 28px; border-radius: 12px;
@@ -496,6 +497,10 @@ details.qa p {
   font-size: 15px; color: var(--ink-soft);
   margin: 12px 0 0; max-width: 720px; line-height: 1.65;
 }
+/* Links inside running text, which otherwise inherit the text color and look like plain words. */
+details.qa p a, .uc-reason__v a, .step-note p a, .wheres__row-v a, .post-body p a, .post-body li a { color: var(--coral); }
+details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .wheres__row-v a:hover, .post-body p a:hover, .post-body li a:hover { text-decoration: underline; }
+.uc-reason__v code { font-family: var(--mono); background: var(--line-soft); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
 
 /* ── Final CTA (landing) ───────────────────────────── */
 .final-cta { padding: 56px 56px 72px; }
@@ -756,7 +761,7 @@ details.qa p {
 .post-body ul, .post-body ol { font-size: 17px; line-height: 1.8; color: var(--ink-soft); margin-top: 12px; max-width: 720px; }
 .post-body li strong { color: var(--ink); }
 .post-body code { font-family: var(--mono); background: var(--line-soft); padding: 2px 8px; border-radius: 4px; font-size: 0.9em; }
-.post-body pre.code-block {
+.post-body pre.code-block, .prose__inner pre.code-block {
   background: var(--ink); color: var(--bg);
   border-radius: 10px;
   padding: 20px;
@@ -767,7 +772,7 @@ details.qa p {
   overflow: auto;
   max-width: 720px;
 }
-.post-body pre.code-block code { background: transparent; padding: 0; color: inherit; }
+.post-body pre.code-block code, .prose__inner pre.code-block code { background: transparent; padding: 0; color: inherit; }
 .post-body .code-dim { color: rgba(250,246,241,0.5); }
 .post-body .code-kw { color: var(--butter); }
 .post-body .code-str { color: var(--sage); }
@@ -960,9 +965,14 @@ details.qa p {
   .privacy__inner, .migrate__inner, .cta-strip__inner { padding: 32px 24px; }
   .nav__links { display: none; }
   .nav { padding: 16px 24px; }
+  /* Phones: the version pill and GitHub link push "Get it free" off the screen. GitHub stays in the footer. */
+  .nav__version, .nav__gh { display: none; }
+  .nav__cta { white-space: nowrap; }
   .footer { grid-template-columns: 1fr; gap: 24px; }
   .step-row { grid-template-columns: 1fr; }
   .uc-step { grid-template-columns: 1fr; gap: 12px; }
   .about-stats__grid { grid-template-columns: 1fr 1fr; }
   .gallery { grid-template-columns: 1fr; gap: 40px; }
+  /* Comparison tables: the desktop padding makes three columns wider than a phone, and .matrix clips the overflow. */
+  .matrix th, .matrix td { padding: 12px 10px; }
 }

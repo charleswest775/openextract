@@ -4,8 +4,8 @@ const fs = require('fs');
 
 /**
  * Facts for the in-app feedback form. Everything here stays in memory until
- * the user opens the form, sees it, edits it, and sends it themselves from
- * their browser or email app. OpenExtract never sends any of it.
+ * the user opens the form, sees it, edits it, and clicks Send
+ * (feedbackReports.ts). Nothing is sent otherwise.
  *
  * Nothing from inside a backup is kept: no message text, contact names,
  * file paths or device names. Error messages and log lines can still mention
@@ -111,7 +111,9 @@ export function scrubText(text: string, secrets: Map<string, string>): string {
 export function extractLogExcerpt(logText: string): string {
   const entries: string[][] = [];
   for (const line of logText.split(/\r?\n/)) {
-    if (line.startsWith('[')) entries.push([line]);
+    // The packaged engine's bootloader writes "[PYI-1234:ERROR] ..." to stderr, often
+    // in the same chunk as the traceback before it, so it continues that [STDERR] entry.
+    if (line.startsWith('[') && !line.startsWith('[PYI-')) entries.push([line]);
     else if (entries.length && line.trim()) entries[entries.length - 1].push(line);
   }
 
@@ -127,12 +129,14 @@ export function extractLogExcerpt(logText: string): string {
     if (!exit || exit[1] === 'null' || exit[1] === '0') return;
     // A crash before the engine could answer (e.g. a missing module) only leaves its
     // traceback on stderr. Keep the stderr lines just before the exit, but only when
-    // they are a traceback, since stderr otherwise carries stray prints.
+    // they are a traceback or the bootloader's own errors (it failed before Python
+    // ran), since stderr otherwise carries stray prints.
     let start = i;
     while (start > 0 && entries[start - 1][0].startsWith('[STDERR]')) start -= 1;
     const stderr = entries.slice(start, i).flat();
-    const tb = stderr.findIndex(l => l.includes('Traceback (most recent call last)'));
-    if (tb >= 0) wanted.push([...stderr.slice(tb), head]);
+    let from = stderr.findIndex(l => l.includes('Traceback (most recent call last)'));
+    if (from < 0) from = stderr.findIndex(l => /\[PYI-\d+:ERROR\]/.test(l));
+    if (from >= 0) wanted.push([...stderr.slice(from), head]);
     else wanted.push(entry);
   });
 
