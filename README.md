@@ -1,6 +1,11 @@
 # OpenExtract
 
-A free, open-source desktop application for extracting text messages, photos, voicemails, call history, contacts, and notes from iPhone/iPad backups.
+A free, open-source iPhone backup extractor for Windows, Mac and Linux: read and save the messages, photos, voicemails, calls, contacts and notes in an iPhone or iPad backup.
+
+**[Download for Windows, Mac or Linux](https://www.openextract.app/?ref=gh-readme#download)** · **[openextract.app](https://www.openextract.app/?ref=gh-readme)**
+
+[![Downloads](https://img.shields.io/github/downloads/charleswest775/openextract/total?label=downloads&color=d97757)](https://github.com/charleswest775/openextract/releases)
+[![Latest release](https://img.shields.io/github/v/release/charleswest775/openextract?label=latest&color=7a9a7a)](https://github.com/charleswest775/openextract/releases/latest)
 
 **No cloud. No subscriptions. Your data stays on your computer.**
 
