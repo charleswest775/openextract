@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Print iPhone text messages for court, free — OpenExtract</title>
+  <meta name="description" content="Print a whole iPhone text conversation with the date, time and sender of every message. Free and open source, from a backup on your own computer." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/print-text-messages-for-court" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/print-text-messages-for-court" />
+  <meta property="og:title" content="Print iPhone text messages for court, free" />
+  <meta property="og:description" content="The whole thread with dates, times and senders. Courts and attorneys decide what's admissible." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Print text messages from your iPhone for court",
+    "description": "Print a whole iPhone text conversation with the date, time and sender of every message. Free and open source, from a backup on your own computer.",
+    "url": "https://www.openextract.app/use-cases/print-text-messages-for-court",
+    "datePublished": "2026-11-03",
+    "dateModified": "2026-11-03",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/overview-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Will a court accept this printout?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "We can't tell you that. It depends on the court, the case and the rules where you are, and the judge and attorneys decide. Ask your attorney or the court clerk what they want before you print."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it show the date and time of each message?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Every message on the printout has its own date and time, in UTC (the +00:00 at the end), not local time. Convert it to the time zone you mean before you quote a time."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I print iMessages and SMS texts, and group chats?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, all three. Group chats show who sent each message."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Will the other person know I printed our messages?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract reads a backup that's already on your computer and contacts no one."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it change the backup?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. It only reads the backup. Keep the original backup folder as it is, in case someone asks for it later."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it really free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. The code is on GitHub."
+        }
+      }
+    ]
+  }
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 5 min</div>
+    <h1>Print text messages<br />from your iPhone <span class="it">for court</span>.</h1>
+    <p class="page-head__lede">Back up the iPhone to your computer, open the backup in OpenExtract (free), export the conversation as a PDF, and print it. You can also export an HTML or text file and print that. You get the whole thread, with the date, time and sender of every message, not a pile of screenshots. Whether a court accepts it is up to the court and the attorneys.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <p>On the iPhone itself you can screenshot a thread or forward a few messages, but forwarded messages lose their dates and times. For a long conversation that means dozens of screenshots, and screenshots often cut off the dates. A computer backup holds the whole conversation, so the printout can too.</p>
+      <p><strong>This page isn't legal advice.</strong> OpenExtract makes a printable record. It doesn't certify or authenticate anything. If you have a case, ask your attorney, or the court's self-help center if you don't have one, what format they need. Some cases call for a forensic examiner rather than a printout you make yourself.</p>
+    </div>
+  </section>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>Make a backup on your computer</h2>
+        <p>Plug the iPhone into your computer with a cable and tap <strong>Trust</strong> on the phone if it asks. On a Mac, open Finder and click the iPhone in the sidebar. On Windows, open the Apple Devices app or iTunes. Choose to back up to this computer and click <strong>Back Up Now</strong>. You can tick <strong>Encrypt local backup</strong> for a fuller backup; just write the password down. OpenExtract can also make the backup for you, from its start screen.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>Install OpenExtract</h2>
+        <p>Free for Mac (Apple Silicon), Windows 10 and 11, and Linux. <a href="/#download">Download it here</a>. No account, no trial, no card.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>Open the backup</h2>
+        <p>On OpenExtract's start screen, choose to open a backup you already have, and pick the backup folder. On a Mac it's <code>~/Library/Application Support/MobileSync/Backup</code>, which is hidden: press Cmd+Shift+G in the window that opens and paste that path. If OpenExtract asks for Full Disk Access, follow its steps. On Windows it's <code>%USERPROFILE%\Apple\MobileSync\Backup</code>, or <code>%APPDATA%\Apple Computer\MobileSync\Backup</code> if that isn't there. If the folder holds more than one backup, it shows each one with the device name and date so you can choose. If the backup is encrypted, type the password you set. It stays on your computer.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Find the conversation</h2>
+        <p>Open <strong>Messages</strong>. Type a name or number in the search box at the top to narrow the list of conversations, then click the one you need to read it. iMessage, SMS and group chats are all there.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">05</div>
+      <div>
+        <h2>Export it</h2>
+        <p>Click the save button at the top right (it may be just an icon) and choose PDF, HTML or plain text. If a <strong>Save</strong> button comes up, click it. Then pick a folder. PDF and HTML look like a chat, with the sender's name above each message you received, and the PDF includes the photos. A text file starts each message on a new line, with its timestamp and the sender ("me" for your own messages). The file is named after the conversation and the dates it covers.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">06</div>
+      <div>
+        <h2>Print it</h2>
+        <p>Open the PDF and print it, or send the file as it is. An HTML file prints from your web browser with Ctrl+P (Cmd+P on a Mac), and a text file prints from Notepad or TextEdit the same way.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>What's on the printout</h2>
+      <ul>
+        <li><strong>Every message in the conversation</strong>, oldest first, up to the moment the backup was made.</li>
+        <li><strong>A timestamp on every message</strong>, in UTC (that's what the <code>+00:00</code> means), for example <code>2026-01-01T03:00:00.512345+00:00</code> (the digits after the dot are fractions of a second). It isn't local time, so it can differ from the times the phone and the app show, sometimes by a day: this one is 7 PM on December 31 in California. If you quote a time, convert it and say which time zone you mean.</li>
+        <li><strong>Who sent each message.</strong> A name if the person was in the phone's contacts when the backup was made, otherwise their phone number or email.</li>
+      </ul>
+      <h2>What it can't do</h2>
+      <ul>
+        <li><strong>Only the PDF shows photos.</strong> The HTML and text files name each attachment instead. A photo that lives only in iCloud isn't in the backup, so the PDF names it too.</li>
+        <li><strong>No date range in the export.</strong> It exports the whole conversation. To print part of it, choose a page range in the print dialog.</li>
+        <li><strong>It only has what the backup has.</strong> Messages deleted before the backup was made usually aren't there. See <a href="/use-cases/recover-deleted-text-messages-iphone">recovering deleted texts</a> for what can and can't come back.</li>
+        <li><strong>It doesn't certify anything.</strong> It's not a forensic tool, and the export isn't signed or notarized.</li>
+        <li><strong>No iCloud.</strong> It reads backups on your computer, not iCloud backups.</li>
+      </ul>
+      <h2>Common questions</h2>
+      <p><strong>Will a court accept this printout?</strong> We can't tell you that. It depends on the court, the case and the rules where you are, and the judge and attorneys decide. Ask your attorney or the court clerk what they want before you print.</p>
+      <p><strong>Does it show the date and time of each message?</strong> Yes. Every message on the printout has its own date and time, in UTC (the +00:00 at the end), not local time. Convert it to the time zone you mean before you quote a time.</p>
+      <p><strong>Can I print iMessages and SMS texts, and group chats?</strong> Yes, all three. Group chats show who sent each message.</p>
+      <p><strong>Will the other person know I printed our messages?</strong> No. OpenExtract reads a backup that's already on your computer and contacts no one.</p>
+      <p><strong>Does it change the backup?</strong> No. It only reads the backup. Keep the original backup folder as it is, in case someone asks for it later.</p>
+      <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Free · about two minutes</div>
+        <h3>Get the whole thread.<br /><span class="it">Then print it.</span></h3>
+        <p>OpenExtract runs on your own computer. No account, nothing uploaded.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/use-cases/export-imessage-to-pdf">Export iMessage to PDF →</a>
+        <a class="uc-related__link" href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted text messages →</a>
+        <a class="uc-related__link" href="/use-cases/export-iphone-messages">Get all your texts off your iPhone →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">A printable record of the whole conversation.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

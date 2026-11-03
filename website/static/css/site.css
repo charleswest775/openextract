@@ -159,13 +159,15 @@ img { max-width: 100%; display: block; }
 .prose__inner li strong { color: var(--ink); }
 .prose__inner a { color: var(--coral); }
 .prose__inner a:hover { text-decoration: underline; }
-.prose__inner code {
+.prose__inner code, .page-head__lede code, .uc-step p code {
   font-family: var(--mono);
   background: var(--line-soft);
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 0.9em;
 }
+/* Windows paths are one long word; let them break on a phone instead of widening the page. */
+.prose__inner code, .page-head__lede code, .uc-step p code, .uc-reason__v code { overflow-wrap: anywhere; }
 
 /* ── CTA strip (used near bottom of subpages) ────────── */
 .cta-strip { padding: 40px 56px 72px; }
@@ -194,7 +196,7 @@ img { max-width: 100%; display: block; }
   border-top: 1px solid var(--line);
   padding: 40px 56px;
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: 1.6fr repeat(4, 1fr);
   gap: 32px;
   background: var(--bg);
 }
@@ -740,6 +742,10 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .wheres__row-
 .blog-post-card__cta--stories { color: var(--plum); }
 .blog-post-card__cta--guide { color: var(--sage); }
 .blog-post-card__cta--principles { color: var(--butter); }
+
+/* Guides hub: a small label over each group of cards */
+.guides-group .section-label { font-weight: 500; margin-bottom: 16px; }
+.guides-group .section-label a { color: var(--coral); }
 
 /* ── Blog post ──────────────────────────────────────── */
 .post-header { padding: 64px 56px 32px; max-width: 848px; margin: 0 auto; }

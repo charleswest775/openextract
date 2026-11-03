@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Save voicemails from an iPhone backup — OpenExtract</title>
+  <meta name="description" content="A gentle, step-by-step guide to finding a loved one's voicemails in an old iPhone backup and saving the audio to your computer, for free." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/save-voicemails-from-iphone-backup" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/save-voicemails-from-iphone-backup" />
+  <meta property="og:title" content="Save a loved one's voicemails from an iPhone backup" />
+  <meta property="og:description" content="Find them in the backup, listen, and keep the audio in more than one place." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Save a loved one's voicemails from an iPhone backup",
+    "description": "A gentle, step-by-step guide to finding a loved one's voicemails in an old iPhone backup and saving the audio to your computer, for free.",
+    "url": "https://www.openextract.app/use-cases/save-voicemails-from-iphone-backup",
+    "datePublished": "2026-11-03",
+    "dateModified": "2026-11-03",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/overview-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Do I need their phone or their Apple ID?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. You need the backup folder. If the backup is encrypted, you also need the backup password."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Will listening or saving change the backup?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract only reads it. The backup stays exactly as it was."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Are the transcripts included?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract can't read the iPhone's voicemail transcripts, so the Transcript column in voicemails.csv stays empty. You still get the audio."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I copy the backup to my own computer first?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Copy the whole backup folder, then on OpenExtract's start screen choose to open a backup folder and pick the copy."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does anything get uploaded?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. The only thing it asks the internet for is whether a new version is out, and it asks you before it checks. You can turn that off in Settings."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it really free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. The code is on GitHub."
+        }
+      }
+    ]
+  }
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 4 min</div>
+    <h1>Save a loved one's voicemails<br />from an <span class="it">iPhone backup</span>.</h1>
+    <p class="page-head__lede">If the voicemails were on the iPhone the last time it was backed up to a computer, they are very likely still in that backup. OpenExtract (free) opens the backup, lets you listen to each voicemail, and saves the audio to a folder you choose, along with a list of who called and when.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <p>Take this at whatever pace you need. Opening the backup, listening and saving never change or delete it, so you can't break anything by looking. If you still have their phone, don't plug it into that computer or back it up with OpenExtract, Finder, iTunes or the Apple Devices app until the voicemails are saved. A new backup of the same phone can replace the old one. If listening is hard right now, you can save the voicemails first and play them another day.</p>
+      <p>You don't need the phone, and you don't need their Apple ID. You need the computer the phone was backed up to, or a copy of the backup folder. We wrote more about this in <a href="/blog/recovering-voicemails-from-loved-ones">Recovering voicemails from people who have passed</a>.</p>
+    </div>
+  </section>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>Find the computer with the backup</h2>
+        <p>Usually the Mac or PC the phone was plugged into. On a Mac, backups are in <code>~/Library/Application Support/MobileSync/Backup</code>. On Windows, look in <code>%USERPROFILE%\Apple\MobileSync\Backup</code> (the Apple Devices app, or iTunes from the Microsoft Store) or <code>%APPDATA%\Apple Computer\MobileSync\Backup</code> (iTunes downloaded from Apple's website). Please don't delete or tidy anything on that computer yet.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>Install OpenExtract</h2>
+        <p>Free for Mac (Apple Silicon), Windows 10 and 11, and Linux. <a href="/#download">Download it here</a>. No account, no trial, no card.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>Open the backup</h2>
+        <p>On OpenExtract's start screen, choose the option to open a backup that's already on your computer (not the one that makes a new backup), then pick the backup folder. If the folder holds more than one backup, it shows each one with the device name and date so you can choose. If the backup is encrypted, type the backup password (the one chosen when the backup was made). It stays on your computer.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Open Voicemail</h2>
+        <p>Click <strong>Voicemail</strong>. You'll see each saved voicemail with who called, the date, and how long it is. Click one to open it, then press play to listen.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">05</div>
+      <div>
+        <h2>Save them to a folder</h2>
+        <p>At the top right of the Voicemail screen, click the button that saves them all (<strong>Export audio</strong> or <strong>Save all</strong>, depending on your version) and choose a folder. OpenExtract saves an <code>audio</code> folder with one file per voicemail, named with the caller and the date, and a <code>voicemails.csv</code> list with the date, caller and length of each one. The dates in the file names and the list are in UTC, so a voicemail left in the evening can show the next day's date.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">06</div>
+      <div>
+        <h2>Keep copies in more than one place</h2>
+        <p>Copy the folder to an external drive, to a cloud folder you control, and to a family member. Drives fail and accounts close. Several copies mean the voices outlast any one of them.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>What it can't do</h2>
+      <ul>
+        <li><strong>Only voicemails that were on the phone.</strong> A backup holds the voicemails the iPhone had saved when it was backed up. Voicemail kept only on the carrier's system, the kind you dial in to hear, isn't in a backup. Voicemails that were in the phone's Deleted Messages list don't show in OpenExtract.</li>
+        <li><strong>Encrypted backups need the password.</strong> There's no way around it, for us or for Apple. A notebook, a password manager or a note on the computer is worth checking.</li>
+        <li><strong>No iCloud.</strong> OpenExtract reads backups on a computer, not iCloud backups.</li>
+        <li><strong>No backup, no voicemails.</strong> If the phone was never backed up to a computer, there's nothing on the computer to open.</li>
+        <li><strong>Some players won't open the files.</strong> The audio is saved as <code>.amr</code> files. If your usual player won't open one, a free player such as VLC usually can. OpenExtract doesn't convert audio to other formats.</li>
+      </ul>
+      <h2>Common questions</h2>
+      <p><strong>Do I need their phone or their Apple ID?</strong> No. You need the backup folder. If the backup is encrypted, you also need the backup password.</p>
+      <p><strong>Will listening or saving change the backup?</strong> No. OpenExtract only reads it. The backup stays exactly as it was.</p>
+      <p><strong>Are the transcripts included?</strong> No. OpenExtract can't read the iPhone's voicemail transcripts, so the Transcript column in <code>voicemails.csv</code> stays empty. You still get the audio.</p>
+      <p><strong>Can I copy the backup to my own computer first?</strong> Yes. Copy the whole backup folder, then on OpenExtract's start screen choose to open a backup folder and pick the copy.</p>
+      <p><strong>Does anything get uploaded?</strong> No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. The only thing it asks the internet for is whether a new version is out, and it asks you before it checks. You can turn that off in Settings.</p>
+      <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Free · no account</div>
+        <h3>Their voice,<br /><span class="it">kept safe.</span></h3>
+        <p>OpenExtract runs on your own computer and never uploads the backup.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/blog/recovering-voicemails-from-loved-ones">Recovering voicemails from people who have passed →</a>
+        <a class="uc-related__link" href="/use-cases/view-iphone-backup-on-windows">Find and open an iPhone backup on Windows →</a>
+        <a class="uc-related__link" href="/use-cases/export-iphone-data">Export everything else on the iPhone →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Keep the voicemails that matter.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
