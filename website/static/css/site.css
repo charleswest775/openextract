@@ -968,4 +968,6 @@ details.qa p {
   .uc-step { grid-template-columns: 1fr; gap: 12px; }
   .about-stats__grid { grid-template-columns: 1fr 1fr; }
   .gallery { grid-template-columns: 1fr; gap: 40px; }
+  /* Comparison tables: the desktop padding makes three columns wider than a phone, and .matrix clips the overflow. */
+  .matrix th, .matrix td { padding: 12px 10px; }
 }
