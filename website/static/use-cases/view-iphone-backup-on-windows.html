@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>View an iPhone backup on Windows, free — OpenExtract</title>
+  <meta name="description" content="Where Windows keeps iPhone backups from iTunes or Apple Devices, and how to open one and read it with OpenExtract, a free viewer for Windows 10 and 11." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/view-iphone-backup-on-windows" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/view-iphone-backup-on-windows" />
+  <meta property="og:title" content="How to view an iPhone backup on Windows" />
+  <meta property="og:description" content="Where Windows keeps the backup folder, how to open it, and what you can read in it. Free for Windows 10 and 11." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "View an iPhone backup on Windows",
+    "description": "Where Windows keeps iPhone backups from iTunes or Apple Devices, and how to open one and read it with OpenExtract, a free viewer for Windows 10 and 11.",
+    "url": "https://www.openextract.app/use-cases/view-iphone-backup-on-windows",
+    "datePublished": "2026-11-03",
+    "dateModified": "2026-11-03",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/overview-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Does it work with backups from the Apple Devices app?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Apple Devices and iTunes make the same kind of backup, and OpenExtract opens both."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Why can't I just open the files in the backup?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Apple stores the data in databases and renames every file to a code, so there's nothing to double-click. A viewer reads the database and shows the real content."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I move the backup to another drive?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "You can copy the whole folder anywhere and open the copy in OpenExtract. Apple's apps only look in their usual folder, so leave the original there if you want them to keep using it."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which backup belongs to which phone?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "OpenExtract shows each backup's device name, iOS version and date when you pick the folder that holds them."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it open iPad backups?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. iPad backups use the same format, so OpenExtract opens them the same way. Things an iPad doesn't have, such as voicemail, won't show up."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which iOS versions does it read?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Before a release, the project tests it on Windows, Mac and Linux against real public backups from iOS 13 to 17. Every change is also tested with made-up backups laid out like iOS 15, 17 and 26."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it safe to install?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The installer is signed by the developer, and all of the code is public on GitHub for anyone to read. It doesn't upload your backup."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it work on Mac and Linux too?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. There are versions for Mac (Apple Silicon) and Linux as well. See the free iPhone backup viewer and iPhone backups on Linux."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does anything get uploaded?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. The only thing it asks the internet for is whether a new version is out, and it asks you before it checks. You can turn that off in Settings."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it really free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. The code is on GitHub."
+        }
+      }
+    ]
+  }
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Windows 10 &amp; 11 · 4 min</div>
+    <h1>View an iPhone backup<br /><span class="it">on Windows</span>.</h1>
+    <p class="page-head__lede">Windows keeps iPhone backups in a folder called MobileSync\Backup: either <code>%USERPROFILE%\Apple\MobileSync\Backup</code> (the Apple Devices app, or iTunes from the Microsoft Store) or <code>%APPDATA%\Apple Computer\MobileSync\Backup</code> (iTunes downloaded from Apple's website). The files inside aren't readable on their own, so open the folder with a backup viewer. OpenExtract is a free, open-source one for Windows 10 and 11.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <p>You'll find the folder in a minute. What's in it will look like nonsense, and that's normal: Apple renames every file in a backup to a long code and keeps a database that maps the codes back to real names. A viewer reads that database for you and shows the backup much as you saw it on the phone.</p>
+      <p>This guide is for Windows. On a Mac or Linux, see the <a href="/use-cases/free-iphone-backup-viewer">free iPhone backup viewer</a>.</p>
+    </div>
+  </section>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>Open the backup folder</h2>
+        <p>Press the Windows key and R together, paste <code>%USERPROFILE%\Apple\MobileSync\Backup</code> and press Enter. If Windows can't find it, try <code>%APPDATA%\Apple Computer\MobileSync\Backup</code>. If neither exists, this PC has no iPhone backup in the usual place.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>Recognize a backup, and leave it as it is</h2>
+        <p>Each backup is one folder with a long name of letters and numbers, which is the device's ID. Inside are files called <code>Manifest.db</code>, <code>Info.plist</code> and <code>Status.plist</code>, and many folders with two-character names. The folder's date modified tells you roughly when it was last backed up. Don't rename, open or edit anything inside it. To move or keep a copy, copy the whole folder, for example to an external drive.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>Install OpenExtract</h2>
+        <p><a href="/download/windows">Download OpenExtract for Windows</a> and run the installer. It's free, needs no account, and installs for your Windows user only. The installer is signed by Charles West, the developer.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Open the backup in OpenExtract</h2>
+        <p>On OpenExtract's start screen, choose to open a backup folder, and pick the <code>Backup</code> folder or one backup folder inside it. If there's more than one, OpenExtract lists each with the device name, iOS version and date. A lock means the backup is encrypted: type the password you set when you turned on encryption.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">05</div>
+      <div>
+        <h2>Read it, and save what you need</h2>
+        <p>Pick what to look at: messages, photos, contacts, calls, notes, voicemail or web history. The Timeline puts messages, calls, photos, notes and more in one list by date. Conversations save as PDF (with their photos), HTML, CSV or text, contacts as CSV, and photos and voicemails as files.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>What you can see</h2>
+      <ul>
+        <li><strong>Messages</strong>: every iMessage, SMS and group chat, with the photos sent in them. You can search them too.</li>
+        <li><strong>Photos</strong>: the camera roll and the albums made on the phone.</li>
+        <li><strong>Contacts, calls and notes</strong>: the address book, the call log including FaceTime, and Apple Notes.</li>
+        <li><strong>Voicemail</strong>: saved voicemails you can play and save.</li>
+        <li><strong>Web history</strong>: pages visited in Safari and Firefox, and the sites visited most.</li>
+        <li><strong>Timeline</strong>: messages, calls, photos and more in one list by date, plus a summary screen with counts and patterns for the whole backup.</li>
+      </ul>
+      <p>Some things, such as call history and web history, are only in encrypted backups. You can see each screen on the <a href="/screenshots">screenshots page</a>, taken with a made-up test backup.</p>
+
+      <h2>What it can't do</h2>
+      <ul>
+        <li><strong>iCloud backups aren't on your PC.</strong> OpenExtract reads backups saved on a computer.</li>
+        <li><strong>It reads backups and can make new ones; it doesn't edit or restore them.</strong> It can't change a backup or put one back on a phone. For a full side-by-side, see <a href="/vs-imazing">OpenExtract vs iMazing</a>.</li>
+        <li><strong>Not every app.</strong> It covers the apps listed above. Chat apps such as WhatsApp aren't supported.</li>
+        <li><strong>Encrypted backups need their password.</strong> There's no way to open one without it.</li>
+        <li><strong>An interrupted backup may be incomplete.</strong> If a backup stopped partway, some things may be missing. Back up again to get a full one.</li>
+        <li><strong>It doesn't change where iTunes or Apple Devices save backups.</strong> Apple's apps always use their usual folder. OpenExtract can open a copy from anywhere, though, and a backup it makes itself goes to the folder you choose.</li>
+      </ul>
+      <h2>Common questions</h2>
+      <p><strong>Does it work with backups from the Apple Devices app?</strong> Yes. Apple Devices and iTunes make the same kind of backup, and OpenExtract opens both.</p>
+      <p><strong>Why can't I just open the files in the backup?</strong> Apple stores the data in databases and renames every file to a code, so there's nothing to double-click. A viewer reads the database and shows the real content.</p>
+      <p><strong>Can I move the backup to another drive?</strong> You can copy the whole folder anywhere and open the copy in OpenExtract. Apple's apps only look in their usual folder, so leave the original there if you want them to keep using it.</p>
+      <p><strong>Which backup belongs to which phone?</strong> OpenExtract shows each backup's device name, iOS version and date when you pick the folder that holds them.</p>
+      <p><strong>Does it open iPad backups?</strong> Yes. iPad backups use the same format, so OpenExtract opens them the same way. Things an iPad doesn't have, such as voicemail, won't show up.</p>
+      <p><strong>Which iOS versions does it read?</strong> Before a release, the project tests it on Windows, Mac and Linux against real public backups from iOS 13 to 17. Every change is also tested with made-up backups laid out like iOS 15, 17 and 26.</p>
+      <p><strong>Is it safe to install?</strong> The installer is signed by the developer, and all of the code is public on GitHub for anyone to read. It doesn't upload your backup.</p>
+      <p><strong>Does it work on Mac and Linux too?</strong> Yes. There are versions for Mac (Apple Silicon) and Linux as well. See the <a href="/use-cases/free-iphone-backup-viewer">free iPhone backup viewer</a> and <a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a>.</p>
+      <p><strong>Does anything get uploaded?</strong> No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. The only thing it asks the internet for is whether a new version is out, and it asks you before it checks. You can turn that off in Settings.</p>
+      <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Windows 10 &amp; 11</div>
+        <h3>Found the folder?<br /><span class="it">Now open it.</span></h3>
+        <p>Free, open source, and nothing leaves your PC.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/use-cases/free-iphone-backup-viewer">A free iPhone backup viewer for Windows, Mac and Linux →</a>
+        <a class="uc-related__link" href="/use-cases/save-iphone-texts-to-windows-pc">Save iPhone texts to a Windows PC →</a>
+        <a class="uc-related__link" href="/blog/what-is-in-an-iphone-backup">What's actually in an iPhone backup →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Read your iPhone backup on Windows.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/download/windows">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

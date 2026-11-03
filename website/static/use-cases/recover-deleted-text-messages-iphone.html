@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Recover deleted text messages on iPhone — OpenExtract</title>
+  <meta name="description" content="An honest guide to getting deleted iPhone texts back: Recently Deleted, older backups, and what a free backup scan can and can't find." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/recover-deleted-text-messages-iphone" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/recover-deleted-text-messages-iphone" />
+  <meta property="og:title" content="Recover deleted text messages on iPhone: what actually works" />
+  <meta property="og:description" content="Recently Deleted, older backups, and an honest look at what a backup scan can find." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Recover deleted text messages on iPhone",
+    "description": "An honest guide to getting deleted iPhone texts back: Recently Deleted, older backups, and what a free backup scan can and can't find.",
+    "url": "https://www.openextract.app/use-cases/recover-deleted-text-messages-iphone",
+    "datePublished": "2026-11-03",
+    "dateModified": "2026-11-03",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/overview-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Can I recover deleted texts without a backup?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Only from Recently Deleted on the phone, within its 30 days. OpenExtract needs a backup on your computer, but one you make now can still hold leftover messages from deleted conversations that iOS hasn't cleared yet, so it's worth a scan."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can it recover from iCloud?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. It reads backups saved on a computer."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does scanning change the backup?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. The scan only reads it. Nothing is written back."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Will it find deleted photos?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. The deleted-message scan looks for text messages only."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Why did the scan find nothing?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Usually because iOS had already cleared those messages before the backup was made. An older backup, if you have one, is the next place to look."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it really free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. The code is on GitHub."
+        }
+      }
+    ]
+  }
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 5 min</div>
+    <h1>Recover deleted<br /><span class="it">text messages</span> on iPhone.</h1>
+    <p class="page-head__lede">Start with what's most likely to work. On iOS 16 or later, deleted texts stay in the Messages app's Recently Deleted list for up to 30 days. If they're gone from there, your best chance is a computer backup made before you deleted them. OpenExtract (free) opens that backup, and it can also scan a backup for deleted messages iOS still had on file. No tool can promise to bring back every deleted message.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <p>Don't count on any app pulling a deleted text straight off the phone. Once iOS clears a message, treat it as gone. What survives is whatever was still in a backup, and that can include deleted messages iOS hadn't cleared yet. So the question is always: which backup, made when?</p>
+    </div>
+  </section>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>Check Recently Deleted on the phone</h2>
+        <p>On iOS 16 or later, open Messages and go to the conversation list. On iOS 26 and later, tap the Filter button at the top, then <strong>Recently Deleted</strong>. On iOS 16 to 18, tap <strong>Filters</strong> at the top left, then <strong>Recently Deleted</strong>, or tap <strong>Edit</strong>, then <strong>Show Recently Deleted</strong>. Messages stay there for up to 30 days, and you can recover them right there.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>Look for a backup made before you deleted them</h2>
+        <p>Apple's apps keep one backup per device on a computer and replace it the next time you back up. <strong>Before you back up again, copy the existing backup folder somewhere safe</strong>, or the older copy will be overwritten.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>Open that backup and read Messages normally</h2>
+        <p>Install OpenExtract, choose to open a backup you already have, and pick its folder. If the messages were deleted after that backup was made, they're simply there in <strong>Messages</strong>, like any other conversation.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Scan the backup for deleted messages</h2>
+        <p>Open <strong>Recover</strong> (in newer versions it's <strong>Recover deleted messages</strong>, under Tools on the backup's home page) and start the scan. It looks for two things: messages that were in iOS's Recently Deleted list when the backup was made (iOS 16 and later), shown in their original conversation, and leftover messages from conversations that were deleted, grouped by the other person.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">05</div>
+      <div>
+        <h2>Save what it finds</h2>
+        <p>Use the button at the top of the results to save everything it found as a PDF, a web page (HTML) or a spreadsheet (CSV). If the scan finds nothing, that usually means there was nothing left to find in that backup.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>What it can't do</h2>
+      <p>We'd rather you know this before you start.</p>
+      <ul>
+        <li><strong>Text only.</strong> The scan recovers the words of a message. It doesn't recover photos, videos or other attachments, and it skips messages that have no text.</li>
+        <li><strong>Only what iOS still had on file.</strong> Messages already cleared from Recently Deleted, or already removed from the phone's message database when the backup was made, aren't in that backup to find.</li>
+        <li><strong>No digging through leftover file space.</strong> It reads the message database as it is. It doesn't try to piece together data from unused space in the file. Some paid forensic tools try that, and even they can't promise results.</li>
+        <li><strong>A backup, not the phone.</strong> It can't scan the iPhone itself, and a backup made after the messages were gone won't have them.</li>
+        <li><strong>Group chats lose their members.</strong> For leftover messages from a deleted group chat, it can show who sent each one, but not who else was in the group.</li>
+        <li><strong>No iCloud, and encrypted backups need their password.</strong></li>
+      </ul>
+      <h2>Common questions</h2>
+      <p><strong>Can I recover deleted texts without a backup?</strong> Only from Recently Deleted on the phone, within its 30 days. OpenExtract needs a backup on your computer, but one you make now can still hold leftover messages from deleted conversations that iOS hasn't cleared yet, so it's worth a scan.</p>
+      <p><strong>Can it recover from iCloud?</strong> No. It reads backups saved on a computer.</p>
+      <p><strong>Does scanning change the backup?</strong> No. The scan only reads it. Nothing is written back.</p>
+      <p><strong>Will it find deleted photos?</strong> No. The deleted-message scan looks for text messages only.</p>
+      <p><strong>Why did the scan find nothing?</strong> Usually because iOS had already cleared those messages before the backup was made. An older backup, if you have one, is the next place to look.</p>
+      <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Free · read-only</div>
+        <h3>Look in the backup<br /><span class="it">before it's replaced.</span></h3>
+        <p>OpenExtract never writes to your backup, so looking costs nothing.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/blog/what-is-in-an-iphone-backup">What's actually in an iPhone backup →</a>
+        <a class="uc-related__link" href="/use-cases/print-text-messages-for-court">Print text messages for court →</a>
+        <a class="uc-related__link" href="/use-cases/export-iphone-messages">Get all your texts off your iPhone →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">See what your backup still holds.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

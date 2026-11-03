@@ -159,13 +159,15 @@ img { max-width: 100%; display: block; }
 .prose__inner li strong { color: var(--ink); }
 .prose__inner a { color: var(--coral); }
 .prose__inner a:hover { text-decoration: underline; }
-.prose__inner code {
+.prose__inner code, .page-head__lede code, .uc-step p code {
   font-family: var(--mono);
   background: var(--line-soft);
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 0.9em;
 }
+/* Windows paths are one long word; let them break on a phone instead of widening the page. */
+.prose__inner code, .page-head__lede code, .uc-step p code, .uc-reason__v code { overflow-wrap: anywhere; }
 
 /* ── CTA strip (used near bottom of subpages) ────────── */
 .cta-strip { padding: 40px 56px 72px; }
