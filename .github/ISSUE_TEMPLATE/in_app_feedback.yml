@@ -1,5 +1,5 @@
 name: Feedback from the app
-description: Opened by OpenExtract's "Send feedback" button, with details filled in. You can also fill it in by hand.
+description: Opened from OpenExtract's feedback form (version 0.9.0, or "Post it on GitHub instead"), with details filled in. You can also fill it in by hand.
 title: "[Feedback]: "
 labels: ["feedback"]
 body:

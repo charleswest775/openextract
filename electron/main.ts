@@ -7,6 +7,7 @@ import { PythonSidecar } from './sidecar';
 import { initUpdater } from './updater';
 import { exportMessagesPdf, PdfExportMethod, removeStaleStagingDirs } from './pdfExport';
 import { FeedbackRecorder } from './feedback';
+import { FeedbackReports } from './feedbackReports';
 
 let mainWindow: any = null;
 let sidecar: any = null;
@@ -82,7 +83,15 @@ const store = new JsonStore({
   sharePromptShown: false,
   // True once the user picks "Don't ask again" on the "Did this export come out right?" card.
   exportCheckOptOut: false,
+  // Feedback reports sent from this computer (reference, random lookup code, status),
+  // the email last typed into the form, and when their status was last checked.
+  feedbackReports: [],
+  feedbackEmail: '',
+  feedbackLastCheck: 0,
 });
+
+// Asks about open feedback reports this long after startup, if a check is due.
+const FEEDBACK_CHECK_DELAY_MS = 15_000;
 
 // The export check shows at most once per run, and never on the same export as the share prompt.
 let exportCheckShownThisRun = false;
@@ -349,10 +358,24 @@ app.whenReady().then(async () => {
 
   // ── In-app feedback ─────────────────────────────────────────────────────
   // Returns the scrubbed facts for the feedback form. The renderer shows them to
-  // the user, who sends the report from their own browser or email app.
+  // the user, who can edit them before clicking Send.
   ipcMain.handle('feedback:get-diagnostics', (_event: any, reportedError?: string) => {
     return feedback.diagnostics(typeof reportedError === 'string' ? reportedError : undefined);
   });
+
+  // Development builds can point the form at a local copy of the site's API.
+  const feedbackSite = isDev && process.env.OPENEXTRACT_FEEDBACK_SITE ? process.env.OPENEXTRACT_FEEDBACK_SITE : undefined;
+  const reports = new FeedbackReports(store, (url: string, init: any) => net.fetch(url, init), app.getVersion(), feedbackSite);
+
+  ipcMain.handle('feedback:send', (_event: any, input: any) => reports.send(input ?? {}));
+  ipcMain.handle('feedback:saved-email', () => store.get('feedbackEmail', ''));
+  ipcMain.handle('feedback:fixed-reports', () => reports.fixedToAnnounce());
+  ipcMain.handle('feedback:mark-announced', (_event: any, reference: string) => reports.markAnnounced(String(reference)));
+
+  setTimeout(async () => {
+    const fixed = await reports.checkIfDue().catch(() => false);
+    if (fixed && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('feedback:fixed');
+  }, FEEDBACK_CHECK_DELAY_MS);
 
   ipcMain.handle('feedback:export-check-opt-out', () => {
     store.set('exportCheckOptOut', true);

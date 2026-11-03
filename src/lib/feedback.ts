@@ -1,17 +1,27 @@
 import type { FeedbackDiagnostics } from '../types';
 
 /**
- * Builds the feedback report and the link that opens it as a GitHub issue in
- * the user's browser. OpenExtract never sends it: the user sees the full text in the
- * form, can edit it, and submits it themselves.
+ * Builds the feedback report. The form sends it to openextract.app
+ * (electron/feedbackReports.ts → website/static/api/), or, if that fails, opens
+ * it as a public GitHub issue in the user's browser. Either way the user sees the
+ * full text in the form and can edit it first.
  *
- * The GitHub issue form (.github/ISSUE_TEMPLATE/in_app_feedback.yml) and the
- * labelling workflow (.github/workflows/feedback-labels.yml) read the field ids
- * and the kind/area labels below, so keep the three in step.
+ * The site's API (website/static/api/_lib/feedback.js), the GitHub issue form
+ * (.github/ISSUE_TEMPLATE/in_app_feedback.yml) and the labelling workflow
+ * (.github/workflows/feedback-labels.yml) use the kind/area ids and labels
+ * below, so keep them in step (scripts/feedback.test.mjs checks).
  */
 
 export const FEEDBACK_REPO = 'charleswest775/openextract';
 export const FEEDBACK_TEMPLATE = 'in_app_feedback.yml';
+export const PRIVACY_URL = 'https://www.openextract.app/privacy#feedback';
+
+/** Random code the site keeps a hash of, so only this computer can look the report up later. */
+export function newReportToken(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
 
 export type FeedbackKind = 'broken' | 'missing' | 'idea' | 'other';
 

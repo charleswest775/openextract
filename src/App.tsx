@@ -10,6 +10,7 @@ import FullDiskAccessDialog, { FULL_DISK_ACCESS_PREFIX } from './components/shar
 import UpdateNotice from './components/shared/UpdateNotice';
 import SharePrompt from './components/shared/SharePrompt';
 import ExportCheckPrompt from './components/shared/ExportCheckPrompt';
+import FixedReportNotice from './components/shared/FixedReportNotice';
 import { FeedbackProvider, ReportProblemButton } from './components/shared/Feedback';
 
 type Screen = 'home' | 'explore' | 'create-backup';
@@ -159,6 +160,7 @@ export default function App() {
       <div className="fixed right-6 bottom-6 z-40 flex flex-col items-end gap-3">
         <SharePrompt />
         <ExportCheckPrompt />
+        <FixedReportNotice />
         <UpdateNotice />
       </div>
 

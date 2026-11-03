@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Send feedback no longer needs a GitHub account. Send delivers the report privately to OpenExtract's developer, with an optional email if you'd like a reply, and shows a reference number. If the report looks like a known problem, the fix appears right away. If sending fails, you can copy the report or post it on GitHub instead
+
 ### Added
+- When a problem you reported is fixed, OpenExtract tells you. While a report is open, the app checks on it every few days, sending only the report's number and a random code (see the privacy page)
 - Year view: a heatmap of the backup with one square per day, darker the more happened. Filter by type and person, hover for a day's counts, click a day to open it in the Timeline. Days the backup doesn't reach, such as messages kept only in iCloud, show as not in this backup instead of quiet
 
 ### Fixed

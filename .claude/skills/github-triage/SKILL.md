@@ -70,13 +70,31 @@ the reason). Credit contributors in the squash message.
 
 ## 3b. In-app feedback (`feedback` label)
 
-Reports from the app's Send feedback form use `.github/ISSUE_TEMPLATE/in_app_feedback.yml`,
-and `.github/workflows/feedback-labels.yml` adds `feedback` plus kind/area labels when the issue
-is opened. Work these as their own group, before other issues:
+From 0.9.1 the app's Send feedback form sends reports to openextract.app
+(`website/static/api/`), which files each one in the **private** repo
+`charleswest775/openextract-feedback` with `feedback` plus kind/area labels. Reports from 0.9.0,
+and from people who chose "Post it on GitHub instead", arrive as public issues here via
+`.github/ISSUE_TEMPLATE/in_app_feedback.yml`. Both use the same headings. Work them as their own
+group, before other issues:
 
 ```bash
+gh issue list --repo charleswest775/openextract-feedback --state open --limit 100 --json number,title,labels,createdAt,body
 gh issue list --state open --label feedback --limit 100 --json number,title,labels,createdAt,body
 ```
+
+Private reports (`OE-<number>` to the user) have rules of their own:
+
+- **Nothing from them goes public as is.** A confirmed bug gets a new public issue written in
+  your own words (symptom, versions, traceback with paths checked), linked from the private
+  report with a comment. Never copy the `Reply to` email or the user's wording into a public issue.
+- **Closing the loop.** When the fix ships, close the private report and add the label
+  `fixed-in:<version>` (e.g. `fixed-in:0.9.2`). The app checks open reports every few days and
+  tells the user it's fixed; reports with a `Reply to` email (label `has-email`) also get a
+  short email from the maintainer. Close duplicates with `fixed-in:` too once the canonical one ships.
+- **Don't edit the last line** (`<!-- openextract-report v1 token-sha256=… -->`): the app's
+  status check needs it.
+- **A pattern that keeps coming up** with a workaround belongs in
+  `website/static/api/_lib/known-fixes.js`, so the next person gets the answer the moment they send.
 
 - **Group by cause, not by title.** The Diagnostics block has `Failed:` method names, a
   `Recent errors:` list and engine tracebacks. Same method + same exception (e.g.

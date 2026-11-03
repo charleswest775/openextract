@@ -43,7 +43,7 @@
   <header class="page-head">
     <div class="page-head__eyebrow">Privacy</div>
     <h1>Privacy policy</h1>
-    <p class="page-head__lede">OpenExtract is a desktop app that reads iPhone and iPad backups stored on your own computer. It is made by Charles West. Last updated October 28, 2026.</p>
+    <p class="page-head__lede">OpenExtract is a desktop app that reads iPhone and iPad backups stored on your own computer. It is made by Charles West. Last updated November 3, 2026.</p>
   </header>
 
   <section class="prose">
@@ -52,10 +52,17 @@
       <p>When you open a backup, OpenExtract reads the personal information in it, such as messages, photos, voicemails, call history, contacts, notes and browsing history, so it can show them to you and save copies where you choose. If the backup is encrypted, you type its password into the app to unlock it.</p>
 
       <h2>Where it goes</h2>
-      <p>Nowhere. All reading and decryption happens on your computer. OpenExtract has no server and no account, and it doesn't upload, sell or share your data with anyone. It doesn't save your backup password. While a backup is open, the app may keep temporary copies of the databases it reads on your computer. Files you export are saved only where you choose.</p>
+      <p>Nowhere. All reading and decryption happens on your computer. OpenExtract has no account, and it doesn't upload, sell or share your data with anyone. It doesn't save your backup password. While a backup is open, the app may keep temporary copies of the databases it reads on your computer. Files you export are saved only where you choose. The one thing that can leave your computer is a feedback report you choose to send, described below.</p>
 
       <h2>Network use</h2>
-      <p>The only network request the app makes is an optional check for updates. The app asks you once before turning it on, and you can turn it off in Settings. A check downloads a small version file from GitHub, where OpenExtract's releases are published. It sends no information about you or your backups. GitHub sees the request, as it would any download. Updates download only when you choose to update.</p>
+      <p>The app makes two kinds of network request, and only with your say-so. The first is an optional check for updates. The app asks you once before turning it on, and you can turn it off in Settings. A check downloads a small version file from GitHub, where OpenExtract's releases are published. It sends no information about you or your backups. GitHub sees the request, as it would any download. Updates download only when you choose to update.</p>
+
+      <p>The second is a feedback report, sent only when you click Send in the app's feedback form. See the next section.</p>
+
+      <h2 id="feedback">Feedback reports</h2>
+      <p>The feedback form shows you everything it will send before you send it: the type of problem, the part of the app, what you wrote, and a details section with the app and system versions, your phone's model and iOS version, and recent error messages. Folder names, your device's name, email addresses and phone numbers are replaced with placeholders, and nothing from inside your backup is included. You can edit or delete any of it. An email address is included only if you type one in, and it's used only to write to you about that report.</p>
+      <p>When you click Send, the report goes to openextract.app, which files it in a private list that only OpenExtract's developer can read. It isn't posted publicly. The app also sends a random code it makes for that report. The site keeps only a scrambled form of the code, so only your computer can ask about the report later.</p>
+      <p>While a report is open, the app asks openextract.app about it at most every few days, for up to six months, so it can tell you when it's fixed. Each check sends only the report's number and its code. The report number, its code, the email you typed and when you sent it are remembered on your computer.</p>
 
       <h2>No analytics in the app</h2>
       <p>The app contains no analytics, advertising or tracking. This website uses Vercel Web Analytics to count page visits, which is separate from the app.</p>
