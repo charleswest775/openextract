@@ -18,7 +18,7 @@
     "python:install:dev": "cd python && ../.venv/Scripts/pip install -r requirements-dev.txt",
     "python:lint": ".venv/Scripts/ruff check python/",
     "python:test": ".venv/Scripts/pytest python/tests/ -v",
-    "python:bundle": "cd python && pyinstaller --onefile --name openextract-engine main.py"
+    "python:bundle": "node scripts/bundle-engine.mjs"
   },
   "dependencies": {
     "@fontsource/fraunces": "^5.2.9",
@@ -54,8 +54,7 @@
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*.js",
-      "python/dist/**/*"
+      "dist-electron/**/*.js"
     ],
     "publish": {
       "provider": "github",
@@ -85,7 +84,8 @@
     "win": {
       "target": "nsis",
       "signExts": [
-        ".dll"
+        ".dll",
+        ".pyd"
       ],
       "azureSignOptions": {
         "publisherName": "Charles West",
@@ -95,11 +95,8 @@
       },
       "extraResources": [
         {
-          "from": "python/dist",
-          "to": "python",
-          "filter": [
-            "openextract-engine.exe"
-          ]
+          "from": "python/dist/openextract-engine",
+          "to": "python"
         }
       ]
     },

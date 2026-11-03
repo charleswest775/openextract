@@ -110,6 +110,36 @@ test('extractLogExcerpt keeps the stderr traceback of a crash at startup', () =>
   assert.doesNotMatch(out, /stray print/);
 });
 
+// #169: the bootloader's summary line arrived in the same stderr chunk as the end of
+// the traceback, and the report kept only "[EXIT] code 1".
+test('extractLogExcerpt keeps the traceback when the bootloader error shares its chunk', () => {
+  const log = [
+    '[STDERR] Traceback (most recent call last):',
+    '[STDERR] File "main.py", line 36, in <module>',
+    '  File "Crypto\\Util\\_raw_api.py", line 319, in load_pycryptodome_raw_lib',
+    "OSError: Cannot load native module 'Crypto.Util._cpuid_c': Cannot load '_cpuid_c.pyd': [WinError 4551] An Application Control policy has blocked this file",
+    "[PYI-6512:ERROR] Failed to execute script 'main' due to unhandled exception!",
+    '[EXIT] code 1',
+  ].join('\r\n');
+  const out = main.extractLogExcerpt(log);
+  assert.match(out, /^\[STDERR\] Traceback/);
+  assert.match(out, /WinError 4551/);
+  assert.match(out, /\[PYI-6512:ERROR\] Failed to execute script/);
+  assert.match(out, /\[EXIT\] code 1$/);
+});
+
+test('extractLogExcerpt keeps the bootloader error of a crash before Python started', () => {
+  const log = [
+    '[STDERR] [PYI-6512:ERROR] Failed to load Python DLL \'C:\\Users\\x\\AppData\\Local\\Temp\\_MEI2\\python311.dll\'.',
+    'LoadLibrary: An Application Control policy has blocked this file.',
+    '[EXIT] code 4294967295',
+  ].join('\n');
+  const out = main.extractLogExcerpt(log);
+  assert.match(out, /Failed to load Python DLL/);
+  assert.match(out, /LoadLibrary: An Application Control policy/);
+  assert.match(out, /\[EXIT\] code 4294967295$/);
+});
+
 test('FeedbackRecorder keeps backup facts but not names, and scrubs recorded errors', () => {
   const rec = new main.FeedbackRecorder(path.join(tmp, 'missing-log.txt'), '0.9.0');
   rec.recordCall('open_backup', { udid: 'abcd1234efgh', backup_dir: '/Volumes/Ext/MyBackups/abcd1234efgh' }, {
