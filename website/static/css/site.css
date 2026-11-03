@@ -960,6 +960,9 @@ details.qa p {
   .privacy__inner, .migrate__inner, .cta-strip__inner { padding: 32px 24px; }
   .nav__links { display: none; }
   .nav { padding: 16px 24px; }
+  /* Phones: the version pill and GitHub link push "Get it free" off the screen. GitHub stays in the footer. */
+  .nav__version, .nav__gh { display: none; }
+  .nav__cta { white-space: nowrap; }
   .footer { grid-template-columns: 1fr; gap: 24px; }
   .step-row { grid-template-columns: 1fr; }
   .uc-step { grid-template-columns: 1fr; gap: 12px; }

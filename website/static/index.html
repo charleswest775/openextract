@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#faf6f1" />
-  <title>OpenExtract — Get your memories back</title>
-  <meta name="description" content="Free, open-source iPhone backup extractor. Pull messages, photos, voicemails, and contacts out of any iTunes or Finder backup — right on your laptop. Nothing uploaded, nothing paid." />
+  <title>OpenExtract — Free, open-source iPhone backup extractor</title>
+  <meta name="description" content="Free, open-source iPhone backup extractor for Windows, Mac and Linux. Save texts, photos, voicemails and contacts from any backup. Nothing is uploaded." />
   <link rel="canonical" href="https://www.openextract.app/" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="author" content="OpenExtract" />
@@ -39,8 +39,10 @@
     "description": "Free, open-source desktop application for extracting messages, photos, contacts, call history, voicemails, and app data from iPhone and iPad backups — including encrypted backups. Runs 100% locally.",
     "applicationCategory": "UtilityApplication",
     "applicationSubCategory": "DataExtraction",
-    "operatingSystem": "Windows 10, Windows 11, macOS 12+, Linux",
+    "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
     "url": "https://www.openextract.app/",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "screenshot": "https://www.openextract.app/img/screens/overview-2000.png",
     "downloadUrl": "https://github.com/charleswest775/openextract/releases",
     "license": "https://opensource.org/licenses/MIT",
     "isAccessibleForFree": true,
@@ -60,7 +62,7 @@
   }
   </script>
   <script type="application/ld+json">
-  { "@context": "https://schema.org", "@type": "Organization", "name": "OpenExtract", "url": "https://www.openextract.app/", "sameAs": ["https://github.com/charleswest775/openextract"] }
+  { "@context": "https://schema.org", "@type": "Organization", "name": "OpenExtract", "url": "https://www.openextract.app/", "logo": "https://www.openextract.app/img/logo.png", "sameAs": ["https://github.com/charleswest775/openextract"] }
   </script>
   <script type="application/ld+json">
   { "@context": "https://schema.org", "@type": "WebSite", "name": "OpenExtract", "url": "https://www.openextract.app/" }
@@ -94,7 +96,7 @@
 
   <section class="hero">
     <div>
-      <span class="pill"><span class="pill__dot"></span>Free forever · No account · No cloud</span>
+      <span class="pill"><span class="pill__dot"></span>Free iPhone backup extractor · No cloud</span>
       <h1>
         Your memories<br />
         <span class="it it--coral">are still in there.</span>
@@ -434,5 +436,29 @@
       </ul>
     </div>
   </footer>
+  <script>
+    // Lead with the visitor's own OS: Windows and Linux get their own download first.
+    // Mac stays the default for macOS, phones and anything we can't tell.
+    (function () {
+      var platform = ((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '').toLowerCase();
+      var android = /android/i.test(navigator.userAgent);
+      var os = /^win/.test(platform) ? 'windows' : (/linux/.test(platform) && !android) ? 'linux' : null;
+      if (!os) return;
+      var card = document.querySelector('.dl-card[href="/download/' + os + '"]');
+      var hero = document.querySelector('.hero__ctas .btn--primary');
+      var others = document.querySelector('.hero__ctas .btn--ghost');
+      if (!card || !hero || !others) return;
+      // The cards hold the sizes, so they stay the one place to update them.
+      var meta = card.querySelector('.dl-card__meta').textContent.split(' · ');
+      var note = document.createElement('span');
+      note.textContent = '· ' + (os === 'windows' ? meta[0] : meta[meta.length - 1]);
+      hero.href = card.getAttribute('href');
+      hero.textContent = os === 'windows' ? 'Download for Windows' : 'Download for Linux';
+      hero.appendChild(note);
+      others.textContent = os === 'windows' ? 'Mac & Linux →' : 'Mac & Windows →';
+      document.querySelector('.dl-card--primary').classList.remove('dl-card--primary');
+      card.classList.add('dl-card--primary');
+    })();
+  </script>
 </body>
 </html>
