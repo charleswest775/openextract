@@ -5,7 +5,7 @@ name: App Control proof (temporary)
 
 on:
   push:
-    branches: [claude/app-control-proof]
+    branches: ['claude/app-control-proof', 'claude/app-control-proof-iter']
 
 jobs:
   v0_9_0:
@@ -16,6 +16,8 @@ jobs:
       tag: v0.9.0
 
   build-main:
+    # The -iter branch reruns only the v0.9.0 job, while the signed build is cached here.
+    if: github.ref_name == 'claude/app-control-proof'
     runs-on: windows-latest
     timeout-minutes: 75
     permissions:
