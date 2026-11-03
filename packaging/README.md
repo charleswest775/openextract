@@ -45,11 +45,16 @@ app, and looks for blocks in the CodeIntegrity event log.
 files and blocked loads, and the `app-control-…` artifact has the engine's
 stderr, the event list and the policy. Usually something new in the engine
 or the app isn't being signed: a file type outside `win.signExts`, or code
-unpacked at run time. Fix the build and release again (delete the draft
-and its tag first). If the step "Check the policy blocks the canary"
-fails, the policy itself isn't working on that runner image, so the check
-proves nothing until it's fixed. The check against v0.9.0, which must
-fail, shows what a real failure looks like.
+unpacked at run time. A DLL that keeps someone else's signature fails too,
+though Smart App Control would accept it; electron-builder re-signs every
+`.exe`, `.dll` and `.pyd` with ours, so that means one slipped past it.
+Fix the build and release again (delete the draft and its tag first).
+
+If the step "Check the policy blocks the canary" fails, the policy itself
+isn't working on that runner image, so the check proves nothing until
+it's fixed. To see a real failure, run it with tag `v0.9.0`: every file it
+installs is signed, but its one-file engine unpacks `python311.dll` into
+`%TEMP%`, App Control blocks it, and the engine exits.
 
 ## winget
 
