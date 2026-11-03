@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - The Timeline's date filter no longer leaves out items in the last second of the end date
+- Linux (Flatpak): the app no longer offers to check for or install updates itself; Flathub keeps it up to date, and Settings says so
 
 ## [0.9.0] - 2026-11-02
 

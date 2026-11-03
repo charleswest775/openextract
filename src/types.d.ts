@@ -88,6 +88,8 @@ export interface UpdateStatus {
 export interface UpdatesState {
   /** False in development and for installs that can't update themselves (e.g. an extracted AppImage). */
   supported: boolean;
+  /** Running as a Flatpak, which Flathub keeps up to date. */
+  flatpak?: boolean;
   /** null until the user has answered the "check automatically?" question. */
   autoCheck: boolean | null;
   currentVersion: string;
