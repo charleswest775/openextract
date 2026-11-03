@@ -1,0 +1,300 @@
+name: NSIS crash diagnosis (throwaway)
+
+# Throwaway: why does the NSIS installer crash in System.dll at offset 0x1581 on about half of
+# silent installs on windows-latest? Lives only on branch claude/nsis-crash-diag.
+
+on:
+  push:
+    branches: [claude/nsis-crash-diag]
+    paths: ['.github/workflows/nsis-crash-diag.yml', 'diag/**']
+
+permissions:
+  contents: read
+
+env:
+  NSIS_URL: https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-3.0.4.1/nsis-3.0.4.1.7z
+  NSIS_SHA512: VKMiizYdmNdJOWpRGz4trl4lD++BvYP2irAXpMilheUP0pc93iKlWAoP843Vlraj8YG19CVn0j+dCo/hURz9+Q==
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  # Disassemble the System.dll inside the release installer, and run minimal probes built with
+  # electron-builder's own NSIS 3.0.4.1.
+  disasm-and-probes:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Runner facts
+        run: |
+          "ImageOS=$env:ImageOS ImageVersion=$env:ImageVersion"
+          [Environment]::OSVersion.VersionString
+          (Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber | Format-List | Out-String).Trim()
+          "cdb: $(. ./diag/lib.ps1; Find-Cdb)"
+          Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10" -Directory -ErrorAction SilentlyContinue | ForEach-Object Name
+          '--- Get-ProcessMitigation -System'
+          Get-ProcessMitigation -System | Format-List | Out-String -Width 200
+          '--- heap/IFEO for the installer name'
+          Get-ProcessMitigation -Name OpenExtract-Setup-0.9.0.exe | Format-List | Out-String -Width 200
+
+      - name: Download the v0.9.0 installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download v0.9.0 --repo $env:GITHUB_REPOSITORY --pattern 'OpenExtract-Setup-*.exe' --dir installer
+
+      - name: Extract and disassemble System.dll
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -products * -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe' | Select-Object -First 1
+          "dumpbin: $dumpbin"
+          $exe = (Get-ChildItem installer -Filter *.exe)[0].FullName
+          7z x -y -oext $exe | Select-Object -Last 3
+          '--- extracted files'
+          Get-ChildItem ext -Recurse -File | ForEach-Object { '{0,12} {1}' -f $_.Length, $_.FullName.Substring((Resolve-Path ext).Path.Length) }
+          $sys = Get-ChildItem ext -Recurse -Filter System.dll | Select-Object -First 1
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item $sys.FullName out/System.dll
+          Copy-Item $exe out/
+          '--- installer headers'
+          & $dumpbin /headers $exe | Select-Object -First 60
+          '--- System.dll headers'
+          & $dumpbin /headers out/System.dll | Tee-Object out/System.headers.txt | Select-Object -First 120
+          '--- System.dll exports'
+          & $dumpbin /exports out/System.dll | Tee-Object out/System.exports.txt
+          & $dumpbin /disasm:bytes out/System.dll > out/System.disasm.txt
+          & $dumpbin /rawdata /section:.rdata out/System.dll > out/System.rdata.txt
+          $base = [Convert]::ToInt64((Get-Content out/System.headers.txt | Select-String '^\s*([0-9A-F]+) image base').Matches[0].Groups[1].Value, 16)
+          $fault = $base + 0x1581
+          '--- System.dll disassembly from RVA 0x1000 to 0x1800 (fault at {0:X8})' -f $fault
+          $lines = Get-Content out/System.disasm.txt
+          $from = ($lines | Select-String ('^\s+{0:X8}:' -f ($base + 0x1000)) | Select-Object -First 1).LineNumber
+          $to = ($lines | Select-String ('^\s+{0:X8}:' -f ($base + 0x1800)) | Select-Object -First 1).LineNumber
+          if (-not $from) { $from = 1 }
+          if (-not $to) { $to = [Math]::Min($lines.Count, $from + 1200) }
+          $lines[($from - 1)..($to - 1)]
+          '--- calls into RVA 0x1400-0x1600 from anywhere'
+          $lines | Select-String 'call\s+([0-9A-F]{8})' | Where-Object {
+            $t = [Convert]::ToInt64($_.Matches[0].Groups[1].Value, 16); $t -ge $base + 0x1400 -and $t -lt $base + 0x1600
+          } | ForEach-Object { $_.Line }
+
+      - name: Get electron-builder's NSIS 3.0.4.1
+        run: |
+          Invoke-WebRequest $env:NSIS_URL -OutFile nsis.7z
+          $h = [Convert]::ToBase64String([Security.Cryptography.SHA512]::Create().ComputeHash([IO.File]::ReadAllBytes("$PWD/nsis.7z")))
+          if ($h -ne $env:NSIS_SHA512) { throw "nsis.7z checksum $h" }
+          7z x -y -onsis nsis.7z | Select-Object -Last 2
+          $makensis = (Get-ChildItem nsis -Recurse -Filter makensis.exe | Where-Object { $_.Directory.Name -eq 'Bin' } | Select-Object -First 1).FullName
+          $nsisdir = Split-Path (Split-Path $makensis)
+          "makensis: $makensis  NSISDIR: $nsisdir"
+          $env:NSISDIR = $nsisdir
+          & $makensis /VERSION
+          $sys = Get-ChildItem nsis -Recurse -Filter System.dll | ForEach-Object FullName
+          $sys
+          "MAKENSIS=$makensis" >> $env:GITHUB_ENV
+          "NSISDIR=$nsisdir" >> $env:GITHUB_ENV
+          '--- same System.dll as the installer''s?'
+          $a = (Get-FileHash out/System.dll).Hash
+          foreach ($s in $sys) { "$((Get-FileHash $s).Hash -eq $a) $s" }
+
+      - name: Build the probes
+        working-directory: diag/probes
+        run: |
+          foreach ($n in Get-ChildItem -Filter 'probe-*.nsi') {
+            & $env:MAKENSIS /V2 $n.Name
+            if ($LASTEXITCODE -ne 0) { throw "makensis failed on $($n.Name)" }
+          }
+          & $env:MAKENSIS /V4 probe-old.nsi | Select-String 'NSIS_MAX_STRLEN|System.dll'
+
+      - name: Run the probes
+        working-directory: diag/probes
+        run: |
+          . ../lib.ps1
+          Enable-LocalDumps -ExeNames 'probe-old.exe', 'probe-page-old.exe' -Folder "$env:RUNNER_TEMP\dumps"
+          $began = Get-Date
+          $results = foreach ($i in 1..150) {
+            foreach ($v in 'probe-old', 'probe-new', 'probe-control') {
+              $r = Invoke-Trial -Exe (Resolve-Path "$v.exe").Path -Arguments @('/S')
+              [pscustomobject]@{ Variant = $v; Code = $r.Code; Ms = $r.Ms }
+            }
+          }
+          $results += foreach ($i in 1..20) {
+            foreach ($v in 'probe-page-old', 'probe-page-new') {
+              $r = Invoke-Trial -Exe (Resolve-Path "$v.exe").Path -Arguments @('/S')
+              [pscustomobject]@{ Variant = $v; Code = $r.Code; Ms = $r.Ms }
+            }
+          }
+          Write-Summary -Results $results -Title 'Minimal probes (NSIS 3.0.4.1)'
+          $results | Group-Object Variant, Code | ForEach-Object { "{0,-40} {1}" -f $_.Name, $_.Count }
+          '--- Application event 1000 (faulting app / module / offset)'
+          Get-FaultEvents -Since $began | Group-Object App, Module, Code, Offset | ForEach-Object { "{0,4}  {1}" -f $_.Count, $_.Name }
+
+      - name: Analyse a probe dump
+        if: always()
+        run: |
+          . ./diag/lib.ps1
+          foreach ($n in 'probe-old', 'probe-page-old') {
+            $d = Get-ChildItem "$env:RUNNER_TEMP\dumps" -Filter "$n.exe*.dmp" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($d) { Show-Dump $d.FullName } else { "no dump for $n" }
+          }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: disasm
+          path: |
+            out/System.*
+            diag/probes/*.exe
+
+  # The release installer: fresh per-user install vs. one with InstallLocation already in HKCU
+  # (which skips multiUser.nsh's SHGetKnownFolderPath branch), and with bottom-up ASLR off.
+  release-installer:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Download the v0.9.0 installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download v0.9.0 --repo $env:GITHUB_REPOSITORY --pattern 'OpenExtract-Setup-*.exe' --dir installer
+
+      - name: Trials
+        run: |
+          . ./diag/lib.ps1
+          $exe = (Get-ChildItem installer -Filter *.exe)[0]
+          # A copy under another name, so per-image mitigation settings apply to it alone.
+          $noBottomUp = Join-Path $exe.DirectoryName 'oe-nobottomup.exe'
+          Copy-Item $exe.FullName $noBottomUp
+          Set-ProcessMitigation -Name oe-nobottomup.exe -Disable BottomUp, HighEntropy
+          Get-ProcessMitigation -Name oe-nobottomup.exe | Select-Object -ExpandProperty Aslr | Format-List | Out-String
+          Enable-LocalDumps -ExeNames $exe.Name, 'oe-nobottomup.exe' -Folder "$env:RUNNER_TEMP\dumps"
+          $began = Get-Date
+          $results = foreach ($i in 1..30) {
+            foreach ($v in 'fresh', 'preset-installlocation', 'fresh-nobottomup') {
+              Reset-Install -PresetInstallLocation:($v -eq 'preset-installlocation')
+              $path = if ($v -eq 'fresh-nobottomup') { $noBottomUp } else { $exe.FullName }
+              $r = Invoke-Trial -Exe $path -KillAfter 8
+              Write-Output ("{0,3} {1,-24} {2,12} {3,6} ms" -f $i, $v, $r.Code, $r.Ms)
+              [pscustomobject]@{ Variant = $v; Code = $r.Code; Ms = $r.Ms }
+            }
+          }
+          Reset-Install
+          Write-Summary -Results $results -Title "v0.9.0 installer, shard ${{ matrix.shard }} (alive = still running after 8 s, then killed)"
+          '--- Application event 1000'
+          Get-FaultEvents -Since $began | Group-Object App, Module, Code, Offset | ForEach-Object { "{0,4}  {1}" -f $_.Count, $_.Name }
+
+      - name: Analyse dumps
+        if: always()
+        run: |
+          . ./diag/lib.ps1
+          Get-ChildItem "$env:RUNNER_TEMP\dumps" -Filter *.dmp -ErrorAction SilentlyContinue | Select-Object -First 2 | ForEach-Object { Show-Dump $_.FullName }
+
+  # The same app (main, unsigned, a placeholder engine) built with three electron-builder
+  # versions: 26.8.1 (the lock), 26.9.0 (skips the branch on Windows 8+), 26.18.1 (lstrcpynW).
+  build-ab:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm install
+
+      - name: Unsigned build config and a placeholder engine
+        run: |
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json'));delete p.build.win.azureSignOptions;delete p.build.afterSign;fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
+          New-Item -ItemType Directory -Force python/dist/openextract-engine | Out-Null
+          'placeholder' | Out-File python/dist/openextract-engine/README.txt
+
+      - run: npm run build
+
+      - name: Package with each electron-builder version
+        run: |
+          New-Item -ItemType Directory -Force installers | Out-Null
+          foreach ($v in '26.8.1', '26.9.0', '26.18.1') {
+            if ($v -ne '26.8.1') {
+              npm install --no-save --no-audit --no-fund "electron-builder@$v"
+              if ($LASTEXITCODE -ne 0) { throw "npm install electron-builder@$v failed" }
+            }
+            "electron-builder $(node -p "require('electron-builder/package.json').version"), app-builder-lib $(node -p "require('app-builder-lib/package.json').version")"
+            Select-String -Path node_modules/app-builder-lib/templates/nsis/multiUser.nsh -Pattern 'SHGetKnownFolderPath|AtLeastWin8|lstrcpynW|&w\$' | ForEach-Object { "  multiUser.nsh:$($_.LineNumber): $($_.Line.Trim())" }
+            npx electron-builder --win nsis --x64 --publish never "-c.directories.output=out-$v"
+            if ($LASTEXITCODE -ne 0) { throw "electron-builder $v failed" }
+            $built = Get-ChildItem "out-$v" -Filter '*Setup*.exe' | Select-Object -First 1
+            Copy-Item $built.FullName "installers/oe-$($v -replace '\.', '').exe"
+          }
+          Get-ChildItem installers | ForEach-Object { '{0,12} {1}' -f $_.Length, $_.Name }
+
+      - name: System.dll in each installer
+        run: |
+          foreach ($i in Get-ChildItem installers -Filter *.exe) {
+            7z x -y "-oext-$($i.BaseName)" $i.FullName '$PLUGINSDIR\System.dll' | Out-Null
+            $s = Get-ChildItem "ext-$($i.BaseName)" -Recurse -Filter System.dll | Select-Object -First 1
+            "$($i.Name): System.dll $((Get-FileHash $s.FullName).Hash.Substring(0,16)) $($s.Length) bytes"
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ab-installers
+          path: installers/*.exe
+
+  ab-trials:
+    needs: build-ab
+    runs-on: windows-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: ab-installers
+          path: installers
+
+      - name: Full silent installs, interleaved
+        run: |
+          . ./diag/lib.ps1
+          $names = 'oe-2681.exe', 'oe-2690.exe', 'oe-26181.exe'
+          Enable-LocalDumps -ExeNames $names -Folder "$env:RUNNER_TEMP\dumps"
+          $began = Get-Date
+          $results = foreach ($i in 1..20) {
+            foreach ($n in $names) {
+              Reset-Install
+              $r = Invoke-Trial -Exe (Resolve-Path "installers/$n").Path
+              $ok = if ($r.Code -eq 0 -and -not $r.Installed) { 'exit 0 but no OpenExtract.exe' } else { '' }
+              Write-Output ("{0,3} {1,-14} {2,12} {3,6} ms installed={4} {5}" -f $i, $n, $r.Code, $r.Ms, $r.Installed, $ok)
+              [pscustomobject]@{ Variant = $n; Code = $r.Code; Ms = $r.Ms }
+            }
+          }
+          Reset-Install
+          Write-Summary -Results $results -Title "Same app, three electron-builder versions, shard ${{ matrix.shard }} (full fresh /S installs)"
+          '--- Application event 1000'
+          Get-FaultEvents -Since $began | Group-Object App, Module, Code, Offset | ForEach-Object { "{0,4}  {1}" -f $_.Count, $_.Name }
+
+      - name: Analyse a dump
+        if: always()
+        run: |
+          . ./diag/lib.ps1
+          Get-ChildItem "$env:RUNNER_TEMP\dumps" -Filter *.dmp -ErrorAction SilentlyContinue | Select-Object -First 1 | ForEach-Object { Show-Dump $_.FullName }
