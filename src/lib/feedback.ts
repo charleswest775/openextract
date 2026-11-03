@@ -23,7 +23,7 @@ export const FEEDBACK_KINDS: { id: FeedbackKind; label: string; hint: string }[]
 ];
 
 export type FeedbackArea =
-  | 'general' | 'open_backup' | 'create_backup' | 'dashboard' | 'timeline' | 'messages' | 'photos'
+  | 'general' | 'open_backup' | 'create_backup' | 'dashboard' | 'timeline' | 'year' | 'messages' | 'photos'
   | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'record_recovery' | 'export';
 
 export const FEEDBACK_AREAS: { id: FeedbackArea; label: string }[] = [
@@ -32,6 +32,7 @@ export const FEEDBACK_AREAS: { id: FeedbackArea; label: string }[] = [
   { id: 'create_backup', label: 'Making a backup' },
   { id: 'dashboard', label: 'Overview' },
   { id: 'timeline', label: 'Timeline' },
+  { id: 'year', label: 'Year' },
   { id: 'messages', label: 'Messages' },
   { id: 'photos', label: 'Photos' },
   { id: 'contacts', label: 'Contacts' },

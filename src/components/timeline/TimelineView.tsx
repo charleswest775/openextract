@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback } from 'react';
 import { Clock, Loader2, CheckCircle2, AlertTriangle, Download } from 'lucide-react';
 import { useTimeline } from '../../hooks/useTimeline';
-import { TimelineEntry, TimelineEntryType } from '../../types/timeline';
+import { TimelineEntry, TimelineEntryType, TimelineFilters } from '../../types/timeline';
 import TimelineFilterBar from './TimelineFilterBar';
 import TimelineEntryCard from './TimelineEntryCard';
 import { formatDate } from '../../lib/dates';
@@ -12,6 +12,7 @@ import { ReportProblemButton } from '../shared/Feedback';
 
 interface Props {
   udid: string;
+  startingFilters?: Partial<TimelineFilters>;
 }
 
 const LOADING_LABELS: Record<TimelineEntryType, string> = {
@@ -40,7 +41,7 @@ function groupByDay(entries: TimelineEntry[]): { date: string; entries: Timeline
   return groups;
 }
 
-export default function TimelineView({ udid }: Props) {
+export default function TimelineView({ udid, startingFilters }: Props) {
   const {
     entries,
     filteredEntries,
@@ -55,7 +56,7 @@ export default function TimelineView({ udid }: Props) {
     page,
     setPage,
     pageSize,
-  } = useTimeline(udid);
+  } = useTimeline(udid, startingFilters);
 
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exporting, setExporting] = useState(false);

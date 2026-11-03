@@ -36,6 +36,7 @@ jobs:
               'Making a backup': ['python-engine'],
               'Overview': ['ui'],
               'Timeline': ['ui'],
+              'Year': ['ui'],
               'Messages': ['messages'],
               'Photos': ['photos'],
               'Contacts': ['python-engine'],
