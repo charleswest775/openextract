@@ -17,9 +17,13 @@ $events = @(Get-WinEvent -FilterHashtable @{
   } -ErrorAction SilentlyContinue | ForEach-Object {
     $data = @{}
     foreach ($d in ([xml]$_.ToXml()).Event.EventData.Data) { $data[$d.Name] = $d.'#text' }
+    # 3076/3077 name their fields "File Name" and "Process Name"; 3033/3034 use *Buffer.
     [pscustomobject]@{
       Time = $_.TimeCreated.ToString('HH:mm:ss'); Id = $_.Id
-      Process = "$($data['Process Name'])"; File = "$($data['File Name'])"; Policy = "$($data['PolicyName'])"
+      Process = "$(if ($data['Process Name']) { $data['Process Name'] } else { $data['ProcessNameBuffer'] })"
+      File = "$(if ($data['File Name']) { $data['File Name'] } else { $data['FileNameBuffer'] })"
+      Policy = "$($data['PolicyName'])"
+      Fields = ($data.Keys | Sort-Object) -join ', '
     }
   })
 $events | Export-Csv -NoTypeInformation -LiteralPath (Join-Path $LogDir 'codeintegrity-events.csv')
@@ -38,7 +42,7 @@ Write-Output "$($events.Count) CodeIntegrity block/audit event(s) since $($Since
 foreach ($e in $other) { Write-Output "  not OpenExtract: $($e.Id) $($e.Process) loading $($e.File)" }
 foreach ($e in $relevant) {
   $verb = if ($e.Id -in 3076, 3034) { 'would block' } else { 'blocked' }
-  $what = if ($e.File) { $e.File } else { "a file (event $($e.Id) has no File Name)" }
+  $what = if ($e.File) { $e.File } else { "a file (event $($e.Id) has no file name; its fields are $($e.Fields))" }
   Write-Output "::error::App Control $verb $what (loaded by $([IO.Path]::GetFileName($e.Process)), event $($e.Id))"
 }
 if (-not $canarySeen) {
