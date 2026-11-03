@@ -1,0 +1,15 @@
+PackageIdentifier: OpenExtract.OpenExtract
+PackageVersion: 0.8.1
+InstallerType: nullsoft
+Scope: user
+InstallModes:
+  - interactive
+  - silent
+UpgradeBehavior: install
+ReleaseDate: 2026-11-02
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/charleswest775/openextract/releases/download/v0.8.1/OpenExtract-Setup-0.8.1.exe
+    InstallerSha256: 45F5B521BF9A1172B191AAFDEB1D2BC4652D327235925B84869F827D161DFD2C
+ManifestType: installer
+ManifestVersion: 1.6.0
