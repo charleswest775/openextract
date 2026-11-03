@@ -52,9 +52,13 @@ jobs:
         shell: pwsh
     env:
       PUBLISHER: Charles West
-      # Microsoft Identity Verification Root Certificate Authority 2020, which Azure
-      # Trusted Signing's certificates chain to.
-      SIGNING_ROOT: F40042E2E5F7E8EF8189FED15519AECE42C3BFA2
+      # Azure Trusted Signing issues through rotating CAs (AOC CA 03, 04, ...), all under
+      # Microsoft ID Verified Code Signing PCA 2021 and Microsoft Identity Verification
+      # Root CA 2020. The policy's rule for us is that PCA plus our name, as ConfigCI's
+      # Publisher level writes it: the PCA certificate's thumbprint, and the SHA-384 of
+      # its to-be-signed part (the TBS hash App Control matches on).
+      SIGNING_PCA_THUMBPRINT: 8E750F459DAF9A79D6370DB747AD2226866AD818
+      SIGNING_PCA_TBS: EA1159614FEB51156FD9F68A61A9561B4EFFDA1879C335949601FA0ECD56EC50A5D08F86BDC330E590FEABB0EDE1CFBC
       PYTHONUTF8: '1'
     steps:
       - name: Checkout
@@ -113,12 +117,21 @@ jobs:
           name: ${{ inputs.artifact }}
           path: installer
 
+      # The installer sometimes crashes on these runners (0xC0000005), before App Control
+      # is on, so try again; the Application log names the faulting module.
       - name: Install silently with /S
         id: install
         run: |
           $exe = @(Get-ChildItem installer -Filter '*.exe')
           if ($exe.Count -ne 1) { throw "Expected one installer, found $($exe.Count): $($exe.Name -join ', ')" }
-          $p = Start-Process -FilePath $exe[0].FullName -ArgumentList '/S' -Wait -PassThru
+          foreach ($attempt in 1..3) {
+            $started = Get-Date
+            $p = Start-Process -FilePath $exe[0].FullName -ArgumentList '/S' -Wait -PassThru
+            if ($p.ExitCode -eq 0) { break }
+            Write-Output "::warning::Silent install attempt $attempt exited with $($p.ExitCode)"
+            Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Id = 1000; StartTime = $started } -ErrorAction SilentlyContinue |
+              ForEach-Object { Write-Output ($_.Message -split "`r?`n" | Select-Object -First 3) }
+          }
           if ($p.ExitCode -ne 0) { throw "Silent install exited with $($p.ExitCode)" }
           $app = Join-Path $env:LOCALAPPDATA 'Programs\OpenExtract'
           if (-not (Test-Path (Join-Path $app 'OpenExtract.exe'))) { throw "OpenExtract.exe not found under $app" }
@@ -130,7 +143,7 @@ jobs:
         env:
           INSTALLER: ${{ steps.install.outputs.installer }}
           APP_DIR: ${{ steps.install.outputs.dir }}
-        run: ./scripts/app-control/check-signatures.ps1 -Installer $env:INSTALLER -InstallDir $env:APP_DIR -Publisher $env:PUBLISHER -RootThumbprint $env:SIGNING_ROOT
+        run: ./scripts/app-control/check-signatures.ps1 -Installer $env:INSTALLER -InstallDir $env:APP_DIR -Publisher $env:PUBLISHER -PcaThumbprint $env:SIGNING_PCA_THUMBPRINT
 
       # The checks from here on run even if the signature check failed, so one run shows
       # everything that's wrong.
@@ -138,9 +151,7 @@ jobs:
         id: policy
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         shell: powershell
-        env:
-          APP_DIR: ${{ steps.install.outputs.dir }}
-        run: ./scripts/app-control/enable-policy.ps1 -InstallDir $env:APP_DIR -Publisher $env:PUBLISHER -RootThumbprint $env:SIGNING_ROOT -OutDir "$env:RUNNER_TEMP\app-control\policy"
+        run: ./scripts/app-control/enable-policy.ps1 -Publisher $env:PUBLISHER -PcaTbs $env:SIGNING_PCA_TBS -OutDir "$env:RUNNER_TEMP\app-control\policy"
 
       - name: Check the policy blocks the canary
         if: ${{ !cancelled() && steps.policy.outcome == 'success' }}

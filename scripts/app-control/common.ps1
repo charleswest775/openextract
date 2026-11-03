@@ -1,6 +1,5 @@
-# Shared by the App Control check's scripts (.github/workflows/windows-app-control.yml).
-# Runs in Windows PowerShell 5.1 as well as PowerShell 7: the ConfigCI cmdlets that
-# build the policy only work in 5.1.
+# Shared by the App Control check's scripts (.github/workflows/windows-app-control.yml)
+# and release.yml. Works in Windows PowerShell 5.1 as well as PowerShell 7.
 
 # Every PE file (one that starts with "MZ") under $Root, whatever its extension.
 function Get-PeFiles([string] $Root) {
@@ -17,13 +16,10 @@ function Get-PeFiles([string] $Root) {
 }
 
 # A file's Authenticode status and who signed it: the signer's name, the CA that issued
-# its certificate, and the root that CA chains to.
+# its certificate, and the CA below the root (the one App Control's Publisher rules name).
 function Get-SignerInfo([string] $Path) {
   $sig = Get-AuthenticodeSignature -LiteralPath $Path
-  $info = [ordered]@{
-    Path = $Path; Status = [string]$sig.Status; Signer = ''
-    IssuingCA = ''; IssuingCAThumbprint = ''; Root = ''; RootThumbprint = ''
-  }
+  $info = [ordered]@{ Path = $Path; Status = [string]$sig.Status; Signer = ''; IssuingCA = ''; Pca = ''; PcaThumbprint = '' }
   if ($sig.SignerCertificate) {
     $chain = New-Object System.Security.Cryptography.X509Certificates.X509Chain
     $chain.ChainPolicy.RevocationMode = 'NoCheck'
@@ -37,17 +33,16 @@ function Get-SignerInfo([string] $Path) {
     [void]$chain.Build($sig.SignerCertificate)
     $certs = @($chain.ChainElements | ForEach-Object { $_.Certificate })
     $info.Signer = $sig.SignerCertificate.GetNameInfo('SimpleName', $false)
-    if ($certs.Count -gt 1) {
-      $info.IssuingCA = $certs[1].GetNameInfo('SimpleName', $false)
-      $info.IssuingCAThumbprint = $certs[1].Thumbprint
+    if ($certs.Count -gt 1) { $info.IssuingCA = $certs[1].GetNameInfo('SimpleName', $false) }
+    if ($certs.Count -gt 2) {
+      $info.Pca = $certs[-2].GetNameInfo('SimpleName', $false)
+      $info.PcaThumbprint = $certs[-2].Thumbprint
     }
-    $info.Root = $certs[-1].GetNameInfo('SimpleName', $false)
-    $info.RootThumbprint = $certs[-1].Thumbprint
   }
   [pscustomobject]$info
 }
 
-# True when the file is validly signed by $Publisher through Azure Trusted Signing.
-function Test-Publisher($Info, [string] $Publisher, [string] $RootThumbprint) {
-  $Info.Status -eq 'Valid' -and $Info.Signer -eq $Publisher -and $Info.RootThumbprint -eq $RootThumbprint
+# True when the file is validly signed by $Publisher through the expected CA.
+function Test-Publisher($Info, [string] $Publisher, [string] $PcaThumbprint) {
+  $Info.Status -eq 'Valid' -and $Info.Signer -eq $Publisher -and $Info.PcaThumbprint -eq $PcaThumbprint
 }

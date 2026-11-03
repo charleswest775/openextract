@@ -1,12 +1,12 @@
 # Checks that the installer and every PE file it installed is validly signed. Files are
 # found by content (they start with "MZ"), not by extension, so an executable with an
 # unexpected extension can't slip past. The installer, the app and the engine must be
-# signed by OpenExtract's publisher.
+# signed by OpenExtract's publisher through the CA the App Control policy names.
 param(
   [Parameter(Mandatory)] [string] $Installer,
   [Parameter(Mandatory)] [string] $InstallDir,
   [Parameter(Mandatory)] [string] $Publisher,
-  [Parameter(Mandatory)] [string] $RootThumbprint
+  [Parameter(Mandatory)] [string] $PcaThumbprint
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -21,8 +21,8 @@ if ($ours.Count -ne 3) {
   $failed++
 }
 foreach ($info in $ours) {
-  if (-not (Test-Publisher $info $Publisher $RootThumbprint)) {
-    Write-Output "::error::$($info.Path) is not signed by $Publisher through Azure Trusted Signing ($($info.Status), signer '$($info.Signer)', root '$($info.Root)')"
+  if (-not (Test-Publisher $info $Publisher $PcaThumbprint)) {
+    Write-Output "::error::$($info.Path) is not signed by $Publisher through the expected CA ($($info.Status), signer '$($info.Signer)', CA '$($info.Pca)' $($info.PcaThumbprint)). If Azure Trusted Signing has moved to a new CA, update SIGNING_PCA_* in windows-app-control.yml."
     $failed++
   }
 }

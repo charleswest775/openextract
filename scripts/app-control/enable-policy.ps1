@@ -8,50 +8,43 @@
 # the policy's ID to $env:GITHUB_OUTPUT as `id`, for removing it afterwards, and the time
 # it was turned on as `since`.
 param(
-  [Parameter(Mandatory)] [string] $InstallDir,
   [Parameter(Mandatory)] [string] $Publisher,
-  [Parameter(Mandatory)] [string] $RootThumbprint,
+  # SHA-384 of the to-be-signed part of the CA certificate the publisher's certificates
+  # chain through (Microsoft ID Verified Code Signing PCA 2021 for Azure Trusted Signing).
+  [Parameter(Mandatory)] [string] $PcaTbs,
   [Parameter(Mandatory)] [string] $OutDir
 )
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'common.ps1')
 
 $citool = Join-Path $env:windir 'System32\CiTool.exe'
 if (-not (Test-Path $citool)) { throw "$citool not found: this check needs Windows Server 2025 or Windows 11 22H2 or later" }
-$examples = Join-Path $env:windir 'schemas\CodeIntegrity\ExamplePolicies'
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-# Rules for our publisher. A Publisher rule is the CA below Microsoft's root plus the
-# signer's name; take one from a file signed through each issuing CA in the install, in
-# case Trusted Signing used more than one.
-$signed = @(Get-PeFiles $InstallDir | ForEach-Object { Get-SignerInfo $_.FullName } |
-  Where-Object { Test-Publisher $_ $Publisher $RootThumbprint })
-if ($signed.Count -eq 0) { throw "No file under $InstallDir is signed by $Publisher through Azure Trusted Signing" }
-$samples = New-Item -ItemType Directory -Force -Path (Join-Path $OutDir 'samples')
-foreach ($group in $signed | Group-Object IssuingCAThumbprint) {
-  $file = $group.Group[0].Path
-  Write-Output "Publisher rule from $file ($($group.Group[0].IssuingCA), $($group.Count) files)"
-  Copy-Item -LiteralPath $file -Destination (Join-Path $samples "$($group.Name)$([IO.Path]::GetExtension($file))")
-}
-# Scan only those copies, and without a shadow copy of the drive, which takes minutes.
-$drivers = Get-SystemDriver -ScanPath $samples.FullName -UserPEs -NoShadowCopy
-$rules = New-CIPolicyRule -DriverFiles $drivers -Level Publisher
-
-# The example policies can't be opened in place.
-$base = Join-Path $OutDir 'AllowMicrosoft.xml'
-Copy-Item -LiteralPath (Join-Path $examples 'AllowMicrosoft.xml') -Destination $base
+# The example policies can't be edited in place.
 $policy = Join-Path $OutDir 'policy.xml'
-Merge-CIPolicy -PolicyPaths $base -Rules $rules -OutputFilePath $policy | Out-Null
+Copy-Item -LiteralPath (Join-Path $env:windir 'schemas\CodeIntegrity\ExamplePolicies\AllowMicrosoft.xml') -Destination $policy
 
-# Our signer has to be allowed for user-mode code (signing scenario 12), not just drivers.
+# Our publisher, written the way New-CIPolicyRule -Level Publisher writes it (the CA below
+# Microsoft's root, plus the signer's name), allowed for user-mode code (scenario 12).
+# Built by hand: ConfigCI's scan for the same rule takes about six minutes on a runner.
 $xml = [xml](Get-Content -Raw $policy)
-$ourSigners = @($xml.SiPolicy.Signers.Signer | Where-Object { $_.CertPublisher.Value -eq $Publisher })
-$userAllowed = @(($xml.SiPolicy.SigningScenarios.SigningScenario | Where-Object Value -eq 12).ProductSigners.AllowedSigners.AllowedSigner.SignerId)
-if ($ourSigners.Count -eq 0 -or @($ourSigners | Where-Object { $_.ID -in $userAllowed }).Count -ne $ourSigners.Count) {
-  throw "The policy doesn't allow $Publisher's user-mode code; see $policy"
-}
-Write-Output "Signers for ${Publisher}:"
-$ourSigners | ForEach-Object { Write-Output "  $($_.ID): $($_.Name), publisher '$($_.CertPublisher.Value)'" }
+$ns = $xml.SiPolicy.NamespaceURI
+$signer = $xml.CreateElement('Signer', $ns)
+$signer.SetAttribute('ID', 'ID_SIGNER_OPENEXTRACT')
+$signer.SetAttribute('Name', 'Microsoft ID Verified Code Signing PCA 2021')
+$certRoot = $xml.CreateElement('CertRoot', $ns)
+$certRoot.SetAttribute('Type', 'TBS')
+$certRoot.SetAttribute('Value', $PcaTbs)
+$certPublisher = $xml.CreateElement('CertPublisher', $ns)
+$certPublisher.SetAttribute('Value', $Publisher)
+[void]$signer.AppendChild($certRoot)
+[void]$signer.AppendChild($certPublisher)
+[void]$xml.SiPolicy.Signers.AppendChild($signer)
+$userMode = $xml.SiPolicy.SigningScenarios.SigningScenario | Where-Object Value -eq 12
+$allowed = $xml.CreateElement('AllowedSigner', $ns)
+$allowed.SetAttribute('SignerId', 'ID_SIGNER_OPENEXTRACT')
+[void]$userMode.ProductSigners.AllowedSigners.AppendChild($allowed)
+$xml.Save($policy)
 
 Set-RuleOption -FilePath $policy -Option 0            # Enabled:UMCI (user-mode code, not just drivers)
 Set-RuleOption -FilePath $policy -Option 3 -Delete    # not Audit Mode: enforce
