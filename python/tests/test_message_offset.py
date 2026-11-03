@@ -35,6 +35,8 @@ def _build_sms_db(path: str) -> None:
 class TestMessageOffset(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
+        # Cleanups run last-first: connections opened later close before the folder goes (Windows can't delete an open file)
+        self.addCleanup(self.tmp.cleanup)
         self.sms_db = os.path.join(self.tmp.name, "sms.db")
         _build_sms_db(self.sms_db)
         self.extractor = MessageExtractor()
@@ -47,9 +49,6 @@ class TestMessageOffset(unittest.TestCase):
         conn = sqlite3.connect(self.sms_db)
         self.addCleanup(conn.close)
         return conn
-
-    def tearDown(self):
-        self.tmp.cleanup()
 
     def test_newest_message_is_at_offset_zero(self):
         self.assertEqual(self.extractor.get_message_offset(self.backup, 1, 19), {"offset": 0, "found": True})
