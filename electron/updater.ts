@@ -76,7 +76,10 @@ export function initUpdater({ store, getWindow, beforeInstall }: Options) {
 
   // isUpdaterActive() is false in development and for Linux builds not running as an
   // AppImage or installed package; those users update by downloading again.
-  const supported: boolean = app.isPackaged && autoUpdater.isUpdaterActive();
+  // A Flatpak is updated by Flathub (and has no network access to check GitHub), but it
+  // repackages the .deb, so electron-updater would otherwise pick its .deb updater.
+  const flatpak = Boolean(process.env.FLATPAK_ID);
+  const supported: boolean = app.isPackaged && !flatpak && autoUpdater.isUpdaterActive();
 
   // electron-updater otherwise saves a random per-install ID (userData/.updaterId) and sends it
   // to GitHub as x-user-staging-id on every check. It only matters for staged rollouts, which we
@@ -123,6 +126,7 @@ export function initUpdater({ store, getWindow, beforeInstall }: Options) {
 
   ipcMain.handle('updates:get-state', () => ({
     supported,
+    flatpak,
     autoCheck: store.get('updatesAutoCheck', null),
     currentVersion: app.getVersion(),
     releasesUrl: RELEASES_URL,

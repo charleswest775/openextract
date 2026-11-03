@@ -46,6 +46,9 @@ modules:
       - mv opt/OpenExtract /app/OpenExtract
       # The Flatpak sandbox replaces Chromium's setuid helper.
       - rm -f /app/OpenExtract/chrome-sandbox
+      # Flathub updates the app. Without this marker electron-updater doesn't pick its
+      # .deb updater, so 0.9.0 (from before the app checked FLATPAK_ID) offers no updates.
+      - rm -f /app/OpenExtract/resources/package-type
       - install -Dm755 openextract.sh /app/bin/openextract
       # Flathub wants the icon under the app ID; this is OpenExtract's own
       # mark (the same as website/static/img/logo.svg and build/icon.png).
