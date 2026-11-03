@@ -384,18 +384,21 @@ jobs:
       # and the win.signExts extensions. The engine is a folder on Windows, so this
       # covers every DLL and .pyd in it: Smart App Control refuses to load unsigned ones
       # (#169), and the Microsoft Store requires every .exe and .dll to be signed. Check
-      # all of them along with the installer; failing here keeps the release in draft.
+      # every PE file, found by content rather than extension, along with the installer;
+      # failing here keeps the release in draft. windows-app-control checks the installed
+      # app the same way, and loads it under App Control.
       - name: Verify Authenticode signatures
         shell: pwsh
         run: |
-          $files = @(Get-ChildItem -LiteralPath 'release/win-unpacked' -Recurse -File -Include *.exe, *.dll, *.pyd)
+          . ./scripts/app-control/common.ps1
+          $files = @(Get-PeFiles 'release/win-unpacked')
           $files += Get-Item -LiteralPath 'release/OpenExtract Setup ${{ inputs.version }}.exe'
           if (-not (Test-Path 'release/win-unpacked/resources/python/_internal')) {
             Write-Output "::error::The engine is not the folder build (resources/python/_internal is missing)"
             exit 1
           }
           $unsigned = @($files | Where-Object { (Get-AuthenticodeSignature -LiteralPath $_.FullName).Status -ne 'Valid' })
-          Write-Output "$($files.Count - $unsigned.Count) of $($files.Count) executables, DLLs and .pyd files are signed"
+          Write-Output "$($files.Count - $unsigned.Count) of $($files.Count) PE files are signed"
           foreach ($file in $unsigned) {
             $sig = Get-AuthenticodeSignature -LiteralPath $file.FullName
             Write-Output ("{0,-10} {1}" -f $sig.Status, $file.FullName)
@@ -404,6 +407,17 @@ jobs:
             Write-Output "::error::$($unsigned.Count) Windows executable(s) or DLL(s) are not validly Authenticode-signed"
             exit 1
           }
+
+  # Installs the draft's Windows installer on a fresh runner and runs it under an enforced
+  # App Control policy that allows only Microsoft's code and ours, the way Smart App
+  # Control would (#169). Publishing waits for it.
+  windows-app-control:
+    needs: [preflight, build-windows]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/windows-app-control.yml
+    with:
+      tag: v${{ inputs.version }}
 
   build-linux:
     needs: preflight
@@ -485,7 +499,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   finalize:
-    needs: [preflight, build-macos, build-windows, build-linux]
+    needs: [preflight, build-macos, build-windows, build-linux, windows-app-control]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

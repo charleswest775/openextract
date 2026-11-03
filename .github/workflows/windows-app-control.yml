@@ -1,0 +1,206 @@
+name: Windows App Control check
+
+# Smart App Control, on by default on new Windows 11 PCs, refuses to load code that isn't
+# signed (unless Microsoft's reputation service vouches for it). In 0.9.0 the engine
+# unpacked mostly unsigned DLLs into %TEMP%; Smart App Control blocked pycryptodome's, the
+# engine exited, and the app said "Python sidecar is not running" (#169). GitHub's Windows
+# runners have Smart App Control off, so no other check here would have seen it.
+#
+# This installs a release's signed installer on a fresh runner, then:
+#   - checks that every PE file it installed (found by content, whatever the extension)
+#     has a valid signature, and that the installer, app and engine are ours,
+#   - turns on an enforced App Control (WDAC) policy that lets only Microsoft's code and
+#     code signed by OpenExtract's publisher run or load: stricter than Smart App
+#     Control (no reputation lookups), so what passes here passes there,
+#   - checks the policy blocks an unsigned copy of pycryptodome's AES DLL (the canary),
+#   - starts the installed engine and, over JSON-RPC, lists backups and opens the
+#     generated encrypted Maren backup (which loads pycryptodome's native DLLs) and reads
+#     from it, then starts the app and checks its engine is still running,
+#   - fails on any App Control block of a file the app or the engine loaded.
+#
+# release.yml runs it on the draft release before publishing it. Run it by hand with a
+# tag to check any release, drafts included. scripts/app-control/ has the steps.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag whose installer to check (drafts too)
+        type: string
+        default: ''
+      artifact:
+        description: Or, an artifact of the calling run that holds a signed installer
+        type: string
+        default: ''
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to check, e.g. v0.10.0 (drafts work too)'
+        required: true
+        type: string
+
+jobs:
+  check:
+    name: App Control (${{ inputs.tag || inputs.artifact }})
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      # Write only because a read-only token can't see draft releases; nothing here writes.
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      PUBLISHER: Charles West
+      # Azure Trusted Signing issues through rotating CAs (AOC CA 03, 04, ...), all under
+      # Microsoft ID Verified Code Signing PCA 2021 and Microsoft Identity Verification
+      # Root CA 2020. The policy's rule for us is that PCA plus our name, as ConfigCI's
+      # Publisher level writes it: the PCA certificate's thumbprint, and the SHA-384 of
+      # its to-be-signed part (the TBS hash App Control matches on).
+      SIGNING_PCA_THUMBPRINT: 8E750F459DAF9A79D6370DB747AD2226866AD818
+      SIGNING_PCA_TBS: EA1159614FEB51156FD9F68A61A9561B4EFFDA1879C335949601FA0ECD56EC50A5D08F86BDC330E590FEABB0EDE1CFBC
+      PYTHONUTF8: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      # Before the policy is on: this Python and its packages aren't ours, so it blocks them.
+      - name: Generate the encrypted Maren backup
+        id: backup
+        shell: bash
+        env:
+          OPENEXTRACT_CORPUS_CACHE: ${{ runner.temp }}/corpus
+        run: |
+          git clone --depth=1 https://github.com/charleswest775/ios-backup-core.git "$GITHUB_WORKSPACE/../ios-backup-core"
+          pip install "$GITHUB_WORKSPACE/../ios-backup-core" pillow tzdata  # Windows has no time zone database of its own
+          python - <<'EOF'
+          import os
+          from corpus.synthetic import ensure_generated, load_synthetic
+          path = ensure_generated(load_synthetic()["syn-maren-ios26-encrypted"])
+          if path is None:
+              raise SystemExit("Couldn't generate syn-maren-ios26-encrypted: no backupgen or maren persona")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write(f"path={path}\n")
+          EOF
+
+      # pycryptodome's AES library as PyPI ships it: unsigned, and one of the files #169
+      # couldn't load. It loads now; with the policy on, it must not.
+      - name: Set aside an unsigned DLL as a canary
+        id: canary
+        run: |
+          $src = python -c "import os, Crypto; print(os.path.join(os.path.dirname(Crypto.__file__), 'Cipher', '_raw_aes.pyd'))"
+          $dir = New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'canary')
+          $dll = Copy-Item -LiteralPath $src -Destination $dir -PassThru
+          $status = (Get-AuthenticodeSignature -LiteralPath $dll.FullName).Status
+          if ($status -ne 'NotSigned') { throw "The canary $src is $status; it has to be unsigned" }
+          [void][System.Runtime.InteropServices.NativeLibrary]::Load($dll.FullName)
+          "path=$($dll.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Download the installer from the release
+        if: inputs.tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release download $env:TAG --repo $env:GITHUB_REPOSITORY --pattern 'OpenExtract-Setup-*.exe' --dir installer
+
+      - name: Download the installer artifact
+        if: inputs.artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: ${{ inputs.artifact }}
+          path: installer
+
+      # On windows-2025 runners the installer's NSIS System.dll plugin crashes at startup
+      # on about half the attempts (0xC0000005 at offset 0x1581), before App Control is
+      # on. A crash takes under a second, so try up to ten times; the Application log has
+      # the details.
+      - name: Install silently with /S
+        id: install
+        run: |
+          $exe = @(Get-ChildItem installer -Filter '*.exe')
+          if ($exe.Count -ne 1) { throw "Expected one installer, found $($exe.Count): $($exe.Name -join ', ')" }
+          $began = Get-Date
+          foreach ($attempt in 1..10) {
+            $p = Start-Process -FilePath $exe[0].FullName -ArgumentList '/S' -Wait -PassThru
+            if ($p.ExitCode -eq 0) { break }
+            Write-Output "::warning::Silent install attempt $attempt exited with $($p.ExitCode)"
+            Start-Sleep -Seconds 3
+          }
+          Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Id = 1000; StartTime = $began } -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Output ($_.Message -split "`r?`n" | Select-Object -First 4) }
+          if ($p.ExitCode -ne 0) { throw "Silent install exited with $($p.ExitCode)" }
+          $app = Join-Path $env:LOCALAPPDATA 'Programs\OpenExtract'
+          if (-not (Test-Path (Join-Path $app 'OpenExtract.exe'))) { throw "OpenExtract.exe not found under $app" }
+          Write-Output "Installed $($exe[0].Name) to $app"
+          "installer=$($exe[0].FullName)" >> $env:GITHUB_OUTPUT
+          "dir=$app" >> $env:GITHUB_OUTPUT
+
+      - name: Check every installed PE file is signed
+        env:
+          INSTALLER: ${{ steps.install.outputs.installer }}
+          APP_DIR: ${{ steps.install.outputs.dir }}
+        run: ./scripts/app-control/check-signatures.ps1 -Installer $env:INSTALLER -InstallDir $env:APP_DIR -Publisher $env:PUBLISHER -PcaThumbprint $env:SIGNING_PCA_THUMBPRINT
+
+      # The checks from here on run even if the signature check failed, so one run shows
+      # everything that's wrong.
+      - name: Turn on App Control (Microsoft and OpenExtract's publisher only)
+        id: policy
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        shell: powershell
+        run: ./scripts/app-control/enable-policy.ps1 -Publisher $env:PUBLISHER -PcaTbs $env:SIGNING_PCA_TBS -OutDir "$env:RUNNER_TEMP\app-control\policy"
+
+      - name: Check the policy blocks the canary
+        if: ${{ !cancelled() && steps.policy.outcome == 'success' }}
+        env:
+          CANARY: ${{ steps.canary.outputs.path }}
+        run: |
+          try { [void][System.Runtime.InteropServices.NativeLibrary]::Load($env:CANARY) }
+          catch { Write-Output "Blocked, as it should be: $($_.Exception.GetBaseException().Message)"; exit 0 }
+          Write-Output "::error::The unsigned canary loaded with App Control on, so the policy isn't enforcing and this check can't be trusted"
+          exit 1
+
+      - name: Open the encrypted backup with the installed engine
+        if: ${{ !cancelled() && steps.policy.outcome == 'success' }}
+        env:
+          APP_DIR: ${{ steps.install.outputs.dir }}
+          BACKUP: ${{ steps.backup.outputs.path }}
+        run: ./scripts/app-control/check-engine.ps1 -Engine "$env:APP_DIR\resources\python\openextract-engine.exe" -Backup $env:BACKUP -Password test -LogDir "$env:RUNNER_TEMP\app-control"
+
+      - name: Start the app
+        if: ${{ !cancelled() && steps.policy.outcome == 'success' }}
+        env:
+          APP_DIR: ${{ steps.install.outputs.dir }}
+        run: ./scripts/app-control/check-app.ps1 -App "$env:APP_DIR\OpenExtract.exe" -LogDir "$env:RUNNER_TEMP\app-control"
+
+      - name: Check nothing of OpenExtract's was blocked
+        if: ${{ !cancelled() && steps.policy.outcome == 'success' }}
+        env:
+          SINCE: ${{ steps.policy.outputs.since }}
+          CANARY: ${{ steps.canary.outputs.path }}
+        run: ./scripts/app-control/check-events.ps1 -Since $env:SINCE -Canary $env:CANARY -LogDir "$env:RUNNER_TEMP\app-control"
+
+      # Before the post-job steps, which run Node: it isn't signed by Microsoft either.
+      - name: Turn App Control off
+        if: ${{ always() && steps.policy.outputs.id }}
+        env:
+          POLICY_ID: ${{ steps.policy.outputs.id }}
+        run: |
+          CiTool.exe --remove-policy $env:POLICY_ID -json
+          if ($LASTEXITCODE -ne 0) { throw "CiTool --remove-policy exited with $LASTEXITCODE" }
+
+      # Maren is fictional, so the logs are safe to keep.
+      - name: Upload logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-control-${{ inputs.tag || inputs.artifact }}
+          path: ${{ runner.temp }}/app-control
+          retention-days: 14
+          if-no-files-found: ignore

@@ -20,6 +20,42 @@ Nothing here is published by itself.
    installs it silently, lists any unsigned files, and test-installs the
    Chocolatey package.
 
+## Windows App Control check
+
+Smart App Control (on by default on new Windows 11 PCs) won't load code
+that isn't signed, and GitHub's runners and our own PCs have it off. In
+0.9.0 that hid #169: the engine's unsigned DLLs were blocked and the app
+said "Python sidecar is not running".
+
+**When it runs:** `release.yml` runs `windows-app-control.yml` on the draft
+release, after the Windows build and before publishing. To check any
+release, drafts included, run "Windows App Control check" from the Actions
+tab with its tag.
+
+**What it does:** on a fresh runner it installs the release's installer
+with `/S`, checks that every PE file installed is validly signed (found by
+content, so an `.exe` or `.dll` under another name counts too), and turns
+on an enforced App Control policy that allows only Microsoft's code and
+ours (Azure Trusted Signing, publisher "Charles West"). That's stricter
+than Smart App Control, so what passes here passes there. Then it opens
+the generated encrypted Maren backup with the installed engine, starts the
+app, and looks for blocks in the CodeIntegrity event log.
+
+**If it fails,** the release stays a draft. The job summary lists unsigned
+files and blocked loads, and the `app-control-…` artifact has the engine's
+stderr, the event list and the policy. Usually something new in the engine
+or the app isn't being signed: a file type outside `win.signExts`, or code
+unpacked at run time. A DLL that keeps someone else's signature fails too,
+though Smart App Control would accept it; electron-builder re-signs every
+`.exe`, `.dll` and `.pyd` with ours, so that means one slipped past it.
+Fix the build and release again (delete the draft and its tag first).
+
+If the step "Check the policy blocks the canary" fails, the policy itself
+isn't working on that runner image, so the check proves nothing until
+it's fixed. To see a real failure, run it with tag `v0.9.0`: every file it
+installs is signed, but its one-file engine unpacks `python311.dll` into
+`%TEMP%`, App Control blocks it, and the engine exits.
+
 ## winget
 
 The first version goes in by a pull request to `microsoft/winget-pkgs`,
