@@ -117,20 +117,21 @@ jobs:
           name: ${{ inputs.artifact }}
           path: installer
 
-      # On windows-2025 runners the installer's NSIS System.dll plugin crashes on about
-      # half the attempts (0xC0000005), before App Control is on. Try again; the
-      # Application log has the crash details.
+      # On windows-2025 runners the installer's NSIS System.dll plugin crashes at startup
+      # on about half the attempts (0xC0000005 at offset 0x1581), before App Control is
+      # on. A crash takes under a second, so try up to ten times; the Application log has
+      # the details.
       - name: Install silently with /S
         id: install
         run: |
           $exe = @(Get-ChildItem installer -Filter '*.exe')
           if ($exe.Count -ne 1) { throw "Expected one installer, found $($exe.Count): $($exe.Name -join ', ')" }
           $began = Get-Date
-          foreach ($attempt in 1..5) {
+          foreach ($attempt in 1..10) {
             $p = Start-Process -FilePath $exe[0].FullName -ArgumentList '/S' -Wait -PassThru
             if ($p.ExitCode -eq 0) { break }
             Write-Output "::warning::Silent install attempt $attempt exited with $($p.ExitCode)"
-            Start-Sleep -Seconds 5
+            Start-Sleep -Seconds 3
           }
           Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Id = 1000; StartTime = $began } -ErrorAction SilentlyContinue |
             ForEach-Object { Write-Output ($_.Message -split "`r?`n" | Select-Object -First 4) }
