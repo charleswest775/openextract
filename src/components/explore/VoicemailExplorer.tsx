@@ -1,10 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import BenzAMRRecorder from 'benz-amr-recorder';
-import { saveFolder } from '../../lib/ipc';
-import { ExportIcon } from '../shared/Icons';
+import { ChevronDown } from 'lucide-react';
+import { saveFolder, sidecarCall } from '../../lib/ipc';
+import { VoicemailIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
 import { formatDateTime, formatDuration } from '../../lib/dates';
+import { displayName } from '../../lib/people';
 import { ReportProblemButton } from '../shared/Feedback';
+import PageHeader from '../shared/PageHeader';
+import EmptyState from '../shared/EmptyState';
+import { SaveButton } from '../shared/SaveDialog';
+import { useSaveAction } from '../../hooks/useSaveAction';
+import { checkEngineResult, plural } from '../../lib/saveData';
 
 interface Voicemail {
   id: number;
@@ -47,7 +54,7 @@ export default function VoicemailExplorer({ udid }: Props) {
   const [expanded, setExpanded] = useState<number | null>(null);
   const [audioCache, setAudioCache] = useState<Record<number, AudioInfo>>({});
   const [playerStates, setPlayerStates] = useState<Record<number, PlayerState>>({});
-  const [exporting, setExporting] = useState(false);
+  const { busy, run } = useSaveAction('voicemail');
   const [error, setError] = useState<string | null>(null);
   const [emptyReason, setEmptyReason] = useState<string | null>(null);
 
@@ -162,34 +169,24 @@ export default function VoicemailExplorer({ udid }: Props) {
     }
   }
 
-  async function handleExport() {
-    const outputDir = await saveFolder();
-    if (!outputDir) return;
-    setExporting(true);
-    try {
-      await window.openextract.call('export_voicemails', { udid, output_dir: outputDir });
-      window.openextract.incrementExportCount('voicemail');
-    } finally {
-      setExporting(false);
-    }
+  function handleSave() {
+    run(async () => {
+      const outputDir = await saveFolder();
+      if (!outputDir) return null;
+      const result = checkEngineResult(await sidecarCall<{ exported: number; path?: string }>(
+        'export_voicemails', { udid, output_dir: outputDir },
+      ));
+      return { title: `Saved ${plural(result.exported, 'voicemail')}`, detail: 'Audio files', path: result.path ?? outputDir };
+    });
   }
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-end justify-between gap-4 bg-base" style={{ padding: '20px 28px 14px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 }}>
-        <div>
-          <div className="hearth-eyebrow mb-1.5">
-            Voicemail{voicemails.length > 0 && ` · ${voicemails.length}`}
-          </div>
-          <h1 className="hearth-title text-3xl">
-            Voices you <span className="font-serif-italic text-accent">saved.</span>
-          </h1>
-        </div>
-        <button onClick={handleExport} disabled={exporting} className="hearth-ghost-btn" title="Export all">
-          <ExportIcon size={13} />
-          Export audio
-        </button>
-      </div>
+      <PageHeader
+        title="Voicemail"
+        count={voicemails.length > 0 ? plural(voicemails.length, 'voicemail') : undefined}
+        actions={<SaveButton onClick={handleSave} busy={busy} disabled={voicemails.length === 0} label="Save all" />}
+      />
       <div className="flex-1 overflow-y-auto">
         {loading && (
           <div className="flex justify-center py-12 text-accent">
@@ -198,19 +195,19 @@ export default function VoicemailExplorer({ udid }: Props) {
         )}
         {!loading && voicemails.length === 0 && (
           error ? (
-            <div className="text-center py-8 text-sm text-apple-error">
-              {error}
-              <div><ReportProblemButton error={error} area="voicemail" className="mt-2" /></div>
-            </div>
+            <EmptyState
+              icon={VoicemailIcon}
+              title="Couldn't read the voicemail"
+              detail={<>{error}<div><ReportProblemButton error={error} area="voicemail" className="mt-2" /></div></>}
+            />
           ) : (
-            <div className="text-center py-8 text-sm text-gray-400">
-              No voicemails in this backup
-              {emptyReason === 'not_in_backup' && (
-                <p className="mt-1.5 text-xs">
-                  iPhones only keep voicemail when the carrier supports Visual Voicemail.
-                </p>
-              )}
-            </div>
+            <EmptyState
+              icon={VoicemailIcon}
+              title="No voicemails in this backup"
+              detail={emptyReason === 'not_in_backup'
+                ? 'iPhones only keep voicemail when the carrier supports Visual Voicemail.'
+                : undefined}
+            />
           )
         )}
         {voicemails.map((vm) => {
@@ -218,27 +215,32 @@ export default function VoicemailExplorer({ udid }: Props) {
           const progress = ps && ps.duration > 0 ? (ps.currentTime / ps.duration) * 100 : 0;
 
           return (
-            <div key={vm.id} className={`border-b border-gray-100 ${!vm.is_read ? 'bg-emerald-50/30' : ''}`}>
+            <div key={vm.id} className="border-b border-rule">
               <button
                 onClick={() => toggleExpand(vm.id)}
-                className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors"
+                aria-expanded={expanded === vm.id}
+                className="w-full px-6 py-3.5 flex items-center gap-4 text-left hover:bg-surface transition-colors"
               >
+                <span className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  vm.is_read ? 'bg-sand text-text-secondary' : 'bg-accent-wash text-accent'
+                }`}>
+                  <VoicemailIcon size={22} />
+                </span>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-gray-900">
-                    {vm.contact_name || vm.phone_number}
+                  <div className="text-base font-medium text-text-primary">
+                    {displayName(vm.contact_name, vm.phone_number)}
+                    {!vm.is_read && <span className="ml-2 text-xs font-medium text-accent">Unheard</span>}
                   </div>
-                  <div className="text-xs text-gray-400">
+                  <div className="text-sm text-text-secondary">
                     {formatDateTime(vm.date_received)} · {formatDuration(vm.duration)}
                   </div>
                 </div>
-                <svg className={`w-4 h-4 text-gray-400 transition-transform ${expanded === vm.id ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
+                <ChevronDown size={20} className={`text-text-tertiary transition-transform ${expanded === vm.id ? 'rotate-180' : ''}`} />
               </button>
               {expanded === vm.id && (
-                <div className="px-4 pb-3">
+                <div className="pl-[80px] pr-6 pb-4">
                   {ps?.error && (
-                    <div className="text-sm text-red-500 mb-2">{ps.error}</div>
+                    <div className="text-sm text-apple-error mb-2">{ps.error}</div>
                   )}
                   {ps && !ps.isLoaded && !ps.error && (
                     <div className="text-sm text-gray-500 animate-pulse flex items-center h-10 px-2">Loading audio...</div>
@@ -247,18 +249,18 @@ export default function VoicemailExplorer({ udid }: Props) {
                     <div className="text-sm text-gray-500 animate-pulse flex items-center h-10 px-2">Loading audio...</div>
                   )}
                   {ps?.isLoaded && (
-                    <div className="flex items-center gap-3 bg-gray-100 rounded-full px-3 py-2 w-full max-w-sm mb-2">
+                    <div className="flex items-center gap-3 bg-sand rounded-full px-3 py-2 w-full max-w-md mb-2">
                       <button
                         onClick={() => togglePlay(vm.id)}
-                        className="w-8 h-8 flex items-center justify-center rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex-shrink-0 transition-colors shadow-sm"
+                        className="w-10 h-10 flex items-center justify-center rounded-full bg-accent hover:bg-accent-hover text-white flex-shrink-0 transition-colors shadow-sm"
                         aria-label={ps.isPlaying ? 'Pause' : 'Play'}
                       >
                         {ps.isPlaying ? (
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                           </svg>
                         ) : (
-                          <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M8 5v14l11-7z" />
                           </svg>
                         )}
@@ -268,7 +270,7 @@ export default function VoicemailExplorer({ udid }: Props) {
                       </span>
                       <div className="flex-1 h-2 bg-gray-300 rounded-full overflow-hidden relative">
                         <div
-                          className="absolute top-0 left-0 h-full bg-emerald-500 transition-all duration-100 ease-linear"
+                          className="absolute top-0 left-0 h-full bg-accent transition-all duration-100 ease-linear"
                           style={{ width: `${progress}%` }}
                         />
                       </div>
@@ -278,9 +280,9 @@ export default function VoicemailExplorer({ udid }: Props) {
                     </div>
                   )}
                   {vm.transcript && (
-                    <div className="border-l-2 border-emerald-300 pl-3 py-1">
-                      <div className="text-xs text-gray-400 mb-1">Transcript</div>
-                      <div className="text-sm text-gray-600 italic">{vm.transcript}</div>
+                    <div className="border-l-2 border-accent-line pl-3 py-1">
+                      <div className="text-xs text-text-tertiary mb-1">Transcript</div>
+                      <div className="text-sm text-text-primary italic">{vm.transcript}</div>
                     </div>
                   )}
                 </div>

@@ -1,5 +1,5 @@
-import { useMemo, useState, useCallback } from 'react';
-import { Clock, Loader2, CheckCircle2, AlertTriangle, Download } from 'lucide-react';
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useTimeline } from '../../hooks/useTimeline';
 import { TimelineEntry, TimelineEntryType, TimelineFilters } from '../../types/timeline';
 import TimelineFilterBar from './TimelineFilterBar';
@@ -9,6 +9,18 @@ import { saveFolder } from '../../lib/ipc';
 import { formatTimeline, FORMAT_FILTERS, ExportFormat } from '../../lib/timelineExport';
 import OrganicLoader from '../shared/OrganicLoader';
 import { ReportProblemButton } from '../shared/Feedback';
+import PageHeader from '../shared/PageHeader';
+import EmptyState from '../shared/EmptyState';
+import SaveDialog, { FORMATS, SaveButton } from '../shared/SaveDialog';
+import { ClockIcon } from '../shared/Icons';
+import { useSaveAction } from '../../hooks/useSaveAction';
+import { plural } from '../../lib/saveData';
+
+const TIMELINE_FORMATS = [
+  FORMATS.html,
+  FORMATS.csv,
+  { id: 'md', label: 'Markdown', detail: 'MD, for notes apps and text editors' },
+];
 
 interface Props {
   udid: string;
@@ -21,13 +33,13 @@ const LOADING_LABELS: Record<TimelineEntryType, string> = {
   photo:     'Photos',
   voicemail: 'Voicemail',
   note:      'Notes',
-  browser:   'Browser History',
+  browser:   'Web history',
 };
 
 const ALL_TYPES: TimelineEntryType[] = ['message', 'call', 'photo', 'voicemail', 'note', 'browser'];
 
 // Group entries by calendar day
-function groupByDay(entries: TimelineEntry[]): { date: string; entries: TimelineEntry[] }[] {
+export function groupByDay(entries: TimelineEntry[]): { date: string; entries: TimelineEntry[] }[] {
   const groups: { date: string; entries: TimelineEntry[] }[] = [];
   let lastDate: string | null = null;
   for (const e of entries) {
@@ -58,38 +70,31 @@ export default function TimelineView({ udid, startingFilters }: Props) {
     pageSize,
   } = useTimeline(udid, startingFilters);
 
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const [choosing, setChoosing] = useState(false);
+  const { busy: exporting, run } = useSaveAction('timeline');
 
-  const handleExport = useCallback(async (format: ExportFormat) => {
-    setExportMenuOpen(false);
-    if (!window.openextract || filteredEntries.length === 0) return;
+  // The search field lives in the page header; typing waits a moment before filtering.
+  const [searchText, setSearchText] = useState(filters.searchQuery);
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function handleSearchChange(val: string) {
+    setSearchText(val);
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    searchDebounce.current = setTimeout(() => setFilters({ searchQuery: val }), 300);
+  }
+  useEffect(() => () => { if (searchDebounce.current) clearTimeout(searchDebounce.current); }, []);
 
-    const folder = await saveFolder();
-    if (!folder) return;
-
-    setExporting(true);
-    try {
+  function handleExport(format: ExportFormat) {
+    setChoosing(false);
+    if (filteredEntries.length === 0) return;
+    run(async () => {
+      const folder = await saveFolder();
+      if (!folder) return null;
       const ext = FORMAT_FILTERS[format].extensions[0];
-      const filename = `timeline-export.${ext}`;
-      const content = formatTimeline(filteredEntries, format);
-
-      // Use writeFile if available (newer builds), otherwise fall back to sidecar
-      if (window.openextract.writeFile) {
-        await window.openextract.writeFile(`${folder}/${filename}`, content);
-      } else {
-        await window.openextract.call('write_file', {
-          path: `${folder}/${filename}`,
-          content,
-        });
-      }
-      await window.openextract.incrementExportCount('timeline');
-    } catch (e: any) {
-      console.error('Timeline export failed:', e);
-    } finally {
-      setExporting(false);
-    }
-  }, [filteredEntries]);
+      const path = `${folder}/timeline-export.${ext}`;
+      await window.openextract.writeFile(path, formatTimeline(filteredEntries, format));
+      return { title: `Saved ${plural(filteredEntries.length, 'event')} from the Timeline`, path };
+    });
+  }
 
   const groups = useMemo(() => groupByDay(entries), [entries]);
 
@@ -102,86 +107,14 @@ export default function TimelineView({ udid, startingFilters }: Props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
-      {/* Header */}
-      <div style={{
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16,
-        padding: '20px 28px 14px',
-        borderBottom: '1px solid var(--border-default)',
-        flexShrink: 0,
-      }}>
-        <div>
-          <div className="hearth-eyebrow mb-1.5">
-            Timeline
-            {!loading && ` · ${totalFiltered.toLocaleString()} event${totalFiltered !== 1 ? 's' : ''}`}
-          </div>
-          <h1 className="hearth-title text-3xl">
-            Everything, <span className="font-serif-italic text-accent">in order.</span>
-          </h1>
-          {loading && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>
-              <Loader2 size={11} className="animate-spin" />
-              Loading…
-            </span>
-          )}
-        </div>
-
-        {/* Export dropdown */}
-        {totalFiltered > 0 && !loading && (
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setExportMenuOpen(o => !o)}
-              disabled={exporting}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '6px 16px', borderRadius: 8,
-                border: 'none',
-                background: 'var(--accent, #007AFF)',
-                color: '#fff',
-                fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-                cursor: exporting ? 'not-allowed' : 'pointer',
-                opacity: exporting ? 0.6 : 1,
-                transition: 'opacity 0.15s',
-              }}
-            >
-              {exporting
-                ? <Loader2 size={14} className="animate-spin" />
-                : <Download size={14} />}
-              Export Timeline
-            </button>
-            {exportMenuOpen && (
-              <div style={{
-                position: 'absolute', top: 38, right: 0, zIndex: 50,
-                background: 'var(--bg-elevated)',
-                border: '0.5px solid var(--border-strong)',
-                borderRadius: 8,
-                boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
-                overflow: 'hidden', minWidth: 200,
-              }}>
-                {(['html', 'md', 'csv'] as ExportFormat[]).map(fmt => (
-                  <button
-                    key={fmt}
-                    onClick={() => handleExport(fmt)}
-                    style={{
-                      display: 'block', width: '100%',
-                      padding: '10px 16px', textAlign: 'left',
-                      background: 'transparent', border: 'none',
-                      fontSize: 13, fontFamily: 'inherit',
-                      color: 'var(--text-primary)', cursor: 'pointer',
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    {FORMAT_FILTERS[fmt].name} (.{FORMAT_FILTERS[fmt].extensions[0]})
-                  </button>
-                ))}
-                <div style={{ padding: '6px 16px 8px', fontSize: 11, color: 'var(--text-tertiary)', borderTop: '0.5px solid var(--border-default)' }}>
-                  {totalFiltered.toLocaleString()} entries will be exported
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="Timeline"
+        count={loading
+          ? <span className="inline-flex items-center gap-1.5"><Loader2 size={16} className="animate-spin" />Loading…</span>
+          : plural(totalFiltered, 'event')}
+        search={{ value: searchText, onChange: handleSearchChange, placeholder: 'Search the timeline' }}
+        actions={<SaveButton onClick={() => setChoosing(true)} busy={exporting} disabled={loading || totalFiltered === 0} />}
+      />
 
       {/* Filter bar */}
       <TimelineFilterBar
@@ -199,9 +132,9 @@ export default function TimelineView({ udid, startingFilters }: Props) {
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '5px 10px', borderRadius: 6,
               background: 'rgba(255,59,48,0.08)', border: '0.5px solid rgba(255,59,48,0.2)',
-              fontSize: 12, color: 'var(--text-secondary)',
+              fontSize: 14, color: 'var(--text-secondary)',
             }}>
-              <AlertTriangle size={13} style={{ color: 'var(--error)', flexShrink: 0 }} />
+              <AlertTriangle size={16} style={{ color: 'var(--error)', flexShrink: 0 }} />
               {LOADING_LABELS[type]}: {msg}
               <ReportProblemButton error={`${LOADING_LABELS[type]}: ${msg}`} area="timeline" className="ml-1" />
             </div>
@@ -231,17 +164,17 @@ export default function TimelineView({ udid, startingFilters }: Props) {
               return (
                 <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 13, color: 'var(--text-secondary)' }}>
                   {hasError
-                    ? <AlertTriangle size={14} style={{ color: 'var(--error)' }} />
+                    ? <AlertTriangle size={18} style={{ color: 'var(--error)' }} />
                     : isLoading
-                      ? <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent)' }} />
-                      : <CheckCircle2 size={14} style={{ color: 'var(--success)' }} />
+                      ? <Loader2 size={18} className="animate-spin" style={{ color: 'var(--accent)' }} />
+                      : <CheckCircle2 size={18} style={{ color: 'var(--success)' }} />
                   }
                   <span>{LOADING_LABELS[type]}</span>
                   {!isLoading && !hasError && (
-                    <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>({counts[type].toLocaleString()})</span>
+                    <span style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>({counts[type].toLocaleString()})</span>
                   )}
                   {hasError && (
-                    <span style={{ color: 'var(--error)', fontSize: 12 }}>failed</span>
+                    <span style={{ color: 'var(--error)', fontSize: 14 }}>failed</span>
                   )}
                 </div>
               );
@@ -252,20 +185,18 @@ export default function TimelineView({ udid, startingFilters }: Props) {
 
       {/* Empty state (filters returned nothing) */}
       {!loading && entries.length === 0 && (
-        <div style={{
-          flex: 1, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 8,
-          color: 'var(--text-tertiary)',
-        }}>
-          <Clock size={40} strokeWidth={1} style={{ marginBottom: 4 }} />
-          <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-secondary)' }}>No timeline entries found</div>
-          <div style={{ fontSize: 13 }}>Try adjusting your filters or date range</div>
+        <div style={{ flex: 1 }}>
+          <EmptyState
+            icon={ClockIcon}
+            title="Nothing matches these filters"
+            detail="Try more kinds of events, someone else, or a wider date range."
+          />
         </div>
       )}
 
       {/* Timeline body — shown even while loading if we have partial entries */}
       {entries.length > 0 && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 16px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 16px' }}>
           {groups.map(group => (
             <div key={group.date}>
               {/* Date group header */}
@@ -277,17 +208,17 @@ export default function TimelineView({ udid, startingFilters }: Props) {
                 zIndex: 10,
               }}>
                 <div style={{ flex: 1, height: '0.5px', background: 'var(--border-default)' }} />
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>
                   {group.date}
                 </span>
-                <span style={{ fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 13, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
                   {group.entries.length} event{group.entries.length !== 1 ? 's' : ''}
                 </span>
                 <div style={{ flex: 1, height: '0.5px', background: 'var(--border-default)' }} />
               </div>
 
               {/* Entry cards */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {group.entries.map(entry => (
                   <TimelineEntryCard key={entry.id} entry={entry} udid={udid} />
                 ))}
@@ -297,50 +228,35 @@ export default function TimelineView({ udid, startingFilters }: Props) {
         </div>
       )}
 
-      {/* Pagination */}
+      {/* Pagination: newest first, a page at a time */}
       {totalFiltered > 0 && (
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 20px',
-          borderTop: '0.5px solid var(--border-default)',
+          padding: '10px 24px',
+          borderTop: '1px solid var(--border-default)',
           flexShrink: 0,
         }}>
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            {totalFiltered === 0 ? 'No results' : `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${totalFiltered.toLocaleString()}`}
+          <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
+            {`${start.toLocaleString()}–${end.toLocaleString()} of ${plural(totalFiltered, 'event')}`}
           </span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              disabled={page === 0}
-              onClick={() => { setPage(page - 1); }}
-              style={paginationBtn(page === 0)}
-            >
-              ← Prev
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button disabled={page === 0} onClick={() => setPage(page - 1)} className="hearth-ghost-btn">
+              ← Newer
             </button>
-            <button
-              disabled={page >= totalPages - 1}
-              onClick={() => { setPage(page + 1); }}
-              style={paginationBtn(page >= totalPages - 1)}
-            >
-              Next →
+            <button disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)} className="hearth-ghost-btn">
+              Older →
             </button>
           </div>
         </div>
       )}
+      {choosing && (
+        <SaveDialog
+          title={`Save ${plural(totalFiltered, 'event')} from the Timeline`}
+          formats={TIMELINE_FORMATS}
+          onSave={id => handleExport(id as ExportFormat)}
+          onCancel={() => setChoosing(false)}
+        />
+      )}
     </div>
   );
-}
-
-function paginationBtn(disabled: boolean): React.CSSProperties {
-  return {
-    padding: '5px 14px',
-    borderRadius: 6,
-    border: '0.5px solid var(--border-strong)',
-    background: 'var(--bg-base)',
-    color: 'var(--text-primary)',
-    fontSize: 12,
-    fontFamily: 'inherit',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.35 : 1,
-    transition: 'background 0.12s',
-  };
 }

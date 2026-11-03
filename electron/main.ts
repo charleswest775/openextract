@@ -74,6 +74,8 @@ class JsonStore {
 
 const store = new JsonStore({
   firstLaunchCompleted: false,
+  // Settings > Text size: 'default', 'large' or 'larger'
+  textSize: 'default',
   sessions: [],
   stats: { totalExports: 0 },
   // null until the user answers the "check for updates automatically?" question.
@@ -87,8 +89,38 @@ const store = new JsonStore({
 // The export check shows at most once per run, and never on the same export as the share prompt.
 let exportCheckShownThisRun = false;
 
+// Settings > Text size scales the whole window, so layouts keep their proportions.
+const TEXT_SIZE_ZOOM: Record<string, number> = { default: 1, large: 1.15, larger: 1.3 };
+
+function applyTextSize() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.setZoomFactor(TEXT_SIZE_ZOOM[store.get('textSize', 'default')] ?? 1);
+}
+
+// macOS needs an app menu for Cmd+C, Cmd+V, Cmd+Q and friends to work, even in text fields.
+// Windows and Linux keep no menu bar; their editing shortcuts don't depend on one.
+function macMenu() {
+  return Menu.buildFromTemplate([
+    { role: 'appMenu' },
+    { role: 'editMenu' },
+    {
+      label: 'View',
+      submenu: [
+        ...(isDev ? [{ role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' }] : []),
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    { role: 'windowMenu' },
+  ]);
+}
+
 function createWindow() {
-  Menu.setApplicationMenu(null);
+  const isMac = process.platform === 'darwin';
+  Menu.setApplicationMenu(isMac ? macMenu() : null);
 
   mainWindow = new BrowserWindow({
     width: 1100,
@@ -96,6 +128,10 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     title: `OpenExtract v${app.getVersion()}`,
+    backgroundColor: '#fbf6f1',
+    // On macOS the real traffic lights sit inside the app's 52px header row
+    // (see .titlebar in index.css); elsewhere the native frame stays.
+    ...(isMac ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 19 } } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -107,6 +143,8 @@ function createWindow() {
   });
 
   mainWindow.on('page-title-updated', (e: any) => e.preventDefault());
+
+  mainWindow.webContents.on('did-finish-load', applyTextSize);
 
   if (isDev) {
     mainWindow.loadURL('http://127.0.0.1:5179');
@@ -280,6 +318,18 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('shell:openPath', (_event: any, filePath: string) => {
     return shell.openPath(filePath);
+  });
+
+  ipcMain.handle('shell:showItemInFolder', (_event: any, filePath: string) => {
+    if (typeof filePath === 'string' && filePath) shell.showItemInFolder(filePath);
+  });
+
+  // ── Text size (Settings) ────────────────────────────────────────────────
+  ipcMain.handle('text-size:get', () => store.get('textSize', 'default'));
+  ipcMain.handle('text-size:set', (_event: any, size: string) => {
+    if (!(size in TEXT_SIZE_ZOOM)) return;
+    store.set('textSize', size);
+    applyTextSize();
   });
 
   ipcMain.handle('dialog:saveFolder', async () => {

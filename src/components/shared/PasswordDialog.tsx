@@ -44,7 +44,7 @@ export default function PasswordDialog({ deviceName, error, loading, onSubmit, o
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Backup password"
             autoFocus
-            className="w-full px-3 py-2.5 border border-border-strong rounded-lg text-sm bg-base text-text-primary focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-text-tertiary"
+            className="w-full px-3 py-2.5 border border-border-strong rounded-lg text-sm bg-base text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-tertiary"
           />
 
           {error && (

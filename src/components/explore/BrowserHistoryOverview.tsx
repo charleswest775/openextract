@@ -24,16 +24,16 @@ interface Props {
 }
 
 const BROWSER_COLORS: Record<string, string> = {
-  safari: '#3b82f6',
-  firefox: '#f97316',
+  safari: '#5f86a0',
+  firefox: '#c0603e',
 };
 
-const PEAK_COLOR = '#f59e0b';
-const DEFAULT_HOUR_COLOR = '#d1d5db';
-const ACTIVITY_COLOR = '#10b981';
-const AVG_COLOR = '#6366f1';
-const DOMAIN_COLOR = '#34d399';
-const DOW_COLOR = '#818cf8';
+const PEAK_COLOR = '#c0603e';
+const DEFAULT_HOUR_COLOR = '#e2d5c2';
+const ACTIVITY_COLOR = '#6f8f6f';
+const AVG_COLOR = '#5f86a0';
+const DOMAIN_COLOR = '#c0603e';
+const DOW_COLOR = '#5f86a0';
 
 /** 7-day rolling average for the activity chart */
 function rollingAverage(data: { date: string; count: number }[], window = 7) {
@@ -54,9 +54,9 @@ function formatHour(h: number) {
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4">
-      <div className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-text-tertiary font-medium mb-1">{label}</div>
       <div className="text-2xl font-semibold text-gray-900 leading-tight">{value}</div>
-      {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
+      {sub && <div className="text-xs text-text-tertiary mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -65,7 +65,7 @@ function SectionTitle({ children, hint }: { children: React.ReactNode; hint?: st
   return (
     <div className="flex items-center justify-between mb-3">
       <h3 className="text-sm font-medium text-gray-700">{children}</h3>
-      {hint && <span className="text-xs text-gray-400">{hint}</span>}
+      {hint && <span className="text-xs text-text-tertiary">{hint}</span>}
     </div>
   );
 }
@@ -95,7 +95,7 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
 
   if (visits.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-sm text-gray-400">
+      <div className="h-full flex items-center justify-center text-sm text-text-tertiary">
         No browsing data to analyze
       </div>
     );
@@ -149,7 +149,7 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
                   dataKey="date"
                   ticks={monthTicks}
                   tickFormatter={formatMonthTick}
-                  tick={{ fontSize: 11, fill: '#9ca3af' }}
+                  tick={{ fontSize: 12, fill: '#73665a' }}
                   axisLine={false}
                   tickLine={false}
                 />
@@ -160,14 +160,14 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
                     return (
                       <div className="bg-white border border-gray-200 rounded shadow-sm px-3 py-2 text-xs">
                         <div className="font-medium text-gray-700">{formatDate(String(label))}</div>
-                        <div className="text-emerald-600">{payload[0]?.value} visits</div>
+                        <div className="text-accent">{payload[0]?.value} visits</div>
                         {payload[1]?.value != null && (
                           <div className="text-indigo-400">{payload[1].value} avg</div>
                         )}
                       </div>
                     );
                   }}
-                  cursor={{ fill: '#f3f4f6' }}
+                  cursor={{ fill: '#f2e9dd' }}
                 />
                 <Bar
                   dataKey="count"
@@ -187,11 +187,11 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
               </ComposedChart>
             </ResponsiveContainer>
             <div className="flex items-center gap-4 mt-2">
-              <span className="flex items-center gap-1.5 text-xs text-gray-400">
+              <span className="flex items-center gap-1.5 text-xs text-text-tertiary">
                 <span className="w-3 h-2 rounded-sm inline-block" style={{ background: ACTIVITY_COLOR }} />
                 Daily visits
               </span>
-              <span className="flex items-center gap-1.5 text-xs text-gray-400">
+              <span className="flex items-center gap-1.5 text-xs text-text-tertiary">
                 <span className="w-6 border-t-2 inline-block" style={{ borderColor: AVG_COLOR }} />
                 7-day average
               </span>
@@ -218,7 +218,7 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
                   type="category"
                   dataKey="domain"
                   width={170}
-                  tick={{ fontSize: 11, fill: '#374151' }}
+                  tick={{ fontSize: 12, fill: '#4a4036' }}
                   axisLine={false}
                   tickLine={false}
                 />
@@ -228,11 +228,11 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
                     return (
                       <div className="bg-white border border-gray-200 rounded shadow-sm px-3 py-2 text-xs">
                         <div className="font-medium text-gray-700">{payload[0]?.payload?.domain}</div>
-                        <div className="text-emerald-600">{payload[0]?.value} visits</div>
+                        <div className="text-accent">{payload[0]?.value} visits</div>
                       </div>
                     );
                   }}
-                  cursor={{ fill: '#f3f4f6' }}
+                  cursor={{ fill: '#f2e9dd' }}
                 />
                 <Bar
                   dataKey="count"
@@ -258,7 +258,7 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
                   dataKey="hour"
                   ticks={[0, 6, 12, 18]}
                   tickFormatter={formatHour}
-                  tick={{ fontSize: 10, fill: '#9ca3af' }}
+                  tick={{ fontSize: 12, fill: '#73665a' }}
                   axisLine={false}
                   tickLine={false}
                 />
@@ -298,7 +298,7 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
                 />
               </BarChart>
             </ResponsiveContainer>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-text-tertiary mt-1">
               Peak: {peakHourLabel} · {peakHourCount.toLocaleString()} visits
             </p>
           </div>
@@ -322,7 +322,7 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
                     {stats.browserBreakdown.map((entry) => (
                       <Cell
                         key={entry.browser}
-                        fill={BROWSER_COLORS[entry.browser] ?? '#94a3b8'}
+                        fill={BROWSER_COLORS[entry.browser] ?? '#8a7f72'}
                       />
                     ))}
                   </Pie>
@@ -343,11 +343,11 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
                     <div key={b.browser} className="flex items-center gap-2 text-sm">
                       <span
                         className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                        style={{ background: BROWSER_COLORS[b.browser] ?? '#94a3b8' }}
+                        style={{ background: BROWSER_COLORS[b.browser] ?? '#8a7f72' }}
                       />
                       <span className="text-gray-700 capitalize">{b.browser}</span>
                       <span className="font-medium text-gray-900">{b.count.toLocaleString()}</span>
-                      <span className="text-xs text-gray-400">{b.pct}%</span>
+                      <span className="text-xs text-text-tertiary">{b.pct}%</span>
                     </div>
                   ))}
                 </div>
@@ -358,13 +358,13 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
                   <div key={b.browser} className="flex items-center gap-3">
                     <span
                       className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{ background: BROWSER_COLORS[b.browser] ?? '#94a3b8' }}
+                      style={{ background: BROWSER_COLORS[b.browser] ?? '#8a7f72' }}
                     />
                     <span className="text-sm text-gray-700 capitalize">{b.browser}</span>
                     <span className="text-sm font-medium text-gray-900 ml-auto">
                       {b.count.toLocaleString()}
                     </span>
-                    <span className="text-xs text-gray-400">100%</span>
+                    <span className="text-xs text-text-tertiary">100%</span>
                   </div>
                 ))}
               </div>
@@ -379,7 +379,7 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
             <BarChart data={stats.dayOfWeekDistribution} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 11, fill: '#9ca3af' }}
+                tick={{ fontSize: 12, fill: '#73665a' }}
                 axisLine={false}
                 tickLine={false}
               />
@@ -394,7 +394,7 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
                     </div>
                   );
                 }}
-                cursor={{ fill: '#f3f4f6' }}
+                cursor={{ fill: '#f2e9dd' }}
               />
               <Bar dataKey="count" fill={DOW_COLOR} radius={[3, 3, 0, 0]} />
             </BarChart>
@@ -404,7 +404,7 @@ export default function BrowserHistoryOverview({ visits, onSelectDomain, onSelec
         {/* ── View all ── */}
         <button
           onClick={onViewAll}
-          className="w-full py-2.5 text-sm text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 transition-colors font-medium"
+          className="w-full py-2.5 text-sm text-accent border border-accent-line rounded-lg hover:bg-accent-wash transition-colors font-medium"
         >
           View Full History →
         </button>

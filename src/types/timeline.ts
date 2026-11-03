@@ -14,6 +14,8 @@ export interface TimelineEntry {
     messageType: string;
     conversationName: string;
     service: string;
+    chatId?: number;
+    isGroup?: boolean;
   };
   call?: {
     direction: string;

@@ -26,7 +26,7 @@ export default function ExportCheckPrompt() {
   const close = () => setArea(null);
 
   return (
-    <NoticeCard title="Did this export come out right?" icon={<ClipboardCheck size={16} />} onClose={close}>
+    <NoticeCard title="Did that come out right?" icon={<ClipboardCheck size={16} />} onClose={close}>
       <p className="text-xs text-text-secondary leading-relaxed mb-3">
         If something's missing or looks wrong, telling us is the fastest way to get it fixed.
       </p>

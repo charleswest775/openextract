@@ -1,8 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useUpdates, releaseNotesUrl } from '../../hooks/useUpdates';
 import { SettingsIcon } from './Icons';
 import { useFeedback } from './Feedback';
-import type { UpdateStatus } from '../../types';
+import type { TextSize, UpdateStatus } from '../../types';
+
+const TEXT_SIZES: { id: TextSize; label: string }[] = [
+  { id: 'default', label: 'Default' },
+  { id: 'large', label: 'Large' },
+  { id: 'larger', label: 'Larger' },
+];
 
 interface Props {
   onClose: () => void;
@@ -13,6 +19,16 @@ const WEBSITE_URL = 'https://www.openextract.app';
 export default function SettingsDialog({ onClose }: Props) {
   const { state, setAutoCheck, check, download, install } = useUpdates();
   const { openFeedback } = useFeedback();
+  const [textSize, setTextSize] = useState<TextSize | null>(null);
+
+  useEffect(() => {
+    window.openextract.textSize?.get().then(setTextSize).catch(() => setTextSize('default'));
+  }, []);
+
+  function pickTextSize(size: TextSize) {
+    setTextSize(size);
+    window.openextract.textSize?.set(size);
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -26,14 +42,30 @@ export default function SettingsDialog({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-base rounded-xl shadow-xl w-[440px] p-6" onClick={e => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label="Settings" className="bg-base rounded-xl shadow-xl w-[480px] p-6" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-full bg-elevated flex items-center justify-center">
             <SettingsIcon className="text-text-secondary" size={20} />
           </div>
-          <div className="flex-1 text-sm font-medium text-text-primary">Settings</div>
-          <button onClick={onClose} className="text-text-tertiary hover:text-text-primary" aria-label="Close">×</button>
+          <div className="flex-1 text-lg font-medium text-text-primary">Settings</div>
+          <button onClick={onClose} className="text-text-tertiary hover:text-text-primary text-2xl leading-none" aria-label="Close">×</button>
         </div>
+
+        <div className="hearth-eyebrow mb-2">Text size</div>
+        <div role="radiogroup" aria-label="Text size" className="flex gap-2 mb-1">
+          {TEXT_SIZES.map(({ id, label }) => (
+            <button
+              key={id}
+              role="radio"
+              aria-checked={textSize === id}
+              onClick={() => pickTextSize(id)}
+              className={`hearth-ghost-btn ${textSize === id ? '!border-accent !bg-accent-wash text-accent' : ''}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-text-tertiary mb-6">Makes everything in the window bigger, including icons.</p>
 
         <div className="hearth-eyebrow mb-2">Updates</div>
         {!state ? (

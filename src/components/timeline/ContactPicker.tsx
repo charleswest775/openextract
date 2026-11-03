@@ -43,14 +43,14 @@ export default function ContactPicker({ value, options, onChange }: Props) {
       <button
         onClick={() => setContactOpen(o => !o)}
         style={{
-          height: 28,
-          minWidth: 180,
-          padding: '0 8px',
-          border: '0.5px solid var(--border-strong)',
-          borderRadius: 6,
-          background: value ? 'var(--accent-subtle)' : 'var(--bg-base)',
-          color: value ? 'var(--text-accent)' : 'var(--text-secondary)',
-          fontSize: 12,
+          height: 36,
+          minWidth: 200,
+          padding: '0 12px',
+          border: `1px solid ${value ? 'var(--accent)' : 'var(--border-default)'}`,
+          borderRadius: 999,
+          background: value ? 'var(--accent-wash)' : 'var(--bg-surface)',
+          color: value ? 'var(--text-accent)' : 'var(--text-primary)',
+          fontSize: 14,
           fontFamily: 'inherit',
           cursor: 'pointer',
           display: 'flex',
@@ -60,9 +60,9 @@ export default function ContactPicker({ value, options, onChange }: Props) {
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {selectedContact ? selectedContact.name : value || 'All contacts'}
+          {selectedContact ? selectedContact.name : value || 'Everyone'}
         </span>
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </button>
@@ -70,7 +70,7 @@ export default function ContactPicker({ value, options, onChange }: Props) {
       {contactOpen && (
         <div style={{
           position: 'absolute',
-          top: 32,
+          top: 40,
           left: 0,
           zIndex: 50,
           background: 'var(--bg-elevated)',
@@ -95,7 +95,7 @@ export default function ContactPicker({ value, options, onChange }: Props) {
                 borderRadius: 5,
                 background: 'var(--bg-base)',
                 color: 'var(--text-primary)',
-                fontSize: 12,
+                fontSize: 14,
                 fontFamily: 'inherit',
                 outline: 'none',
               }}
@@ -111,12 +111,12 @@ export default function ContactPicker({ value, options, onChange }: Props) {
                 background: !value ? 'var(--accent-subtle)' : 'transparent',
                 color: !value ? 'var(--text-accent)' : 'var(--text-primary)',
                 border: 'none',
-                fontSize: 12,
+                fontSize: 14,
                 fontFamily: 'inherit',
                 cursor: 'pointer',
               }}
             >
-              All contacts
+              Everyone
             </button>
             {filteredContacts.map(c => (
               <button
@@ -129,7 +129,7 @@ export default function ContactPicker({ value, options, onChange }: Props) {
                   background: isSelected(c) ? 'var(--accent-subtle)' : 'transparent',
                   color: isSelected(c) ? 'var(--text-accent)' : 'var(--text-primary)',
                   border: 'none',
-                  fontSize: 12,
+                  fontSize: 14,
                   fontFamily: 'inherit',
                   cursor: 'pointer',
                   display: 'flex',
@@ -139,12 +139,12 @@ export default function ContactPicker({ value, options, onChange }: Props) {
               >
                 <span>{c.name}</span>
                 {c.name !== c.identifier && (
-                  <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{c.identifier}</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{c.identifier}</span>
                 )}
               </button>
             ))}
             {filteredContacts.length === 0 && (
-              <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-tertiary)' }}>
+              <div style={{ padding: '8px 12px', fontSize: 14, color: 'var(--text-tertiary)' }}>
                 No contacts found
               </div>
             )}

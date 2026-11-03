@@ -137,7 +137,7 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
             >
               <input type="radio" name="feedback-kind" className="sr-only" checked={kind === k.id} onChange={() => setKind(k.id)} />
               <div className="text-sm text-text-primary leading-snug">{k.label}</div>
-              <div className="text-[11px] text-text-tertiary leading-snug mt-0.5">{k.hint}</div>
+              <div className="text-xs text-text-tertiary leading-snug mt-0.5">{k.hint}</div>
             </label>
           ))}
         </div>
@@ -165,7 +165,7 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
           value={details}
           onChange={e => setDetails(e.target.value)}
         />
-        <span className="text-[11px] text-text-tertiary">
+        <span className="text-xs text-text-tertiary">
           Please don't include message text, names or phone numbers from your backup.
         </span>
       </label>
@@ -173,13 +173,13 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
       <label className="block mb-4">
         <span className="hearth-eyebrow block mb-1.5">Details we'll include (you can edit or delete any of it)</span>
         <textarea
-          className="w-full h-32 text-[11px] font-mono rounded-md border border-border-default bg-surface px-2.5 py-2 text-text-secondary resize-y"
+          className="w-full h-32 text-xs font-mono rounded-md border border-border-default bg-surface px-2.5 py-2 text-text-secondary resize-y"
           value={diagnostics ?? 'Gathering details…'}
           disabled={diagnostics === null}
           onChange={e => setDiagnostics(e.target.value)}
           spellCheck={false}
         />
-        <span className="text-[11px] text-text-tertiary">
+        <span className="text-xs text-text-tertiary">
           App and system versions, your phone's model and iOS version, and recent errors. Your
           folder names, device name, email addresses and phone numbers are replaced with
           placeholders. Nothing from inside your backup is included.

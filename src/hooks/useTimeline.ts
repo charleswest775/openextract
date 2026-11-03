@@ -48,6 +48,8 @@ export function normalizeMessage(msg: Message, conv: Conversation): TimelineEntr
       messageType: msg.message_type,
       conversationName: conv.display_name || conv.chat_identifier,
       service: conv.service,
+      chatId: conv.chat_id,
+      isGroup: conv.is_group,
     },
   };
 }
@@ -186,6 +188,8 @@ function normalizeBrowserVisit(v: RawBrowserVisit): TimelineEntry {
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
 export interface UseTimelineReturn {
+  /** Everything loaded, before any filter, in no particular order. */
+  allEntries: TimelineEntry[];
   entries: TimelineEntry[];
   filteredEntries: TimelineEntry[];
   allContacts: ContactOption[];
@@ -592,6 +596,7 @@ export function useTimeline(udid: string, startingFilters?: Partial<TimelineFilt
   const loading = loadingTypes.size > 0;
 
   return {
+    allEntries: rawEntries,
     entries,
     filteredEntries,
     allContacts,

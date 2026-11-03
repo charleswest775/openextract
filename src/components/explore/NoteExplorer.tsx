@@ -1,8 +1,19 @@
 import { useState, useEffect } from 'react';
 import { sidecarCall, saveFolder } from '../../lib/ipc';
-import { SearchIcon, ExportIcon } from '../shared/Icons';
+import { NoteIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
 import { formatDate } from '../../lib/dates';
+import PageHeader from '../shared/PageHeader';
+import EmptyState from '../shared/EmptyState';
+import SaveDialog, { FORMATS, SaveButton } from '../shared/SaveDialog';
+import { useSaveAction } from '../../hooks/useSaveAction';
+import { checkEngineResult, plural } from '../../lib/saveData';
+
+// Notes start with their title, so the list's preview skips it.
+function preview(note: { title: string; body: string }): string {
+  const body = note.body || '';
+  return note.title && body.startsWith(note.title) ? body.slice(note.title.length).trim() : body;
+}
 
 interface Note {
   note_id: number | string;
@@ -14,13 +25,17 @@ interface Note {
 
 interface Props {
   udid: string;
+  /** Open this note instead of the newest one. */
+  openNoteId?: number | string | null;
 }
 
-export default function NoteExplorer({ udid }: Props) {
+export default function NoteExplorer({ udid, openNoteId }: Props) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Note | null>(null);
+  const [choosing, setChoosing] = useState(false);
+  const { busy, run } = useSaveAction('notes');
 
   useEffect(() => {
     loadNotes();
@@ -31,26 +46,25 @@ export default function NoteExplorer({ udid }: Props) {
     try {
       const result = await sidecarCall<{ notes: Note[] }>('list_notes', { udid });
       setNotes(result.notes);
+      // Open on the asked-for note, else the newest rather than an empty pane
+      setSelected(result.notes.find(n => n.note_id === openNoteId) ?? result.notes[0] ?? null);
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleExport(format: 'txt' | 'pdf') {
-    if (!selected) return;
-    const outputDir = await saveFolder();
-    if (!outputDir) return;
-    try {
-      await sidecarCall('export_notes', {
-        udid,
-        note_ids: [selected.note_id],
-        format,
-        output_dir: outputDir,
-      });
-      window.openextract.incrementExportCount('notes');
-    } catch (err) {
-      console.error('Export failed:', err);
-    }
+  function save(format: 'pdf' | 'txt') {
+    setChoosing(false);
+    const note = selected;
+    if (!note) return;
+    run(async () => {
+      const outputDir = await saveFolder();
+      if (!outputDir) return null;
+      const result = checkEngineResult(await sidecarCall<{ exported?: string[] }>('export_notes', {
+        udid, note_ids: [note.note_id], format, output_dir: outputDir,
+      }));
+      return { title: `Saved "${note.title || 'Untitled'}"`, path: result.exported?.[0] ?? outputDir };
+    });
   }
 
   const filtered = notes.filter(n => {
@@ -60,22 +74,16 @@ export default function NoteExplorer({ udid }: Props) {
   });
 
   return (
-    <div className="h-full flex">
-      {/* Notes list */}
-      <div className="w-[280px] flex-shrink-0 border-r border-gray-200 flex flex-col">
-        <div className="p-3 border-b border-gray-200">
-          <div className="relative">
-            <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
-            <input
-              type="text"
-              placeholder="Search notes..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 rounded-md border border-gray-200 focus:outline-none focus:border-emerald-400"
-            />
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto">
+    <div className="h-full flex flex-col">
+      <PageHeader
+        title="Notes"
+        count={notes.length > 0 ? plural(notes.length, 'note') : undefined}
+        search={{ value: search, onChange: setSearch, placeholder: 'Search notes' }}
+        actions={<SaveButton onClick={() => setChoosing(true)} busy={busy} disabled={!selected} label="Save note" />}
+      />
+      <div className="flex-1 flex min-h-0">
+        {/* Notes list */}
+        <div className="w-[300px] flex-shrink-0 border-r border-rule overflow-y-auto">
           {loading && (
             <div className="flex justify-center py-8 text-accent">
               <OrganicLoader size={56} />
@@ -85,59 +93,54 @@ export default function NoteExplorer({ udid }: Props) {
             <button
               key={note.note_id}
               onClick={() => setSelected(note)}
-              className={`w-full px-3 py-2.5 text-left border-b border-gray-100 transition-colors ${
-                selected?.note_id === note.note_id ? 'bg-gray-100' : 'hover:bg-gray-50'
+              aria-current={selected?.note_id === note.note_id ? 'true' : undefined}
+              className={`w-full px-4 py-3 text-left border-b border-rule transition-colors ${
+                selected?.note_id === note.note_id ? 'bg-accent-wash' : 'hover:bg-surface'
               }`}
             >
-              <div className="text-sm font-medium text-gray-900 truncate">{note.title || 'Untitled'}</div>
-              <div className="text-xs text-gray-400 mt-0.5">{formatDate(note.modified)}</div>
-              <div className="text-xs text-gray-400 line-clamp-2 mt-0.5">{note.body}</div>
+              <div className="text-sm font-medium text-text-primary truncate">{note.title || 'Untitled'}</div>
+              <div className="text-xs text-text-tertiary mt-0.5">{formatDate(note.modified)}</div>
+              <div className="text-xs text-text-secondary line-clamp-2 mt-0.5">{preview(note)}</div>
             </button>
           ))}
           {!loading && filtered.length === 0 && (
-            <div className="text-center py-4 text-sm text-gray-400">No notes found</div>
+            <div className="text-center px-4 py-6 text-sm text-text-secondary">
+              {search ? `No notes match "${search}"` : 'No notes in this backup'}
+            </div>
           )}
         </div>
-      </div>
 
-      {/* Note detail */}
-      <div className="flex-1 flex flex-col">
-        {selected ? (
-          <>
-            <div className="px-7 py-5 border-b border-rule flex items-end justify-between bg-base">
-              <div>
-                <div className="hearth-eyebrow mb-1.5">
-                  {formatDate(selected.modified)}
-                </div>
-                <div className="font-serif text-2xl text-text-primary" style={{ fontWeight: 500, letterSpacing: '-0.02em' }}>
-                  {selected.title || 'Untitled'}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => handleExport('txt')} className="hearth-ghost-btn">TXT</button>
-                <button onClick={() => handleExport('pdf')} className="hearth-ghost-btn">PDF</button>
-              </div>
-            </div>
+        {/* Note detail */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {selected ? (
             <div className="flex-1 overflow-y-auto px-10 py-8">
+              <div className="text-sm text-text-tertiary mb-1">Edited {formatDate(selected.modified)}</div>
+              <h2 className="text-2xl text-text-primary mb-5">{selected.title || 'Untitled'}</h2>
               <div
                 className="whitespace-pre-wrap text-text-primary"
                 style={{
                   fontFamily: 'Fraunces, Newsreader, Georgia, serif',
-                  fontSize: 16,
+                  fontSize: 17,
                   lineHeight: 1.7,
                   maxWidth: 680,
                 }}
               >
-                {selected.body}
+                {preview(selected)}
               </div>
             </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-sm text-gray-400">
-            Select a note to view
-          </div>
-        )}
+          ) : (
+            !loading && <EmptyState icon={NoteIcon} title="Pick a note to read it" />
+          )}
+        </div>
       </div>
+      {choosing && selected && (
+        <SaveDialog
+          title={`Save "${selected.title || 'Untitled'}"`}
+          formats={[FORMATS.pdf, FORMATS.txt]}
+          onSave={save}
+          onCancel={() => setChoosing(false)}
+        />
+      )}
     </div>
   );
 }

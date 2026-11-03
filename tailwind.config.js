@@ -5,34 +5,6 @@ export default {
   theme: {
     extend: {
       colors: {
-        /* Remap emerald → terracotta (Hearth accent) so all existing
-           emerald-* classes pick up the Hearth accent automatically. */
-        emerald: {
-          50:  '#faeadd',
-          100: '#f7e6d8', /* accent-wash */
-          200: '#f0c8b0',
-          300: '#e8a585',
-          400: '#de8c69',
-          500: '#d97757', /* accent */
-          600: '#c26547',
-          700: '#a5532f',
-          800: '#843e20',
-          900: '#5e2c18',
-        },
-        /* Remap neutral grays to warm Hearth tones */
-        /* teal also maps to terracotta (FirstVisitView uses teal-500/600) */
-        teal: {
-          50:  '#faeadd',
-          100: '#f7e6d8',
-          200: '#f0c8b0',
-          300: '#e8a585',
-          400: '#de8c69',
-          500: '#d97757',
-          600: '#c26547',
-          700: '#a5532f',
-          800: '#843e20',
-          900: '#5e2c18',
-        },
         /* amber → cream (warm yellow). keeps Hearth palette. */
         amber: {
           50:  '#fbf3de',
@@ -68,7 +40,10 @@ export default {
         accent: {
           DEFAULT: 'var(--accent)',
           hover: 'var(--accent-hover)',
+          soft: 'var(--accent-soft)',
+          line: 'var(--accent-line)',
           subtle: 'var(--accent-subtle)',
+          wash: 'var(--accent-wash)',
         },
         'text-primary': 'var(--text-primary)',
         'text-secondary': 'var(--text-secondary)',
@@ -92,7 +67,6 @@ export default {
         ink2: 'var(--text-secondary)',
         ink3: 'var(--text-tertiary)',
         rule: 'var(--border-default)',
-        'accent-wash': 'var(--accent-wash)',
       },
       fontFamily: {
         sans: ['Geist', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'system-ui', 'sans-serif'],
@@ -114,9 +88,12 @@ export default {
         'toolbar': '0 0.5px 0 var(--border-default)',
         'focus': '0 0 0 3px var(--accent-subtle)',
       },
+      /* 13px is the smallest text in the app; xs and sm are raised from Tailwind's 12px and 14px. */
       fontSize: {
-        'caption': ['11px', { lineHeight: '14px', letterSpacing: '0.01em' }],
-        'body': ['13px', { lineHeight: '20px', letterSpacing: '-0.003em' }],
+        'xs': ['13px', { lineHeight: '18px' }],
+        'sm': ['15px', { lineHeight: '22px' }],
+        'caption': ['13px', { lineHeight: '18px', letterSpacing: '0.01em' }],
+        'body': ['15px', { lineHeight: '22px', letterSpacing: '-0.003em' }],
         'subhead': ['15px', { lineHeight: '22px', letterSpacing: '-0.01em' }],
         'title': ['20px', { lineHeight: '24px', letterSpacing: '-0.015em' }],
       },

@@ -80,19 +80,19 @@ function AttachmentItem({ udid, attachment, isMine }: { udid: string; attachment
 
   if (!isImageAttachment(attachment)) {
     return (
-      <div className={`text-xs truncate ${isMine ? 'text-white/75' : 'text-gray-400'}`}>
+      <div className={`text-xs truncate ${isMine ? 'text-white/75' : 'text-text-tertiary'}`}>
         📎 {attachment.transfer_name || attachment.filename}
       </div>
     );
   }
 
   if (loading) {
-    return <div className={`text-xs italic ${isMine ? 'text-white/75' : 'text-gray-400'}`}>Loading…</div>;
+    return <div className={`text-xs italic ${isMine ? 'text-white/75' : 'text-text-tertiary'}`}>Loading…</div>;
   }
 
   if (error || !data) {
     return (
-      <div className={`text-xs italic ${isMine ? 'text-white/75' : 'text-gray-400'}`}>
+      <div className={`text-xs italic ${isMine ? 'text-white/75' : 'text-text-tertiary'}`}>
         {attachment.transfer_name || attachment.filename}
       </div>
     );
@@ -117,7 +117,7 @@ export default function ChatBubble({ message, showSender, udid }: Props) {
     <div className={`flex w-full ${isMine ? 'justify-end' : 'justify-start'} mb-1`}>
       <div className={`max-w-[70%] ${isMine ? 'items-end' : 'items-start'}`}>
         {showSender && !isMine && message.sender && (
-          <div className="text-[11px] text-gray-400 mb-0.5 px-3">{message.sender}</div>
+          <div className="text-xs text-text-tertiary mb-0.5 px-3">{message.sender}</div>
         )}
         <div
           className={`px-4 py-2.5 ${
@@ -154,12 +154,12 @@ export default function ChatBubble({ message, showSender, udid }: Props) {
             </div>
           )}
           {!message.text && !message.has_attachments && (
-            <p className={`text-xs italic ${isMine ? 'text-white/75' : 'text-gray-400'}`}>
+            <p className={`text-xs italic ${isMine ? 'text-white/75' : 'text-text-tertiary'}`}>
               [{EVENT_LABELS[message.message_type] ?? EVENT_FALLBACK}]
             </p>
           )}
         </div>
-        <div className={`text-[10px] text-gray-400 mt-0.5 px-3 ${isMine ? 'text-right' : 'text-left'}`}>
+        <div className={`text-xs text-text-tertiary mt-0.5 px-3 ${isMine ? 'text-right' : 'text-left'}`}>
           {formatTime(message.date)}
         </div>
       </div>

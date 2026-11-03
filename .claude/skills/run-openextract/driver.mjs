@@ -69,13 +69,13 @@ const COMMANDS = {
   // The whole open flow: pick the folder, enter the password if asked, wait for the Overview.
   async 'open-backup'(folder, password) {
     await COMMANDS['stub-folder'](folder);
-    const clicked = await COMMANDS['click-text']('Explore', 'my', 'data');
+    const clicked = await COMMANDS['click-text']('Open', 'a', 'backup', 'folder');
     if (clicked.includes('NOT_FOUND')) return clicked;
     for (let i = 0; i < 120; i++) {
       await sleep(500);
       const state = await page.evaluate(() => ({
         password: !!document.querySelector('input[type=password]'),
-        overview: document.body.innerText.includes('OVERVIEW'),
+        overview: !!document.querySelector('nav [aria-current="page"]'),
         error: [...document.querySelectorAll('[role=alert], .text-red-600, .text-apple-error')].map(e => e.textContent.trim()).filter(Boolean)[0],
       }));
       if (state.overview) return 'opened';

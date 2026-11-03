@@ -1,7 +1,10 @@
 import { useState, useEffect, Component } from 'react';
 import type { ReactNode } from 'react';
-import { saveFolder } from '../../lib/ipc';
-import { ExportIcon } from '../shared/Icons';
+import { saveFolder, sidecarCall } from '../../lib/ipc';
+import PageHeader from '../shared/PageHeader';
+import { SaveButton } from '../shared/SaveDialog';
+import { useSaveAction } from '../../hooks/useSaveAction';
+import { checkEngineResult, plural } from '../../lib/saveData';
 import OrganicLoader from '../shared/OrganicLoader';
 import type { HistoryVisit } from '../../lib/browserHistoryStats';
 import BrowserHistoryOverview from './BrowserHistoryOverview';
@@ -17,9 +20,9 @@ class BrowserHistoryErrorBoundary extends Component<
   render() {
     if (this.state.crashed) {
       return (
-        <div className="h-full flex items-center justify-center text-sm text-gray-400">
-          Couldn't render browser history overview.{' '}
-          <button onClick={this.reset} className="text-emerald-600 underline ml-1">Retry</button>
+        <div className="h-full flex items-center justify-center text-sm text-text-secondary">
+          Couldn't show the web history overview.{' '}
+          <button onClick={this.reset} className="text-accent underline ml-1">Retry</button>
         </div>
       );
     }
@@ -39,7 +42,7 @@ export default function BrowserHistoryExplorer({ udid, preloadedVisits, preloade
   const [view, setView] = useState<'overview' | 'history'>('overview');
   const [drillDomain, setDrillDomain] = useState<string | null>(null);
   const [drillDate, setDrillDate] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
+  const { busy: exporting, run } = useSaveAction('browser_history');
 
   useEffect(() => {
     if (preloadedVisits !== undefined) {
@@ -65,16 +68,15 @@ export default function BrowserHistoryExplorer({ udid, preloadedVisits, preloade
     }
   }
 
-  async function handleExport() {
-    const outputDir = await saveFolder();
-    if (!outputDir) return;
-    setExporting(true);
-    try {
-      await window.openextract.call('export_browser_history', { udid, output_dir: outputDir });
-      window.openextract.incrementExportCount('browser_history');
-    } finally {
-      setExporting(false);
-    }
+  function handleExport() {
+    run(async () => {
+      const outputDir = await saveFolder();
+      if (!outputDir) return null;
+      const result = checkEngineResult(await sidecarCall<{ path: string; count: number }>(
+        'export_browser_history', { udid, output_dir: outputDir },
+      ));
+      return { title: `Saved ${plural(result.count, 'page visit')}`, detail: 'Spreadsheet (CSV)', path: result.path };
+    });
   }
 
   function handleDrillDomain(domain: string) {
@@ -113,6 +115,8 @@ export default function BrowserHistoryExplorer({ udid, preloadedVisits, preloade
           initialDomainFilter={drillDomain}
           initialDateFilter={drillDate}
           onBack={handleBackToOverview}
+          onSave={handleExport}
+          saving={exporting}
         />
       </div>
     );
@@ -121,23 +125,11 @@ export default function BrowserHistoryExplorer({ udid, preloadedVisits, preloade
   // Overview
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
-        <h2 className="text-sm font-medium text-gray-900">
-          Browser History
-          {visits.length > 0 && (
-            <span className="text-gray-400 font-normal ml-1">({visits.length.toLocaleString()})</span>
-          )}
-        </h2>
-        <button
-          onClick={handleExport}
-          disabled={exporting || visits.length === 0}
-          className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40"
-          title="Export CSV"
-        >
-          <ExportIcon className="text-gray-500" size={16} />
-        </button>
-      </div>
+      <PageHeader
+        title="Web history"
+        count={visits.length > 0 ? plural(visits.length, 'page visit') : undefined}
+        actions={<SaveButton onClick={handleExport} busy={exporting} disabled={visits.length === 0} label="Save all" />}
+      />
 
       {/* Body */}
       <div className="flex-1 overflow-hidden">

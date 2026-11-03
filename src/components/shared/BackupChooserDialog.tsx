@@ -33,7 +33,7 @@ export default function BackupChooserDialog({ folder, backups, onChoose, onCance
                     .join(' · ')}
                 </div>
               </div>
-              {b.encrypted && <LockIcon className="text-text-tertiary flex-shrink-0" size={14} />}
+              {b.encrypted && <LockIcon className="text-text-tertiary flex-shrink-0" size={18} />}
             </button>
           ))}
         </div>

@@ -1,9 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { sidecarCall, saveFolder } from '../../lib/ipc';
-import { SearchIcon, ExportIcon } from '../shared/Icons';
+import { CameraIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
 import { allOnlyInIcloud, moreOnlyInIcloud, photoExportSummary, PhotoExportResult } from '../../lib/photoCounts';
-import { ReportProblemButton } from '../shared/Feedback';
+import PageHeader from '../shared/PageHeader';
+import EmptyState from '../shared/EmptyState';
+import { SaveButton } from '../shared/SaveDialog';
+import { useSaveAction } from '../../hooks/useSaveAction';
+import { checkEngineResult, plural } from '../../lib/saveData';
 
 interface PhotoAsset {
   uuid: string;
@@ -63,8 +67,7 @@ export default function PhotoExplorer({ udid }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<string>('all');
-  const [exporting, setExporting] = useState(false);
-  const [exportSummary, setExportSummary] = useState<string | null>(null);
+  const { busy, run } = useSaveAction('photos');
   const [videoLoading, setVideoLoading] = useState(false);
 
   const offsetRef = useRef(0);
@@ -84,7 +87,8 @@ export default function PhotoExplorer({ udid }: Props) {
   async function loadAlbums() {
     try {
       const result = await sidecarCall<{ albums: PhotoAlbum[] }>('list_albums', { udid });
-      if (mountedRef.current) setAlbums(result.albums);
+      // The list starts with its own "All Photos", so skip the backup's album of that name
+      if (mountedRef.current) setAlbums(result.albums.filter(a => a.title.trim().toLowerCase() !== 'all photos'));
     } catch {
       // Non-critical
     }
@@ -224,13 +228,11 @@ export default function PhotoExplorer({ udid }: Props) {
     }
   }, [hasMore, selectedAlbum]);
 
-  async function handleExport() {
-    const outputDir = await saveFolder();
-    if (!outputDir) return;
-    setExporting(true);
-    setExportSummary(null);
-    try {
-      const result = await sidecarCall<PhotoExportResult>('export_photos', {
+  function handleSave() {
+    run(async () => {
+      const outputDir = await saveFolder();
+      if (!outputDir) return null;
+      const result = checkEngineResult(await sidecarCall<PhotoExportResult>('export_photos', {
         udid,
         output_dir: outputDir,
         options: {
@@ -242,14 +244,9 @@ export default function PhotoExplorer({ udid }: Props) {
           export_originals_if_edited: true,
           include_metadata_sidecar: false,
         },
-      });
-      window.openextract.incrementExportCount('photos');
-      setExportSummary(photoExportSummary(result));
-    } catch (err: any) {
-      setExportSummary(`Export failed: ${err?.message || 'Unknown error'}`);
-    } finally {
-      setExporting(false);
-    }
+      }));
+      return { title: 'Saved photos and videos', detail: photoExportSummary(result), path: outputDir };
+    });
   }
 
   async function handlePhotoClick(photo: PhotoAsset) {
@@ -294,78 +291,57 @@ export default function PhotoExplorer({ udid }: Props) {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Hearth header */}
-      <div className="flex items-end justify-between gap-4 bg-base" style={{ padding: '20px 28px 14px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 }}>
-        <div className="min-w-0 flex-1">
-          <div className="hearth-eyebrow mb-1.5">
-            Photos{total > 0 && ` · ${shownCount.toLocaleString()} in this backup`}
-          </div>
-          <h1 className="hearth-title text-3xl">
-            Albums <span className="font-serif-italic text-accent">across the years.</span>
-          </h1>
-          {notInBackup > 0 && shownCount > 0 && (
-            <p className="text-sm text-text-secondary mt-1.5">{moreOnlyInIcloud(notInBackup)}</p>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {exportSummary && (
-            <span className="text-xs text-text-tertiary">
-              {exportSummary}
-              {exportSummary.startsWith('Export failed') && (
-                <ReportProblemButton error={exportSummary} area="photos" className="ml-2" />
-              )}
-            </span>
-          )}
-          <select
-            value={kindFilter}
-            onChange={(e) => setKindFilter(e.target.value)}
-            className="text-xs bg-surface border border-rule rounded-full px-3 py-1.5"
-          >
-            <option value="all">All types</option>
-            <option value="photo">Photos</option>
-            <option value="video">Videos</option>
-            <option value="live_photo">Live Photos</option>
-            <option value="screenshot">Screenshots</option>
-          </select>
-          <div className="relative">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" size={13} />
-            <input
-              type="text"
-              placeholder="Search photos..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-3 py-1.5 text-sm bg-surface rounded-full border border-rule focus:outline-none focus:border-accent w-40"
-            />
-          </div>
-          <button onClick={handleExport} disabled={exporting} className="hearth-ghost-btn">
-            <ExportIcon size={13} />
-            Export
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Photos"
+        count={total > 0 ? `${plural(shownCount, 'photo or video', 'photos and videos')} in this backup` : undefined}
+        search={{ value: search, onChange: setSearch, placeholder: 'Search file names' }}
+        actions={
+          <>
+            <select
+              aria-label="Show"
+              value={kindFilter}
+              onChange={(e) => setKindFilter(e.target.value)}
+              className="h-10 text-sm bg-surface border border-rule rounded-full px-4"
+            >
+              <option value="all">All types</option>
+              <option value="photo">Photos</option>
+              <option value="video">Videos</option>
+              <option value="live_photo">Live Photos</option>
+              <option value="screenshot">Screenshots</option>
+            </select>
+            <SaveButton onClick={handleSave} busy={busy} disabled={shownCount === 0} label="Save all" />
+          </>
+        }
+      />
+      {notInBackup > 0 && shownCount > 0 && (
+        <p className="px-6 py-2 text-sm text-text-secondary border-b border-rule">{moreOnlyInIcloud(notInBackup)}</p>
+      )}
 
       <div className="flex-1 flex overflow-hidden">
         {/* Album sidebar */}
         {albums.length > 0 && (
-          <div className="w-[180px] flex-shrink-0 border-r border-gray-200 overflow-y-auto py-2">
+          <div className="w-[220px] flex-shrink-0 border-r border-rule overflow-y-auto py-2 px-2">
             <button
               onClick={() => handleAlbumSelect(null)}
-              className={`w-full px-3 py-1.5 text-left text-sm ${
-                selectedAlbum === null ? 'bg-gray-100 font-medium' : 'hover:bg-gray-50'
+              aria-current={selectedAlbum === null ? 'true' : undefined}
+              className={`w-full px-3 py-2 rounded-lg text-left text-sm flex justify-between ${
+                selectedAlbum === null ? 'bg-accent-wash font-medium' : 'hover:bg-surface'
               }`}
             >
-              All Photos
+              <span>All Photos</span>
+              {shownCount > 0 && <span className="text-xs text-text-tertiary flex-shrink-0 ml-1">{shownCount}</span>}
             </button>
             {albums.map((album) => (
               <button
                 key={album.id}
                 onClick={() => handleAlbumSelect(album.id)}
-                className={`w-full px-3 py-1.5 text-left text-sm flex justify-between ${
-                  selectedAlbum === album.id ? 'bg-gray-100 font-medium' : 'hover:bg-gray-50'
+                aria-current={selectedAlbum === album.id ? 'true' : undefined}
+                className={`w-full px-3 py-2 rounded-lg text-left text-sm flex justify-between ${
+                  selectedAlbum === album.id ? 'bg-accent-wash font-medium' : 'hover:bg-surface'
                 }`}
               >
                 <span className="truncate">{album.title}</span>
-                <span className="text-xs text-gray-400 flex-shrink-0 ml-1">{album.in_backup ?? album.asset_count}</span>
+                <span className="text-xs text-text-tertiary flex-shrink-0 ml-1">{album.in_backup ?? album.asset_count}</span>
               </button>
             ))}
           </div>
@@ -393,19 +369,19 @@ export default function PhotoExplorer({ udid }: Props) {
                       loading="lazy"
                     />
                   ) : isVideo ? (
-                    <div className="w-full h-full flex flex-col items-center justify-center bg-gray-800 text-gray-400">
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-gray-800 text-text-tertiary">
                       {/* Play triangle icon */}
-                      <svg className="w-10 h-10 mb-1 text-gray-300 group-hover:text-white transition-colors" viewBox="0 0 24 24" fill="currentColor">
+                      <svg className="w-10 h-10 mb-1 text-text-tertiary group-hover:text-white transition-colors" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M8 5v14l11-7z" />
                       </svg>
-                      <span className="text-[10px] text-gray-500">{photo.filename.length > 16 ? photo.filename.slice(0, 14) + '...' : photo.filename}</span>
+                      <span className="text-xs text-gray-500">{photo.filename.length > 16 ? photo.filename.slice(0, 14) + '...' : photo.filename}</span>
                     </div>
                   ) : failed ? (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-gray-300">
+                    <div className="w-full h-full flex flex-col items-center justify-center text-text-tertiary">
                       <svg className="w-8 h-8 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
                       </svg>
-                      <span className="text-[10px]">{photo.filename.length > 16 ? photo.filename.slice(0, 14) + '...' : photo.filename}</span>
+                      <span className="text-xs">{photo.filename.length > 16 ? photo.filename.slice(0, 14) + '...' : photo.filename}</span>
                     </div>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
@@ -413,7 +389,7 @@ export default function PhotoExplorer({ udid }: Props) {
                     </div>
                   )}
                   {photo.duration > 0 && (
-                    <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1 rounded">
+                    <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1 rounded">
                       {Math.floor(photo.duration / 60)}:{String(Math.floor(photo.duration % 60)).padStart(2, '0')}
                     </div>
                   )}
@@ -430,12 +406,14 @@ export default function PhotoExplorer({ udid }: Props) {
             </div>
           )}
           {loadError && (
-            <div className="text-center py-8 text-sm text-gray-400">Couldn't load more photos: {loadError}</div>
+            <div className="text-center py-8 text-sm text-text-secondary">Couldn't load more photos: {loadError}</div>
           )}
           {!loading && !loadError && !hasMore && filteredPhotos.length === 0 && (
-            <div className="text-center py-8 text-sm text-gray-400">
-              {shownCount === 0 && notInBackup > 0 ? allOnlyInIcloud(notInBackup) : 'No photos found'}
-            </div>
+            <EmptyState
+              icon={CameraIcon}
+              title={search ? `No file names match "${search}"` : kindFilter !== 'all' ? 'None of this type here' : 'No photos in this backup'}
+              detail={shownCount === 0 && notInBackup > 0 ? allOnlyInIcloud(notInBackup) : undefined}
+            />
           )}
         </div>
       </div>

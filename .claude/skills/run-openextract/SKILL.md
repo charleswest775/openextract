@@ -87,8 +87,8 @@ on a Retina screen (the window is 1440×900). **Look at them.**
 |---|---|
 | `launch [profile-dir]` | Starts Electron with a fresh throwaway profile, closes DevTools, sizes the window to 1440×900 |
 | `goto [url]` | Points the window at a renderer (default `http://127.0.0.1:5179`) |
-| `open-backup <folder> [password]` | Answers the folder picker, clicks "Explore my data", unlocks, waits for the Overview |
-| `tab <name>` | Sidebar: Overview, Timeline, Messages, Photos, Contacts, Calls, Notes, Voicemail, History, Recover, Export |
+| `open-backup <folder> [password]` | Answers the folder picker, clicks "Open a backup folder", unlocks, waits for the Overview |
+| `tab <name>` | Sidebar: Overview, Timeline, Year, Messages, Photos, Contacts, Calls, Notes, Voicemail, Web, Recover, Save (sources the backup lacks are hidden) |
 | `click-text <text>` | Clicks the button/link whose text is, or starts with, `<text>` |
 | `ss <name>` | Screenshot |
 | `text`, `buttons` | The page's visible text; its buttons, links and inputs |

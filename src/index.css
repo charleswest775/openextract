@@ -14,16 +14,21 @@
 
   --text-primary: #1e1a16;
   --text-secondary: #655a4f;
-  --text-tertiary: #97897a;
-  --text-accent: #d97757;
+  /* Every text color passes WCAG AA (4.5:1) on --bg-base and --bg-surface */
+  --text-tertiary: #73665a;
+  --text-accent: #b4532f;
 
   --border-subtle: rgba(236, 225, 209, 0.6);
   --border-default: #ece1d1;
   --border-strong: #d9c8ad;
 
-  --accent: #d97757;         /* terracotta */
-  --accent-hover: #c26547;
-  --accent-subtle: rgba(217, 119, 87, 0.1);
+  /* --accent carries white text and accent-colored text, so it is the darker terracotta.
+     --accent-soft is the original terracotta, for fills that hold no text. */
+  --accent: #b4532f;
+  --accent-hover: #9a4527;
+  --accent-soft: #d97757;
+  --accent-line: #f0c8b0;
+  --accent-subtle: rgba(180, 83, 47, 0.1);
   --accent-wash: #f7e6d8;
 
   --sage: #7a9a7a;
@@ -33,8 +38,16 @@
   --warning: #d4a245;
   --error: #c85a3a;
 
+  /* Chart series, from the Hearth palette */
+  --series-terracotta: #c0603e;
+  --series-sage: #6f8f6f;
+  --series-ochre: #c89a3a;
+  --series-slate: #5f86a0;
+  --series-plum: #9a6a8a;
+  --series-taupe: #8a7f72;
+
   /* Messages bubbles */
-  --bubble-me: #d97757;
+  --bubble-me: #b4532f;
   --bubble-them: #f2e9dd;
 
   color-scheme: light;
@@ -44,7 +57,7 @@
 body {
   margin: 0;
   font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.5;
   letter-spacing: -0.003em;
   background: var(--bg-base);
@@ -67,6 +80,28 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-tertiary);
+}
+
+/* ===== Title bar ===== */
+/* Each screen's top row. On macOS (inset title bar) it is also the window's title
+   bar: it drags the window and leaves room for the real traffic lights. */
+.titlebar {
+  height: 52px;
+  flex-shrink: 0;
+}
+.platform-darwin .titlebar {
+  -webkit-app-region: drag;
+  padding-left: 88px;
+}
+.platform-darwin .titlebar :is(button, a, input, select, [role="button"]) {
+  -webkit-app-region: no-drag;
+}
+
+/* ===== Icons ===== */
+/* One stroke weight for every Lucide icon, whatever size it is drawn at */
+svg.lucide {
+  stroke-width: 1.75px;
+  flex-shrink: 0;
 }
 
 /* ===== Focus styles ===== */
@@ -103,7 +138,7 @@ h1.text-lg, h1.text-base, h2.text-lg {
 /* ===== Hearth component utilities ===== */
 .hearth-eyebrow {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-tertiary);
@@ -129,11 +164,11 @@ h1.text-lg, h1.text-base, h2.text-lg {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 11px;
+  padding: 4px 12px;
   border-radius: 999px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
-  font-size: 11.5px;
+  font-size: 13px;
   color: var(--text-secondary);
 }
 
@@ -141,34 +176,41 @@ h1.text-lg, h1.text-base, h2.text-lg {
   background: transparent;
   border: 1px solid var(--border-default);
   color: var(--text-primary);
-  padding: 6px 12px;
+  padding: 8px 16px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 500;
   font-family: inherit;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  white-space: nowrap;
   cursor: pointer;
   transition: background 0.15s;
 }
 .hearth-ghost-btn:hover {
   background: var(--bg-elevated);
 }
+.hearth-ghost-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 .hearth-primary-btn {
   background: var(--accent);
   color: #fff;
   border: 0;
-  padding: 7px 14px;
+  padding: 9px 18px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   font-family: inherit;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  white-space: nowrap;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(217, 119, 87, 0.22);
+  box-shadow: 0 4px 12px rgba(180, 83, 47, 0.22);
   transition: background 0.15s, box-shadow 0.15s;
 }
 .hearth-primary-btn:hover {
