@@ -75,7 +75,7 @@ jobs:
           OPENEXTRACT_CORPUS_CACHE: ${{ runner.temp }}/corpus
         run: |
           git clone --depth=1 https://github.com/charleswest775/ios-backup-core.git "$GITHUB_WORKSPACE/../ios-backup-core"
-          pip install "$GITHUB_WORKSPACE/../ios-backup-core" pillow
+          pip install "$GITHUB_WORKSPACE/../ios-backup-core" pillow tzdata  # Windows has no time zone database of its own
           python - <<'EOF'
           import os
           from corpus.synthetic import ensure_generated, load_synthetic
