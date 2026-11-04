@@ -59,6 +59,12 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.10.0" date="2026-11-03">
+      <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.10.0</url>
+      <description>
+        <p>A new look that's simpler to find your way around: a backup opens on a home page with a tile for each kind of data, and from there you can search the whole backup, with results grouped by kind. People shows everyone you were in touch with, each on one page, and Year view shows the backup as a heatmap with one square per day. Clicking a photo now opens it full size, and Settings says that Flathub keeps the app up to date.</p>
+      </description>
+    </release>
     <release version="0.9.0" date="2026-11-02">
       <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.9.0</url>
       <description>
