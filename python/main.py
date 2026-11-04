@@ -476,7 +476,8 @@ class SidecarServer:
               "params": { "phase": str, "percent": int,
                           "files_done": int, "files_total": int } }
 
-        Phases: "negotiating" → "backing_up" → "finalizing"
+        Phases: "negotiating" → "waiting" (for the iPhone, which may ask for its
+        passcode; still 0%) → "backing_up" → "finalizing"
 
         Returns on completion: { "success": true, "backup_path": "..." }
         """

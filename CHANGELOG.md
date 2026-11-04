@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - Windows: Back up my iPhone on a PC without Apple's iPhone software used to show a red error. It now explains that Windows needs Apple Devices, Apple's free app, and installs it for you from the Microsoft Store with one click, without needing an administrator (or opens the Store page if you'd rather do it yourself). If Apple Devices is installed but not running yet, as it isn't right after installing, OpenExtract starts it. Opening backups you already have never needed it
 - Other errors while looking for an iPhone now have a Report this problem link
-- Back up my iPhone's progress bar no longer jumps to about 90% in the first moments and sits there for most of the backup. It now climbs with the iPhone's own progress all the way through
+- Back up my iPhone's progress bar no longer jumps to about 90% in the first moments and sits there for most of the backup. It now climbs with the iPhone's own progress all the way through. Before that, while the iPhone waits for its passcode, the bar stays at 0% and says to enter the passcode on the iPhone, instead of showing 11% "Backing up files"
 
 ## [0.10.0] - 2026-11-03
 

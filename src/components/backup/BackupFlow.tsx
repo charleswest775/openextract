@@ -11,7 +11,7 @@ interface DeviceInfo {
 }
 
 interface BackupProgress {
-  phase: 'negotiating' | 'backing_up' | 'finalizing';
+  phase: 'negotiating' | 'waiting' | 'backing_up' | 'finalizing';
   percent: number;
   files_done: number;
   files_total: number;
@@ -106,9 +106,10 @@ function DeviceServiceSetup({ message, onCheckAgain }: { message: string; onChec
 }
 
 const PHASE_LABELS: Record<BackupProgress['phase'], string> = {
-  negotiating: 'Negotiating with device...',
+  negotiating: 'Connecting to your iPhone...',
+  waiting: 'Waiting for your iPhone...',
   backing_up: 'Backing up files...',
-  finalizing: 'Finalizing backup...',
+  finalizing: 'Finishing the backup...',
 };
 
 interface Props {
@@ -389,7 +390,11 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
               <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
                 <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: `${Math.max(2, progress.percent)}%` }} />
               </div>
-              <p className="text-xs text-text-tertiary mt-2">Keep your device connected and unlocked.</p>
+              <p className="text-xs text-text-tertiary mt-2">
+                {progress.phase === 'waiting'
+                  ? 'If your iPhone asks for its passcode, enter it there. The backup starts once you do.'
+                  : 'Keep your device connected and unlocked.'}
+              </p>
             </div>
           )}
 

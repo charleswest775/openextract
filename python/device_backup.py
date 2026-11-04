@@ -360,13 +360,12 @@ class DeviceBackupManager:
 
         os.makedirs(output_dir, exist_ok=True)
 
-        # high-water mark shared by ALL notification paths so that the hardcoded
-        # negotiating / backing_up milestones (0 → 5 → 10) are never overwritten
-        # by an early 0% callback from pymobiledevice3.
+        # high-water mark shared by ALL notification paths so the bar never moves
+        # backwards (a retry after the backup lock was busy starts over at 0).
         last_pct = [0]
-        # The milestones above use 0–11; the device's own progress fills 11–99,
-        # and 100 waits until the backup has actually finished.
-        transfer_start_pct = 11
+        # Set once the device reports any progress.  Until then it is preparing or
+        # waiting for its passcode, and the bar stays at 0 in the "waiting" phase.
+        transferring = False
         # Bytes in use on the iPhone, so a disk-full error can say how much room
         # the backup needs.  0 when the device didn't report it.
         phone_used_bytes = 0
@@ -386,13 +385,23 @@ class DeviceBackupManager:
             CLI feeds it straight into a 100-step bar).  A value under 1.0 is an
             early percentage, not a fraction; reading it as one sent the bar to
             ~90% during the first 1% and held it there for most of the backup.
+
+            The bar shows that figure as it is, and 100 waits until the backup
+            has actually finished.
             """
+            nonlocal transferring
             try:
                 device_pct = min(100.0, max(0.0, float(device_pct)))
             except (TypeError, ValueError):
                 return
-            pct = transfer_start_pct + int(device_pct * (99 - transfer_start_pct) / 100)
-            _tracked_notify("backing_up", pct, 0, 0)
+            transferring = transferring or device_pct > 0
+            if not transferring:
+                phase = "waiting"
+            elif device_pct >= 100:
+                phase = "finalizing"  # the device is moving the received files into place
+            else:
+                phase = "backing_up"
+            _tracked_notify(phase, min(99, int(device_pct)), 0, 0)
 
         async def _run_backup():
             nonlocal phone_used_bytes
@@ -427,15 +436,15 @@ class DeviceBackupManager:
             except Exception as e:
                 _dev_log(f"couldn't read the iPhone's disk usage: {e!r}")
 
-            _tracked_notify("negotiating", 5, 0, 0)
+            # From here the iPhone may ask for its passcode: to turn on encryption,
+            # and again once the backup request reaches it.  Nothing is copied
+            # until it's entered.
+            _tracked_notify("waiting", 0, 0, 0)
 
             if encrypted:
                 await self._configure_encryption_async(lockdown, password or "", output_dir)
 
-            _tracked_notify("negotiating", 10, 0, 0)
-
             async with Mobilebackup2Service(lockdown) as mb2:
-                _tracked_notify("backing_up", transfer_start_pct, 0, 0)
                 await mb2.backup(
                     full=True,
                     backup_directory=output_dir,

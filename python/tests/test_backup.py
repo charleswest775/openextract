@@ -459,13 +459,17 @@ class TestStartBackup(unittest.TestCase):
         self.assertEqual(last[0], "finalizing")
         self.assertEqual(last[1], 100)
 
-    def _backing_up_percents(self, device_percents):
-        """Run a backup whose device reports *device_percents*; return the backing_up percents."""
+    def _progress(self, device_percents):
+        """
+        Run a backup whose device reports *device_percents*; return the (phase, percent)
+        steps, with ("backup requested", None) where the backup request goes to the device.
+        """
         lockdown = _make_lockdown_mock()
         mb2 = self._make_mb2_mock()
 
         # pymobiledevice3 passes the device's own figure, a 0–100 percentage.
         def _fake_backup(full, backup_directory, progress_callback):
+            self.progress_calls.append(("backup requested", None, 0, 0))
             for value in device_percents:
                 progress_callback(value)
 
@@ -483,21 +487,40 @@ class TestStartBackup(unittest.TestCase):
                 notify=self.notify,
             )
 
-        return [p[1] for p in self.progress_calls if p[0] == "backing_up"]
+        return [p[:2] for p in self.progress_calls]
 
     def test_progress_callback_forwarded(self):
-        """The device's percentage fills the bar from 11% to 99%."""
-        percents = self._backing_up_percents([0.0, 25.0, 80.0, 100.0])
-        self.assertEqual(percents, [11, 11, 33, 81, 99])
+        """The bar shows the device's own percentage, and 100 only once the backup is done."""
+        self.assertEqual(self._progress([0.0, 25.0, 80.0, 100.0]), [
+            ("negotiating", 0),
+            ("waiting", 0),
+            ("backup requested", None),
+            ("waiting", 0),
+            ("backing_up", 25),
+            ("backing_up", 80),
+            ("finalizing", 99),
+            ("finalizing", 100),
+        ])
+
+    def test_waits_at_zero_until_the_device_sends_data(self):
+        """Nothing moves the bar while the iPhone waits for its passcode."""
+        steps = self._progress([0.0, 0.0, 0.5])
+        before_data = steps[:steps.index(("backing_up", 0))]
+        self.assertEqual({p for _, p in before_data if p is not None}, {0})
+        self.assertEqual(before_data[-3:], [("backup requested", None), ("waiting", 0), ("waiting", 0)])
 
     def test_early_progress_is_not_read_as_a_fraction(self):
         """Device figures under 1.0 are early percentages; they must not jump the bar to ~90%."""
-        percents = self._backing_up_percents([0.12, 0.89, 0.92, 1.5, 50.0])
-        self.assertEqual(percents, [11, 11, 11, 11, 12, 55])
+        steps = self._progress([0.12, 0.89, 0.92, 1.5, 50.0])
+        self.assertEqual([p for phase, p in steps if phase == "backing_up"], [0, 0, 0, 1, 50])
 
     def test_unreadable_progress_is_ignored(self):
-        percents = self._backing_up_percents([None, "n/a", 50.0])
-        self.assertEqual(percents, [11, 55])
+        steps = self._progress([None, "n/a", 50.0])
+        self.assertEqual([p for phase, p in steps if phase == "backing_up"], [50])
+
+    def test_progress_never_goes_back_to_waiting(self):
+        steps = self._progress([10.0, 0.0])
+        self.assertEqual(steps[-2:], [("backing_up", 10), ("finalizing", 100)])
 
     def test_encrypted_backup_calls_configure(self):
         """When encrypted=True, change_password should be invoked."""
@@ -705,8 +728,8 @@ class TestStartBackup(unittest.TestCase):
 
     def test_progress_percent_clamped(self):
         """Progress percent should never exceed 99 from the progress_callback."""
-        percents = self._backing_up_percents([150.0])
-        self.assertEqual(max(percents), 99)
+        steps = self._progress([150.0])
+        self.assertEqual(steps[-2:], [("finalizing", 99), ("finalizing", 100)])
 
 
 # ---------------------------------------------------------------------------
