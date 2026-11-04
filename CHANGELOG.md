@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- "Not now" on the "Keep OpenExtract up to date?" card no longer turns update checks off for good. The card comes back a week later, and only switching it off in Settings saves a no
+
 ## [0.10.0] - 2026-11-03
 
 ### Changed

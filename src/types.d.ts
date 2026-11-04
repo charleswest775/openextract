@@ -31,6 +31,8 @@ declare global {
       updates: {
         getState: () => Promise<UpdatesState>;
         setAutoCheck: (enabled: boolean) => Promise<void>;
+        /** "Not now": leave the setting unanswered and ask again in a week. */
+        askLater: () => Promise<void>;
         check: () => Promise<void>;
         download: () => Promise<void>;
         install: () => Promise<void>;
@@ -140,6 +142,8 @@ export interface UpdatesState {
   flatpak?: boolean;
   /** null until the user has answered the "check automatically?" question. */
   autoCheck: boolean | null;
+  /** "Not now" was picked on that question recently, so don't ask it yet. */
+  askLater: boolean;
   currentVersion: string;
   releasesUrl: string;
   status: UpdateStatus;
