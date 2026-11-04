@@ -112,6 +112,7 @@ class SidecarServer:
             # Live device backup
             "backup.list_devices": self.backup_list_devices,
             "backup.install_device_support": self.backup_install_device_support,
+            "backup.pair_device": self.backup_pair_device,
             "backup.start": self.backup_start,
         }
 
@@ -466,6 +467,14 @@ class SidecarServer:
         iPhone. Returns { installed: true }; takes a minute or more.
         """
         return self.device_backup_manager.install_device_support()
+
+    def backup_pair_device(self, params):
+        """
+        Ask the iPhone with params["udid"] to trust this computer, without waiting.
+        Returns { state: "trusted" | "waiting" | "locked" | "denied" }; the app calls
+        it again every couple of seconds until "trusted" or "denied".
+        """
+        return self.device_backup_manager.pair_device(params["udid"])
 
     def backup_start(self, params):
         """
