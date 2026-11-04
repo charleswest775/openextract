@@ -120,22 +120,18 @@ jobs:
       - name: Build the app's main process
         run: npx tsc -p tsconfig.electron.json
 
-      # The dev app loads its renderer from Vite on 127.0.0.1:5179.
-      - name: Start the renderer
-        shell: pwsh
+      # The dev app loads its renderer from Vite on 127.0.0.1:5179, which has to start in
+      # the same step: GitHub ends a step's processes with it. Both runs go ahead even if
+      # the first fails.
+      - name: App without Apple software (the setup card), then Install Apple Devices from it
         run: |
-          Start-Process npx.cmd -ArgumentList 'vite', '--port', '5179', '--strictPort', '--host', '127.0.0.1' -RedirectStandardOutput "$env:RUNNER_TEMP\vite.log" -RedirectStandardError "$env:RUNNER_TEMP\vite-errors.log"
-          for ($i = 0; $i -lt 90; $i++) {
-            try { Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 http://127.0.0.1:5179 | Out-Null; exit 0 } catch { Start-Sleep 1 }
-          }
-          Get-Content "$env:RUNNER_TEMP\vite.log", "$env:RUNNER_TEMP\vite-errors.log"
-          throw 'Vite did not start'
-
-      - name: App without Apple software (the setup card)
-        run: node scripts/e2e-device-backup.mjs --dev http://127.0.0.1:5179 --out e2e-out/1-without-apple-software
-
-      - name: App installs Apple Devices, then restarts Apple's service
-        run: node scripts/e2e-device-backup.mjs --dev http://127.0.0.1:5179 --out e2e-out/2-install-apple-devices --apple-devices
+          npx vite --port 5179 --strictPort --host 127.0.0.1 > "$RUNNER_TEMP/vite.log" 2>&1 &
+          for _ in $(seq 90); do curl -sf -o /dev/null http://127.0.0.1:5179 && break; sleep 1; done
+          curl -sf -o /dev/null http://127.0.0.1:5179 || { cat "$RUNNER_TEMP/vite.log"; exit 1; }
+          status=0
+          node scripts/e2e-device-backup.mjs --dev http://127.0.0.1:5179 --out e2e-out/1-without-apple-software || status=1
+          node scripts/e2e-device-backup.mjs --dev http://127.0.0.1:5179 --out e2e-out/2-install-apple-devices --apple-devices || status=1
+          exit $status
 
       # Also on its own, so a failure here says whether the engine or the app is at fault.
       # Installs Apple Devices if the step above didn't.

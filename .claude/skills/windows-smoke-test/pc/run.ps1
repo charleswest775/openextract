@@ -93,9 +93,11 @@ try {
     New-Item -ItemType Directory $ibc | Out-Null
     tar.exe -xzf (Join-Path $RunDir 'ibc.tgz') -C $ibc
     if ($LASTEXITCODE) { throw "tar exited with $LASTEXITCODE" }
-    # macOS tar adds AppleDouble ._ files, which tests then read as UTF-8.
-    Get-ChildItem $Repo -Force | Where-Object Name -notin 'node_modules', '.venv' |
-      Get-ChildItem -Recurse -Force -Filter '._*' -ErrorAction SilentlyContinue | Remove-Item -Force
+    # macOS tar adds AppleDouble ._ files, which tests then read as UTF-8. (Only folders go
+    # down the pipe: Get-ChildItem given a file returns that file, whatever the filter.)
+    Get-ChildItem $Repo -File -Force -Filter '._*' | Remove-Item -Force
+    Get-ChildItem $Repo -Directory -Force | Where-Object Name -notin 'node_modules', '.venv' |
+      Get-ChildItem -Recurse -File -Force -Filter '._*' | Remove-Item -Force
     "$($results.source); ios-backup-core $($results.iosBackupCore.Substring(0, 12))"
   }
   if (-not $ok) { throw "Couldn't copy the code" }
@@ -127,7 +129,9 @@ try {
     }
     $ibcStamp = Join-Path $Repo '.venv\smoke-ios-backup-core.txt'
     if ((Get-Content $ibcStamp -Raw -ErrorAction SilentlyContinue) -ne $results.iosBackupCore) {
-      if (Invoke-Native 'pip' { & $VenvPython -m pip install -q --disable-pip-version-check --force-reinstall --no-deps "$Root\ios-backup-core" }) {
+      # Its dependencies, then itself even if its version number hasn't changed.
+      if ((Invoke-Native 'pip' { & $VenvPython -m pip install -q --disable-pip-version-check "$Root\ios-backup-core" }) -or
+          (Invoke-Native 'pip' { & $VenvPython -m pip install -q --disable-pip-version-check --force-reinstall --no-deps "$Root\ios-backup-core" })) {
         throw "Couldn't install ios-backup-core; see pip.txt"
       }
       Set-Content $ibcStamp $results.iosBackupCore -NoNewline
@@ -172,9 +176,9 @@ try {
     Step 'Python tests' {
       Set-Location $Repo
       $code = Invoke-Native 'pytest' { & $VenvPython -m pytest python/tests -q -rs -p no:cacheprovider }
-      $summary = (Select-String -LiteralPath "$Out\pytest.txt" -Pattern '\d+ (passed|failed)' | Select-Object -Last 1).Line
+      $summary = "$((Select-String -LiteralPath "$Out\pytest.txt" -Pattern '\d+ (passed|failed|errors?)\b' | Select-Object -Last 1).Line)".Trim('= ')
       if ($code) { throw "pytest exited with $code ($summary); see pytest.txt" }
-      $summary.Trim('= ')
+      $summary
     } | Out-Null
 
     Step 'npm test' {
