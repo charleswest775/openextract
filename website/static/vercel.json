@@ -14,6 +14,21 @@
   ],
   "redirects": [
     {
+      "source": "/img/screens/overview-:file",
+      "destination": "/img/screens/home-:file",
+      "permanent": true
+    },
+    {
+      "source": "/img/screens/contacts-:file",
+      "destination": "/img/screens/address-book-:file",
+      "permanent": true
+    },
+    {
+      "source": "/img/screens/history-:file",
+      "destination": "/img/screens/web-history-:file",
+      "permanent": true
+    },
+    {
       "source": "/download/mac/file",
       "destination": "https://github.com/charleswest775/openextract/releases/download/v0.10.0/OpenExtract-0.10.0-arm64.dmg",
       "permanent": false
