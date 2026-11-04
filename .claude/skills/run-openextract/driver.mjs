@@ -21,7 +21,7 @@ fs.mkdirSync(SHOT_DIR, { recursive: true });
 
 const ELECTRON = process.platform === 'darwin'
   ? path.join(APP_DIR, 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron')
-  : path.join(APP_DIR, 'node_modules/electron/dist/electron');
+  : path.join(APP_DIR, `node_modules/electron/dist/electron${process.platform === 'win32' ? '.exe' : ''}`);
 
 let app = null;
 let page = null;

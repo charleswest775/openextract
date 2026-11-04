@@ -19,6 +19,92 @@ interface BackupProgress {
 
 type BackupStatus = 'idle' | 'running' | 'success' | 'error';
 
+// Errors that are steps for the user, not bugs, so they get no "Report this problem"
+// (python/device_backup.py). DEVICE_SERVICE_REQUIRED means usbmuxd can't be reached:
+// on Windows, Apple Devices or iTunes isn't installed or isn't running.
+const DEVICE_SERVICE_PREFIX = 'DEVICE_SERVICE_REQUIRED: ';
+const SETUP_PREFIX = /^(TRUST_REQUIRED|PASSCODE_REQUIRED|DEVICE_SERVICE_REQUIRED): /;
+const APPLE_DEVICES_STORE_URL = 'ms-windows-store://pdp/?ProductId=9NP83LWLPZ9K';
+
+/**
+ * Shown instead of a device list when the system can't talk to iPhones yet. On
+ * Windows that means Apple Devices isn't installed, and the engine can install it
+ * (backup.install_device_support), with the Microsoft Store page as the fallback.
+ */
+function DeviceServiceSetup({ message, onCheckAgain }: { message: string; onCheckAgain: () => void }) {
+  const windows = window.openextract?.platform === 'win32';
+  const [installing, setInstalling] = useState(false);
+  const [installError, setInstallError] = useState<string | null>(null);
+  const openStore = () => window.openextract.openExternal(APPLE_DEVICES_STORE_URL);
+
+  const install = async () => {
+    setInstalling(true);
+    setInstallError(null);
+    try {
+      await sidecarCall('backup.install_device_support', {});
+      setInstalling(false);
+      onCheckAgain();
+    } catch (err: any) {
+      setInstallError(err.message || "Apple Devices couldn't be installed");
+      setInstalling(false);
+    }
+  };
+
+  return (
+    <div className="mb-3 p-4 rounded-lg bg-accent-wash/50 border border-accent-line">
+      <div className="flex items-center gap-2 mb-2">
+        <PhoneIcon className="text-accent" size={18} />
+        <p className="text-sm font-medium text-gray-900">
+          {windows ? 'Install Apple Devices first' : "Can't reach your iPhone"}
+        </p>
+      </div>
+      <p className="text-xs text-gray-500 mb-3">
+        {windows
+          ? "Windows needs Apple Devices, Apple's free app, to talk to an iPhone. OpenExtract can install it for you from the Microsoft Store. You don't need it to open backups you already have."
+          : message.slice(DEVICE_SERVICE_PREFIX.length)}
+      </p>
+      {installing ? (
+        <div className="flex items-center gap-2 text-sm text-gray-700">
+          <div className="w-4 h-4 border-2 border-accent-line border-t-accent rounded-full animate-spin flex-shrink-0" />
+          Installing Apple Devices… This usually takes about a minute.
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          {windows && (
+            <button
+              onClick={install}
+              className="px-4 py-2 bg-accent text-white rounded-md text-sm font-medium hover:bg-accent-hover transition-colors"
+            >
+              Install Apple Devices
+            </button>
+          )}
+          <button
+            onClick={onCheckAgain}
+            className="px-4 py-2 rounded-md border border-gray-200 text-sm hover:border-gray-300 transition-colors"
+          >
+            Check again
+          </button>
+        </div>
+      )}
+      {installError && (
+        <div className="mt-3 text-xs text-red-600">
+          {installError}
+          <div className="flex gap-3 mt-1.5">
+            <button onClick={openStore} className="text-accent hover:underline">Open the Microsoft Store</button>
+            <ReportProblemButton error={installError} area="create_backup" />
+          </div>
+        </div>
+      )}
+      {windows && !installError && (
+        <p className="text-xs text-text-tertiary mt-3">
+          Installing it means you accept the Microsoft Store and Apple terms. Rather do it yourself?{' '}
+          <button onClick={openStore} className="text-accent hover:underline">Open it in the Microsoft Store</button>.
+        </p>
+      )}
+    </div>
+  );
+}
+
 const PHASE_LABELS: Record<BackupProgress['phase'], string> = {
   negotiating: 'Negotiating with device...',
   backing_up: 'Backing up files...',
@@ -182,8 +268,13 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
               </button>
             </div>
 
-            {deviceError && (
-              <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-600">{deviceError}</div>
+            {deviceError?.startsWith(DEVICE_SERVICE_PREFIX) ? (
+              <DeviceServiceSetup message={deviceError} onCheckAgain={loadDevices} />
+            ) : deviceError && (
+              <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-600">
+                {deviceError}
+                <ReportProblemButton error={deviceError} area="create_backup" className="block mt-1.5" />
+              </div>
             )}
 
             {loadingDevices && devices.length === 0 && (
@@ -351,13 +442,13 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
               <div>
                 <p className="text-sm font-medium text-gray-900">
                   {backupError?.startsWith('TRUST_REQUIRED:') ? 'Trust required' :
-                   backupError?.startsWith('PASSCODE_REQUIRED:') ? 'Passcode required' : 'Backup failed'}
+                   backupError?.startsWith('PASSCODE_REQUIRED:') ? 'Passcode required' :
+                   backupError?.startsWith(DEVICE_SERVICE_PREFIX) ? "Can't reach your iPhone" : 'Backup failed'}
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {backupError?.replace(/^(TRUST_REQUIRED|PASSCODE_REQUIRED): /, '')}
+                  {backupError?.replace(SETUP_PREFIX, '')}
                 </p>
-                {/* Trust/passcode prompts are steps on the phone, not bugs. */}
-                {!backupError?.match(/^(TRUST_REQUIRED|PASSCODE_REQUIRED):/) && (
+                {!backupError?.match(SETUP_PREFIX) && (
                   <ReportProblemButton error={backupError} area="create_backup" className="mt-1.5" />
                 )}
               </div>

@@ -254,7 +254,9 @@ app.whenReady().then(async () => {
   // ── Sidecar IPC bridge ──────────────────────────────────────────────────
   ipcMain.handle('sidecar:call', async (_event: any, method: string, params: any) => {
     try {
-      const timeoutMs = method === 'backup.start' ? 7_200_000 : undefined;
+      const timeoutMs = method === 'backup.start' ? 7_200_000
+        : method === 'backup.install_device_support' ? 900_000 // winget may download slowly
+        : undefined;
       const result = await sidecar.call(method, params, timeoutMs);
       feedback.recordCall(method, params, { ok: true, result });
       if (method === 'open_backup') {
@@ -299,9 +301,13 @@ app.whenReady().then(async () => {
   });
 
   // URLs reach here from untrusted backup content (e.g. links in iMessage text),
-  // so only open web/mail links plus the one System Settings pane we link to.
+  // so only open web/mail links plus the app links we show ourselves: the System
+  // Settings pane for Full Disk Access, and Apple Devices in the Microsoft Store.
   const EXTERNAL_PROTOCOLS = new Set(['https:', 'http:', 'mailto:']);
-  const FULL_DISK_ACCESS_URL = 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles';
+  const APP_LINKS = new Set([
+    'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',
+    'ms-windows-store://pdp/?ProductId=9NP83LWLPZ9K',
+  ]);
 
   ipcMain.handle('shell:openExternal', (_event: any, url: string) => {
     let parsed: URL;
@@ -311,7 +317,7 @@ app.whenReady().then(async () => {
       console.warn('[shell:openExternal] rejected unparseable URL:', url);
       return;
     }
-    if (!EXTERNAL_PROTOCOLS.has(parsed.protocol) && parsed.href !== FULL_DISK_ACCESS_URL) {
+    if (!EXTERNAL_PROTOCOLS.has(parsed.protocol) && !APP_LINKS.has(parsed.href)) {
       console.warn('[shell:openExternal] rejected URL with disallowed scheme:', url);
       return;
     }

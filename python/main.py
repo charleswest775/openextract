@@ -111,6 +111,7 @@ class SidecarServer:
             "get_messages_on_day": self.get_messages_on_day,
             # Live device backup
             "backup.list_devices": self.backup_list_devices,
+            "backup.install_device_support": self.backup_install_device_support,
             "backup.start": self.backup_start,
         }
 
@@ -458,6 +459,13 @@ class SidecarServer:
         Each entry: { udid, name, ios_version, connection_type: "usb"|"wifi" }.
         """
         return self.device_backup_manager.list_devices()
+
+    def backup_install_device_support(self, params):
+        """
+        Windows: install and start Apple Devices, which Windows needs to talk to an
+        iPhone. Returns { installed: true }; takes a minute or more.
+        """
+        return self.device_backup_manager.install_device_support()
 
     def backup_start(self, params):
         """
