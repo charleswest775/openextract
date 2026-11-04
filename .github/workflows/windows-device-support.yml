@@ -1,0 +1,156 @@
+name: Windows device support
+
+# Back up my iPhone on Windows needs Apple's usbmuxd, which only Apple's software
+# provides (#184). A GitHub-hosted Windows runner starts with no Apple software, so on
+# one this checks a new user's whole path with the real engine and the dev build of the app:
+#   1. the engine answers backup.list_devices with DEVICE_SERVICE_REQUIRED and keeps running,
+#   2. the app shows the "Install Apple Devices first" card, and Check again shows it again,
+#   3. the card's Install Apple Devices button installs Apple Devices from the Microsoft
+#      Store with winget (backup.install_device_support), and the app then lists devices,
+#   4. with Apple's service stopped, the engine starts it again when the app searches.
+# Each run installs Apple Devices on a throwaway runner, accepting the Microsoft Store's
+# and Apple's terms there, as the button does for a user.
+#
+# Not covered here: an iPhone (the release checklist in packaging/README.md and the
+# windows-smoke-test skill, on a real PC) and a standard user account (runners are
+# elevated; the smoke test runs as a standard user). Hosted runners only: this repo is
+# public, and a self-hosted runner would run fork PRs' code.
+#
+# It runs when the code on that path changes, and weekly, for changes on Apple's, the
+# Store's or winget's side.
+
+on:
+  pull_request:
+    paths:
+      - python/device_backup.py
+      - python/main.py
+      - python/requirements.txt
+      - python/tests/test_device_service.py
+      - python/tests/corpus/sidecar_client.py
+      - electron/**
+      - src/components/backup/**
+      - src/lib/ipc.ts
+      - scripts/e2e-device-backup.mjs
+      - package-lock.json
+      - .github/workflows/windows-device-support.yml
+  push:
+    branches: [main]
+    paths:
+      - python/device_backup.py
+      - python/main.py
+      - python/requirements.txt
+      - python/tests/test_device_service.py
+      - python/tests/corpus/sidecar_client.py
+      - electron/**
+      - src/components/backup/**
+      - src/lib/ipc.ts
+      - scripts/e2e-device-backup.mjs
+      - package-lock.json
+      - .github/workflows/windows-device-support.yml
+  schedule:
+    - cron: '23 7 * * 1'  # Mondays
+  workflow_dispatch:
+
+concurrency:
+  group: windows-device-support-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Back up my iPhone without Apple software (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: python/requirements*.txt
+
+      - name: Install Node dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          npm install --no-save --no-audit --no-fund playwright-core@1.59.1
+
+      # Same sibling layout as ci.yml: python/requirements.txt installs
+      # ios-backup-core from ../../ios-backup-core.
+      - name: Clone ios-backup-core (sibling for editable install)
+        run: |
+          git clone --depth=1 \
+            https://github.com/charleswest775/ios-backup-core.git \
+            "$GITHUB_WORKSPACE/../ios-backup-core"
+
+      # No .venv here, so the dev app runs the engine with this Python.
+      - name: Install Python dependencies
+        working-directory: python
+        run: pip install pytest -r requirements.txt
+
+      - name: Check there's no Apple software yet
+        shell: pwsh
+        run: |
+          if (Get-AppxPackage AppleInc.AppleDevices) { throw 'Apple Devices is already installed on this runner, so the first-run path can''t be checked' }
+          if (Get-NetTCPConnection -LocalPort 27015 -State Listen -ErrorAction SilentlyContinue) { throw "Something already listens on Apple's usbmuxd port, 27015" }
+          "winget $(winget --version)"
+
+      - name: Engine without Apple software
+        env:
+          OPENEXTRACT_EXPECT_NO_DEVICE_SERVICE: '1'
+        run: pytest python/tests/test_device_service.py -v -rs
+
+      - name: Build the app's main process
+        run: npx tsc -p tsconfig.electron.json
+
+      # The dev app loads its renderer from Vite on 127.0.0.1:5179.
+      - name: Start the renderer
+        shell: pwsh
+        run: |
+          Start-Process npx.cmd -ArgumentList 'vite', '--port', '5179', '--strictPort', '--host', '127.0.0.1' -RedirectStandardOutput "$env:RUNNER_TEMP\vite.log" -RedirectStandardError "$env:RUNNER_TEMP\vite-errors.log"
+          for ($i = 0; $i -lt 90; $i++) {
+            try { Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 http://127.0.0.1:5179 | Out-Null; exit 0 } catch { Start-Sleep 1 }
+          }
+          Get-Content "$env:RUNNER_TEMP\vite.log", "$env:RUNNER_TEMP\vite-errors.log"
+          throw 'Vite did not start'
+
+      - name: App without Apple software (the setup card)
+        run: node scripts/e2e-device-backup.mjs --dev http://127.0.0.1:5179 --out e2e-out/1-without-apple-software
+
+      - name: App installs Apple Devices, then restarts Apple's service
+        run: node scripts/e2e-device-backup.mjs --dev http://127.0.0.1:5179 --out e2e-out/2-install-apple-devices --apple-devices
+
+      # Also on its own, so a failure here says whether the engine or the app is at fault.
+      # Installs Apple Devices if the step above didn't.
+      - name: Engine with Apple Devices
+        if: ${{ !cancelled() }}
+        env:
+          OPENEXTRACT_TEST_APPLE_DEVICES: '1'
+        run: pytest python/tests/test_device_service.py -v -rs -k install_apple_devices
+
+      # No backup is opened and no iPhone is connected, so the screenshots hold nothing personal.
+      - name: Upload screenshots
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-device-support
+          path: e2e-out
+          retention-days: 14
+          if-no-files-found: ignore

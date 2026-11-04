@@ -1,7 +1,9 @@
 # Starts the installed engine and talks to it over JSON-RPC on stdin/stdout, the way the
 # app does: list_backups, then opens an encrypted backup and reads from every part of it.
 # Opening an encrypted backup loads pycryptodome's native DLLs, the ones Smart App Control
-# blocked in #169; thumbnails load Pillow and pillow-heif. Run in PowerShell 7.
+# blocked in #169; thumbnails load Pillow and pillow-heif. It also searches for iPhones,
+# which on a PC without Apple's software must say Apple Devices is needed (#184).
+# Run in PowerShell 7.
 param(
   [Parameter(Mandatory)] [string] $Engine,
   [Parameter(Mandatory)] [string] $Backup,
@@ -57,6 +59,18 @@ try {
   # A one-file engine (0.9.0 and earlier on Windows) unpacks itself before it's ready.
   $ready = Read-Message 120
   if ($ready.status -ne 'ready') { throw "expected the ready line first, got $($ready | ConvertTo-Json -Compress)" }
+  Invoke-Engine ping | Out-Null
+
+  # The runner has no Apple software, so Back up my iPhone must get DEVICE_SERVICE_REQUIRED
+  # (the app's "Install Apple Devices first" card), not a crash. The engine looks for Apple
+  # Devices with PowerShell, which App Control puts in Constrained Language mode.
+  try {
+    $devices = Invoke-Engine backup.list_devices -TimeoutSec 120
+    Write-Output "::warning::backup.list_devices reached Apple's usbmuxd on this runner ($($devices | ConvertTo-Json -Compress)), so the check for a PC without Apple software didn't run"
+  } catch {
+    if ($_.Exception.Message -notlike 'backup.list_devices failed: DEVICE_SERVICE_REQUIRED:*') { throw }
+    Write-Host 'backup.list_devices   said Apple Devices is needed, as it should here'
+  }
   Invoke-Engine ping | Out-Null
 
   $found = Invoke-Engine list_backups @{ path = Split-Path $Backup }
