@@ -8,7 +8,8 @@ OpenExtract is an Electron app whose renderer is a Vite/React dev server and who
 a small Playwright `_electron` server you start once in the background and send commands to
 with `curl`. All paths are relative to the repository root.
 
-Verified on macOS (Apple silicon), Node 20, Python 3.11. Linux hasn't been tried with this driver.
+Verified on macOS (Apple silicon), Node 20, Python 3.11, and on Windows 11 (Node 24, Python 3.11).
+Linux hasn't been tried with this driver.
 
 ## Setup
 
@@ -125,6 +126,10 @@ on a Retina screen (the window is 1440×900). **Look at them.**
 - **People and search fill in as the backup is read.** Messages arrive in batches for the first few
   seconds; wait for "Still reading the backup" to go before counting results.
 - **Unlocking an encrypted backup takes 5–10 s**; `open-backup` waits for it.
+- **On Windows**, the venv's Python is `.venv\Scripts\python.exe`, and the first `goto` can time out while
+  Vite prepares its files; run `goto` again. To act like the real app (in the signed-in user's session,
+  not elevated), start Vite and the driver as scheduled tasks with an Interactive, Limited principal,
+  not from an SSH session.
 
 ## Troubleshooting
 

@@ -7,10 +7,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 const require = createRequire(import.meta.url);
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'oe-feedback-test-'));
 
 /** Transpile one TS file to CommonJS in a temp dir and require it. */
@@ -430,6 +431,10 @@ test('the password fix doesn\'t show for other decryption, passcode or password 
   }
 });
 
+// python/device_backup.py _device_service_error(), now and up to 0.10.0.
+const WINDOWS_NO_DEVICE_SERVICE = "DEVICE_SERVICE_REQUIRED: To find your iPhone, OpenExtract needs Apple Devices, Apple's free iPhone app for Windows, and it isn't installed. Install it from the Microsoft Store, then search again.";
+const OLD_NO_DEVICE_SERVICE = 'Cannot connect to Apple Mobile Device Service. On Windows, install iTunes or the Apple Devices app from the Microsoft Store, then make sure it is running before searching for devices.';
+
 // One real error per known fix; the last test checks that every fix has one.
 const REAL_ERRORS = [
   // electron/sidecar.ts call(), once the engine has stopped (#169).
@@ -457,6 +462,16 @@ const REAL_ERRORS = [
     reportedError: 'No iPhone backups found in /Users/jane/Desktop/iPhone stuff. Pick the parent folder that contains a UDID-named subfolder (e.g. MobileSync/Backup).',
   },
   { fix: 'backup-password', errors: [['open_backup', WRONG_PASSWORD]] },
+  // python/device_backup.py _device_service_error() on Windows without Apple Devices or iTunes.
+  { fix: 'windows-apple-devices', os: WINDOWS, errors: [['backup.list_devices', WINDOWS_NO_DEVICE_SERVICE]] },
+  // The same in 0.10.0, pasted into the report by hand (OE-4).
+  {
+    fix: 'windows-apple-devices',
+    os: WINDOWS,
+    area: 'general',
+    details: OLD_NO_DEVICE_SERVICE,
+    errors: [['backup.list_devices', OLD_NO_DEVICE_SERVICE]],
+  },
 ];
 
 test('each known fix shows for the app\'s real error, and only that fix', async () => {
@@ -477,6 +492,10 @@ test('reports about something else get no known fix', async () => {
   }
   // Full Disk Access is only a macOS setting.
   assert.deepEqual(await knownFixesFor({ ...REAL_ERRORS[2], os: WINDOWS }), []);
+  // A Mac without usbmuxd needs a restart, not Apple Devices.
+  assert.deepEqual(await knownFixesFor({
+    errors: [['backup.list_devices', "DEVICE_SERVICE_REQUIRED: OpenExtract can't reach the part of macOS that talks to iPhones (usbmuxd). Restart your Mac, then search again."]],
+  }), []);
 });
 
 test('a report\'s status comes from its labels, then open or closed', () => {

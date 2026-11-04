@@ -8,6 +8,8 @@ import asyncio
 import os
 import re
 import shutil
+import socket
+import subprocess
 import sys
 import tempfile
 import time
@@ -34,6 +36,93 @@ _BACKUP_LOCK_RETRY_DELAY_S = 3
 
 def _is_backup_lock_error(exc: Exception) -> bool:
     return bool(_BACKUP_LOCK_ERROR_RE.search(str(exc)))
+
+
+# pymobiledevice3 reaches iPhones through usbmuxd. macOS always runs it; Windows gets
+# it only from Apple's own software (Apple Devices or iTunes), and Linux from the
+# usbmuxd package. Without it no iPhone can be found, so this is a setup step, which
+# the app shows as one (src/components/backup/BackupFlow.tsx), not a crash.
+DEVICE_SERVICE_PREFIX = "DEVICE_SERVICE_REQUIRED:"
+
+
+def _device_service_error() -> RuntimeError:
+    if sys.platform == "win32":
+        detail = ("To find your iPhone, OpenExtract needs Apple Devices, Apple's free iPhone app "
+                  "for Windows, and it isn't installed. Install it from the Microsoft Store, then "
+                  "search again.")
+    elif sys.platform == "darwin":
+        detail = ("OpenExtract can't reach the part of macOS that talks to iPhones (usbmuxd). "
+                  "Restart your Mac, then search again.")
+    else:
+        detail = ("OpenExtract can't reach usbmuxd, the service that talks to iPhones. Install it "
+                  "(on Ubuntu or Debian: sudo apt install usbmuxd), plug in your iPhone, then "
+                  "search again.")
+    return RuntimeError(f"{DEVICE_SERVICE_PREFIX} {detail}")
+
+
+# The Microsoft Store's Apple Devices app has no Windows service. Its usbmuxd
+# (AppleMobileDeviceProcess.exe, on 127.0.0.1:27015) is started by a launcher that
+# Windows runs at sign-in once the app has been opened, so right after Apple Devices
+# is installed nothing is listening, and opening the app doesn't change that until the
+# next sign-in. We start the launcher ourselves: no window, no admin rights.
+# Installing it with winget needs no admin rights either. Both tested on Windows 11 (OE-4).
+APPLE_DEVICES_STORE_ID = "9NP83LWLPZ9K"
+_WINDOWS_USBMUXD = ("127.0.0.1", 27015)
+_START_APPLE_DEVICES_PS = (
+    "$p = Get-AppxPackage AppleInc.AppleDevices | Select-Object -First 1; "
+    "if (-not $p) { 'missing'; exit }; "
+    "Invoke-CommandInDesktopPackage -PackageFamilyName $p.PackageFamilyName -AppId App "
+    "-Command (Join-Path $p.InstallLocation 'AppleMobileDeviceLauncher.exe') -PreventBreakaway; "
+    "'started'"
+)
+
+
+def _run_hidden(args: list[str], timeout: float) -> subprocess.CompletedProcess:
+    # winget draws progress bars, so don't decode its output as the ANSI code page.
+    return subprocess.run(args, capture_output=True, encoding="utf-8", errors="replace",
+                          timeout=timeout, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+
+def _find_winget() -> Optional[str]:
+    alias = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "WindowsApps", "winget.exe")
+    return shutil.which("winget") or (alias if os.path.exists(alias) else None)
+
+
+def _windows_usbmuxd_listening() -> bool:
+    try:
+        with socket.create_connection(_WINDOWS_USBMUXD, timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+def _start_apple_devices(wait_s: float = 20) -> str:
+    """Start Apple Devices' usbmuxd: "running", "missing" (not installed) or "failed"."""
+    powershell = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"),
+                              "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+    try:
+        out = _run_hidden([powershell, "-NoProfile", "-NonInteractive", "-Command",
+                           _START_APPLE_DEVICES_PS], timeout=60).stdout.strip()
+    except (OSError, subprocess.SubprocessError) as e:
+        _dev_log(f"couldn't start Apple Devices: {e!r}")
+        return "failed"
+    _dev_log(f"starting Apple Devices: {out!r}")
+    if out.endswith("missing"):
+        return "missing"
+    deadline = time.monotonic() + wait_s
+    while not _windows_usbmuxd_listening():
+        if time.monotonic() >= deadline:
+            return "failed"
+        time.sleep(0.5)
+    return "running"
+
+
+# Opening the app doesn't start usbmuxd; opening it once makes Windows run the launcher at
+# sign-in, so a restart is the fallback.
+_APPLE_DEVICES_DID_NOT_START = (
+    "Apple Devices is installed but didn't start. Open Apple Devices once, restart your PC, "
+    "then try again."
+)
 
 
 # pymobiledevice3 11.x words the device's refusal (MBErrorDomain/105) as "... it needs
@@ -123,14 +212,14 @@ class DeviceBackupManager:
                 usb_devs = await list_devices()
             except Exception as e:
                 from pymobiledevice3.exceptions import ConnectionFailedToUsbmuxdError
-                if isinstance(e, ConnectionFailedToUsbmuxdError):
-                    raise RuntimeError(
-                        "Cannot connect to Apple Mobile Device Service. "
-                        "On Windows, install iTunes or the Apple Devices app from the "
-                        "Microsoft Store, then make sure it is running before searching "
-                        "for devices."
-                    ) from None
-                raise
+                if not isinstance(e, ConnectionFailedToUsbmuxdError):
+                    raise
+                status = _start_apple_devices() if sys.platform == "win32" else "missing"
+                if status == "missing":
+                    raise _device_service_error() from None
+                if status == "failed":
+                    raise RuntimeError(_APPLE_DEVICES_DID_NOT_START) from None
+                usb_devs = await list_devices()
 
             for dev in usb_devs:
                 try:
@@ -195,6 +284,46 @@ class DeviceBackupManager:
         asyncio.run(_collect_usb_devices())
         return {"devices": devices}
 
+    def install_device_support(self) -> dict:
+        """
+        Windows: install Apple Devices from the Microsoft Store with winget and start it,
+        so the user never has to leave OpenExtract. Returns { "installed": True } once
+        Apple's usbmuxd answers; raises with what to do instead if it can't.
+        """
+        if sys.platform != "win32":
+            raise RuntimeError("Only Windows needs Apple Devices.")
+        status = _start_apple_devices()
+        if status == "missing":
+            winget = _find_winget()
+            if winget is None:
+                raise RuntimeError(
+                    "OpenExtract couldn't install Apple Devices because this PC doesn't have the "
+                    "Windows Package Manager (winget). Get Apple Devices from the Microsoft Store "
+                    "instead, then click Check again."
+                )
+            try:
+                result = _run_hidden(
+                    [winget, "install", "--id", APPLE_DEVICES_STORE_ID, "--source", "msstore",
+                     "--exact", "--silent", "--accept-package-agreements",
+                     "--accept-source-agreements", "--disable-interactivity"],
+                    timeout=600,
+                )
+                outcome = f"winget error {result.returncode & 0xFFFFFFFF:#010x}"
+                _dev_log(f"winget install Apple Devices: exit {result.returncode}\n"
+                         f"{result.stdout[-2000:]}{result.stderr[-1000:]}")
+            except (OSError, subprocess.SubprocessError) as e:
+                outcome = "winget didn't finish"
+                _dev_log(f"winget install Apple Devices failed: {e!r}")
+            status = _start_apple_devices()
+            if status == "missing":
+                raise RuntimeError(
+                    f"Apple Devices couldn't be installed ({outcome}). Get it from the Microsoft "
+                    "Store instead, then click Check again."
+                )
+        if status == "failed":
+            raise RuntimeError(_APPLE_DEVICES_DID_NOT_START)
+        return {"installed": True}
+
     def start_backup(
         self,
         udid: str,
@@ -219,6 +348,7 @@ class DeviceBackupManager:
             from pymobiledevice3.lockdown import create_using_usbmux
             from pymobiledevice3.services.mobilebackup2 import Mobilebackup2Service
             from pymobiledevice3.exceptions import (
+                ConnectionFailedToUsbmuxdError,
                 ConnectionTerminatedError,
                 NotEnoughDiskSpaceError,
                 PasswordRequiredError,
@@ -286,6 +416,9 @@ class DeviceBackupManager:
             # Catch trust/pairing errors early and surface them with a clear message.
             try:
                 lockdown = await create_using_usbmux(serial=udid)
+            except ConnectionFailedToUsbmuxdError:
+                # Apple's service stopped after the device list was shown.
+                raise _device_service_error() from None
             except Exception as e:
                 err_type = type(e).__name__
                 if "PairingDialogResponsePending" in err_type:

@@ -37,6 +37,17 @@ const KNOWN_FIXES = [
     text: 'macOS keeps iPhone backups in a protected folder. Open System Settings > Privacy & Security > Full Disk Access, turn on OpenExtract, then quit and reopen OpenExtract.',
   },
   {
+    id: 'windows-apple-devices',
+    title: 'Windows needs Apple Devices to find an iPhone',
+    // python/device_backup.py when it can't reach Apple's device service. Up to 0.10.0 it said
+    // "Cannot connect to Apple Mobile Device Service. …"; later versions "DEVICE_SERVICE_REQUIRED: …".
+    match: /DEVICE_SERVICE_REQUIRED:|Cannot connect to Apple Mobile Device Service/,
+    when: /on Windows/,
+    // Opening Apple Devices doesn't start the part OpenExtract needs; opening it once sets it to
+    // start when you sign in, so a restart is what makes it run (tested on Windows 11).
+    text: "To find or back up an iPhone, Windows needs Apple Devices, Apple's free app (iTunes works too). Get Apple Devices from the Microsoft Store, open it once, then restart your PC. Then plug in your iPhone, unlock it, tap Trust if it asks, and click Refresh in OpenExtract. You don't need it to open backups you already have.",
+  },
+  {
     id: 'no-backups-found',
     title: 'Choosing the backups folder',
     match: /No iPhone backups found/i,

@@ -82,7 +82,8 @@ _stub = _install_stub()
 
 # Now safe to import our module
 sys.path.insert(0, "python")
-from device_backup import DeviceBackupManager, _disk_full_message  # noqa: E402
+import device_backup  # noqa: E402
+from device_backup import DeviceBackupManager, _device_service_error, _disk_full_message  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -234,6 +235,32 @@ class TestListDevices(unittest.TestCase):
         self.assertEqual(len(result["devices"]), 1)
         self.assertEqual(result["devices"][0]["udid"], "GOOD")
 
+    def test_no_device_service_is_a_setup_step(self):
+        """Without usbmuxd (on Windows: no Apple Devices or iTunes) the error says so, with its own prefix."""
+        with (
+            patch(
+                "pymobiledevice3.usbmux.list_devices",
+                new_callable=AsyncMock,
+                side_effect=_stub.exceptions.ConnectionFailedToUsbmuxdError(),
+            ),
+            # On Windows the engine would otherwise look for Apple Devices on this machine.
+            patch("device_backup._start_apple_devices", return_value="missing"),
+        ):
+            with self.assertRaises(RuntimeError) as ctx:
+                self.manager.list_devices()
+        self.assertTrue(str(ctx.exception).startswith("DEVICE_SERVICE_REQUIRED: "))
+
+    def test_device_service_error_names_the_fix_for_each_system(self):
+        for platform, fix in [
+            ("win32", "needs Apple Devices"),
+            ("darwin", "Restart your Mac"),
+            ("linux", "sudo apt install usbmuxd"),
+        ]:
+            with patch.object(sys, "platform", platform):
+                message = str(_device_service_error())
+            self.assertTrue(message.startswith("DEVICE_SERVICE_REQUIRED: "), platform)
+            self.assertIn(fix, message, platform)
+
     def test_missing_library_raises(self):
         """ImportError from pymobiledevice3 should surface as RuntimeError."""
         with patch.dict(sys.modules, {"pymobiledevice3.usbmux": None}):
@@ -244,6 +271,123 @@ class TestListDevices(unittest.TestCase):
             mgr = db_mod.DeviceBackupManager()
             with self.assertRaises((RuntimeError, TypeError, ImportError)):
                 mgr.list_devices()
+
+
+# ---------------------------------------------------------------------------
+# Test: Apple Devices on Windows (starting and installing it)
+# ---------------------------------------------------------------------------
+
+def _no_usbmuxd():
+    return _stub.exceptions.ConnectionFailedToUsbmuxdError()
+
+
+class TestAppleDevicesOnWindows(unittest.TestCase):
+
+    def setUp(self):
+        self.manager = DeviceBackupManager()
+
+    def _list_on(self, platform, start_status, usbmux_results):
+        with (
+            patch.object(sys, "platform", platform),
+            patch("device_backup._start_apple_devices", return_value=start_status) as start,
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, side_effect=usbmux_results),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock,
+                  return_value=_make_lockdown_mock("DEV-1")),
+        ):
+            return self.manager.list_devices(), start
+
+    def test_installed_but_not_running_is_started_and_searched_again(self):
+        """Right after Apple Devices is installed nothing listens until we start it."""
+        result, start = self._list_on("win32", "running", [_no_usbmuxd(), [_make_usbmux_device("DEV-1")]])
+        start.assert_called_once()
+        self.assertEqual([d["udid"] for d in result["devices"]], ["DEV-1"])
+
+    def test_not_installed_is_the_setup_step(self):
+        with self.assertRaises(RuntimeError) as ctx:
+            self._list_on("win32", "missing", [_no_usbmuxd()])
+        self.assertTrue(str(ctx.exception).startswith("DEVICE_SERVICE_REQUIRED: "))
+
+    def test_installed_but_wont_start_is_an_error_to_report(self):
+        with self.assertRaises(RuntimeError) as ctx:
+            self._list_on("win32", "failed", [_no_usbmuxd()])
+        self.assertIn("installed but didn't start", str(ctx.exception))
+        self.assertFalse(str(ctx.exception).startswith("DEVICE_SERVICE_REQUIRED"))
+
+    def test_only_windows_tries_to_start_apple_devices(self):
+        with (
+            patch.object(sys, "platform", "darwin"),
+            patch("device_backup._start_apple_devices") as start,
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, side_effect=_no_usbmuxd()),
+            self.assertRaises(RuntimeError) as ctx,
+        ):
+            self.manager.list_devices()
+        start.assert_not_called()
+        self.assertTrue(str(ctx.exception).startswith("DEVICE_SERVICE_REQUIRED: "))
+
+    # _start_apple_devices: PowerShell finds and starts the launcher, then we wait for port 27015.
+
+    def _start(self, stdout="started", listening=(True,), run_error=None):
+        run = MagicMock(return_value=MagicMock(stdout=stdout), side_effect=run_error)
+        with (
+            patch("device_backup._run_hidden", run),
+            patch("device_backup._windows_usbmuxd_listening", side_effect=list(listening)),
+            patch("device_backup.time.sleep"),
+        ):
+            return device_backup._start_apple_devices(wait_s=0), run
+
+    def test_start_reports_missing_running_and_failed(self):
+        self.assertEqual(self._start(stdout="missing")[0], "missing")
+        self.assertEqual(self._start(listening=(True,))[0], "running")
+        self.assertEqual(self._start(listening=(False, False))[0], "failed")
+        self.assertEqual(self._start(run_error=OSError("no powershell"))[0], "failed")
+
+    def test_start_runs_the_launcher_inside_the_apple_devices_package(self):
+        _, run = self._start()
+        args = run.call_args.args[0]
+        self.assertTrue(args[0].lower().endswith("powershell.exe"))
+        self.assertIn("Get-AppxPackage AppleInc.AppleDevices", args[-1])
+        self.assertIn("AppleMobileDeviceLauncher.exe", args[-1])
+
+    # install_device_support: winget, then start.
+
+    def _install(self, start_statuses, winget="C:\\winget.exe", winget_result=None):
+        run = MagicMock(return_value=winget_result or MagicMock(returncode=0, stdout="", stderr=""))
+        with (
+            patch.object(sys, "platform", "win32"),
+            patch("device_backup._start_apple_devices", side_effect=list(start_statuses)),
+            patch("device_backup._find_winget", return_value=winget),
+            patch("device_backup._run_hidden", run),
+        ):
+            return self.manager.install_device_support(), run
+
+    def test_install_uses_winget_from_the_microsoft_store_then_starts_it(self):
+        result, run = self._install(["missing", "running"])
+        self.assertEqual(result, {"installed": True})
+        args = run.call_args.args[0]
+        self.assertEqual(args[:4], ["C:\\winget.exe", "install", "--id", "9NP83LWLPZ9K"])
+        for flag in ("--source", "msstore", "--silent", "--accept-package-agreements", "--disable-interactivity"):
+            self.assertIn(flag, args)
+
+    def test_install_skips_winget_when_already_installed(self):
+        result, run = self._install(["running"])
+        self.assertEqual(result, {"installed": True})
+        run.assert_not_called()
+
+    def test_install_without_winget_points_to_the_store(self):
+        with self.assertRaises(RuntimeError) as ctx:
+            self._install(["missing"], winget=None)
+        self.assertIn("Microsoft Store", str(ctx.exception))
+
+    def test_install_failure_names_the_winget_error(self):
+        failed = MagicMock(returncode=-1978335212, stdout="", stderr="")  # 0x8A150014, as Windows returns it
+        with self.assertRaises(RuntimeError) as ctx:
+            self._install(["missing", "missing"], winget_result=failed)
+        self.assertIn("0x8a150014", str(ctx.exception))
+        self.assertIn("Microsoft Store", str(ctx.exception))
+
+    def test_install_is_windows_only(self):
+        with patch.object(sys, "platform", "darwin"), self.assertRaises(RuntimeError):
+            self.manager.install_device_support()
 
 
 # ---------------------------------------------------------------------------
@@ -434,6 +578,23 @@ class TestStartBackup(unittest.TestCase):
             self._run_backup_with(mb2)
         self.assertTrue(str(ctx.exception).startswith("PASSCODE_REQUIRED:"))
 
+    def test_device_service_gone_raises_device_service_required(self):
+        """Apple's service stopping between the device list and Start Backup is the same setup step."""
+        with patch(
+            "pymobiledevice3.lockdown.create_using_usbmux",
+            new_callable=AsyncMock,
+            side_effect=_stub.exceptions.ConnectionFailedToUsbmuxdError(),
+        ):
+            with self.assertRaises(RuntimeError) as ctx:
+                self.manager.start_backup(
+                    udid="abc-123",
+                    output_dir="/tmp/test_backup",
+                    encrypted=False,
+                    password=None,
+                    notify=self.notify,
+                )
+        self.assertTrue(str(ctx.exception).startswith("DEVICE_SERVICE_REQUIRED:"))
+
     def test_not_enough_disk_space_explains_sizes(self):
         """The device asking us to purge space becomes a message with both sizes."""
         mb2 = self._make_mb2_mock()
@@ -588,6 +749,13 @@ class TestSidecarRouting(unittest.TestCase):
     def test_backup_list_devices_registered(self):
         server = self._make_server()
         self.assertIn("backup.list_devices", server.methods)
+
+    def test_backup_install_device_support_delegates(self):
+        server = self._make_server()
+        server.device_backup_manager = MagicMock()
+        server.device_backup_manager.install_device_support.return_value = {"installed": True}
+        result = server.handle_request({"id": 3, "method": "backup.install_device_support", "params": {}})
+        self.assertEqual(result["result"], {"installed": True})
 
     def test_backup_start_registered(self):
         server = self._make_server()
