@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- The first screen lists the backups Finder, iTunes and the Apple Devices app saved on this computer, each with an Open button, so most people don't need to pick a folder. Backups already in your list aren't shown twice. On a Mac, macOS hides that folder until OpenExtract has Full Disk Access, so the first screen offers to explain how to allow it
+
 ## [0.10.0] - 2026-11-03
 
 ### Changed

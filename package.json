@@ -12,7 +12,7 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "build": "npm run build:renderer && npm run build:electron",
     "preview": "vite preview",
-    "test": "node --test scripts/feedback.test.mjs scripts/search.test.mjs",
+    "test": "node --test scripts/feedback.test.mjs scripts/search.test.mjs scripts/found-backups.test.mjs",
     "package": "npm run build && electron-builder",
     "python:install": "cd python && ../.venv/Scripts/pip install -r requirements.txt",
     "python:install:dev": "cd python && ../.venv/Scripts/pip install -r requirements-dev.txt",
