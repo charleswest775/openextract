@@ -459,15 +459,15 @@ class TestStartBackup(unittest.TestCase):
         self.assertEqual(last[0], "finalizing")
         self.assertEqual(last[1], 100)
 
-    def test_progress_callback_forwarded(self):
-        """backup() progress_callback should update the notified percent."""
+    def _backing_up_percents(self, device_percents):
+        """Run a backup whose device reports *device_percents*; return the backing_up percents."""
         lockdown = _make_lockdown_mock()
         mb2 = self._make_mb2_mock()
 
-        # Simulate pymobiledevice3 calling progress_callback with two events
+        # pymobiledevice3 passes the device's own figure, a 0–100 percentage.
         def _fake_backup(full, backup_directory, progress_callback):
-            progress_callback({"Progress": 0.25, "TotalFiles": 200, "FilesTransferred": 50})
-            progress_callback({"Progress": 0.80, "TotalFiles": 200, "FilesTransferred": 160})
+            for value in device_percents:
+                progress_callback(value)
 
         mb2.backup.side_effect = _fake_backup
 
@@ -483,10 +483,21 @@ class TestStartBackup(unittest.TestCase):
                 notify=self.notify,
             )
 
-        # Look for the 25% and 80% events
-        percents = [p[1] for p in self.progress_calls]
-        self.assertIn(25, percents)
-        self.assertIn(80, percents)
+        return [p[1] for p in self.progress_calls if p[0] == "backing_up"]
+
+    def test_progress_callback_forwarded(self):
+        """The device's percentage fills the bar from 11% to 99%."""
+        percents = self._backing_up_percents([0.0, 25.0, 80.0, 100.0])
+        self.assertEqual(percents, [11, 11, 33, 81, 99])
+
+    def test_early_progress_is_not_read_as_a_fraction(self):
+        """Device figures under 1.0 are early percentages; they must not jump the bar to ~90%."""
+        percents = self._backing_up_percents([0.12, 0.89, 0.92, 1.5, 50.0])
+        self.assertEqual(percents, [11, 11, 11, 11, 12, 55])
+
+    def test_unreadable_progress_is_ignored(self):
+        percents = self._backing_up_percents([None, "n/a", 50.0])
+        self.assertEqual(percents, [11, 55])
 
     def test_encrypted_backup_calls_configure(self):
         """When encrypted=True, change_password should be invoked."""
@@ -694,30 +705,8 @@ class TestStartBackup(unittest.TestCase):
 
     def test_progress_percent_clamped(self):
         """Progress percent should never exceed 99 from the progress_callback."""
-        lockdown = _make_lockdown_mock()
-        mb2 = self._make_mb2_mock()
-
-        def _fake_backup(full, backup_directory, progress_callback):
-            # Deliver a value > 1.0 to test clamping
-            progress_callback({"Progress": 1.5})
-
-        mb2.backup.side_effect = _fake_backup
-
-        with (
-            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
-            patch("pymobiledevice3.services.mobilebackup2.Mobilebackup2Service", return_value=mb2),
-        ):
-            self.manager.start_backup(
-                udid="abc-123",
-                output_dir="/tmp/test_clamp",
-                encrypted=False,
-                password=None,
-                notify=self.notify,
-            )
-
-        mid_percents = [p[1] for p in self.progress_calls if p[0] != "finalizing"]
-        for pct in mid_percents:
-            self.assertLessEqual(pct, 99)
+        percents = self._backing_up_percents([150.0])
+        self.assertEqual(max(percents), 99)
 
 
 # ---------------------------------------------------------------------------

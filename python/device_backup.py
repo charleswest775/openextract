@@ -360,13 +360,13 @@ class DeviceBackupManager:
 
         os.makedirs(output_dir, exist_ok=True)
 
-        # Shared mutable state across the nested helpers.
-        files_done = 0
-        files_total = 0
         # high-water mark shared by ALL notification paths so that the hardcoded
         # negotiating / backing_up milestones (0 → 5 → 10) are never overwritten
         # by an early 0% callback from pymobiledevice3.
         last_pct = [0]
+        # The milestones above use 0–11; the device's own progress fills 11–99,
+        # and 100 waits until the backup has actually finished.
+        transfer_start_pct = 11
         # Bytes in use on the iPhone, so a disk-full error can say how much room
         # the backup needs.  0 when the device didn't report it.
         phone_used_bytes = 0
@@ -377,36 +377,22 @@ class DeviceBackupManager:
             last_pct[0] = pct
             notify(phase, pct, fd, ft)
 
-        def _progress_cb(progress_info) -> None:
+        def _progress_cb(device_pct) -> None:
             """
-            Translate raw MobileBackup2 progress into our phase/percent model.
+            Translate the device's progress into our percent.
 
-            pymobiledevice3 may deliver either:
-              - a dict with keys: Progress, TotalFiles, FilesTransferred, SnapshotState
-              - a raw float (0.0–1.0) on some iOS versions / pymobiledevice3 builds
+            pymobiledevice3 passes the figure iOS sends with each batch of files:
+            how much of the backup is done, as a percentage from 0 to 100 (its own
+            CLI feeds it straight into a 100-step bar).  A value under 1.0 is an
+            early percentage, not a fraction; reading it as one sent the bar to
+            ~90% during the first 1% and held it there for most of the backup.
             """
-            nonlocal files_done, files_total
-
-            if not isinstance(progress_info, dict):
-                # Raw float progress value
-                raw_pct = float(progress_info) if progress_info is not None else 0.0
-                pct = min(99, int(raw_pct * 100 if raw_pct <= 1.0 else raw_pct))
-                _tracked_notify("backing_up", pct, files_done, files_total)
+            try:
+                device_pct = min(100.0, max(0.0, float(device_pct)))
+            except (TypeError, ValueError):
                 return
-
-            raw_pct = progress_info.get("Progress", 0)
-            if isinstance(raw_pct, float):
-                pct = min(99, int(raw_pct * 100))
-            else:
-                pct = min(99, int(raw_pct))
-
-            files_total = progress_info.get("TotalFiles", files_total) or files_total
-            files_done = progress_info.get("FilesTransferred", files_done) or files_done
-
-            state = str(progress_info.get("SnapshotState", "")).lower()
-            phase = "finalizing" if "final" in state else "backing_up"
-
-            _tracked_notify(phase, pct, files_done, files_total)
+            pct = transfer_start_pct + int(device_pct * (99 - transfer_start_pct) / 100)
+            _tracked_notify("backing_up", pct, 0, 0)
 
         async def _run_backup():
             nonlocal phone_used_bytes
@@ -449,14 +435,14 @@ class DeviceBackupManager:
             _tracked_notify("negotiating", 10, 0, 0)
 
             async with Mobilebackup2Service(lockdown) as mb2:
-                _tracked_notify("backing_up", 11, 0, 0)
+                _tracked_notify("backing_up", transfer_start_pct, 0, 0)
                 await mb2.backup(
                     full=True,
                     backup_directory=output_dir,
                     progress_callback=_progress_cb,
                 )
 
-            _tracked_notify("finalizing", 100, files_done, files_total)
+            _tracked_notify("finalizing", 100, 0, 0)
 
         def _run_with_lock_retry():
             try:
@@ -499,7 +485,7 @@ class DeviceBackupManager:
             manifest_path = os.path.join(actual, "Manifest.db")
             info_path = os.path.join(actual, "Info.plist")
             if os.path.exists(manifest_path) or os.path.exists(info_path):
-                _tracked_notify("finalizing", 100, files_done, files_total)
+                _tracked_notify("finalizing", 100, 0, 0)
             elif encrypted:
                 raise RuntimeError(
                     "PASSCODE_REQUIRED: Your iPhone is prompting for your passcode "
