@@ -81,6 +81,8 @@ const store = new JsonStore({
   stats: { totalExports: 0 },
   // null until the user answers the "check for updates automatically?" question.
   updatesAutoCheck: null,
+  // When "Not now" was picked on that question: the time (ms) to ask it again. 0 = ask now.
+  updatesAskAfter: 0,
   // True once the "star or tell a friend" prompt has been shown. It shows at most once.
   sharePromptShown: false,
   // True once the user picks "Don't ask again" on the "Did this export come out right?" card.
