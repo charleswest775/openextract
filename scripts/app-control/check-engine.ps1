@@ -55,6 +55,7 @@ function Invoke-Engine([string] $Method, [hashtable] $Params = @{}, [int] $Timeo
 }
 
 $failure = $null
+$deviceFailure = $null
 try {
   # A one-file engine (0.9.0 and earlier on Windows) unpacks itself before it's ready.
   $ready = Read-Message 120
@@ -63,13 +64,17 @@ try {
 
   # The runner has no Apple software, so Back up my iPhone must get DEVICE_SERVICE_REQUIRED
   # (the app's "Install Apple Devices first" card), not a crash. The engine looks for Apple
-  # Devices with PowerShell, which App Control puts in Constrained Language mode.
+  # Devices with PowerShell, which App Control puts in Constrained Language mode. A wrong
+  # answer fails the check at the end, after the backup has been opened.
   try {
     $devices = Invoke-Engine backup.list_devices -TimeoutSec 120
     Write-Output "::warning::backup.list_devices reached Apple's usbmuxd on this runner ($($devices | ConvertTo-Json -Compress)), so the check for a PC without Apple software didn't run"
   } catch {
-    if ($_.Exception.Message -notlike 'backup.list_devices failed: DEVICE_SERVICE_REQUIRED:*') { throw }
-    Write-Host 'backup.list_devices   said Apple Devices is needed, as it should here'
+    if ($_.Exception.Message -notlike 'backup.list_devices failed: DEVICE_SERVICE_REQUIRED:*') {
+      $deviceFailure = "without Apple software, $($_.Exception.Message) (expected DEVICE_SERVICE_REQUIRED)"
+    } else {
+      Write-Host 'backup.list_devices   said Apple Devices is needed, as it should here'
+    }
   }
   Invoke-Engine ping | Out-Null
 
@@ -111,10 +116,14 @@ Set-Content -LiteralPath (Join-Path $LogDir 'engine-stderr.txt') -Value $errors 
 # What the engine says about its optional native libraries, e.g. "[photos] PIL=True HEIF=True".
 ($errors -split "`r?`n") | Where-Object { $_ -match '^\[photos\] PIL=' } | ForEach-Object { Write-Host $_ }
 
+if ($deviceFailure) {
+  Write-Output "::error::Engine: $deviceFailure"
+}
 if ($failure) {
   Write-Output "::error::Engine: $failure"
   Write-Output "Engine stderr (last 40 lines):"
   ($errors -split "`r?`n" | Select-Object -Last 40) | ForEach-Object { Write-Output "  $_" }
   exit 1
 }
+if ($deviceFailure) { exit 1 }
 Write-Output "The engine opened the encrypted backup and answered every call"

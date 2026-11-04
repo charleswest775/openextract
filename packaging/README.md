@@ -54,7 +54,9 @@ If the step "Check the policy blocks the canary" fails, the policy itself
 isn't working on that runner image, so the check proves nothing until
 it's fixed. To see a real failure, run it with tag `v0.9.0`: every file it
 installs is signed, but its one-file engine unpacks `python311.dll` into
-`%TEMP%`, App Control blocks it, and the engine exits.
+`%TEMP%`, App Control blocks it, and the engine exits. Releases up to 0.10.0
+also fail its device check, which came with #184: without Apple's software
+their engine reports an error instead of "Apple Devices is needed".
 
 ## Before publishing: back up a real iPhone
 
