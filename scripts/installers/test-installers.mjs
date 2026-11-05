@@ -101,6 +101,37 @@ async function engine(label, exe) {
   }
 }
 
+/** The engine is a folder (scripts/bundle-engine.mjs): the executable next to _internal/. */
+function engineFolder(label, dir, exe) {
+  check(`${label}: the engine is the folder build (no unpacking at start)`,
+    fs.existsSync(path.join(dir, exe)) && fs.statSync(path.join(dir, '_internal')).isDirectory(), files(dir));
+}
+
+/**
+ * Notarization rejects an app if any executable or library in it lacks its own signature
+ * with the hardened runtime, and when --signed, our Developer ID and a secure timestamp.
+ * The engine has a hundred or more of them (.so, .dylib); electron-builder signs each one.
+ */
+function engineSignatures(label, app) {
+  const dir = path.join(app, 'Contents/Resources/python');
+  const MACH_O = [0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe, 0xcafebabe];
+  const machO = fs.readdirSync(dir, { recursive: true }).map(f => path.join(dir, f)).filter(f => {
+    if (!fs.lstatSync(f).isFile()) return false;
+    const head = Buffer.alloc(4);
+    const fd = fs.openSync(f, 'r');
+    try { return fs.readSync(fd, head, 0, 4, 0) === 4 && MACH_O.includes(head.readUInt32BE(0)); } finally { fs.closeSync(fd); }
+  });
+  const bad = [];
+  for (const f of machO) {
+    const info = run('codesign', ['-dv', '--verbose=2', f]).stderr;
+    const ok = /flags=0x[0-9a-f]+\([^)]*runtime[^)]*\)/.test(info)
+      && (!opts.signed || (/^Authority=Developer ID Application:/m.test(info) && /^Timestamp=/m.test(info)));
+    if (!ok) bad.push(`${path.relative(dir, f)}: ${info.split('\n').filter(l => /flags=|Authority=|Timestamp=|not signed/.test(l)).join('; ')}`);
+  }
+  check(`${label}: every binary in the engine is signed${opts.signed ? ' with our Developer ID, a timestamp' : ''} and the hardened runtime`,
+    machO.length > 0 && bad.length === 0, { binaries: machO.length, bad: bad.slice(0, 10) });
+}
+
 /** latest*.yml lists each update file with its size and sha512; both must match the file. */
 function updateMetadata(name) {
   const yml = path.join(DIR, name);
@@ -152,26 +183,21 @@ async function mac() {
     check(`${label}: Info.plist has version ${VERSION} and bundle id com.openextract.app`, plist.includes(`<string>${VERSION}</string>`) && plist.includes('<string>com.openextract.app</string>'));
     const eng = path.join(app, 'Contents/Resources/python/openextract-engine');
     check(`${label}: the engine is bundled and executable`, fs.existsSync(eng) && (fs.statSync(eng).mode & 0o111) !== 0);
+    engineFolder(label, path.dirname(eng), 'openextract-engine');
+    // Unsigned test builds are signed ad hoc by electron-builder (installers.yml), the same
+    // way a release is signed, minus the Developer ID: Apple silicon won't launch without it.
+    const v = run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', app]);
+    check(`${label}: code signature is valid`, v.status === 0, v.stderr.slice(-600));
+    engineSignatures(label, app);
     if (opts.signed) {
-      const v = run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', app]);
-      check(`${label}: code signature is valid`, v.status === 0, v.stderr.slice(-600));
       // As if downloaded: Gatekeeper must accept it (Developer ID, notarized and stapled).
+      // The ticket is stapled (build/notarize.js), so this needs no answer from Apple.
       run('xattr', ['-w', 'com.apple.quarantine', '0081;00000000;Safari;', app]);
-      // build/notarize.js doesn't wait for Apple, so give notarization up to 20 minutes to land.
-      let g;
-      for (let i = 0; i < 20; i++) {
-        g = run('spctl', ['--assess', '--type', 'execute', '--verbose=4', app]);
-        if (g.status === 0 && /Notarized Developer ID/.test(g.stderr)) break;
-        console.log(`Gatekeeper doesn't accept ${label} yet (${g.stderr.trim().split('\n').pop()}); waiting for notarization`);
-        await sleep(60_000);
-      }
+      const g = run('spctl', ['--assess', '--type', 'execute', '--verbose=4', app]);
       check(`${label}: Gatekeeper accepts it as downloaded`, g.status === 0 && /Notarized Developer ID/.test(g.stderr), g.stderr.slice(-600));
       const st = run('xcrun', ['stapler', 'validate', app]);
       check(`${label}: the notarization ticket is stapled`, st.status === 0, st.stdout.slice(-300));
       run('xattr', ['-d', 'com.apple.quarantine', app]);
-    } else {
-      // Unsigned test builds need an ad-hoc signature to run on Apple silicon.
-      run('codesign', ['--force', '--deep', '-s', '-', app]);
     }
     await engine(label, eng);
     smoke(label, path.join(app, 'Contents/MacOS/OpenExtract'));
@@ -311,6 +337,7 @@ async function linux() {
     const sandboxed = await startsSandboxed(exe);
     check('the installed app starts with the Chromium sandbox on, as the desktop entry runs it', sandboxed.running && !sandboxed.error, sandboxed);
     const eng = '/opt/OpenExtract/resources/python/openextract-engine';
+    engineFolder('deb', path.dirname(eng), 'openextract-engine');
     await engine('deb', eng);
     smoke('deb', exe);
     const rm = run('sudo', ['apt-get', 'remove', '-y', 'openextract']);

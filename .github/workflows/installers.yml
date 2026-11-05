@@ -107,12 +107,16 @@ jobs:
         run: npm run build
 
       # Same as prerelease-check.yml: no signing secrets, so no notarizing or Azure signing.
+      # On macOS electron-builder signs ad hoc ("-") instead of with the Developer ID, but
+      # otherwise as a release does: every binary in the app, each of the engine's .so and
+      # .dylib files included, with the hardened runtime and our entitlements. The macOS
+      # test checks each one, which notarization would otherwise be first to catch.
       - name: Unsigned packaging config
         run: |
           node -e '
             const fs = require("fs"); const p = JSON.parse(fs.readFileSync("package.json"));
             delete p.build.afterSign; delete p.build.win.azureSignOptions;
-            p.build.mac.hardenedRuntime = false; p.build.mac.identity = null;
+            p.build.mac.identity = "-";
             fs.writeFileSync("package.json", JSON.stringify(p, null, 2));'
 
       - name: Package (no publish)

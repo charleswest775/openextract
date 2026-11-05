@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- macOS and Linux: OpenExtract is ready to open a backup within a second of starting. Its engine used to unpack itself into a temporary folder every time it started, which took about 8 seconds on a Mac. It now comes as a folder, as it already did on Windows, and answers in about a tenth of a second
+
 ### Fixed
 - Windows: backups in a folder whose name has accents or other letters outside English (C:\Users\José, for example) open now; they used to fail. Save to this computer → Messages no longer stops partway through when a conversation's name has an emoji, and no longer writes files with garbled names
 - Mac: after closing OpenExtract's window, reopening it from the Dock left it unable to open or read anything until you quit the app. It works straight away now

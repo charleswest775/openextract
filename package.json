@@ -57,6 +57,12 @@
       "dist/**/*",
       "dist-electron/**/*.js"
     ],
+    "extraResources": [
+      {
+        "from": "python/dist/openextract-engine",
+        "to": "python"
+      }
+    ],
     "publish": {
       "provider": "github",
       "owner": "charleswest775",
@@ -74,13 +80,7 @@
         "dmg",
         "zip"
       ],
-      "category": "public.app-category.utilities",
-      "extraResources": [
-        {
-          "from": "python/dist/openextract-engine",
-          "to": "python/openextract-engine"
-        }
-      ]
+      "category": "public.app-category.utilities"
     },
     "win": {
       "target": "nsis",
@@ -93,13 +93,7 @@
         "endpoint": "https://eus.codesigning.azure.net/",
         "certificateProfileName": "openextract",
         "codeSigningAccountName": "openextract-signing"
-      },
-      "extraResources": [
-        {
-          "from": "python/dist/openextract-engine",
-          "to": "python"
-        }
-      ]
+      }
     },
     "linux": {
       "target": [
@@ -107,13 +101,7 @@
         "AppImage"
       ],
       "category": "Utility",
-      "maintainer": "OpenExtract Contributors <security@openextract.app>",
-      "extraResources": [
-        {
-          "from": "python/dist/openextract-engine",
-          "to": "python/openextract-engine"
-        }
-      ]
+      "maintainer": "OpenExtract Contributors <security@openextract.app>"
     },
     "deb": {
       "depends": [
