@@ -822,6 +822,7 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .wheres__row-
 }
 .uc-step h2 { font-size: 26px; font-weight: 500; letter-spacing: -0.015em; margin-bottom: 10px; }
 .uc-step p { font-size: 16px; color: var(--ink-soft); line-height: 1.65; }
+.uc-step p + p { margin-top: 16px; }
 .uc-step a { color: var(--coral); font-weight: 600; }
 
 .uc-related { padding: 32px 56px 16px; }
