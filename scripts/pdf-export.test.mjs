@@ -106,15 +106,9 @@ describe('removeStaleStagingDirs', () => {
     assert.deepEqual(stagingDirsIn(temp), []);
   });
 
+  // e.g. macOS /var -> /private/var
   test(
     'doesn\'t remove a running export\'s folder when the temp path isn\'t canonical',
-    {
-      todo:
-        'LATENT BUG: the running-export check compares path.join(app.getPath("temp"), name) with the ' +
-        'realpath\'d staging folder, so it never matches when the temp path goes through a symlink or ' +
-        'junction (e.g. macOS /var -> /private/var). Harmless today because main.ts only calls ' +
-        'removeStaleStagingDirs() at startup, before any export can run.',
-    },
     async () => {
       const real = freshDir('pdf-temp-real');
       const link = path.join(freshDir('pdf-temp-link'), 'temp');

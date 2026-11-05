@@ -33,6 +33,11 @@ export interface BrowserHistoryStats {
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// YYYY-MM-DD on the local calendar, the same clock the hour and weekday charts use
+function localDayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function formatHourLabel(h: number): string {
   if (h === 0) return '12a';
   if (h < 12) return `${h}a`;
@@ -65,18 +70,15 @@ export function computeBrowserStats(visits: HistoryVisit[]): BrowserHistoryStats
 
     // time-based (skip null dates)
     if (v.visit_date) {
-      const dateStr = v.visit_date.slice(0, 10); // YYYY-MM-DD
-      dateCounts.set(dateStr, (dateCounts.get(dateStr) ?? 0) + 1);
-
       if (!earliest || v.visit_date < earliest) earliest = v.visit_date;
       if (!latest || v.visit_date > latest) latest = v.visit_date;
 
-      try {
-        const d = new Date(v.visit_date);
+      const d = new Date(v.visit_date);
+      if (!isNaN(d.getTime())) {
+        const dateStr = localDayKey(d);
+        dateCounts.set(dateStr, (dateCounts.get(dateStr) ?? 0) + 1);
         hourCounts[d.getHours()]++;
         dowCounts[d.getDay()]++;
-      } catch {
-        // ignore parse errors
       }
     }
   }
@@ -84,7 +86,7 @@ export function computeBrowserStats(visits: HistoryVisit[]): BrowserHistoryStats
   // activityByDay: last 90 days
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 90);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const cutoffStr = localDayKey(cutoff);
 
   const activityByDay = Array.from(dateCounts.entries())
     .filter(([date]) => date >= cutoffStr)

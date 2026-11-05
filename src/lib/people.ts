@@ -19,9 +19,10 @@ export function normPhone(s: string): string {
 }
 
 // Returns true when two contact identifiers refer to the same entity.
-// Falls back to normalised phone comparison when exact strings differ.
+// Emails match whatever their case, as the picker merges them; then falls back
+// to normalised phone comparison.
 export function identifiersMatch(a: string, b: string): boolean {
-  if (a === b) return true;
+  if (a === b || a.toLowerCase() === b.toLowerCase()) return true;
   const na = normPhone(a);
   const nb = normPhone(b);
   return na.length >= 7 && nb.length >= 7 && na === nb;
@@ -56,9 +57,11 @@ export function buildIdentifierGroupMap(
 }
 
 // Return all identifiers belonging to the same contact as `id`,
-// checking raw, normalised, and +1-prefixed variants.
+// checking raw, lower-cased, normalised, and +1-prefixed variants.
 export function getContactGroup(id: string, idMap: IdentifierGroupMap): Set<string> | null {
   if (idMap.has(id)) return idMap.get(id)!;
+  const lower = id.toLowerCase();
+  if (idMap.has(lower)) return idMap.get(lower)!;
   const np = normPhone(id);
   if (np && idMap.has(np)) return idMap.get(np)!;
   if (np && idMap.has(`+1${np}`)) return idMap.get(`+1${np}`)!;

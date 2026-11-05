@@ -274,28 +274,9 @@ class MessageExtractor:
                             query: Optional[str] = None,
                             display_name: Optional[str] = None) -> dict:
         """Export a conversation to the specified format, with optional date/search filters."""
-        if query:
-            # Search-filtered export — fetch matching messages directly
-            result = self.search_messages(
-                backup, query, contacts, chat_id,
-                date_from=date_from, date_to=date_to, limit=100000
-            )
-            all_messages = result["results"]
-        else:
-            # Date-range or full export via paginated get_messages
-            all_messages = []
-            offset = 0
-            while True:
-                batch = self.get_messages(
-                    backup, chat_id, contacts, offset, 500,
-                    date_from=date_from, date_to=date_to
-                )
-                all_messages.extend(batch["messages"])
-                if offset + 500 >= batch["total"]:
-                    break
-                offset += 500
-
-        all_messages = self._sort_messages_chronologically(all_messages)
+        all_messages = self._collect_messages_for_chat(
+            backup, chat_id, contacts, date_from, date_to, query
+        )
 
         if fmt == "txt":
             return self._export_txt(all_messages, chat_id, output_dir, display_name)
@@ -501,24 +482,31 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
     def _collect_messages_for_chat(self, backup, chat_id, contacts,
                                    date_from=None, date_to=None, query=None):
         """Collect all messages for a single chat (with optional filters)."""
+        all_messages = []
+        offset = 0
+        while True:
+            batch = self.get_messages(
+                backup, chat_id, contacts, offset, 500,
+                date_from=date_from, date_to=date_to
+            )
+            all_messages.extend(batch["messages"])
+            if offset + 500 >= batch["total"]:
+                break
+            offset += 500
         if query:
+            # search_messages picks the matches, but its results lack the attachment
+            # details every format reads (has_attachments, attachments, message_type),
+            # so export each match's full message. A match get_messages hides (a
+            # location balloon) keeps its search result.
+            by_id = {msg["message_id"]: msg for msg in all_messages}
             result = self.search_messages(
                 backup, query, contacts, chat_id,
                 date_from=date_from, date_to=date_to, limit=100000
             )
-            all_messages = result["results"]
-        else:
-            all_messages = []
-            offset = 0
-            while True:
-                batch = self.get_messages(
-                    backup, chat_id, contacts, offset, 500,
-                    date_from=date_from, date_to=date_to
-                )
-                all_messages.extend(batch["messages"])
-                if offset + 500 >= batch["total"]:
-                    break
-                offset += 500
+            all_messages = [
+                by_id.get(msg["message_id"]) or {**msg, "has_attachments": False, "attachments": []}
+                for msg in result["results"]
+            ]
         return self._sort_messages_chronologically(all_messages)
 
     def _export_merged(self, backup, chat_ids, conversation_names, contacts,
