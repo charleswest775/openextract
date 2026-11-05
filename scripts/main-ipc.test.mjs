@@ -285,27 +285,17 @@ describe('startup', () => {
     }
   });
 
-  test(
-    'on macOS, reopening the window after closing it still has a working engine',
-    {
-      todo:
-        'BUG: on macOS, window-all-closed stops the engine but the app keeps running; clicking the Dock icon ' +
-        'fires "activate", which opens a new window but never restarts the engine, so every sidecar:call ' +
-        'fails with "Python sidecar is not running" until the app is quit. Fix: only stop the engine when ' +
-        'quitting (e.g. before-quit / will-quit), or restart it in "activate".',
-    },
-    async () => {
-      const m = await loadMain();
-      await asPlatform('darwin', async () => {
-        m.env.app.emit('window-all-closed');
-        m.window.destroyed = true; // the user closed it
-        m.env.app.emit('activate');
-        await waitFor(() => m.env.windows.length === 2, { what: 'a new window' });
-      });
-      const result = await m.invoke('sidecar:call', 'list_backups', {});
-      assert.deepEqual(result, { success: true, data: { answered: 'list_backups' } });
-    },
-  );
+  test('on macOS, reopening the window after closing it still has a working engine', async () => {
+    const m = await loadMain();
+    await asPlatform('darwin', async () => {
+      m.env.app.emit('window-all-closed');
+      m.window.destroyed = true; // the user closed it
+      m.env.app.emit('activate');
+      await waitFor(() => m.env.windows.length === 2, { what: 'a new window' });
+    });
+    const result = await m.invoke('sidecar:call', 'list_backups', {});
+    assert.deepEqual(result, { success: true, data: { answered: 'list_backups' } });
+  });
 });
 
 // ── shell:openExternal ──────────────────────────────────────────────────────
@@ -457,23 +447,14 @@ describe('text size', () => {
     assert.deepEqual(m.window.webContents.zoomFactors, [1.15, 1.3]);
   });
 
-  test(
-    'text-size:set ignores names that only exist on Object.prototype',
-    {
-      todo:
-        'BUG: text-size:set checks `size in TEXT_SIZE_ZOOM`, which is true for "toString", "constructor", ' +
-        '"__proto__" and friends, so those are saved as the text size and a function is passed to ' +
-        'setZoomFactor (which throws in Electron) on every page load. Fix: Object.hasOwn(TEXT_SIZE_ZOOM, size).',
-    },
-    async () => {
-      const m = await loadMain();
-      for (const bad of ['toString', 'constructor', '__proto__', 'hasOwnProperty']) {
-        await m.invoke('text-size:set', bad).catch(() => {});
-      }
-      assert.equal(await m.invoke('text-size:get'), 'default');
-      for (const f of m.window.webContents.zoomFactors) assert.equal(typeof f, 'number');
-    },
-  );
+  test('text-size:set ignores names that only exist on Object.prototype', async () => {
+    const m = await loadMain();
+    for (const bad of ['toString', 'constructor', '__proto__', 'hasOwnProperty']) {
+      await m.invoke('text-size:set', bad).catch(() => {});
+    }
+    assert.equal(await m.invoke('text-size:get'), 'default');
+    for (const f of m.window.webContents.zoomFactors) assert.equal(typeof f, 'number');
+  });
 
   test('the saved size is applied when the page loads, after a restart too', async () => {
     const userData = freshDir('main-userdata');
@@ -483,6 +464,14 @@ describe('text size', () => {
     assert.deepEqual(second.window.webContents.zoomFactors, []);
     second.window.webContents.emit('did-finish-load');
     assert.deepEqual(second.window.webContents.zoomFactors, [1.15]);
+  });
+
+  test('a saved size that isn\'t one of the sizes loads at 100%', async () => {
+    for (const textSize of ['toString', 'huge', 7]) {
+      const m = await loadMain({ state: { textSize } });
+      m.window.webContents.emit('did-finish-load');
+      assert.deepEqual(m.window.webContents.zoomFactors, [1], String(textSize));
+    }
   });
 });
 

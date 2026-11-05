@@ -104,9 +104,14 @@ let exportCheckShownThisRun = false;
 // Settings > Text size scales the whole window, so layouts keep their proportions.
 const TEXT_SIZE_ZOOM: Record<string, number> = { default: 1, large: 1.15, larger: 1.3 };
 
+// Own keys only: `in` would also accept "toString", "__proto__" and the rest of Object.prototype.
+const isTextSize = (size: unknown): size is string =>
+  typeof size === 'string' && Object.prototype.hasOwnProperty.call(TEXT_SIZE_ZOOM, size);
+
 function applyTextSize() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  mainWindow.webContents.setZoomFactor(TEXT_SIZE_ZOOM[store.get('textSize', 'default')] ?? 1);
+  const size = store.get('textSize', 'default');
+  mainWindow.webContents.setZoomFactor(isTextSize(size) ? TEXT_SIZE_ZOOM[size] : 1);
 }
 
 // macOS needs an app menu for Cmd+C, Cmd+V, Cmd+Q and friends to work, even in text fields.
@@ -345,7 +350,7 @@ app.whenReady().then(async () => {
   // ── Text size (Settings) ────────────────────────────────────────────────
   ipcMain.handle('text-size:get', () => store.get('textSize', 'default'));
   ipcMain.handle('text-size:set', (_event: any, size: string) => {
-    if (!(size in TEXT_SIZE_ZOOM)) return;
+    if (!isTextSize(size)) return;
     store.set('textSize', size);
     applyTextSize();
   });
@@ -470,5 +475,12 @@ app.on('window-all-closed', () => {
 
 app.on('activate', async () => {
   await app.whenReady();
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  if (BrowserWindow.getAllWindows().length === 0) {
+    // On macOS the app outlives its last window, but window-all-closed stopped
+    // the engine, so reopening from the Dock has to start it again.
+    if (sidecar && !sidecar.running) {
+      sidecar.start().catch((err: any) => console.error('Failed to start Python sidecar:', err));
+    }
+    createWindow();
+  }
 });

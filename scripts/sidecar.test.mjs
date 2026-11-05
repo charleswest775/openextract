@@ -87,23 +87,14 @@ describe('PythonSidecar with a running engine', () => {
     assert.equal(result.length, 1_500_000);
   });
 
-  test(
-    'a multi-byte UTF-8 character split between two chunks survives',
-    {
-      todo:
-        'LATENT BUG: sidecar.ts does `this.buffer += data.toString()` per chunk, so a character split across ' +
-        'chunks becomes U+FFFD. The real engine only writes ASCII today (json.dumps escapes non-ASCII), ' +
-        'so this only bites if that changes. Fix: stdout.setEncoding("utf8") or a StringDecoder.',
-    },
-    async () => {
-      const payload = 'Zoë 🙂 café';
-      // Cut the answer line in the middle of "ë" and in the middle of the emoji.
-      const id = sidecar.requestId + 1;
-      const line = Buffer.from(JSON.stringify({ id, result: payload }) + '\n', 'utf-8');
-      const cuts = [line.indexOf(Buffer.from('ë')) + 1, line.indexOf(Buffer.from('🙂')) + 2];
-      assert.equal(await sidecar.call('split', { payload, cuts, gap: 40 }), payload);
-    },
-  );
+  test('a multi-byte UTF-8 character split between two chunks survives', async () => {
+    const payload = 'Zoë 🙂 café';
+    // Cut the answer line in the middle of "ë" and in the middle of the emoji.
+    const id = sidecar.requestId + 1;
+    const line = Buffer.from(JSON.stringify({ id, result: payload }) + '\n', 'utf-8');
+    const cuts = [line.indexOf(Buffer.from('ë')) + 1, line.indexOf(Buffer.from('🙂')) + 2];
+    assert.equal(await sidecar.call('split', { payload, cuts, gap: 40 }), payload);
+  });
 
   test('notifications go to notificationHandler, in order, and resolve nothing', async () => {
     const seen = [];
@@ -232,23 +223,13 @@ describe('PythonSidecar engine lifecycle', { concurrency: true }, () => {
     assert.match(readLog(logPath), /\[ERROR STARTING\]/);
   });
 
-  test(
-    'after a failed launch, calls fail straight away instead of waiting for their timeout',
-    {
-      todo:
-        'BUG: when spawn() fails (missing/blocked engine binary) Node emits "error" but no "exit", so ' +
-        'this.process stays set and every call() writes to a dead stdin and hangs until its timeout ' +
-        '(5 minutes by default) instead of rejecting with "Python sidecar is not running". ' +
-        'Fix: set this.process = null in the "error" handler too.',
-    },
-    async () => {
-      const logPath = path.join(freshDir('sidecar-log'), 'python_log.txt');
-      const missing = path.join(freshDir('missing'), 'openextract-engine');
-      const sidecar = new PythonSidecar(missing, [], logPath);
-      await sidecar.start().catch(() => {});
-      await assert.rejects(sidecar.call('ping', {}, 600), { message: 'Python sidecar is not running' });
-    },
-  );
+  test('after a failed launch, calls fail straight away instead of waiting for their timeout', async () => {
+    const logPath = path.join(freshDir('sidecar-log'), 'python_log.txt');
+    const missing = path.join(freshDir('missing'), 'openextract-engine');
+    const sidecar = new PythonSidecar(missing, [], logPath);
+    await sidecar.start().catch(() => {});
+    await assert.rejects(sidecar.call('ping', {}, 600), { message: 'Python sidecar is not running' });
+  });
 
   test('stop() kills the engine, rejects what was pending, and later calls fail', async () => {
     const { sidecar } = fakeSidecar();
@@ -264,42 +245,54 @@ describe('PythonSidecar engine lifecycle', { concurrency: true }, () => {
     sidecar.stop(); // twice is fine
   });
 
-  test(
-    'writing to an engine whose stdin has closed doesn\'t crash the main process',
-    {
-      todo:
-        'BUG: sidecar.ts has no "error" listener on the engine\'s stdin, so a write after the engine closes ' +
-        'its end (e.g. it has just crashed and "exit" hasn\'t arrived yet) throws an uncaught "write EPIPE" ' +
-        'in the main process (seen on macOS and Linux; on Windows this setup doesn\'t trigger it). ' +
-        'Fix: this.process.stdin.on("error", ...) and reject the call.',
-    },
-    async () => {
-      // Run in a separate Node so an uncaught exception can't take the test runner down.
-      const driver = path.join(freshDir('epipe'), 'driver.cjs');
-      fs.writeFileSync(
-        driver,
-        `const { PythonSidecar } = require(${JSON.stringify(path.join(sidecarDir, 'sidecar.js'))});
-  console.log = console.error = () => {};
-  const s = new PythonSidecar(process.execPath, [${JSON.stringify(FAKE_ENGINE)}, 'close-stdin'], ${JSON.stringify(path.join(path.dirname(driver), 'log.txt'))});
-  let uncaught = null;
-  const done = call => { process.stdout.write(JSON.stringify({ uncaught, call })); s.stop(); process.exit(0); };
-  process.on('uncaughtException', e => { uncaught = e.message; done('n/a'); });
-  s.start()
-    .then(() => s.call('echo', {}, 1500))
-    .then(() => done('resolved'), e => setTimeout(() => done('rejected: ' + e.message), 200));
-  `,
-      );
-      const child = spawn(process.execPath, [driver], { stdio: ['ignore', 'pipe', 'inherit'] });
-      let output = '';
-      child.stdout.on('data', d => (output += d));
-      const guard = setTimeout(() => child.kill(), 15_000); // never hang the run
-      await new Promise(resolve => child.on('close', resolve));
-      clearTimeout(guard);
-      const report = JSON.parse(output);
-      assert.equal(report.uncaught, null, `uncaught exception: ${report.uncaught}`);
-      assert.match(report.call, /^rejected/);
-    },
-  );
+  test('starting again straight after stop() keeps the new engine and its calls', async () => {
+    const { sidecar } = fakeSidecar();
+    await sidecar.start();
+    const oldPid = await sidecar.call('pid');
+    const oldCall = sidecar.call('hold', {});
+    sidecar.stop();
+    const restarted = sidecar.start();
+    // Sent before the old engine's exit arrives; that exit must not reject it.
+    const newCall = sidecar.call('pid');
+    try {
+      await assert.rejects(oldCall, { message: /^Sidecar exited with code/ });
+      const newPid = await newCall;
+      assert.notEqual(newPid, oldPid);
+      await restarted;
+      await waitFor(() => !isAlive(oldPid), { what: `old engine pid ${oldPid} to exit` });
+      assert.equal(sidecar.running, true);
+      assert.equal(await sidecar.call('pid'), newPid);
+    } finally {
+      sidecar.stop();
+    }
+  });
+
+  test('writing to an engine whose stdin has closed doesn\'t crash the main process', async () => {
+    // Run in a separate Node so an uncaught exception can't take the test runner down.
+    const driver = path.join(freshDir('epipe'), 'driver.cjs');
+    fs.writeFileSync(
+      driver,
+      `const { PythonSidecar } = require(${JSON.stringify(path.join(sidecarDir, 'sidecar.js'))});
+console.log = console.error = () => {};
+const s = new PythonSidecar(process.execPath, [${JSON.stringify(FAKE_ENGINE)}, 'close-stdin'], ${JSON.stringify(path.join(path.dirname(driver), 'log.txt'))});
+let uncaught = null;
+const done = call => { process.stdout.write(JSON.stringify({ uncaught, call })); s.stop(); process.exit(0); };
+process.on('uncaughtException', e => { uncaught = e.message; done('n/a'); });
+s.start()
+  .then(() => s.call('echo', {}, 1500))
+  .then(() => done('resolved'), e => setTimeout(() => done('rejected: ' + e.message), 200));
+`,
+    );
+    const child = spawn(process.execPath, [driver], { stdio: ['ignore', 'pipe', 'inherit'] });
+    let output = '';
+    child.stdout.on('data', d => (output += d));
+    const guard = setTimeout(() => child.kill(), 15_000); // never hang the run
+    await new Promise(resolve => child.on('close', resolve));
+    clearTimeout(guard);
+    const report = JSON.parse(output);
+    assert.equal(report.uncaught, null, `uncaught exception: ${report.uncaught}`);
+    assert.match(report.call, /^rejected/);
+  });
 });
 
 // ── The real engine ─────────────────────────────────────────────────────────
@@ -353,22 +346,11 @@ describe('PythonSidecar with the real engine (python/main.py)', { skip: noEngine
     });
   });
 
-  test(
-    'non-ASCII text in a request reaches the engine intact',
-    {
-      todo:
-        process.platform === 'win32'
-          ? 'BUG (Windows): the engine reads stdin with the ANSI code page (cp1252), not UTF-8, because ' +
-            'sidecar.ts sets neither PYTHONUTF8=1 nor PYTHONIOENCODING=utf-8 and main.py doesn\'t reconfigure stdin. ' +
-            'Paths and text with accents or emoji arrive garbled.'
-          : false,
-    },
-    async () => {
-      // The engine echoes an unknown method's name in its error, so the name makes a round trip.
-      const name = 'zoë_café_🙂';
-      await assert.rejects(sidecar.call(name, {}, 60_000), { message: `Unknown method: ${name}` });
-    },
-  );
+  test('non-ASCII text in a request reaches the engine intact', async () => {
+    // The engine echoes an unknown method's name in its error, so the name makes a round trip.
+    const name = 'zoë_café_🙂';
+    await assert.rejects(sidecar.call(name, {}, 60_000), { message: `Unknown method: ${name}` });
+  });
 
   test('stop() ends the engine', async () => {
     const pid = sidecar.process.pid;
