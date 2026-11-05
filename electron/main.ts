@@ -13,6 +13,9 @@ let mainWindow: any = null;
 let sidecar: any = null;
 
 const isDev = !app.isPackaged;
+// The end-to-end tests (scripts/e2e) run an unpackaged build with the renderer from dist/,
+// as packaged builds load it, and the engine from python/. Development builds only.
+const isE2E = isDev && process.env.OPENEXTRACT_E2E === '1';
 
 app.setName('OpenExtract');
 
@@ -155,7 +158,7 @@ function createWindow() {
 
   mainWindow.webContents.on('did-finish-load', applyTextSize);
 
-  if (isDev) {
+  if (isDev && !isE2E) {
     mainWindow.loadURL('http://127.0.0.1:5179');
     mainWindow.webContents.openDevTools();
   } else {
@@ -180,7 +183,7 @@ function findVenvPython(): string {
 
 function getPythonPath(): string {
   if (isDev) {
-    return findVenvPython();
+    return process.env.OPENEXTRACT_PYTHON || findVenvPython();
   }
   const resourcePath = (process as any).resourcesPath || '';
   const binaryName = process.platform === 'win32' ? 'openextract-engine.exe' : 'openextract-engine';
@@ -189,7 +192,7 @@ function getPythonPath(): string {
 
 function getPythonArgs(): string[] {
   if (isDev) {
-    return [path.join(__dirname, '..', 'python', 'main.py'), '--debug'];
+    return [path.join(__dirname, '..', 'python', 'main.py'), ...(isE2E ? [] : ['--debug'])];
   }
   return [];
 }
