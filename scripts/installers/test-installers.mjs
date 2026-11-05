@@ -103,8 +103,9 @@ async function engine(label, exe) {
 
 /** The engine is a folder (scripts/bundle-engine.mjs): the executable next to _internal/. */
 function engineFolder(label, dir, exe) {
+  const internal = path.join(dir, '_internal');
   check(`${label}: the engine is the folder build (no unpacking at start)`,
-    fs.existsSync(path.join(dir, exe)) && fs.statSync(path.join(dir, '_internal')).isDirectory(), files(dir));
+    fs.existsSync(path.join(dir, exe)) && fs.existsSync(internal) && fs.statSync(internal).isDirectory(), files(dir));
 }
 
 /**
@@ -128,7 +129,7 @@ function engineSignatures(label, app) {
       && (!opts.signed || (/^Authority=Developer ID Application:/m.test(info) && /^Timestamp=/m.test(info)));
     if (!ok) bad.push(`${path.relative(dir, f)}: ${info.split('\n').filter(l => /flags=|Authority=|Timestamp=|not signed/.test(l)).join('; ')}`);
   }
-  check(`${label}: every binary in the engine is signed${opts.signed ? ' with our Developer ID, a timestamp' : ''} and the hardened runtime`,
+  check(`${label}: every binary in the engine is signed with ${opts.signed ? 'our Developer ID, a timestamp and ' : ''}the hardened runtime`,
     machO.length > 0 && bad.length === 0, { binaries: machO.length, bad: bad.slice(0, 10) });
 }
 
