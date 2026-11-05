@@ -7,7 +7,10 @@ name: Pre-release check
 # but unsigned and unpublished, then
 #   - runs the backup corpus (public items plus every generated one) against the engine
 #     inside the packaged app, and
-#   - drives the packaged app end to end with scripts/e2e-packaged.mjs.
+#   - drives the packaged app end to end with scripts/e2e-packaged.mjs, and
+#   - checks its Back up my iPhone screens with scripts/e2e-device-backup.mjs: the setup
+#     card a PC without Apple's software shows, and on Windows, installing Apple Devices
+#     from that card and the engine starting Apple's service (#184).
 #
 # Third-party backups (Hickman, FCSC) may not be screenshotted or redistributed, so the
 # only artifacts uploaded are the e2e results for the fictional maren backups.
@@ -158,10 +161,30 @@ jobs:
           args=(scripts/e2e-packaged.mjs "$(native "$GITHUB_WORKSPACE/release/${{ matrix.app }}")" "$(native "$GITHUB_WORKSPACE/e2e-out")" "${backups[@]}")
           if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a -s '-screen 0 1600x1000x24' node "${args[@]}"; else node "${args[@]}"; fi
 
+      # Runners have no Apple software: Windows and Linux show the setup card, macOS (which
+      # always has usbmuxd) an empty device list. Then, on Windows only, the card installs
+      # Apple Devices from the Microsoft Store (accepting its terms on this throwaway runner).
+      - name: Back up my iPhone screens
+        id: device
+        if: ${{ !cancelled() }}
+        run: |
+          npm install --no-save --no-audit --no-fund playwright-core@1.59.1
+          native() { if command -v cygpath >/dev/null; then cygpath -w "$1"; else echo "$1"; fi; }
+          app="$(native "$GITHUB_WORKSPACE/release/${{ matrix.app }}")"
+          out="$(native "$GITHUB_WORKSPACE/e2e-out")"
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run -a -s '-screen 0 1600x1000x24' node scripts/e2e-device-backup.mjs --app "$app" --out "$out/device-backup"
+          else
+            node scripts/e2e-device-backup.mjs --app "$app" --out "$out/device-backup"
+          fi
+          if [ "$RUNNER_OS" = Windows ]; then
+            node scripts/e2e-device-backup.mjs --app "$app" --out "$out/device-backup-install" --apple-devices
+          fi
+
       # Maren is fictional; scripts/e2e-packaged.mjs keeps every Hickman screenshot and
-      # export out of e2e-out.
+      # export out of e2e-out. The Back up my iPhone screens show no backup and no iPhone.
       - name: Upload end-to-end results (maren only)
-        if: ${{ !cancelled() && (steps.e2e.outcome == 'success' || steps.e2e.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.e2e.outcome == 'success' || steps.e2e.outcome == 'failure' || steps.device.outcome == 'success' || steps.device.outcome == 'failure') }}
         uses: actions/upload-artifact@v4
         with:
           name: e2e-${{ runner.os }}
