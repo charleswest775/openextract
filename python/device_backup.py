@@ -5,6 +5,7 @@ Uses pymobiledevice3 for device communication and MobileBackup2 protocol.
 """
 
 import asyncio
+import logging
 import os
 import re
 import shutil
@@ -29,8 +30,11 @@ def _dev_log(msg: str) -> None:
 
 # macOS daemons (AMPDevicesAgent, SecureBackupDaemon) can briefly hold the
 # device's backup lock right after the user enters their passcode, which
-# surfaces from pymobiledevice3's device-link loop as ErrorCode 208.
-_BACKUP_LOCK_ERROR_RE = re.compile(r"Device link error:.*'ErrorCode': 208\b")
+# surfaces from pymobiledevice3's device-link loop as ErrorCode 208 ("Device
+# locked"). Windows sees it too, right after the passcode prompt (2026-11-03).
+# pymobiledevice3 11.26 words it "Device link error: …", later 11.x releases
+# "The device reported an error: …".
+_BACKUP_LOCK_ERROR_RE = re.compile(r"(?:Device link error|The device reported an error):.*'ErrorCode': 208\b")
 _BACKUP_LOCK_RETRY_DELAY_S = 3
 
 
@@ -125,6 +129,73 @@ _APPLE_DEVICES_DID_NOT_START = (
 )
 
 
+# "Trust This Computer?" Every pairing request carries a newly generated certificate chain,
+# and the iPhone asks again for each new one. pymobiledevice3 pairs as a side effect of
+# connecting and gives up as soon as the iPhone is locked or asking for its passcode, so
+# each search started a new request and the user tapped Trust once per search (three
+# times on Windows, 2026-11-03). Searching now never pairs. pair_device sends one request
+# per iPhone and resends that same request until the user has answered it.
+async def _new_pair_request(lockdown) -> dict:
+    """The Pair request pymobiledevice3's LockdownClient.pair() would send, kept for reuse."""
+    from pymobiledevice3.ca import generate_pairing_cert_chain
+
+    device_public_key = await lockdown.get_value("", "DevicePublicKey")
+    if not device_public_key:
+        raise RuntimeError("Your iPhone didn't answer. Unplug it, plug it back in, then try again.")
+    host_cert, host_key, device_cert, root_cert, root_key = generate_pairing_cert_chain(device_public_key)
+    return {
+        "options": {
+            "HostName": socket.gethostname(),
+            "PairRecord": {
+                "DeviceCertificate": device_cert,
+                "HostCertificate": host_cert,
+                "HostID": lockdown.host_id,
+                "RootCertificate": root_cert,
+                "RootPrivateKey": root_key,
+                "WiFiMACAddress": lockdown.wifi_mac_address,
+                "SystemBUID": lockdown.system_buid,
+            },
+            "ProtocolVersion": "2",
+            "PairingOptions": {"ExtendedPairingErrors": True},
+        },
+        "host_key": host_key,
+    }
+
+
+class _BackupPasscodeWatcher(logging.Handler):
+    """
+    Calls on_prompt when the iPhone asks for its passcode to allow the backup (it did before
+    each encrypted backup on iOS 27). pymobiledevice3 only logs that notification (NP_LOCAL_AUTH_PRESENTED),
+    so we listen for its log line and the app can say why the backup is waiting.
+    """
+
+    def __init__(self, on_prompt: Callable[[], None]):
+        super().__init__(logging.WARNING)
+        self._on_prompt = on_prompt
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if "passcode" in record.getMessage():
+            self._on_prompt()
+
+
+# The app shows this as a step, not a bug (src/components/backup/BackupFlow.tsx).
+_DEVICE_DISCONNECTED = (
+    "DEVICE_DISCONNECTED: Your iPhone was disconnected before the backup finished. Plug it "
+    "back in, unlock it, then click Retry."
+)
+
+
+def _device_connected(udid: str) -> bool:
+    """False once usbmuxd no longer lists the iPhone, as after it's unplugged."""
+    from pymobiledevice3.usbmux import list_devices
+
+    try:
+        return any(dev.serial == udid for dev in asyncio.run(list_devices()))
+    except Exception as e:
+        _dev_log(f"couldn't check whether {udid} is still connected: {e!r}")
+        return True  # can't tell, so leave the other explanations to the caller
+
+
 # pymobiledevice3 11.x words the device's refusal (MBErrorDomain/105) as "... it needs
 # more than <required> bytes free at <path>, host reported <reported> ...". Older
 # releases raised NotEnoughDiskSpaceError() with an empty message.
@@ -175,11 +246,18 @@ def _disk_full_message(free_bytes: Optional[int], needed_bytes: Optional[int], p
 class DeviceBackupManager:
     """Manages live-device detection and backup operations via pymobiledevice3."""
 
+    def __init__(self) -> None:
+        # The Pair request each untrusted iPhone may be showing "Trust This Computer?" for,
+        # by UDID, so that pair_device resends it instead of making the iPhone ask again.
+        self._pair_requests: dict[str, dict] = {}
+
     def list_devices(self) -> dict:
         """
         Detect all connected iPhone/iPad devices via USB and Wi-Fi.
 
-        Returns a list of device dicts: { udid, name, ios_version, connection_type }.
+        Returns a list of device dicts: { udid, name, ios_version, connection_type, trusted }.
+        A device that doesn't trust this computer yet is listed with trusted=False, and
+        searching doesn't ask it to: pair_device does.
 
         Two discovery paths are used:
 
@@ -223,22 +301,28 @@ class DeviceBackupManager:
 
             for dev in usb_devs:
                 try:
-                    lockdown = await create_using_usbmux(serial=dev.serial)
-                    udid = lockdown.udid
-                    if udid in seen_udids:
-                        continue
-                    seen_udids.add(udid)
-                    # usbmuxd exposes connection_type as "USB" or "Network"
-                    conn_raw = getattr(dev, "connection_type", "USB").upper()
-                    conn_type = "wifi" if conn_raw in ("NETWORK", "WIFI") else "usb"
-                    devices.append({
-                        "udid": udid,
-                        "name": lockdown.display_name or udid,
-                        "ios_version": lockdown.product_version or "",
-                        "connection_type": conn_type,
-                    })
-                except Exception:
-                    pass
+                    # autopair=False: searching never shows "Trust This Computer?" (see
+                    # _new_pair_request). The model and iOS version don't need pairing.
+                    lockdown = await create_using_usbmux(serial=dev.serial, autopair=False)
+                    try:
+                        udid = lockdown.udid or dev.serial
+                        if udid in seen_udids:
+                            continue
+                        seen_udids.add(udid)
+                        # usbmuxd exposes connection_type as "USB" or "Network"
+                        conn_raw = getattr(dev, "connection_type", "USB").upper()
+                        conn_type = "wifi" if conn_raw in ("NETWORK", "WIFI") else "usb"
+                        devices.append({
+                            "udid": udid,
+                            "name": lockdown.display_name or udid,
+                            "ios_version": lockdown.product_version or "",
+                            "connection_type": conn_type,
+                            "trusted": bool(lockdown.paired),
+                        })
+                    finally:
+                        await lockdown.close()
+                except Exception as e:
+                    _dev_log(f"skipped device {getattr(dev, 'serial', '?')}: {e!r}")
 
             # ── Path 2: iOS 17+ RSD over Wi-Fi ───────────────────────────────────
             #
@@ -273,6 +357,8 @@ class DeviceBackupManager:
                                 "name": rsd_service.get_value("DeviceName") or udid,
                                 "ios_version": rsd_service.get_value("ProductVersion") or "",
                                 "connection_type": "wifi",
+                                # RSD only connects with an existing pairing.
+                                "trusted": True,
                             })
                     except Exception:
                         pass
@@ -283,6 +369,64 @@ class DeviceBackupManager:
 
         asyncio.run(_collect_usb_devices())
         return {"devices": devices}
+
+    def pair_device(self, udid: str) -> dict:
+        """
+        Ask the iPhone to trust this computer, without waiting for the answer. Returns
+        { "state": "trusted" | "waiting" | "locked" | "denied" }: "waiting" while it shows
+        "Trust This Computer?", "locked" while it's locked or asking for the passcode. The
+        app calls this every couple of seconds until it gets "trusted" or "denied"; every
+        call sends the same request, so the iPhone asks once.
+        """
+        from pymobiledevice3.lockdown import create_using_usbmux
+        from pymobiledevice3.exceptions import (
+            ConnectionFailedToUsbmuxdError,
+            PairingDialogResponsePendingError,
+            PasswordRequiredError,
+            UserDeniedPairingError,
+        )
+
+        async def _pair() -> str:
+            try:
+                lockdown = await create_using_usbmux(serial=udid, autopair=False)
+            except ConnectionFailedToUsbmuxdError:
+                raise _device_service_error() from None
+            try:
+                if lockdown.paired:
+                    self._pair_requests.pop(udid, None)
+                    return "trusted"
+                request = self._pair_requests.get(udid)
+                if request is None:
+                    request = self._pair_requests[udid] = await _new_pair_request(lockdown)
+                    _dev_log(f"pair_device {udid}: new pair request")
+                try:
+                    # timeout=0: send it once and report back rather than hold up the engine.
+                    response = await lockdown._request_pair(request["options"], timeout=0)
+                except PairingDialogResponsePendingError:
+                    return "waiting"
+                except PasswordRequiredError:
+                    return "locked"
+                except UserDeniedPairingError:
+                    del self._pair_requests[udid]
+                    return "denied"
+                record = {**request["options"]["PairRecord"], "HostPrivateKey": request["host_key"]}
+                if response.get("EscrowBag") is not None:
+                    record["EscrowBag"] = response["EscrowBag"]
+                lockdown.pair_record = record
+                await lockdown.save_pair_record()
+                del self._pair_requests[udid]
+                if not await lockdown.validate_pairing():
+                    raise RuntimeError(
+                        "Your iPhone trusted this computer but then wouldn't connect. Unplug it, "
+                        "plug it back in, then try again."
+                    )
+                return "trusted"
+            finally:
+                await lockdown.close()
+
+        state = asyncio.run(_pair())
+        _dev_log(f"pair_device {udid}: {state}")
+        return {"state": state}
 
     def install_device_support(self) -> dict:
         """
@@ -415,7 +559,9 @@ class DeviceBackupManager:
             # Open the lockdown channel to the device (async in pymobiledevice3 v4+).
             # Catch trust/pairing errors early and surface them with a clear message.
             try:
-                lockdown = await create_using_usbmux(serial=udid)
+                # autopair=False: pairing here would make a new Trust prompt and wait on it
+                # with no word to the user. The app pairs first (pair_device).
+                lockdown = await create_using_usbmux(serial=udid, autopair=False)
             except ConnectionFailedToUsbmuxdError:
                 # Apple's service stopped after the device list was shown.
                 raise _device_service_error() from None
@@ -434,6 +580,12 @@ class DeviceBackupManager:
                         "when prompted."
                     ) from None
                 raise
+            if not lockdown.paired:
+                await lockdown.close()
+                raise RuntimeError(
+                    "TRUST_REQUIRED: Your iPhone doesn't trust this computer yet. Unlock it, tap "
+                    "Trust when it asks, and enter your passcode."
+                )
 
             try:
                 usage = await lockdown.get_value("com.apple.disk_usage")
@@ -448,13 +600,23 @@ class DeviceBackupManager:
 
             _tracked_notify("negotiating", 10, 0, 0)
 
-            async with Mobilebackup2Service(lockdown) as mb2:
-                _tracked_notify("backing_up", 11, 0, 0)
-                await mb2.backup(
-                    full=True,
-                    backup_directory=output_dir,
-                    progress_callback=_progress_cb,
-                )
+            def _on_passcode_prompt() -> None:
+                _dev_log("the iPhone is asking for its passcode to allow the backup")
+                _tracked_notify("passcode", last_pct[0], files_done, files_total)
+
+            mb2_logger = logging.getLogger("pymobiledevice3.services.mobilebackup2")
+            passcode_watcher = _BackupPasscodeWatcher(_on_passcode_prompt)
+            mb2_logger.addHandler(passcode_watcher)
+            try:
+                async with Mobilebackup2Service(lockdown) as mb2:
+                    _tracked_notify("backing_up", 11, 0, 0)
+                    await mb2.backup(
+                        full=True,
+                        backup_directory=output_dir,
+                        progress_callback=_progress_cb,
+                    )
+            finally:
+                mb2_logger.removeHandler(passcode_watcher)
 
             _tracked_notify("finalizing", 100, files_done, files_total)
 
@@ -469,6 +631,7 @@ class DeviceBackupManager:
                 time.sleep(_BACKUP_LOCK_RETRY_DELAY_S)
                 asyncio.run(_run_backup())
 
+        started_at = time.time()
         try:
             _run_with_lock_retry()
         except PasswordRequiredError as e:
@@ -491,14 +654,17 @@ class DeviceBackupManager:
                      f"phone_used={phone_used_bytes} output_dir={output_dir!r}")
             raise RuntimeError(_disk_full_message(free_bytes, needed_bytes, phone_used_bytes)) from e
         except ConnectionTerminatedError as e:
+            # Unplugging the iPhone ends here too, and is neither of the cases below.
+            if not _device_connected(udid):
+                raise RuntimeError(_DEVICE_DISCONNECTED) from e
             # iOS often closes the backup channel immediately after all data has been
             # transferred — this is normal end-of-backup behaviour and does NOT mean
-            # the backup failed.  If the backup directory already contains a Manifest
-            # or Info.plist we treat the run as successful.
+            # the backup failed. The device sends Manifest.db at the end, so one written
+            # during this run means it finished. (pymobiledevice3 writes Info.plist
+            # first, and a folder used before has an older Manifest.db.)
             actual = self._resolve_backup_path(output_dir, udid)
             manifest_path = os.path.join(actual, "Manifest.db")
-            info_path = os.path.join(actual, "Info.plist")
-            if os.path.exists(manifest_path) or os.path.exists(info_path):
+            if os.path.exists(manifest_path) and os.path.getmtime(manifest_path) >= started_at:
                 _tracked_notify("finalizing", 100, files_done, files_total)
             elif encrypted:
                 raise RuntimeError(
@@ -512,6 +678,17 @@ class DeviceBackupManager:
                     "Make sure you have tapped 'Trust' on the device when prompted, "
                     "and that the cable is securely connected. Then try again."
                 ) from e
+        except Exception as e:
+            if not _device_connected(udid):
+                raise RuntimeError(_DEVICE_DISCONNECTED) from e
+            # Still locked after the retry: a step for the user, not pymobiledevice3's
+            # "please report it" text.
+            if not _is_backup_lock_error(e):
+                raise
+            raise RuntimeError(
+                "PASSCODE_REQUIRED: Your iPhone was locked when the backup started. Unlock it, "
+                "enter your passcode when it asks, keep it unlocked, then click Retry."
+            ) from e
         actual_backup_path = self._resolve_backup_path(output_dir, udid)
         _dev_log(f"backup complete. output_dir={output_dir!r} resolved={actual_backup_path!r}")
         return {"success": True, "backup_path": actual_backup_path}
