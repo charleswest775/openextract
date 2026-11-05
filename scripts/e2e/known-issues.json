@@ -6,27 +6,6 @@
       "reason": "BackupChooserDialog has no role=dialog / aria-modal / label, so screen readers don't announce it (Settings and Save do)"
     },
     {
-      "check": "exports: Save panel: messages as pdf",
-      "platforms": [
-        "win32"
-      ],
-      "reason": "On Windows python/main.py reads stdin as cp1252, so conversation names with emoji (\"Lindqvists 🏔\") reach the engine garbled: the export writes mangled file names and stops with an error partway (10 of 17 files as HTML, none as PDF)"
-    },
-    {
-      "check": "exports: Save panel: messages as html",
-      "platforms": [
-        "win32"
-      ],
-      "reason": "On Windows python/main.py reads stdin as cp1252, so conversation names with emoji (\"Lindqvists 🏔\") reach the engine garbled: the export writes mangled file names and stops with an error partway (10 of 17 files as HTML, none as PDF)"
-    },
-    {
-      "check": "open: a backup in a folder named with accents and symbols opens",
-      "platforms": [
-        "win32"
-      ],
-      "reason": "python/main.py reads stdin with the Windows code page (cp1252), so non-ASCII paths from Electron arrive garbled; test_rpc_contract.py has the engine-level xfail"
-    },
-    {
       "check": "macos: dmg: the notarization ticket is stapled",
       "platforms": [
         "darwin"

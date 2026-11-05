@@ -10,6 +10,18 @@ import json
 import time
 import tempfile
 
+# ── UTF-8 on the pipes ────────────────────────────────────────────────────────
+# Electron writes and reads UTF-8.  On Windows, Python opens a pipe with the
+# ANSI code page (cp1252) unless PYTHONUTF8 or PYTHONIOENCODING is set, and the
+# PyInstaller-built engine can't count on those, so non-ASCII text in a request
+# (a backup under C:\Users\José, a conversation named with an emoji) arrived
+# garbled.  Set the encoding here, before anything is read or written.  A byte
+# that isn't UTF-8 becomes U+FFFD rather than ending the engine.  (Tests that
+# import this module may have swapped the streams for ones without reconfigure.)
+for _stream, _errors in ((sys.stdin, "replace"), (sys.stdout, "strict"), (sys.stderr, "backslashreplace")):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors=_errors)
+
 # ── Stdout guard ──────────────────────────────────────────────────────────────
 # JSON-RPC uses stdout as its transport channel.  Any non-JSON text printed to
 # stdout by third-party libraries (e.g. "WARN: decrypted N bytes…" from
@@ -515,11 +527,17 @@ class SidecarServer:
         )
 
     def handle_request(self, request):
+        if not isinstance(request, dict):
+            # A batch array, a string, a number or null: answer instead of crashing on .get().
+            return {
+                "id": None,
+                "error": {"code": -32600, "message": "Invalid Request: expected a JSON object"},
+            }
         req_id = request.get("id")
         method = request.get("method")
         params = request.get("params", {})
 
-        if method not in self.methods:
+        if not isinstance(method, str) or method not in self.methods:
             return {
                 "id": req_id,
                 "error": {"code": -32601, "message": f"Unknown method: {method}"},

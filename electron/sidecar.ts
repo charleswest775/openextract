@@ -1,10 +1,14 @@
 export {};
 const { spawn } = require('child_process');
+const { StringDecoder } = require('string_decoder');
 
 interface PendingRequest {
   resolve: (value: any) => void;
   reject: (reason: any) => void;
   timeout: NodeJS.Timeout;
+  // The engine process the request went to. After a restart, the old engine's
+  // exit must only reject the calls it was given, not the new engine's.
+  proc: any;
 }
 
 /** Shape of a JSON-RPC notification (no id field). */
@@ -37,19 +41,30 @@ export class PythonSidecar {
     this.logPath = logPath;
   }
 
+  /** True while there is an engine to send calls to (false before start() and after stop() or a crash). */
+  get running(): boolean {
+    return !!this.process && !this.process.killed;
+  }
+
   async start(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.process = spawn(this.pythonPath, this.pythonArgs, {
+      const proc = spawn(this.pythonPath, this.pythonArgs, {
         stdio: ['pipe', 'pipe', 'pipe'],
         env: { ...process.env, PYTHONUNBUFFERED: '1', OPENEXTRACT_LOG_PATH: this.logPath },
       });
+      this.process = proc;
+      this.buffer = '';
 
-      this.process.stdout.on('data', (data: Buffer) => {
-        this.buffer += data.toString();
+      // Each chunk can end partway through a multi-byte UTF-8 character; the
+      // decoder holds those bytes back until the rest of the character arrives.
+      const decoder = new StringDecoder('utf8');
+      proc.stdout.on('data', (data: Buffer) => {
+        if (proc !== this.process) return; // an old engine's last words after a restart
+        this.buffer += decoder.write(data);
         this.processBuffer();
       });
 
-      this.process.stderr.on('data', (data: Buffer) => {
+      proc.stderr.on('data', (data: Buffer) => {
         const msg = data.toString().trim();
         if (msg) {
           console.error(`[Python] ${msg}`);
@@ -57,36 +72,51 @@ export class PythonSidecar {
         }
       });
 
-      this.process.on('error', (err: Error) => {
+      // Writing to an engine that has just closed its end (it's exiting) fails
+      // with EPIPE. Without a listener that error is thrown in the main process;
+      // the call that wrote is rejected by its write callback in call().
+      proc.stdin.on('error', (err: Error) => {
+        require('fs').appendFileSync(this.logPath, `[STDIN ERROR] ${err.message}\n`);
+      });
+
+      proc.on('error', (err: Error) => {
         console.error('Failed to start Python sidecar:', err);
         require('fs').appendFileSync(this.logPath, `[ERROR STARTING] ${err.message}\n`);
+        // A failed spawn emits "error" but never "exit", so let go of it here,
+        // or later calls would be written to nothing and wait for their timeout.
+        this.forget(proc, err.message);
         reject(err);
       });
 
-      this.process.on('exit', (code: number) => {
+      proc.on('exit', (code: number) => {
         console.log(`Python sidecar exited with code ${code}`);
         require('fs').appendFileSync(this.logPath, `[EXIT] code ${code}\n`);
         // `killed` stays false when the engine exits on its own (a crash), so
         // without this, later calls would be written to a dead process and
         // hang until their timeout instead of failing right away.
-        this.process = null;
-        // Reject all pending requests
-        for (const [id, req] of this.pending) {
-          clearTimeout(req.timeout);
-          req.reject(new Error(`Sidecar exited with code ${code}`));
-        }
-        this.pending.clear();
+        this.forget(proc, `Sidecar exited with code ${code}`);
       });
 
       // Give the process a moment to start, then verify it's running
       setTimeout(() => {
-        if (this.process && !this.process.killed) {
+        if (this.process === proc && !proc.killed) {
           resolve();
         } else {
           reject(new Error('Python sidecar failed to start'));
         }
       }, 500);
     });
+  }
+
+  /** The engine `proc` is gone: stop using it and reject the calls it was given. */
+  private forget(proc: any, reason: string): void {
+    if (this.process === proc) this.process = null;
+    for (const [id, req] of this.pending) {
+      if (req.proc !== proc) continue;
+      clearTimeout(req.timeout);
+      this.pending.delete(id);
+      req.reject(new Error(reason));
+    }
   }
 
   private processBuffer(): void {
@@ -128,10 +158,11 @@ export class PythonSidecar {
   }
 
   async call(method: string, params: any = {}, timeoutMs?: number): Promise<any> {
-    if (!this.process || this.process.killed) {
+    if (!this.running) {
       throw new Error('Python sidecar is not running');
     }
 
+    const proc = this.process;
     const id = ++this.requestId;
     const request = JSON.stringify({ id, method, params }) + '\n';
 
@@ -141,8 +172,13 @@ export class PythonSidecar {
         reject(new Error(`Sidecar call timed out: ${method}`));
       }, timeoutMs ?? this.TIMEOUT_MS);
 
-      this.pending.set(id, { resolve, reject, timeout });
-      this.process.stdin.write(request);
+      this.pending.set(id, { resolve, reject, timeout, proc });
+      proc.stdin.write(request, (err: Error | null | undefined) => {
+        if (!err || !this.pending.has(id)) return;
+        clearTimeout(timeout);
+        this.pending.delete(id);
+        reject(new Error('Python sidecar is not running'));
+      });
     });
   }
 
@@ -154,4 +190,3 @@ export class PythonSidecar {
     }
   }
 }
-

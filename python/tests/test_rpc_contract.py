@@ -1216,11 +1216,6 @@ def test_params_that_are_not_an_object_get_an_error(runtime, params):
     engine.assert_alive()
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "ENGINE BUG: a request line that is valid JSON but not an object (a JSON-RPC batch array, a "
-    "string, a number, null) raises AttributeError in SidecarServer.handle_request (request.get), "
-    "which run() doesn't catch, so the engine exits. Electron doesn't send these today, but one bad "
-    "line shouldn't take the engine down; it should answer -32600 Invalid Request."))
 @pytest.mark.parametrize("line", ['[{"jsonrpc": "2.0", "id": 1, "method": "ping"}]', '"ping"', "42", "null"],
                          ids=["batch", "string", "number", "null"])
 def test_valid_json_that_is_not_an_object_gets_an_error(runtime, line):
@@ -1229,17 +1224,21 @@ def test_valid_json_that_is_not_an_object_gets_an_error(runtime, line):
         reply = engine.send_raw(line, timeout=30)
     except ProtocolError as e:
         pytest.fail(f"the engine exited instead of answering: {e}")
-    assert isinstance(reply, list) or isinstance(reply.get("error"), dict), reply
+    assert reply["id"] is None and reply["error"]["code"] == -32600, reply
     engine.assert_alive()
 
 
-@pytest.mark.xfail(sys.platform == "win32", strict=True, reason=(
-    "ENGINE BUG (Windows): main.py reads stdin in text mode with the default encoding, which on "
-    "Windows is the ANSI code page (cp1252) for a pipe, while Electron writes UTF-8. Non-ASCII "
-    "text in a request (a path under C:\\Users\\José, a search for 'Zürich') arrives garbled "
-    "('é' becomes 'Ã©'), and bytes cp1252 can't map (Ł is C5 81) become lone surrogates, so "
-    "this write_file fails with \"'utf-8' codec can't encode character '\\udc81'\" (Windows 11, "
-    "Python 3.11.9). Fix: sys.stdin.reconfigure(encoding='utf-8') at startup."))
+def test_method_that_is_not_a_string_gets_method_not_found(runtime):
+    engine = runtime.fresh("method-not-a-string")
+    for n, method in enumerate([["ping"], {"name": "ping"}, 42, True]):
+        try:
+            reply = engine.send_raw(json.dumps({"jsonrpc": "2.0", "id": n, "method": method, "params": {}}), timeout=30)
+        except ProtocolError as e:
+            pytest.fail(f"the engine exited on method {method!r}: {e}")
+        assert reply["id"] == n and reply["error"]["code"] == -32601, reply
+    engine.assert_alive()
+
+
 def test_raw_utf8_request_like_electron(runtime, tmp_path, monkeypatch):
     """Electron sends JSON.stringify output, which leaves non-ASCII text as raw UTF-8 bytes.
 
