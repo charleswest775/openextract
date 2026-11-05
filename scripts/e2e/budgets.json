@@ -2,7 +2,7 @@
   "_comment": "Performance budgets for scripts/e2e, in milliseconds, per OS (darwin, win32, linux) or default. Set to about 3x what a GitHub-hosted runner measures, so a run fails on a real slowdown, not on noise. results.json keeps every timing; raise a budget only with a reason in the PR.",
   "launch to welcome screen": { "default": 20000 },
   "second launch to backups list": { "default": 20000 },
-  "first engine answer after launch": { "default": 30000 },
+  "first engine answer after launch": { "default": 15000 },
   "open plain backup": { "default": 10000 },
   "unlock encrypted backup": { "default": 30000 },
   "open encrypted backup": { "default": 30000 },
