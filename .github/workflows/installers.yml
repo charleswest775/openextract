@@ -63,6 +63,9 @@ jobs:
         shell: bash
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # electron-builder skips all macOS signing on pull requests unless this is set. Only
+      # the ad hoc signature below is made here; this job has no signing secrets.
+      CSC_FOR_PULL_REQUEST: 'true'
       # See release.yml's build-linux: make setup-python fetch its Ubuntu 22.04 build.
       AGENT_TOOLSDIRECTORY: ${{ matrix.container && '/opt/toolcache' || '' }}
     steps:
