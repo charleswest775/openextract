@@ -90,22 +90,20 @@ jobs:
       - name: Build Electron app
         run: npm run build
 
-      # No signing secrets here: drop the notarize hook and Azure signing, and turn off
-      # hardened runtime so an ad-hoc signature is enough to launch on Apple silicon.
+      # No signing secrets here: drop the notarize hook and Azure signing. On macOS
+      # electron-builder signs ad hoc ("-"), with the hardened runtime and entitlements a
+      # release has, so the engine runs under the same rules as in a release (and Apple
+      # silicon needs a signature to launch at all).
       - name: Unsigned packaging config
         run: |
           node -e '
             const fs = require("fs"); const p = JSON.parse(fs.readFileSync("package.json"));
             delete p.build.afterSign; delete p.build.win.azureSignOptions;
-            p.build.mac.hardenedRuntime = false; p.build.mac.identity = null;
+            p.build.mac.identity = "-";
             fs.writeFileSync("package.json", JSON.stringify(p, null, 2));'
 
       - name: Package (unpacked, no publish)
         run: npx electron-builder --dir --publish never
-
-      - name: Ad-hoc sign (macOS)
-        if: runner.os == 'macOS'
-        run: codesign --force --deep -s - release/mac-arm64/OpenExtract.app
 
       - name: Fetch public backups
         id: fetch

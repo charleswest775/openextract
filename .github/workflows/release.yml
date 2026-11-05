@@ -229,7 +229,8 @@ jobs:
   build-macos:
     needs: preflight
     runs-on: macos-latest
-    timeout-minutes: 60
+    # build/notarize.js waits up to 45 minutes for Apple's verdict before the dmg is built.
+    timeout-minutes: 90
     permissions:
       contents: write
     steps:
@@ -315,6 +316,10 @@ jobs:
           fi
           echo "CSC_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
 
+      # Signs every binary in the app with the Developer ID (the engine's .so and .dylib
+      # files included), then build/notarize.js (afterSign) notarizes the app, waits for
+      # Apple to accept it and staples the ticket, before the dmg and zip are built. A
+      # rejection fails this step and the release stays a draft; the notary log is printed.
       - name: Package and publish
         run: npx electron-builder --publish always
         env:

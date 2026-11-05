@@ -1,19 +1,4 @@
 {
   "_comment": "End-to-end checks expected to fail until an app bug is fixed. 'check' is the full name the run prints ('suite: check'); 'platforms' (optional) limits an entry to some of darwin, win32, linux. Strict: a listed check that passes fails the run, so remove its entry in the PR that fixes the bug.",
-  "issues": [
-    {
-      "check": "macos: dmg: the notarization ticket is stapled",
-      "platforms": [
-        "darwin"
-      ],
-      "reason": "build/notarize.js submits without --wait and never staples, so Gatekeeper needs to be online on first launch"
-    },
-    {
-      "check": "macos: zip: the notarization ticket is stapled",
-      "platforms": [
-        "darwin"
-      ],
-      "reason": "build/notarize.js submits without --wait and never staples, so Gatekeeper needs to be online on first launch"
-    }
-  ]
+  "issues": []
 }
