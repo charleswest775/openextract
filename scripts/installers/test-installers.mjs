@@ -110,7 +110,9 @@ function updateMetadata(name) {
   const entries = [...text.matchAll(/- url: (\S+)\s+sha512: (\S+)\s+size: (\d+)/g)];
   check(`${name} lists at least one file`, entries.length > 0);
   for (const [, url, sha512, size] of entries) {
-    const file = path.join(DIR, url);
+    // Unsigned local builds keep electron-builder's spaces ("OpenExtract Setup 0.10.1.exe"); the
+    // yml names the dashed file GitHub serves, which is what a release's assets are called.
+    const file = path.join(DIR, files(DIR).find(f => f === url || f.replace(/ /g, '-') === url) ?? url);
     if (!check(`${name}: ${url} exists`, fs.existsSync(file))) continue;
     const data = fs.readFileSync(file);
     check(`${name}: ${url} size matches`, data.length === Number(size), { yml: Number(size), file: data.length });
@@ -197,9 +199,15 @@ function nsisInstall(installer) {
 }
 
 function uninstallEntry() {
-  const r = run('reg', ['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall', '/s', '/f', 'OpenExtract', '/d']);
-  const block = r.stdout.split(/\r?\n\r?\n/).find(b => /DisplayName\s+REG_SZ\s+OpenExtract/.test(b)) ?? '';
-  return { found: !!block, version: block.match(/DisplayVersion\s+REG_SZ\s+(\S+)/)?.[1], publisher: block.match(/Publisher\s+REG_SZ\s+(.+)/)?.[1]?.trim() };
+  // /f searches value data, so it prints only the matching values: find the key, then read all of it.
+  const search = run('reg', ['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall', '/s', '/f', 'OpenExtract', '/d']);
+  const keys = [...new Set(search.stdout.split(/\r?\n/).map(l => l.trim()).filter(l => /^HKEY_/.test(l)))];
+  for (const key of keys) {
+    const values = run('reg', ['query', key]).stdout;
+    if (!/DisplayName\s+REG_SZ\s+OpenExtract\b/.test(values)) continue;
+    return { found: true, key, version: values.match(/DisplayVersion\s+REG_SZ\s+(\S+)/)?.[1], publisher: values.match(/Publisher\s+REG_SZ\s+(.+)/)?.[1]?.trim() };
+  }
+  return { found: false };
 }
 
 async function windows() {
@@ -238,7 +246,9 @@ async function windows() {
   if (check('the uninstaller is installed', fs.existsSync(uninstaller))) {
     run(uninstaller, ['/S'], { timeout: 300_000 });
     // The uninstaller copies itself to %TEMP% and returns before it's done.
-    for (let i = 0; i < 120 && fs.existsSync(exe); i++) await sleep(1000);
+    // The uninstaller copies itself to %TEMP% and returns before it's done; the uninstall entry
+    // and shortcuts go last.
+    for (let i = 0; i < 180 && (fs.existsSync(exe) || fs.existsSync(START_MENU) || uninstallEntry().found); i++) await sleep(1000);
     check('silent uninstall removes the app', !fs.existsSync(exe), files(WIN_DIR));
     check('silent uninstall removes the "Apps & features" entry', !uninstallEntry().found);
     check('silent uninstall removes the Start menu shortcut', !fs.existsSync(START_MENU));
@@ -248,6 +258,23 @@ async function windows() {
 }
 
 // ── Linux ────────────────────────────────────────────────────────────────────
+
+/** Starts `exe` as the desktop entry does (no --no-sandbox) for 15 s; reports whether it stayed up. */
+async function startsSandboxed(exe) {
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'oe-sandbox-profile-'));
+  const args = [`--user-data-dir=${profile}`];
+  const p = process.env.DISPLAY ? spawn(exe, args, { detached: true }) : spawn('xvfb-run', ['-a', exe, ...args], { detached: true });
+  let stderr = '';
+  p.stderr.on('data', d => { stderr += d; });
+  p.stdout.on('data', () => {});
+  await sleep(15_000);
+  const running = p.exitCode === null;
+  try { process.kill(-p.pid, 'SIGTERM'); } catch {}
+  await sleep(1000);
+  try { process.kill(-p.pid, 'SIGKILL'); } catch {}
+  const error = stderr.split('\n').find(l => /sandbox/i.test(l) && /(not configured|No usable|FATAL|failed)/i.test(l));
+  return { running, exitCode: p.exitCode, error, tail: running ? undefined : stderr.slice(-600) };
+}
 
 async function linux() {
   setSuite('linux');
@@ -278,8 +305,11 @@ async function linux() {
     check('its icon is installed', !!icon && run('sh', ['-c', `ls /usr/share/icons/hicolor/*/apps/${icon}.png`]).status === 0, icon);
     const v = run('desktop-file-validate', [desktop]);
     if (v.error?.code !== 'ENOENT') check('the desktop entry is valid', v.status === 0, v.stdout + v.stderr);
-    const sandbox = '/opt/OpenExtract/chrome-sandbox';
-    check('chrome-sandbox is setuid root (Chromium sandbox)', fs.existsSync(sandbox) && (fs.statSync(sandbox).mode & 0o4000) !== 0 && fs.statSync(sandbox).uid === 0);
+    // The desktop entry starts the app with Chromium's sandbox on (the smoke run turns it off).
+    // electron-builder's postinst makes chrome-sandbox setuid only where user namespaces are
+    // missing, so check the outcome: the app keeps running, with no sandbox error.
+    const sandboxed = await startsSandboxed(exe);
+    check('the installed app starts with the Chromium sandbox on, as the desktop entry runs it', sandboxed.running && !sandboxed.error, sandboxed);
     const eng = '/opt/OpenExtract/resources/python/openextract-engine';
     await engine('deb', eng);
     smoke('deb', exe);
