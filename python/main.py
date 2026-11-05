@@ -483,9 +483,12 @@ class SidecarServer:
         Progress is streamed to Electron as JSON-RPC notifications:
             { "jsonrpc":"2.0", "method":"backup.progress",
               "params": { "phase": str, "percent": int,
-                          "files_done": int, "files_total": int } }
+                          "files_done": int, "files_total": int,
+                          "bytes_done": int (received from the iPhone so far,
+                                             also sent once a second while it grows) } }
 
-        Phases: "negotiating" → "backing_up" → "finalizing"
+        Phases: "negotiating" → "waiting" (for the iPhone; still 0%) → "passcode"
+        (if it asks for its passcode to allow the backup) → "backing_up" → "finalizing"
 
         Returns on completion: { "success": true, "backup_path": "..." }
         """
@@ -494,12 +497,13 @@ class SidecarServer:
         encrypted = params.get("encrypted", False)
         password = params.get("password")
 
-        def _notify(phase: str, percent: int, files_done: int, files_total: int) -> None:
+        def _notify(phase: str, percent: int, files_done: int, files_total: int, bytes_done: int = 0) -> None:
             self.send_notification("backup.progress", {
                 "phase": phase,
                 "percent": percent,
                 "files_done": files_done,
                 "files_total": files_total,
+                "bytes_done": bytes_done,
             })
 
         return self.device_backup_manager.start_backup(

@@ -16,10 +16,18 @@ interface DeviceInfo {
 type PairState = 'trusted' | 'waiting' | 'locked' | 'denied';
 
 interface BackupProgress {
-  phase: 'negotiating' | 'passcode' | 'backing_up' | 'finalizing';
+  phase: 'negotiating' | 'waiting' | 'passcode' | 'backing_up' | 'finalizing';
   percent: number;
   files_done: number;
   files_total: number;
+  // Received from the iPhone so far; it moves whenever data does, even while percent waits.
+  bytes_done?: number;
+}
+
+// Decimal units, like Finder, iPhone Storage and the engine's disk-space messages. Two
+// decimals, so the figure visibly moves every few seconds even on a slow transfer.
+function formatCopied(bytes: number): string {
+  return bytes >= 1e9 ? `${(bytes / 1e9).toFixed(2)} GB copied` : `${Math.round(bytes / 1e6)} MB copied`;
 }
 
 type BackupStatus = 'idle' | 'running' | 'success' | 'error';
@@ -112,10 +120,11 @@ function DeviceServiceSetup({ message, onCheckAgain }: { message: string; onChec
 }
 
 const PHASE_LABELS: Record<BackupProgress['phase'], string> = {
-  negotiating: 'Negotiating with device...',
+  negotiating: 'Connecting to your iPhone...',
+  waiting: 'Waiting for your iPhone...',
   passcode: 'Enter your passcode on your iPhone to start the backup',
   backing_up: 'Backing up files...',
-  finalizing: 'Finalizing backup...',
+  finalizing: 'Finishing the backup...',
 };
 
 interface Props {
@@ -194,6 +203,15 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
       clearTimeout(timer);
     };
   }, [devices, loadDevices]);
+
+  // Only one device, as on anyone's first backup: select it, so there's nothing to pick.
+  // A device that has gone from the list (unplugged, then Refresh) is no longer selected.
+  useEffect(() => {
+    setSelectedDevice((current) => {
+      if (devices.length === 1) return devices[0];
+      return current && devices.some((d) => d.udid === current.udid) ? current : null;
+    });
+  }, [devices]);
 
   const handleChooseDir = async () => {
     const folder = await saveFolder();
@@ -442,6 +460,9 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                 <div className="w-4 h-4 border-2 border-accent-line border-t-accent rounded-full animate-spin flex-shrink-0" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">{PHASE_LABELS[progress.phase]}</p>
+                  {!!progress.bytes_done && (
+                    <p className="text-xs text-gray-500">{formatCopied(progress.bytes_done)}</p>
+                  )}
                   {progress.files_total > 0 && (
                     <p className="text-xs text-gray-500">{progress.files_done.toLocaleString()} / {progress.files_total.toLocaleString()} files</p>
                   )}
@@ -451,7 +472,11 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
               <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
                 <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: `${Math.max(2, progress.percent)}%` }} />
               </div>
-              <p className="text-xs text-text-tertiary mt-2">Keep your device connected and unlocked.</p>
+              <p className="text-xs text-text-tertiary mt-2">
+                {progress.phase === 'waiting'
+                  ? 'If your iPhone asks for its passcode, enter it there. The backup starts once you do.'
+                  : 'Keep your device connected and unlocked.'}
+              </p>
             </div>
           )}
 

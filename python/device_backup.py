@@ -178,6 +178,49 @@ class _BackupPasscodeWatcher(logging.Handler):
             self._on_prompt()
 
 
+class _ReceivedBytes:
+    """
+    Counts the bytes the iPhone has sent so far, for the screen's "GB copied" figure.
+    It moves whenever data does, at any transfer rate, unlike the device's own
+    percentage, which can sit still for minutes while large files arrive.
+
+    pymobiledevice3 calls a backup's filter_callback as each file starts to arrive
+    (Manifest.db and the other metadata files excepted) and writes it to
+    <backup_directory>/<file_name>. When the next file starts, the previous one is
+    complete; the one arriving counts at its size on disk so far, so a large video
+    counts as it streams in.
+    """
+
+    def __init__(self, backup_directory: str):
+        self._root = backup_directory
+        self._done = 0
+        self._current: Optional[str] = None
+        self._current_size = 0
+        self.total = 0  # high-water mark, so the figure never goes back
+
+    def file_started(self, backup_file) -> bool:
+        """filter_callback: notes the new file, and keeps every file (returns True)."""
+        self._done += self._size_of_current()
+        self._current = os.path.join(self._root, backup_file.file_name) if backup_file.file_name else None
+        self._current_size = 0
+        return True
+
+    def update(self) -> int:
+        self.total = max(self.total, self._done + self._size_of_current())
+        return self.total
+
+    def _size_of_current(self) -> int:
+        if self._current:
+            try:
+                self._current_size = os.path.getsize(self._current)
+            except OSError:
+                pass  # not created yet, or moved into place: keep the last size seen
+        return self._current_size
+
+
+# How often the bytes copied so far are sent between the device's own progress reports.
+_BYTES_REPORT_INTERVAL_S = 1.0
+
 # The app shows this as a step, not a bug (src/components/backup/BackupFlow.tsx).
 _DEVICE_DISCONNECTED = (
     "DEVICE_DISCONNECTED: Your iPhone was disconnected before the backup finished. Plug it "
@@ -474,7 +517,7 @@ class DeviceBackupManager:
         output_dir: str,
         encrypted: bool,
         password: Optional[str],
-        notify: Callable[[str, int, int, int], None],
+        notify: Callable[..., None],
     ) -> dict:
         """
         Initiate a full backup of the device identified by *udid*.
@@ -483,7 +526,8 @@ class DeviceBackupManager:
         :param output_dir:  Destination directory; created if it does not exist.
         :param encrypted:   Whether to request an encrypted backup.
         :param password:    Encryption password (required when encrypted=True).
-        :param notify:      Progress callback: notify(phase, percent, files_done, files_total).
+        :param notify:      Progress callback: notify(phase, percent, files_done, files_total,
+                            bytes_done=<bytes received so far>).
                             Called repeatedly during the backup.  Safe to call from
                             the same thread — this method is synchronous.
         :returns:           { "success": True, "backup_path": <resolved dir> }
@@ -504,13 +548,16 @@ class DeviceBackupManager:
 
         os.makedirs(output_dir, exist_ok=True)
 
-        # Shared mutable state across the nested helpers.
-        files_done = 0
-        files_total = 0
-        # high-water mark shared by ALL notification paths so that the hardcoded
-        # negotiating / backing_up milestones (0 → 5 → 10) are never overwritten
-        # by an early 0% callback from pymobiledevice3.
+        # high-water mark shared by ALL notification paths so the bar never moves
+        # backwards (a retry after the backup lock was busy starts over at 0).
         last_pct = [0]
+        last_phase = ["negotiating"]
+        received = _ReceivedBytes(output_dir)
+        # Set once the device reports any progress.  Until then it is preparing or
+        # waiting for its passcode, and the bar stays at 0 in the "waiting" phase,
+        # or "passcode" once it has asked for it.
+        transferring = False
+        passcode_asked = False
         # Bytes in use on the iPhone, so a disk-full error can say how much room
         # the backup needs.  0 when the device didn't report it.
         phone_used_bytes = 0
@@ -519,38 +566,43 @@ class DeviceBackupManager:
             """Emit a progress notification, enforcing monotone progress."""
             pct = max(last_pct[0], pct)
             last_pct[0] = pct
-            notify(phase, pct, fd, ft)
+            last_phase[0] = phase
+            notify(phase, pct, fd, ft, bytes_done=received.update())
 
-        def _progress_cb(progress_info) -> None:
+        async def _report_bytes() -> None:
+            """Sends the bytes copied so far between the device's own progress reports."""
+            while True:
+                await asyncio.sleep(_BYTES_REPORT_INTERVAL_S)
+                before = received.total
+                if received.update() != before:
+                    _tracked_notify(last_phase[0], last_pct[0], 0, 0)
+
+        def _progress_cb(device_pct) -> None:
             """
-            Translate raw MobileBackup2 progress into our phase/percent model.
+            Translate the device's progress into our percent.
 
-            pymobiledevice3 may deliver either:
-              - a dict with keys: Progress, TotalFiles, FilesTransferred, SnapshotState
-              - a raw float (0.0–1.0) on some iOS versions / pymobiledevice3 builds
+            pymobiledevice3 passes the figure iOS sends with each batch of files:
+            how much of the backup is done, as a percentage from 0 to 100 (its own
+            CLI feeds it straight into a 100-step bar).  A value under 1.0 is an
+            early percentage, not a fraction; reading it as one sent the bar to
+            ~90% during the first 1% and held it there for most of the backup.
+
+            The bar shows that figure as it is, and 100 waits until the backup
+            has actually finished.
             """
-            nonlocal files_done, files_total
-
-            if not isinstance(progress_info, dict):
-                # Raw float progress value
-                raw_pct = float(progress_info) if progress_info is not None else 0.0
-                pct = min(99, int(raw_pct * 100 if raw_pct <= 1.0 else raw_pct))
-                _tracked_notify("backing_up", pct, files_done, files_total)
+            nonlocal transferring
+            try:
+                device_pct = min(100.0, max(0.0, float(device_pct)))
+            except (TypeError, ValueError):
                 return
-
-            raw_pct = progress_info.get("Progress", 0)
-            if isinstance(raw_pct, float):
-                pct = min(99, int(raw_pct * 100))
+            transferring = transferring or device_pct > 0
+            if not transferring:
+                phase = "passcode" if passcode_asked else "waiting"
+            elif device_pct >= 100:
+                phase = "finalizing"  # the device is moving the received files into place
             else:
-                pct = min(99, int(raw_pct))
-
-            files_total = progress_info.get("TotalFiles", files_total) or files_total
-            files_done = progress_info.get("FilesTransferred", files_done) or files_done
-
-            state = str(progress_info.get("SnapshotState", "")).lower()
-            phase = "finalizing" if "final" in state else "backing_up"
-
-            _tracked_notify(phase, pct, files_done, files_total)
+                phase = "backing_up"
+            _tracked_notify(phase, min(99, int(device_pct)), 0, 0)
 
         async def _run_backup():
             nonlocal phone_used_bytes
@@ -593,32 +645,38 @@ class DeviceBackupManager:
             except Exception as e:
                 _dev_log(f"couldn't read the iPhone's disk usage: {e!r}")
 
-            _tracked_notify("negotiating", 5, 0, 0)
+            # From here the iPhone may ask for its passcode: to turn on encryption,
+            # and again once the backup request reaches it.  Nothing is copied
+            # until it's entered.
+            _tracked_notify("waiting", 0, 0, 0)
 
             if encrypted:
                 await self._configure_encryption_async(lockdown, password or "", output_dir)
 
-            _tracked_notify("negotiating", 10, 0, 0)
-
             def _on_passcode_prompt() -> None:
+                nonlocal passcode_asked
                 _dev_log("the iPhone is asking for its passcode to allow the backup")
-                _tracked_notify("passcode", last_pct[0], files_done, files_total)
+                passcode_asked = True
+                if not transferring:
+                    _tracked_notify("passcode", last_pct[0], 0, 0)
 
             mb2_logger = logging.getLogger("pymobiledevice3.services.mobilebackup2")
             passcode_watcher = _BackupPasscodeWatcher(_on_passcode_prompt)
             mb2_logger.addHandler(passcode_watcher)
+            bytes_reporter = asyncio.create_task(_report_bytes())
             try:
                 async with Mobilebackup2Service(lockdown) as mb2:
-                    _tracked_notify("backing_up", 11, 0, 0)
                     await mb2.backup(
                         full=True,
                         backup_directory=output_dir,
                         progress_callback=_progress_cb,
+                        filter_callback=received.file_started,
                     )
             finally:
+                bytes_reporter.cancel()
                 mb2_logger.removeHandler(passcode_watcher)
 
-            _tracked_notify("finalizing", 100, files_done, files_total)
+            _tracked_notify("finalizing", 100, 0, 0)
 
         def _run_with_lock_retry():
             try:
@@ -665,7 +723,7 @@ class DeviceBackupManager:
             actual = self._resolve_backup_path(output_dir, udid)
             manifest_path = os.path.join(actual, "Manifest.db")
             if os.path.exists(manifest_path) and os.path.getmtime(manifest_path) >= started_at:
-                _tracked_notify("finalizing", 100, files_done, files_total)
+                _tracked_notify("finalizing", 100, 0, 0)
             elif encrypted:
                 raise RuntimeError(
                     "PASSCODE_REQUIRED: Your iPhone is prompting for your passcode "
