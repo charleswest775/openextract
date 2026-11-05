@@ -43,10 +43,8 @@ test('identifiersMatch: exact, or the same phone number written differently', ()
   assert.ok(!identifiersMatch('jane@icloud.com', 'john@icloud.com'));
 });
 
-test('identifiersMatch ignores the case of an email address', {
-  todo: 'BUG: buildContactOptions merges Jane@Example.com and jane@example.com into one person (lower-cased key), '
-    + 'but identifiersMatch/getContactGroup compare emails case-sensitively, so picking that person drops rows with the other casing',
-}, () => {
+// buildContactOptions merges Jane@Example.com and jane@example.com into one person
+test('identifiersMatch ignores the case of an email address', () => {
   assert.ok(identifiersMatch('Jane@Example.com', 'jane@example.com'));
 });
 
@@ -146,9 +144,7 @@ test('the address book links an email to a number even when the names differ', (
   assert.deepEqual(rowsForPerson(MOM, rows, options, new Map()).map(r => r.id), ['conv']);
 });
 
-test('a person picked with a differently-cased email still gets all their rows', {
-  todo: 'BUG: the picker merges the two casings, but rowsForPerson only matches the exact casing (no address book, different names)',
-}, () => {
+test('a person picked with a differently-cased email still gets all their rows', () => {
   const rows = [row('Jane', 'Jane@Example.com', { id: 'conv' }), row('jane@example.com', 'jane@example.com', { id: 'facetime' })];
   const options = buildContactOptions(rows);
   assert.equal(options.length, 1);

@@ -118,10 +118,8 @@ test('normalizeNote: dated by creation, titled, with a 120-character preview', (
   assert.deepEqual([empty.timestamp, empty.note.bodyPreview, empty.note.body], ['2024-01-01T00:00:00+00:00', '', '']);
 });
 
-test("a note's preview doesn't cut an emoji in half", {
-  todo: 'BUG: bodyPreview is body.slice(0, 120), which can end on half of a surrogate pair; '
-    + 'the Timeline card and Timeline exports then show a broken character (U+FFFD once written to a file)',
-}, () => {
+// Half an emoji shows as a broken character (U+FFFD once written to a file)
+test("a note's preview doesn't cut an emoji in half", () => {
   const body = `${'a'.repeat(119)}🎂 birthday`;
   const preview = normalizeNote({ note_id: 1, title: 't', body, created: '', modified: '' }).note.bodyPreview;
   assert.ok(!/[\uD800-\uDBFF]$/.test(preview), 'preview ends with a lone high surrogate');

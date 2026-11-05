@@ -70,20 +70,15 @@ test('formatDateTime is the date, a space, then the time', () => {
   assert.equal(formatDateTime(iso), `${formatDate(iso)} ${formatTime(iso)}`);
 });
 
-test('a calendar day with no time (YYYY-MM-DD) shows that day', {
-  todo: "BUG: formatDate('2024-03-10') parses as UTC midnight, so west of UTC it shows Mar 9 "
-    + '(the browser-history activity tooltip passes these day keys)',
-}, () => {
+// The browser-history activity tooltip passes these day keys
+test('a calendar day with no time (YYYY-MM-DD) shows that day', () => {
   for (const [y, m, d] of TRICKY_DAYS) {
     const key = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     assert.equal(formatDate(key), formatDate(engine(local(y, m, d, 12))), key);
   }
 });
 
-test("a timestamp that can't be read is shown as it came", {
-  todo: "BUG (minor): toLocaleDateString doesn't throw on a bad date, so the catch never runs and "
-    + "formatDate shows 'Invalid Date'",
-}, () => {
+test("a timestamp that can't be read is shown as it came", () => {
   assert.equal(formatDate('unknown'), 'unknown');
 });
 

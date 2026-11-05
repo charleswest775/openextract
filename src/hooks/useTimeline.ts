@@ -141,6 +141,17 @@ interface RawNote {
   modified: string;
 }
 
+// The first `n` characters, counted by code point so an emoji isn't cut in half.
+function firstCodePoints(s: string, n: number): string {
+  let out = '';
+  let count = 0;
+  for (const ch of s) {
+    if (count++ === n) break;
+    out += ch;
+  }
+  return out;
+}
+
 function normalizeNote(note: RawNote): TimelineEntry {
   return {
     id: `note:${note.note_id}`,
@@ -151,7 +162,7 @@ function normalizeNote(note: RawNote): TimelineEntry {
     note: {
       noteId: note.note_id,
       title: note.title || 'Untitled',
-      bodyPreview: (note.body || '').slice(0, 120),
+      bodyPreview: firstCodePoints(note.body || '', 120),
       body: note.body || '',
       modified: note.modified,
     },

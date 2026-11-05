@@ -546,12 +546,8 @@ def case_export_conversation(ctx):
                             output_dir=str(ctx.folder("conversation-docx"))), "Unsupported format")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "ENGINE BUG: export_conversation and export_conversations with a search query and format "
-    "'csv' fail with KeyError 'has_attachments'. With a query the messages come from "
-    "search_messages, whose results have no has_attachments (or attachments, message_type) key, "
-    "and _export_csv / _export_merged_csv read msg['has_attachments']. txt and html use "
-    "msg.get() and work. The app's current Save buttons don't pass a query, but the RPC takes one."))
+# search_messages results have no has_attachments; the CSV export reads it.
+# The app's current Save buttons don't pass a query, but the RPC takes one.
 @pytest.mark.parametrize("method", ["export_conversation", "export_conversations"])
 def test_search_results_export_as_csv(ctx, method):
     m = ctx.maren

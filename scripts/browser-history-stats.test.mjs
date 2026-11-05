@@ -85,10 +85,7 @@ test('a tie for the busiest hour goes to the earlier hour', () => {
   assert.equal(s.peakHour, 8);
 });
 
-test('the activity chart buckets visits by local calendar day', {
-  todo: 'BUG: activityByDay slices the UTC date off the ISO string, while hours and weekdays use local time, '
-    + 'so evening (west of UTC) or early-morning (east of UTC) visits land on the wrong day',
-}, () => {
+test('the activity chart buckets visits by local calendar day', () => {
   const late = daysAgo(5, 23, 30);
   const early = daysAgo(4, 0, 30);
   const s = computeBrowserStats([visit(late), visit(early)]);
