@@ -24,9 +24,10 @@ interface BackupProgress {
   bytes_done?: number;
 }
 
-// Decimal units, like Finder, iPhone Storage and the engine's disk-space messages.
+// Decimal units, like Finder, iPhone Storage and the engine's disk-space messages. Two
+// decimals, so the figure visibly moves every few seconds even on a slow transfer.
 function formatCopied(bytes: number): string {
-  return bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB copied` : `${Math.round(bytes / 1e6)} MB copied`;
+  return bytes >= 1e9 ? `${(bytes / 1e9).toFixed(2)} GB copied` : `${Math.round(bytes / 1e6)} MB copied`;
 }
 
 type BackupStatus = 'idle' | 'running' | 'success' | 'error';
