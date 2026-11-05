@@ -17,6 +17,8 @@ export default {
       const r = await app.openBackup(plain.dir);
       check('plain backup opens', r.opened, r);
       timing('open plain backup', r.ms);
+      // The line under the device name ("Backed up … · iOS …") arrives after the page does.
+      await app.waitFor(v => document.body.innerText.includes(v), `iOS ${plain.expected.ios}`, 30_000);
       const header = await app.text();
       check('home names the device and iOS version', header.includes("Maren's iPhone") && header.includes(`iOS ${plain.expected.ios}`), header.slice(0, 300));
 
