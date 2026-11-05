@@ -112,6 +112,7 @@ class SidecarServer:
             # Live device backup
             "backup.list_devices": self.backup_list_devices,
             "backup.install_device_support": self.backup_install_device_support,
+            "backup.pair_device": self.backup_pair_device,
             "backup.start": self.backup_start,
         }
 
@@ -467,6 +468,14 @@ class SidecarServer:
         """
         return self.device_backup_manager.install_device_support()
 
+    def backup_pair_device(self, params):
+        """
+        Ask the iPhone with params["udid"] to trust this computer, without waiting.
+        Returns { state: "trusted" | "waiting" | "locked" | "denied" }; the app calls
+        it again every couple of seconds until "trusted" or "denied".
+        """
+        return self.device_backup_manager.pair_device(params["udid"])
+
     def backup_start(self, params):
         """
         Initiate a full backup of the device identified by params["udid"].
@@ -476,8 +485,8 @@ class SidecarServer:
               "params": { "phase": str, "percent": int,
                           "files_done": int, "files_total": int } }
 
-        Phases: "negotiating" → "waiting" (for the iPhone, which may ask for its
-        passcode; still 0%) → "backing_up" → "finalizing"
+        Phases: "negotiating" → "waiting" (for the iPhone; still 0%) → "passcode"
+        (if it asks for its passcode to allow the backup) → "backing_up" → "finalizing"
 
         Returns on completion: { "success": true, "backup_path": "..." }
         """

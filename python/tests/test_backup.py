@@ -37,6 +37,7 @@ def _make_pymobiledevice3_stub():
         "pymobiledevice3.remote.remote_service_discovery"
     )
     pkg.exceptions = types.ModuleType("pymobiledevice3.exceptions")
+    pkg.ca = types.ModuleType("pymobiledevice3.ca")
 
     # Populate with MagicMocks so attribute access works
     pkg.usbmux.list_devices = AsyncMock(return_value=[])
@@ -44,12 +45,15 @@ def _make_pymobiledevice3_stub():
     pkg.services.mobilebackup2.Mobilebackup2Service = MagicMock()
     pkg.remote.utils.get_rsds = MagicMock(return_value=[])
     pkg.remote.remote_service_discovery.RemoteServiceDiscoveryService = MagicMock()
+    pkg.ca.generate_pairing_cert_chain = MagicMock()
 
     # Exception classes used in device_backup.py
     pkg.exceptions.ConnectionFailedToUsbmuxdError = type("ConnectionFailedToUsbmuxdError", (Exception,), {})
     pkg.exceptions.ConnectionTerminatedError = type("ConnectionTerminatedError", (Exception,), {})
     pkg.exceptions.PasswordRequiredError = type("PasswordRequiredError", (Exception,), {})
     pkg.exceptions.NotEnoughDiskSpaceError = type("NotEnoughDiskSpaceError", (Exception,), {})
+    pkg.exceptions.PairingDialogResponsePendingError = type("PairingDialogResponsePendingError", (Exception,), {})
+    pkg.exceptions.UserDeniedPairingError = type("UserDeniedPairingError", (Exception,), {})
 
     return pkg
 
@@ -66,6 +70,7 @@ def _install_stub():
         "pymobiledevice3.remote.utils",
         "pymobiledevice3.remote.remote_service_discovery",
         "pymobiledevice3.exceptions",
+        "pymobiledevice3.ca",
     ]:
         if "." in name:
             parts = name.split(".")[1:]  # skip "pymobiledevice3"
@@ -90,12 +95,14 @@ from device_backup import DeviceBackupManager, _device_service_error, _disk_full
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_lockdown_mock(udid="abc-123", name="iPhone 15", ios_version="17.4"):
+def _make_lockdown_mock(udid="abc-123", name="iPhone 15", ios_version="17.4", paired=True):
     m = MagicMock()
     m.udid = udid
     m.display_name = name
     m.product_version = ios_version
+    m.paired = paired
     m.get_value = AsyncMock(return_value=False)
+    m.close = AsyncMock()
     return m
 
 
@@ -220,7 +227,7 @@ class TestListDevices(unittest.TestCase):
         bad_dev = _make_usbmux_device("BAD", "USB")
         good_lockdown = _make_lockdown_mock("GOOD", "Eve's iPhone", "17.0")
 
-        def _create_lockdown(serial=None):
+        def _create_lockdown(serial=None, **kwargs):
             if serial == "BAD":
                 raise ConnectionError("Device busy")
             return good_lockdown
@@ -234,6 +241,23 @@ class TestListDevices(unittest.TestCase):
 
         self.assertEqual(len(result["devices"]), 1)
         self.assertEqual(result["devices"][0]["udid"], "GOOD")
+
+    def test_untrusted_device_is_listed_without_asking_it_to_trust(self):
+        """Searching must not pair: each pairing attempt is a new Trust prompt on the iPhone."""
+        usbmux_dev = _make_usbmux_device("DEV-1", "USB")
+        lockdown = _make_lockdown_mock("DEV-1", "iPhone 16", "26.1", paired=False)
+
+        with (
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[usbmux_dev]),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock,
+                  return_value=lockdown) as create,
+            patch("pymobiledevice3.remote.utils.get_rsds", return_value=[]),
+        ):
+            result = self.manager.list_devices()
+
+        self.assertEqual(result["devices"][0]["trusted"], False)
+        self.assertEqual(create.await_args.kwargs.get("autopair"), False)
+        lockdown.close.assert_awaited_once()
 
     def test_no_device_service_is_a_setup_step(self):
         """Without usbmuxd (on Windows: no Apple Devices or iTunes) the error says so, with its own prefix."""
@@ -393,6 +417,76 @@ class TestAppleDevicesOnWindows(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Test: backup.start
 # ---------------------------------------------------------------------------
+
+class TestPairDevice(unittest.TestCase):
+    """backup.pair_device: one Trust prompt per iPhone, however often the app asks."""
+
+    def setUp(self):
+        self.manager = DeviceBackupManager()
+        self.certs = MagicMock(side_effect=lambda key: (b"host-cert", b"host-key", b"device-cert",
+                                                        b"root-cert", b"root-key"))
+
+    def _lockdown(self, pair_outcomes, paired=False):
+        lockdown = _make_lockdown_mock("DEV-1", paired=paired)
+        lockdown.host_id = "HOST-ID"
+        lockdown.system_buid = "BUID"
+        lockdown.wifi_mac_address = "aa:bb"
+        lockdown.get_value = AsyncMock(return_value=b"device-public-key")
+        lockdown._request_pair = AsyncMock(side_effect=pair_outcomes)
+        lockdown.save_pair_record = AsyncMock()
+        lockdown.validate_pairing = AsyncMock(return_value=True)
+        return lockdown
+
+    def _pair(self, lockdown):
+        with (
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock,
+                  return_value=lockdown) as create,
+            patch("pymobiledevice3.ca.generate_pairing_cert_chain", self.certs),
+        ):
+            result = self.manager.pair_device("DEV-1")
+        self.assertEqual(create.await_args.kwargs.get("autopair"), False)
+        return result["state"]
+
+    def test_already_trusted(self):
+        lockdown = self._lockdown([], paired=True)
+        self.assertEqual(self._pair(lockdown), "trusted")
+        lockdown._request_pair.assert_not_awaited()
+
+    def test_resends_the_same_request_until_trusted(self):
+        """Waiting, locked (or typing the passcode), then accepted: one request, one prompt."""
+        lockdown = self._lockdown([
+            _stub.exceptions.PairingDialogResponsePendingError(),
+            _stub.exceptions.PasswordRequiredError(),
+            {"EscrowBag": b"escrow"},
+        ])
+        self.assertEqual(self._pair(lockdown), "waiting")
+        self.assertEqual(self._pair(lockdown), "locked")
+        self.assertEqual(self._pair(lockdown), "trusted")
+
+        self.certs.assert_called_once()
+        sent = [c.args[0] for c in lockdown._request_pair.await_args_list]
+        self.assertTrue(all(options is sent[0] for options in sent))
+        self.assertEqual([c.kwargs["timeout"] for c in lockdown._request_pair.await_args_list], [0, 0, 0])
+        record = lockdown.pair_record
+        self.assertEqual(record["HostPrivateKey"], b"host-key")
+        self.assertEqual(record["EscrowBag"], b"escrow")
+        self.assertEqual(record["HostID"], "HOST-ID")
+        lockdown.save_pair_record.assert_awaited_once()
+        self.assertEqual(lockdown.close.await_count, 3)
+
+    def test_denied_starts_over_next_time(self):
+        lockdown = self._lockdown([_stub.exceptions.UserDeniedPairingError(), {}])
+        self.assertEqual(self._pair(lockdown), "denied")
+        self.assertEqual(self._pair(lockdown), "trusted")
+        self.assertEqual(self.certs.call_count, 2)
+
+    def test_no_device_service_is_a_setup_step(self):
+        with patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock,
+                   side_effect=_stub.exceptions.ConnectionFailedToUsbmuxdError()):
+            with self.assertRaises(RuntimeError) as ctx:
+                self.manager.pair_device("DEV-1")
+        self.assertTrue(str(ctx.exception).startswith("DEVICE_SERVICE_REQUIRED:"))
+
 
 class TestStartBackup(unittest.TestCase):
 
@@ -562,11 +656,13 @@ class TestStartBackup(unittest.TestCase):
                     notify=self.notify,
                 )
 
-    def _run_backup_with(self, mb2, lockdown=None):
+    def _run_backup_with(self, mb2, lockdown=None, still_connected=True):
         lockdown = lockdown or _make_lockdown_mock()
+        connected = [_make_usbmux_device("abc-123")] if still_connected else []
         with (
             patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
             patch("pymobiledevice3.services.mobilebackup2.Mobilebackup2Service", return_value=mb2),
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=connected),
             patch("device_backup.time.sleep") as sleep,
         ):
             result = self.manager.start_backup(
@@ -590,13 +686,71 @@ class TestStartBackup(unittest.TestCase):
         self.assertEqual(mb2.backup.await_count, 2)
         sleep.assert_called_once()
 
+    def test_backup_lock_error_retried_with_newer_wording(self):
+        """pymobiledevice3 later than 11.26 says "The device reported an error" (seen on Windows)."""
+        mb2 = self._make_mb2_mock()
+        mb2.backup.side_effect = [
+            Exception("The device reported an error: {'ErrorCode': 208, 'ErrorDescription': "
+                      "'Device locked (MBErrorDomain/208)', 'MessageName': 'Response'}."),
+            None,
+        ]
+        result, sleep = self._run_backup_with(mb2)
+        self.assertTrue(result["success"])
+        self.assertEqual(mb2.backup.await_count, 2)
+
     def test_backup_lock_error_not_retried_twice(self):
+        """Still locked after the retry: a passcode step for the user, not a crash report."""
         mb2 = self._make_mb2_mock()
         lock_err = Exception("Device link error: {'ErrorCode': 208}")
         mb2.backup.side_effect = [lock_err, lock_err]
-        with self.assertRaises(Exception):
+        with self.assertRaises(RuntimeError) as ctx:
             self._run_backup_with(mb2)
         self.assertEqual(mb2.backup.await_count, 2)
+        self.assertTrue(str(ctx.exception).startswith("PASSCODE_REQUIRED:"))
+
+    def test_unplugged_during_backup_says_disconnected(self):
+        """Not "your iPhone is prompting for your passcode", which is what an encrypted backup used to say."""
+        for error in (_stub.exceptions.ConnectionTerminatedError(), OSError("connection reset")):
+            mb2 = self._make_mb2_mock()
+            mb2.backup.side_effect = error
+            with self.assertRaises(RuntimeError) as ctx:
+                self._run_backup_with(mb2, still_connected=False)
+            self.assertTrue(str(ctx.exception).startswith("DEVICE_DISCONNECTED:"), error)
+
+    def _end_with_connection_closed(self, output_dir, manifest_age_s=None):
+        """The device closes the channel; output_dir/abc-123 may hold a Manifest.db that old."""
+        import os
+        import time
+        device_dir = os.path.join(output_dir, "abc-123")
+        os.makedirs(device_dir)
+        if manifest_age_s is not None:
+            manifest = os.path.join(device_dir, "Manifest.db")
+            open(manifest, "wb").close()
+            then = time.time() - manifest_age_s
+            os.utime(manifest, (then, then))
+        mb2 = self._make_mb2_mock()
+        mb2.backup.side_effect = _stub.exceptions.ConnectionTerminatedError()
+        with (
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock,
+                  return_value=_make_lockdown_mock()),
+            patch("pymobiledevice3.services.mobilebackup2.Mobilebackup2Service", return_value=mb2),
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock,
+                  return_value=[_make_usbmux_device("abc-123")]),
+        ):
+            return self.manager.start_backup(udid="abc-123", output_dir=output_dir, encrypted=False,
+                                             password=None, notify=self.notify)
+
+    def test_connection_closed_after_manifest_written_is_success(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertTrue(self._end_with_connection_closed(tmp, manifest_age_s=-1)["success"])
+
+    def test_connection_closed_with_only_an_older_backup_is_not_success(self):
+        """A folder used before already has a Manifest.db; that doesn't make this backup finished."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(RuntimeError):
+                self._end_with_connection_closed(tmp, manifest_age_s=3600)
 
     def test_unrelated_error_mentioning_208_not_retried(self):
         mb2 = self._make_mb2_mock()
@@ -612,12 +766,56 @@ class TestStartBackup(unittest.TestCase):
             self._run_backup_with(mb2)
         self.assertTrue(str(ctx.exception).startswith("PASSCODE_REQUIRED:"))
 
+    def test_untrusted_device_is_not_paired_here(self):
+        """Pairing here would be a second Trust prompt; the app pairs first."""
+        mb2 = self._make_mb2_mock()
+        with self.assertRaises(RuntimeError) as ctx:
+            self._run_backup_with(mb2, _make_lockdown_mock(paired=False))
+        self.assertTrue(str(ctx.exception).startswith("TRUST_REQUIRED:"))
+        mb2.backup.assert_not_awaited()
+
+    def test_passcode_prompt_is_reported(self):
+        """iOS asks for the passcode before every backup; the app should say so."""
+        import logging
+        mb2 = self._make_mb2_mock()
+
+        async def _backup(**kwargs):
+            logging.getLogger("pymobiledevice3.services.mobilebackup2").warning(
+                "Please enter the device passcode to continue the backup")
+            kwargs["progress_callback"](50.0)
+
+        mb2.backup.side_effect = _backup
+        self._run_backup_with(mb2)
+        phases = [p[0] for p in self.progress_calls]
+        self.assertIn("passcode", phases)
+        self.assertLess(phases.index("passcode"), phases.index("backing_up", phases.index("passcode")))
+        self.assertFalse(logging.getLogger("pymobiledevice3.services.mobilebackup2").handlers)
+
+    def test_passcode_step_holds_at_zero_until_data_flows(self):
+        """A 0% report after the prompt keeps the passcode step; it doesn't go back to waiting."""
+        import logging
+        mb2 = self._make_mb2_mock()
+
+        async def _backup(**kwargs):
+            kwargs["progress_callback"](0.0)
+            logging.getLogger("pymobiledevice3.services.mobilebackup2").warning(
+                "Please enter the device passcode to continue the backup")
+            kwargs["progress_callback"](0.0)
+            kwargs["progress_callback"](3.0)
+
+        mb2.backup.side_effect = _backup
+        self._run_backup_with(mb2)
+        steps = [p[:2] for p in self.progress_calls]
+        self.assertEqual(steps[-5:], [
+            ("waiting", 0), ("passcode", 0), ("passcode", 0), ("backing_up", 3), ("finalizing", 100),
+        ])
+
     def test_device_service_gone_raises_device_service_required(self):
         """Apple's service stopping between the device list and Start Backup is the same setup step."""
-        with patch(
-            "pymobiledevice3.lockdown.create_using_usbmux",
-            new_callable=AsyncMock,
-            side_effect=_stub.exceptions.ConnectionFailedToUsbmuxdError(),
+        no_service = _stub.exceptions.ConnectionFailedToUsbmuxdError()
+        with (
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, side_effect=no_service),
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, side_effect=no_service),
         ):
             with self.assertRaises(RuntimeError) as ctx:
                 self.manager.start_backup(
@@ -768,6 +966,14 @@ class TestSidecarRouting(unittest.TestCase):
         server.device_backup_manager.install_device_support.return_value = {"installed": True}
         result = server.handle_request({"id": 3, "method": "backup.install_device_support", "params": {}})
         self.assertEqual(result["result"], {"installed": True})
+
+    def test_backup_pair_device_delegates(self):
+        server = self._make_server()
+        server.device_backup_manager = MagicMock()
+        server.device_backup_manager.pair_device.return_value = {"state": "waiting"}
+        result = server.handle_request({"id": 4, "method": "backup.pair_device", "params": {"udid": "DEV-1"}})
+        server.device_backup_manager.pair_device.assert_called_once_with("DEV-1")
+        self.assertEqual(result["result"], {"state": "waiting"})
 
     def test_backup_start_registered(self):
         server = self._make_server()

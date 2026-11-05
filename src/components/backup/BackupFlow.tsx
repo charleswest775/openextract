@@ -8,10 +8,15 @@ interface DeviceInfo {
   name: string;
   ios_version: string;
   connection_type: 'usb' | 'wifi';
+  // false until the iPhone trusts this computer (backup.pair_device)
+  trusted?: boolean;
 }
 
+// backup.pair_device: 'locked' also covers the iPhone asking for its passcode after Trust.
+type PairState = 'trusted' | 'waiting' | 'locked' | 'denied';
+
 interface BackupProgress {
-  phase: 'negotiating' | 'waiting' | 'backing_up' | 'finalizing';
+  phase: 'negotiating' | 'waiting' | 'passcode' | 'backing_up' | 'finalizing';
   percent: number;
   files_done: number;
   files_total: number;
@@ -22,8 +27,9 @@ type BackupStatus = 'idle' | 'running' | 'success' | 'error';
 // Errors that are steps for the user, not bugs, so they get no "Report this problem"
 // (python/device_backup.py). DEVICE_SERVICE_REQUIRED means usbmuxd can't be reached:
 // on Windows, Apple Devices or iTunes isn't installed or isn't running.
+// DEVICE_DISCONNECTED means the iPhone was unplugged during the backup.
 const DEVICE_SERVICE_PREFIX = 'DEVICE_SERVICE_REQUIRED: ';
-const SETUP_PREFIX = /^(TRUST_REQUIRED|PASSCODE_REQUIRED|DEVICE_SERVICE_REQUIRED): /;
+const SETUP_PREFIX = /^(TRUST_REQUIRED|PASSCODE_REQUIRED|DEVICE_SERVICE_REQUIRED|DEVICE_DISCONNECTED): /;
 const APPLE_DEVICES_STORE_URL = 'ms-windows-store://pdp/?ProductId=9NP83LWLPZ9K';
 
 /**
@@ -108,6 +114,7 @@ function DeviceServiceSetup({ message, onCheckAgain }: { message: string; onChec
 const PHASE_LABELS: Record<BackupProgress['phase'], string> = {
   negotiating: 'Connecting to your iPhone...',
   waiting: 'Waiting for your iPhone...',
+  passcode: 'Enter your passcode on your iPhone to start the backup',
   backing_up: 'Backing up files...',
   finalizing: 'Finishing the backup...',
 };
@@ -158,6 +165,36 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
     loadDevices();
     return () => { unsubscribeRef.current?.(); };
   }, []);
+
+  // An iPhone that doesn't trust this computer yet: ask it, then check back every couple
+  // of seconds. The engine resends the same request each time, so the iPhone asks once.
+  const untrusted = devices.find((d) => d.trusted === false);
+  const [pairState, setPairState] = useState<PairState>('waiting');
+  useEffect(() => {
+    if (!untrusted) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setPairState('waiting');
+    const ask = async () => {
+      try {
+        const { state } = await sidecarCall<{ state: PairState }>('backup.pair_device', { udid: untrusted.udid });
+        if (cancelled) return;
+        if (state === 'trusted') {
+          loadDevices();
+          return;
+        }
+        setPairState(state);
+        if (state !== 'denied') timer = setTimeout(ask, 2000);
+      } catch (err: any) {
+        if (!cancelled) setDeviceError(err.message || "Couldn't ask your iPhone to trust this computer");
+      }
+    };
+    ask();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [devices, loadDevices]);
 
   const handleChooseDir = async () => {
     const folder = await saveFolder();
@@ -215,6 +252,9 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
     } catch (err: any) {
       setBackupError(err.message || 'Backup failed');
       setStatus('error');
+      // The device list then shows the iPhone as untrusted (and asks it to trust us),
+      // or as gone until it's plugged back in.
+      if (/^(TRUST_REQUIRED|DEVICE_DISCONNECTED):/.test(err.message ?? '')) loadDevices();
     } finally {
       unsubscribeRef.current?.();
       unsubscribeRef.current = null;
@@ -244,7 +284,8 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
     setOpeningBackup(false);
   };
 
-  const canStart = selectedDevice !== null && outputDir !== '' && (!useEncryption || password !== '') && status === 'idle';
+  const selectedTrusted = devices.find((d) => d.udid === selectedDevice?.udid)?.trusted !== false;
+  const canStart = selectedDevice !== null && selectedTrusted && outputDir !== '' && (!useEncryption || password !== '') && status === 'idle';
 
   return (
     <div className="h-screen flex flex-col bg-base">
@@ -298,7 +339,7 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                 <button
                   key={device.udid}
                   onClick={() => setSelectedDevice(device)}
-                  disabled={status === 'running'}
+                  disabled={status === 'running' || device.trusted === false}
                   className={`w-full text-left p-3.5 rounded-lg border transition-colors disabled:opacity-50 ${
                     selectedDevice?.udid === device.udid
                       ? 'border-accent bg-accent-wash/50'
@@ -311,12 +352,33 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                       <div className="text-sm font-medium text-gray-900">{device.name}</div>
                       <div className="text-xs text-text-tertiary">
                         iOS {device.ios_version} · {device.connection_type === 'usb' ? 'USB' : 'Wi-Fi'}
+                        {device.trusted === false && ' · Waiting for you to trust this computer'}
                       </div>
                     </div>
                   </div>
                 </button>
               ))}
             </div>
+
+            {untrusted && (
+              <div className="mt-2 p-3 rounded-lg bg-accent-wash/50 border border-accent-line flex items-start gap-2 text-sm text-gray-700">
+                {pairState === 'denied' ? (
+                  <p>
+                    Your iPhone didn&apos;t trust this computer. Unplug it, plug it back in, then click Refresh
+                    and tap <strong>Trust</strong>.
+                  </p>
+                ) : (
+                  <>
+                    <div className="w-4 h-4 mt-0.5 border-2 border-accent-line border-t-accent rounded-full animate-spin flex-shrink-0" />
+                    <p>
+                      {pairState === 'locked'
+                        ? <>Unlock your iPhone. When it asks <strong>Trust This Computer?</strong>, tap Trust and enter your passcode.</>
+                        : <>On your iPhone, tap <strong>Trust</strong>, then enter your passcode.</>}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
           </section>
 
           {/* Step 2: Output directory */}
@@ -448,6 +510,7 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                 <p className="text-sm font-medium text-gray-900">
                   {backupError?.startsWith('TRUST_REQUIRED:') ? 'Trust required' :
                    backupError?.startsWith('PASSCODE_REQUIRED:') ? 'Passcode required' :
+                   backupError?.startsWith('DEVICE_DISCONNECTED:') ? 'iPhone disconnected' :
                    backupError?.startsWith(DEVICE_SERVICE_PREFIX) ? "Can't reach your iPhone" : 'Backup failed'}
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">
