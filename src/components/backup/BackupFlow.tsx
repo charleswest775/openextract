@@ -204,6 +204,15 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
     };
   }, [devices, loadDevices]);
 
+  // Only one device, as on anyone's first backup: select it, so there's nothing to pick.
+  // A device that has gone from the list (unplugged, then Refresh) is no longer selected.
+  useEffect(() => {
+    setSelectedDevice((current) => {
+      if (devices.length === 1) return devices[0];
+      return current && devices.some((d) => d.udid === current.udid) ? current : null;
+    });
+  }, [devices]);
+
   const handleChooseDir = async () => {
     const folder = await saveFolder();
     if (folder) setOutputDir(folder);
