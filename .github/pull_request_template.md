@@ -34,6 +34,6 @@ Thanks for contributing! A few asks to make review smooth:
 ## Checklist
 
 - [ ] I've run the existing tests locally.
-- [ ] I've added tests for new behavior (or explained why tests don't apply).
+- [ ] I've added tests for new behavior (or explained why tests don't apply). New screens, exports, IPC channels and engine methods need one; see docs/TESTING.md.
 - [ ] I've updated CHANGELOG.md if this is user-visible.
 - [ ] I've redacted any personal data from fixtures, screenshots, and logs.

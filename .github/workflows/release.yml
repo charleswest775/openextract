@@ -498,8 +498,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Installs the draft's packages on fresh macOS, Windows and Linux runners: Gatekeeper and
+  # signatures, silent install and upgrade over the previous release, the installed app's
+  # smoke test, update metadata, uninstall. See installers.yml. Publishing waits for it.
+  installers:
+    needs: [preflight, build-macos, build-windows, build-linux]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/installers.yml
+    with:
+      tag: v${{ inputs.version }}
+
   finalize:
-    needs: [preflight, build-macos, build-windows, build-linux, windows-app-control]
+    needs: [preflight, build-macos, build-windows, build-linux, windows-app-control, installers]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
