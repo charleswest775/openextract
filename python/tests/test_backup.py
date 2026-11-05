@@ -493,9 +493,11 @@ class TestStartBackup(unittest.TestCase):
     def setUp(self):
         self.manager = DeviceBackupManager()
         self.progress_calls: list = []
+        self.bytes_reported: list = []
 
-        def _notify(phase, percent, files_done, files_total):
+        def _notify(phase, percent, files_done, files_total, bytes_done=0):
             self.progress_calls.append((phase, percent, files_done, files_total))
+            self.bytes_reported.append(bytes_done)
 
         self.notify = _notify
 
@@ -562,10 +564,10 @@ class TestStartBackup(unittest.TestCase):
         mb2 = self._make_mb2_mock()
 
         # pymobiledevice3 passes the device's own figure, a 0–100 percentage.
-        def _fake_backup(full, backup_directory, progress_callback):
+        def _fake_backup(**kwargs):
             self.progress_calls.append(("backup requested", None, 0, 0))
             for value in device_percents:
-                progress_callback(value)
+                kwargs["progress_callback"](value)
 
         mb2.backup.side_effect = _fake_backup
 
@@ -790,6 +792,74 @@ class TestStartBackup(unittest.TestCase):
         self.assertIn("passcode", phases)
         self.assertLess(phases.index("passcode"), phases.index("backing_up", phases.index("passcode")))
         self.assertFalse(logging.getLogger("pymobiledevice3.services.mobilebackup2").handlers)
+
+    def _backup_into(self, folder, fake):
+        mb2 = self._make_mb2_mock()
+        mb2.backup.side_effect = fake
+        with (
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock,
+                  return_value=_make_lockdown_mock()),
+            patch("pymobiledevice3.services.mobilebackup2.Mobilebackup2Service", return_value=mb2),
+        ):
+            self.manager.start_backup(udid="abc-123", output_dir=folder, encrypted=False,
+                                      password=None, notify=self.notify)
+
+    def test_bytes_copied_counts_finished_and_arriving_files(self):
+        """Finished files count in full, and the one arriving counts as far as it has got."""
+        import os
+        import tempfile
+        from types import SimpleNamespace
+        kept = []
+
+        def _write(root, name, size):
+            path = os.path.join(root, name)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "ab") as f:
+                f.write(b"x" * size)
+
+        async def _backup(**kwargs):
+            root, started, progress = kwargs["backup_directory"], kwargs["filter_callback"], kwargs["progress_callback"]
+            kept.append(started(SimpleNamespace(file_name="abc-123/aa/one")))
+            _write(root, "abc-123/aa/one", 1000)
+            progress(10.0)
+            kept.append(started(SimpleNamespace(file_name="abc-123/bb/two")))
+            _write(root, "abc-123/bb/two", 300)
+            progress(20.0)
+            _write(root, "abc-123/bb/two", 200)
+            os.rename(os.path.join(root, "abc-123/bb/two"), os.path.join(root, "abc-123/two"))
+            progress(30.0)
+
+        with tempfile.TemporaryDirectory() as folder:
+            self._backup_into(folder, _backup)
+
+        by_percent = {c[1]: b for c, b in zip(self.progress_calls, self.bytes_reported) if c[0] == "backing_up"}
+        self.assertEqual(by_percent, {10: 1000, 20: 1300, 30: 1300})  # moved away: keeps the last size seen
+        self.assertEqual(kept, [True, True])  # every file is kept
+        self.assertEqual(self.bytes_reported[-1], 1300)
+
+    def test_bytes_copied_is_sent_between_device_reports(self):
+        """The device can go minutes without a progress report; the figure still moves."""
+        import asyncio
+        import os
+        import tempfile
+        from types import SimpleNamespace
+
+        async def _backup(**kwargs):
+            path = os.path.join(kwargs["backup_directory"], "abc-123", "video")
+            os.makedirs(os.path.dirname(path))
+            kwargs["filter_callback"](SimpleNamespace(file_name="abc-123/video"))
+            kwargs["progress_callback"](40.0)
+            for _ in range(3):
+                with open(path, "ab") as f:
+                    f.write(b"x" * 1000)
+                await asyncio.sleep(0.05)
+
+        with tempfile.TemporaryDirectory() as folder, patch("device_backup._BYTES_REPORT_INTERVAL_S", 0.01):
+            self._backup_into(folder, _backup)
+
+        between = [(c[:2], b) for c, b in zip(self.progress_calls, self.bytes_reported) if c[0] == "backing_up"]
+        self.assertEqual([b for _, b in between][-3:], [1000, 2000, 3000])
+        self.assertEqual({step for step, _ in between}, {("backing_up", 40)})
 
     def test_passcode_step_holds_at_zero_until_data_flows(self):
         """A 0% report after the prompt keeps the passcode step; it doesn't go back to waiting."""

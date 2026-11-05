@@ -178,6 +178,49 @@ class _BackupPasscodeWatcher(logging.Handler):
             self._on_prompt()
 
 
+class _ReceivedBytes:
+    """
+    Counts the bytes the iPhone has sent so far, for the screen's "GB copied" figure.
+    It moves whenever data does, at any transfer rate, unlike the device's own
+    percentage, which can sit still for minutes while large files arrive.
+
+    pymobiledevice3 calls a backup's filter_callback as each file starts to arrive
+    (Manifest.db and the other metadata files excepted) and writes it to
+    <backup_directory>/<file_name>. When the next file starts, the previous one is
+    complete; the one arriving counts at its size on disk so far, so a large video
+    counts as it streams in.
+    """
+
+    def __init__(self, backup_directory: str):
+        self._root = backup_directory
+        self._done = 0
+        self._current: Optional[str] = None
+        self._current_size = 0
+        self.total = 0  # high-water mark, so the figure never goes back
+
+    def file_started(self, backup_file) -> bool:
+        """filter_callback: notes the new file, and keeps every file (returns True)."""
+        self._done += self._size_of_current()
+        self._current = os.path.join(self._root, backup_file.file_name) if backup_file.file_name else None
+        self._current_size = 0
+        return True
+
+    def update(self) -> int:
+        self.total = max(self.total, self._done + self._size_of_current())
+        return self.total
+
+    def _size_of_current(self) -> int:
+        if self._current:
+            try:
+                self._current_size = os.path.getsize(self._current)
+            except OSError:
+                pass  # not created yet, or moved into place: keep the last size seen
+        return self._current_size
+
+
+# How often the bytes copied so far are sent between the device's own progress reports.
+_BYTES_REPORT_INTERVAL_S = 1.0
+
 # The app shows this as a step, not a bug (src/components/backup/BackupFlow.tsx).
 _DEVICE_DISCONNECTED = (
     "DEVICE_DISCONNECTED: Your iPhone was disconnected before the backup finished. Plug it "
@@ -474,7 +517,7 @@ class DeviceBackupManager:
         output_dir: str,
         encrypted: bool,
         password: Optional[str],
-        notify: Callable[[str, int, int, int], None],
+        notify: Callable[..., None],
     ) -> dict:
         """
         Initiate a full backup of the device identified by *udid*.
@@ -483,7 +526,8 @@ class DeviceBackupManager:
         :param output_dir:  Destination directory; created if it does not exist.
         :param encrypted:   Whether to request an encrypted backup.
         :param password:    Encryption password (required when encrypted=True).
-        :param notify:      Progress callback: notify(phase, percent, files_done, files_total).
+        :param notify:      Progress callback: notify(phase, percent, files_done, files_total,
+                            bytes_done=<bytes received so far>).
                             Called repeatedly during the backup.  Safe to call from
                             the same thread — this method is synchronous.
         :returns:           { "success": True, "backup_path": <resolved dir> }
@@ -507,6 +551,8 @@ class DeviceBackupManager:
         # high-water mark shared by ALL notification paths so the bar never moves
         # backwards (a retry after the backup lock was busy starts over at 0).
         last_pct = [0]
+        last_phase = ["negotiating"]
+        received = _ReceivedBytes(output_dir)
         # Set once the device reports any progress.  Until then it is preparing or
         # waiting for its passcode, and the bar stays at 0 in the "waiting" phase,
         # or "passcode" once it has asked for it.
@@ -520,7 +566,16 @@ class DeviceBackupManager:
             """Emit a progress notification, enforcing monotone progress."""
             pct = max(last_pct[0], pct)
             last_pct[0] = pct
-            notify(phase, pct, fd, ft)
+            last_phase[0] = phase
+            notify(phase, pct, fd, ft, bytes_done=received.update())
+
+        async def _report_bytes() -> None:
+            """Sends the bytes copied so far between the device's own progress reports."""
+            while True:
+                await asyncio.sleep(_BYTES_REPORT_INTERVAL_S)
+                before = received.total
+                if received.update() != before:
+                    _tracked_notify(last_phase[0], last_pct[0], 0, 0)
 
         def _progress_cb(device_pct) -> None:
             """
@@ -608,14 +663,17 @@ class DeviceBackupManager:
             mb2_logger = logging.getLogger("pymobiledevice3.services.mobilebackup2")
             passcode_watcher = _BackupPasscodeWatcher(_on_passcode_prompt)
             mb2_logger.addHandler(passcode_watcher)
+            bytes_reporter = asyncio.create_task(_report_bytes())
             try:
                 async with Mobilebackup2Service(lockdown) as mb2:
                     await mb2.backup(
                         full=True,
                         backup_directory=output_dir,
                         progress_callback=_progress_cb,
+                        filter_callback=received.file_started,
                     )
             finally:
+                bytes_reporter.cancel()
                 mb2_logger.removeHandler(passcode_watcher)
 
             _tracked_notify("finalizing", 100, 0, 0)

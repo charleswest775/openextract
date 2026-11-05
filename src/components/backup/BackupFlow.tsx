@@ -20,6 +20,13 @@ interface BackupProgress {
   percent: number;
   files_done: number;
   files_total: number;
+  // Received from the iPhone so far; it moves whenever data does, even while percent waits.
+  bytes_done?: number;
+}
+
+// Decimal units, like Finder, iPhone Storage and the engine's disk-space messages.
+function formatCopied(bytes: number): string {
+  return bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB copied` : `${Math.round(bytes / 1e6)} MB copied`;
 }
 
 type BackupStatus = 'idle' | 'running' | 'success' | 'error';
@@ -443,6 +450,9 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                 <div className="w-4 h-4 border-2 border-accent-line border-t-accent rounded-full animate-spin flex-shrink-0" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">{PHASE_LABELS[progress.phase]}</p>
+                  {!!progress.bytes_done && (
+                    <p className="text-xs text-gray-500">{formatCopied(progress.bytes_done)}</p>
+                  )}
                   {progress.files_total > 0 && (
                     <p className="text-xs text-gray-500">{progress.files_done.toLocaleString()} / {progress.files_total.toLocaleString()} files</p>
                   )}
