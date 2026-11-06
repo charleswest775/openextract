@@ -42,6 +42,60 @@ def _is_backup_lock_error(exc: Exception) -> bool:
     return bool(_BACKUP_LOCK_ERROR_RE.search(str(exc)))
 
 
+# Other errors the iPhone reports during a backup reach the user as pymobiledevice3 words
+# them, ending "Please report it at https://github.com/doronz88/pymobiledevice3/issues".
+_DEVICE_ERROR_CODE_RE = re.compile(r"(?:Device link error|The device reported an error):.*'ErrorCode': (\d+)\b")
+
+# MBErrorDomain/104, "Multiple errors uploading files": the iPhone couldn't read or send
+# several of its own files (OE-6, OE-8).
+_FILES_NOT_SENT = (
+    "Your iPhone couldn't send some of its files. Restart your iPhone, plug it back in, "
+    "then try again."
+)
+
+# MBErrorDomain/205, "Error reading backup manifest properties", after an earlier try left
+# an empty Manifest.plist in the folder; a file the iPhone expects there from that try can
+# be missing too ("[Errno 2] No such file or directory: '…\\Snapshot\\51\\…'"), both in OE-6.
+_UNFINISHED_BACKUP = (
+    "The folder you chose has an unfinished backup of this iPhone from an earlier try, and "
+    "the iPhone can't continue it. Choose a new, empty folder, then try again."
+)
+
+# "[WinError 5] Access is denied: '…\\Snapshot\\00'" when the backup tidied up its own
+# files (OE-11), as when another program has them open.
+_FOLDER_IN_USE = (
+    "OpenExtract wasn't allowed to change a file in the backup folder. This can happen when "
+    "another program, such as OneDrive or antivirus software, is using it. Choose a new, empty "
+    "folder outside OneDrive or other synced folders, then try again."
+)
+
+
+def _is_inside(path, folder: str) -> bool:
+    if not isinstance(path, (str, os.PathLike)):
+        return False
+    folder = os.path.normcase(os.path.abspath(folder))
+    try:
+        return os.path.commonpath([os.path.normcase(os.path.abspath(path)), folder]) == folder
+    except ValueError:  # on another drive
+        return False
+
+
+def _backup_error_message(exc: Exception, output_dir: str) -> Optional[str]:
+    """What to tell the user about an error from the backup, or None to pass it on as it is."""
+    match = _DEVICE_ERROR_CODE_RE.search(str(exc))
+    code = int(match[1]) if match else None
+    if code == 104:
+        return _FILES_NOT_SENT
+    if code == 205:
+        return _UNFINISHED_BACKUP
+    if isinstance(exc, OSError) and _is_inside(exc.filename, output_dir):
+        if isinstance(exc, PermissionError):
+            return _FOLDER_IN_USE
+        if isinstance(exc, FileNotFoundError):
+            return _UNFINISHED_BACKUP
+    return None
+
+
 # pymobiledevice3 reaches iPhones through usbmuxd. macOS always runs it; Windows gets
 # it only from Apple's own software (Apple Devices or iTunes), and Linux from the
 # usbmuxd package. Without it no iPhone can be found, so this is a setup step, which
@@ -245,6 +299,19 @@ def _device_connected(udid: str) -> bool:
 _DISK_SPACE_DETAIL_RE = re.compile(r"needs more than (\d+) bytes free .*?host reported (\d+)", re.S)
 
 
+# Before a backup the iPhone makes a snapshot of its own storage. When it has no room for
+# one it says "Failed to create snapshot: No space left on device (28) at path
+# "/private/var"", with the same code (MBErrorDomain/105) as a backup drive that's too
+# small. A Mac user tried drives with 62, 98 and 961 GB free and was told each time that
+# the drive was the problem (OE-10).
+_IPHONE_FULL_RE = re.compile(r"Failed to create snapshot")
+_IPHONE_FULL = (
+    "Your iPhone is too full to make a backup: it needs some free space of its own to prepare "
+    "one. Free up space on the iPhone (Settings > General > iPhone Storage shows what takes the "
+    "most), then try again."
+)
+
+
 def _disk_space_from_error(exc: Exception) -> tuple[Optional[int], Optional[int]]:
     """(bytes the device requires, bytes we reported free), or (None, None) if the error doesn't say."""
     match = _DISK_SPACE_DETAIL_RE.search(str(exc))
@@ -284,6 +351,19 @@ def _disk_full_message(free_bytes: Optional[int], needed_bytes: Optional[int], p
         detail = f" The drive you chose only has {free} GB free."
     return (f"Not enough free space for this backup.{detail} Free up space or choose a "
             "folder on an external drive, then try again.")
+
+
+async def _will_encrypt(lockdown) -> bool:
+    """Whether the iPhone's backups are encrypted (its "Encrypt local backup" setting)."""
+    from pymobiledevice3.exceptions import MissingValueError
+
+    try:
+        return bool(await lockdown.get_value("com.apple.mobile.backup", "WillEncrypt"))
+    except MissingValueError:
+        # An iPhone that has never been asked for an encrypted backup has no WillEncrypt
+        # value, and lockdown answers "MissingValue", which the app showed as
+        # "No such value." (OE-12).
+        return False
 
 
 class DeviceBackupManager:
@@ -699,6 +779,9 @@ class DeviceBackupManager:
                 "passcode, keep it unlocked while the backup starts, then click Retry."
             ) from e
         except NotEnoughDiskSpaceError as e:
+            if _IPHONE_FULL_RE.search(str(e)):
+                _dev_log(f"the iPhone has no room for its backup snapshot: {e}")
+                raise RuntimeError(_IPHONE_FULL) from e
             # The device compares its backup size against the free space we report
             # and refuses when it won't fit. pymobiledevice3 11.x says how many bytes
             # it needed and how many we reported (on macOS that figure counts
@@ -741,12 +824,16 @@ class DeviceBackupManager:
                 raise RuntimeError(_DEVICE_DISCONNECTED) from e
             # Still locked after the retry: a step for the user, not pymobiledevice3's
             # "please report it" text.
-            if not _is_backup_lock_error(e):
+            if _is_backup_lock_error(e):
+                raise RuntimeError(
+                    "PASSCODE_REQUIRED: Your iPhone was locked when the backup started. Unlock it, "
+                    "enter your passcode when it asks, keep it unlocked, then click Retry."
+                ) from e
+            message = _backup_error_message(e, output_dir)
+            if message is None:
                 raise
-            raise RuntimeError(
-                "PASSCODE_REQUIRED: Your iPhone was locked when the backup started. Unlock it, "
-                "enter your passcode when it asks, keep it unlocked, then click Retry."
-            ) from e
+            _dev_log(f"backup failed: {e!r}")
+            raise RuntimeError(message) from e
         actual_backup_path = self._resolve_backup_path(output_dir, udid)
         _dev_log(f"backup complete. output_dir={output_dir!r} resolved={actual_backup_path!r}")
         return {"success": True, "backup_path": actual_backup_path}
@@ -827,7 +914,7 @@ class DeviceBackupManager:
         # Check whether backup encryption is already configured on the device.
         # If it is, the backup will use the stored password and no password
         # change (or extra passcode prompt) is needed.
-        already_encrypted = await lockdown.get_value("com.apple.mobile.backup", "WillEncrypt") or False
+        already_encrypted = await _will_encrypt(lockdown)
         print(f"[encryption] WillEncrypt={already_encrypted}", file=sys.stderr, flush=True)
         if already_encrypted:
             print("[encryption] already enabled, skipping change_password", file=sys.stderr, flush=True)
@@ -856,7 +943,7 @@ class DeviceBackupManager:
             raise
 
         # Verify encryption was actually enabled
-        will_encrypt_now = await lockdown.get_value("com.apple.mobile.backup", "WillEncrypt") or False
+        will_encrypt_now = await _will_encrypt(lockdown)
         print(f"[encryption] post-change WillEncrypt={will_encrypt_now}", file=sys.stderr, flush=True)
         if not will_encrypt_now:
             print("[encryption] WARNING: WillEncrypt still False after change_password", file=sys.stderr, flush=True)

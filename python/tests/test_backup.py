@@ -52,6 +52,7 @@ def _make_pymobiledevice3_stub():
     pkg.exceptions.ConnectionTerminatedError = type("ConnectionTerminatedError", (Exception,), {})
     pkg.exceptions.PasswordRequiredError = type("PasswordRequiredError", (Exception,), {})
     pkg.exceptions.NotEnoughDiskSpaceError = type("NotEnoughDiskSpaceError", (Exception,), {})
+    pkg.exceptions.MissingValueError = type("MissingValueError", (Exception,), {})
     pkg.exceptions.PairingDialogResponsePendingError = type("PairingDialogResponsePendingError", (Exception,), {})
     pkg.exceptions.UserDeniedPairingError = type("UserDeniedPairingError", (Exception,), {})
 
@@ -639,6 +640,28 @@ class TestStartBackup(unittest.TestCase):
         # and backup() once.  We use a shared mb2 mock so both calls are visible.
         self.assertTrue(mb2.change_password.called or mb2.backup.called)
 
+    def test_encryption_never_set_on_the_iphone_is_turned_on(self):
+        """An iPhone that has no WillEncrypt value at all gets encryption turned on (OE-12)."""
+        lockdown = _make_lockdown_mock()
+        lockdown.get_value = AsyncMock(side_effect=_stub.exceptions.MissingValueError("MissingValue"))
+        mb2 = self._make_mb2_mock()
+
+        with (
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
+            patch("pymobiledevice3.services.mobilebackup2.Mobilebackup2Service", return_value=mb2),
+        ):
+            result = self.manager.start_backup(
+                udid="abc-123",
+                output_dir="/tmp/test_enc_backup",
+                encrypted=True,
+                password="s3cr3t",
+                notify=self.notify,
+            )
+
+        self.assertTrue(result["success"])
+        mb2.change_password.assert_awaited_once_with(backup_directory="/tmp/test_enc_backup", old="", new="s3cr3t")
+        mb2.backup.assert_awaited_once()
+
     def test_backup_error_propagates(self):
         """Exceptions from the backup service should propagate to the caller."""
         lockdown = _make_lockdown_mock()
@@ -957,6 +980,72 @@ class TestStartBackup(unittest.TestCase):
             "Not enough free space for this backup. Free up space or choose a folder on an "
             "external drive, then try again.",
         )
+
+    def test_iphone_with_no_room_for_its_snapshot_is_not_blamed_on_the_drive(self):
+        """The iPhone's own storage being full says so, whatever the drive has free (OE-10)."""
+        mb2 = self._make_mb2_mock()
+        mb2.backup.side_effect = _stub.exceptions.NotEnoughDiskSpaceError(
+            "Device refused the backup: {'ErrorCode': 105, 'ErrorDescription': 'Failed to create "
+            "snapshot: No space left on device (28) at path \"/private/var\" (MBErrorDomain/105)', "
+            "'MessageName': 'Response'}. The device counts every hardlink and clone at full size."
+        )
+        free = MagicMock(free=961_000_000_000)
+        with patch("device_backup.shutil.disk_usage", return_value=free):
+            with self.assertRaises(RuntimeError) as ctx:
+                self._run_backup_with(mb2)
+        msg = str(ctx.exception)
+        self.assertTrue(msg.startswith("Your iPhone is too full to make a backup"), msg)
+        self.assertNotIn("drive", msg)
+
+    def test_device_errors_get_a_step_instead_of_please_report_it(self):
+        """Errors 104 and 205 tell the user what to do, in either pymobiledevice3 wording (OE-6, OE-8)."""
+        cases = {
+            104: ("Multiple errors uploading files (MBErrorDomain/104)", "couldn't send some of its files"),
+            205: ("Error reading backup manifest properties (MBErrorDomain/205). Underlying error: Error "
+                  "deserializing properties: Cannot parse a NULL or zero-length data (MBErrorDomain/11).",
+                  "unfinished backup of this iPhone"),
+        }
+        for code, (description, expected) in cases.items():
+            for wording in ("The device reported an error", "Device link error"):
+                mb2 = self._make_mb2_mock()
+                mb2.backup.side_effect = Exception(
+                    f"{wording}: {{'ErrorCode': {code}, 'ErrorDescription': '{description}', "
+                    "'MessageName': 'Response'}.\nPlease report it at "
+                    "https://github.com/doronz88/pymobiledevice3/issues, with the output of the same "
+                    "command run with -v (`pymobiledevice3 -v ...`), so support for it can be added."
+                )
+                with self.assertRaises(RuntimeError) as ctx:
+                    self._run_backup_with(mb2)
+                msg = str(ctx.exception)
+                self.assertIn(expected, msg, (code, wording))
+                self.assertNotIn("Please report", msg)
+
+    def test_files_the_backup_folder_wont_give_up_get_a_step(self):
+        """Access denied or a missing file inside the backup folder say what to do (OE-11, OE-6)."""
+        import os
+
+        snapshot = os.path.join("/tmp/test_backup", "abc-123", "Snapshot", "00")
+        cases = (
+            (PermissionError(13, "Access is denied", snapshot), "wasn't allowed to change a file"),
+            (FileNotFoundError(2, "No such file or directory", snapshot), "unfinished backup of this iPhone"),
+        )
+        for error, expected in cases:
+            mb2 = self._make_mb2_mock()
+            mb2.backup.side_effect = error
+            with self.assertRaises(RuntimeError) as ctx:
+                self._run_backup_with(mb2)
+            self.assertIn(expected, str(ctx.exception))
+
+    def test_unknown_errors_and_files_outside_the_backup_folder_pass_through(self):
+        for error in (
+            Exception("The device reported an error: {'ErrorCode': 999, 'ErrorDescription': 'new'}"),
+            PermissionError(13, "Access is denied", "/somewhere/else/pair_record.plist"),
+            FileNotFoundError(2, "No such file or directory"),
+        ):
+            mb2 = self._make_mb2_mock()
+            mb2.backup.side_effect = error
+            with self.assertRaises(type(error)):
+                self._run_backup_with(mb2)
 
     def test_disk_full_message_never_shows_equal_or_zero_sizes(self):
         self.assertIn(
