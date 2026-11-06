@@ -16,6 +16,9 @@ const page = fs.readFileSync(PAGE, 'utf8');
 
 test('the page shows the known fixes as they are now', () => {
   assert.ok(buildPage(page) === page, 'website/static/fixes.html is out of date: run `node scripts/build-fixes-page.mjs`');
+  // A Windows checkout can have CRLF line endings, which mustn't count as out of date.
+  const crlf = page.replace(/\r?\n/g, '\r\n');
+  assert.ok(buildPage(crlf) === crlf, 'CRLF line endings make the page look out of date');
 });
 
 test('every known fix has what the page needs', () => {

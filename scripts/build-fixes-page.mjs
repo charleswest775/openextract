@@ -76,9 +76,15 @@ function replaceBetween(html, name, content) {
   return html.replace(re, (_, start, end) => `${start}\n${content}${end}`);
 }
 
-/** The page with its generated parts brought up to date. */
+/**
+ * The page with its generated parts brought up to date, in the page's own line endings: a
+ * Windows checkout can turn them into CRLF.
+ */
 export function buildPage(html, fixes = KNOWN_FIXES) {
-  return replaceBetween(replaceBetween(html, 'fixes-data', renderStructuredData(fixes)), 'fixes', renderFixes(fixes));
+  const eol = html.includes('\r\n') ? '\r\n' : '\n';
+  const lf = html.replace(/\r\n/g, '\n');
+  return replaceBetween(replaceBetween(lf, 'fixes-data', renderStructuredData(fixes)), 'fixes', renderFixes(fixes))
+    .replace(/\n/g, eol);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
