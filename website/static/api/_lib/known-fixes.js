@@ -37,6 +37,22 @@ const KNOWN_FIXES = [
     text: 'macOS keeps iPhone backups in a protected folder. Open System Settings > Privacy & Security > Full Disk Access, turn on OpenExtract, then quit and reopen OpenExtract.',
   },
   {
+    id: 'iphone-full',
+    title: 'Your iPhone needs free space to make a backup',
+    // The iPhone's own refusal (MBErrorDomain/105), in the engine log; up to 0.10.1 the app
+    // blamed the backup drive for it (OE-10). Later versions say "Your iPhone is too full …".
+    match: /Failed to create snapshot|iPhone is too full to make a backup/,
+    text: 'Your iPhone itself is too full to make a backup, however much space the computer or drive has: it needs some free space of its own to prepare one. On the iPhone, open Settings > General > iPhone Storage, delete or offload what you don\'t need, then try the backup again.',
+  },
+  {
+    id: 'encrypted-backup-no-such-value',
+    title: 'Encrypted backups of some iPhones',
+    // python/device_backup.py up to 0.10.1, when an iPhone has never made an encrypted backup:
+    // pymobiledevice3's MissingValueError (OE-12).
+    match: /No such value\./,
+    text: 'OpenExtract 0.10.1 and earlier can\'t make an encrypted backup of an iPhone that has never made one. Until an update fixes it, turn off "Encrypt backup" and try again. An unencrypted backup leaves out some data, such as saved passwords and Health data.',
+  },
+  {
     id: 'windows-apple-devices',
     title: 'Windows needs Apple Devices to find an iPhone',
     // python/device_backup.py when it can't reach Apple's device service. Up to 0.10.0 it said

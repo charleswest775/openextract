@@ -462,6 +462,32 @@ const REAL_ERRORS = [
     reportedError: 'No iPhone backups found in /Users/jane/Desktop/iPhone stuff. Pick the parent folder that contains a UDID-named subfolder (e.g. MobileSync/Backup).',
   },
   { fix: 'backup-password', errors: [['open_backup', WRONG_PASSWORD]] },
+  // The iPhone's own storage full, which 0.10.1 blamed on the drive (OE-10).
+  {
+    fix: 'iphone-full',
+    area: 'create_backup',
+    details: "its says 960 Gigs of free space isn't enough on my external drive??",
+    errors: [['backup.start', 'Not enough free space for this backup. The drive you chose only has 961 GB free. Free up space or choose a folder on an external drive, then try again.']],
+    log: [
+      '[RPC ERROR] backup.start: Traceback (most recent call last):',
+      '  File "device_backup.py", line 654, in _run_backup',
+      "pymobiledevice3.exceptions.NotEnoughDiskSpaceError: Device refused the backup: {'ErrorCode': 105, 'ErrorDescription': 'Failed to create snapshot: No space left on device (28) at path \"/private/var\" (MBErrorDomain/105)', 'MessageName': 'Response'}. The device counts every hardlink and clone at full size, because each is stored as a separate file in the backup, so this can far exceed the data stored on the device.",
+      '',
+      'The above exception was the direct cause of the following exception:',
+      '',
+      'Traceback (most recent call last):',
+      '  File "main.py", line 509, in backup_start',
+      'RuntimeError: Not enough free space for this backup. The drive you chose only has 961 GB free. Free up space or choose a folder on an external drive, then try again.',
+    ].join('\n'),
+  },
+  // python/device_backup.py _IPHONE_FULL, from the version after 0.10.1.
+  {
+    fix: 'iphone-full',
+    area: 'create_backup',
+    errors: [['backup.start', 'Your iPhone is too full to make a backup: it needs some free space of its own to prepare one. Free up space on the iPhone (Settings > General > iPhone Storage shows what takes the most), then try again.']],
+  },
+  // pymobiledevice3's MissingValueError for an iPhone that never made an encrypted backup (OE-12).
+  { fix: 'encrypted-backup-no-such-value', os: WINDOWS, area: 'create_backup', errors: [['backup.start', 'No such value.']] },
   // python/device_backup.py _device_service_error() on Windows without Apple Devices or iTunes.
   { fix: 'windows-apple-devices', os: WINDOWS, errors: [['backup.list_devices', WINDOWS_NO_DEVICE_SERVICE]] },
   // The same in 0.10.0, pasted into the report by hand (OE-4).
