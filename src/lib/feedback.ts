@@ -15,6 +15,8 @@ import type { FeedbackDiagnostics } from '../types';
 export const FEEDBACK_REPO = 'charleswest775/openextract';
 export const FEEDBACK_TEMPLATE = 'in_app_feedback.yml';
 export const PRIVACY_URL = 'https://www.openextract.app/privacy#feedback';
+/** Fixes for common problems, made from the same list as the answers a sent report gets (website/static/fixes.html). */
+export const FIXES_URL = 'https://www.openextract.app/fixes';
 
 /** Random code the site keeps a hash of, so only this computer can look the report up later. */
 export function newReportToken(): string {

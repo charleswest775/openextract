@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { MessageSquare } from 'lucide-react';
 import {
-  FEEDBACK_AREAS, FEEDBACK_KINDS, PRIVACY_URL, formatDiagnostics, fullReport, githubIssueUrl, newReportToken,
+  FEEDBACK_AREAS, FEEDBACK_KINDS, FIXES_URL, PRIVACY_URL, formatDiagnostics, fullReport, githubIssueUrl, newReportToken,
   type FeedbackArea, type FeedbackForm, type FeedbackKind, type FeedbackRequest,
 } from '../../lib/feedback';
 import type { KnownFix } from '../../types';
@@ -34,7 +34,10 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Small link for error messages: opens the form with the error and area filled in. */
+/**
+ * Small links for error messages: one opens the form with the error and area filled in, the
+ * other the fixes for common problems on openextract.app, so people can try those first.
+ */
 export function ReportProblemButton({ error, area, className = '' }: {
   error?: string | null;
   area: FeedbackArea;
@@ -42,13 +45,23 @@ export function ReportProblemButton({ error, area, className = '' }: {
 }) {
   const { openFeedback } = useFeedback();
   return (
-    <button
-      type="button"
-      className={`text-xs text-accent hover:underline ${className}`}
-      onClick={() => openFeedback({ kind: 'broken', area, error: error ?? undefined })}
-    >
-      Report this problem
-    </button>
+    <span className={`inline-block text-xs ${className}`}>
+      <button
+        type="button"
+        className="text-accent hover:underline"
+        onClick={() => openFeedback({ kind: 'broken', area, error: error ?? undefined })}
+      >
+        Report this problem
+      </button>
+      <span className="text-text-secondary" aria-hidden="true"> · </span>
+      <button
+        type="button"
+        className="text-accent hover:underline"
+        onClick={() => window.openextract.openExternal(FIXES_URL)}
+      >
+        Common fixes
+      </button>
+    </span>
   );
 }
 

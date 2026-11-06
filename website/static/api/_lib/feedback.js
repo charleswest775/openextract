@@ -129,7 +129,8 @@ function matchKnownFixes(report, fixes = KNOWN_FIXES) {
   return fixes
     .filter(f => f.match.test(text) && (!f.when || f.when.test(text)))
     .slice(0, 2)
-    .map(f => ({ id: f.id, title: f.title, text: f.text, ...(f.url ? { url: f.url } : {}) }));
+    // Each fix has its own section on the "Fixes for common problems" page (website/static/fixes.html).
+    .map(f => ({ id: f.id, title: f.title, text: f.text, url: f.url || `https://www.openextract.app/fixes#${f.id}` }));
 }
 
 /** Where a report stands, from its issue. Labels win over open/closed so a fix can be marked before closing. */
