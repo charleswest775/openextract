@@ -9,6 +9,11 @@ name: CI
 #           performance budgets, and no network traffic
 # Installers are tested by installers.yml, release candidates by prerelease-check.yml.
 # Hosted runners only: this repo is public, and a self-hosted runner would run fork PRs' code.
+#
+# macOS runs all of its layers in one job, e2e (macos-latest), so each run asks for one macOS
+# runner instead of three. GitHub's macOS arm64 runners are short on capacity, and a job that
+# waits too long for one is dropped ("The job was not acquired by Runner of type hosted"),
+# which failed PRs whose code was fine.
 
 on:
   pull_request:
@@ -53,7 +58,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # macOS: in e2e (macos-latest), see the top of this file.
+        os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     defaults:
@@ -96,7 +102,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # macOS: in e2e (macos-latest), see the top of this file.
+        os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     defaults:
@@ -196,6 +203,7 @@ jobs:
           npm install --no-save --no-audit --no-fund playwright-core@1.59.1
 
       - name: Install the engine's Python dependencies
+        id: engine-deps
         run: |
           git clone --depth=1 https://github.com/charleswest775/ios-backup-core.git "$GITHUB_WORKSPACE/../ios-backup-core"
           (cd python && pip install -r requirements.txt)
@@ -226,6 +234,30 @@ jobs:
           else
             node scripts/e2e/run.mjs --backups e2e-backups.json --out e2e-out
           fi
+
+      # macOS only: the js and python jobs' tests, here so macOS needs one runner per run.
+      # They run even when End to end fails, so one failure doesn't hide another.
+      - name: JS tests (macOS)
+        if: ${{ !cancelled() && runner.os == 'macOS' && steps.engine-deps.outcome == 'success' }}
+        env:
+          OPENEXTRACT_TEST_PYTHON: ${{ env.OPENEXTRACT_PYTHON }}
+        run: npm test
+
+      - name: Python tests (macOS)
+        if: ${{ !cancelled() && runner.os == 'macOS' && steps.engine-deps.outcome == 'success' }}
+        env:
+          PYTHONUTF8: '1'
+          OPENEXTRACT_REQUIRE_GENERATED: '1'
+        run: |
+          pip install pytest
+          pytest python/tests/ -v
+
+      - name: Corpus tests on generated backups (macOS)
+        if: ${{ !cancelled() && runner.os == 'macOS' && steps.engine-deps.outcome == 'success' }}
+        env:
+          PYTHONUTF8: '1'
+          OPENEXTRACT_REQUIRE_GENERATED: '1'
+        run: pytest python/tests/corpus -m corpus -v
 
       # Screenshots and PDFs of the fictional maren and einstein backups only.
       - name: Upload results
