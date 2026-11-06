@@ -87,6 +87,13 @@ export async function launch(target, { profile, extraArgs = [], env = {} } = {})
   }
   const t0 = performance.now();
   const app = await electron.launch(options);
+  // Links the app opens in the browser are recorded instead (globalThis.__opened, read with
+  // App.opened()): a real browser would open on the tester's screen, and on Linux the one it
+  // starts keeps the app from closing, so the run hangs.
+  await app.evaluate(({ shell }) => {
+    globalThis.__opened = [];
+    shell.openExternal = async url => { globalThis.__opened.push(['external', url]); };
+  });
   const page = await app.firstWindow();
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
@@ -114,6 +121,9 @@ export class App {
   }
 
   async close() { await this.app.close().catch(() => {}); }
+
+  /** What the app asked the shell to open since the last call, as [kind, target] pairs. */
+  opened() { return this.app.evaluate(() => globalThis.__opened.splice(0)); }
 
   eval(fn, arg) { return this.page.evaluate(fn, arg); }
 

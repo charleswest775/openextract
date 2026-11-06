@@ -32,6 +32,8 @@ export default {
       const r = await app.openBackup(notBackup);
       check('a folder without a backup is refused with a clear message', !r.opened && /No iPhone backups found/.test(r.error ?? ''), r);
       await app.eval(() => [...document.querySelectorAll('[role=alert] button')].forEach(b => b.click()));
+      const links = await app.opened();
+      check('the message links to the fixes for common problems', links.some(([kind, url]) => kind === 'external' && url === 'https://www.openextract.app/fixes'), links);
 
       // Cancelling the folder picker does nothing.
       await app.cancelDialogs();
