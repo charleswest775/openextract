@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-11-06
+
 ### Changed
 - macOS and Linux: OpenExtract can open a backup as soon as its window appears. Its engine used to unpack itself into a temporary folder every time it started, which could keep you waiting several seconds more on a Mac. It now comes as a folder, as it already did on Windows, and starts in a fraction of a second
 
