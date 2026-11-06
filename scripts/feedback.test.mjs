@@ -486,8 +486,52 @@ const REAL_ERRORS = [
     area: 'create_backup',
     errors: [['backup.start', 'Your iPhone is too full to make a backup: it needs some free space of its own to prepare one. Free up space on the iPhone (Settings > General > iPhone Storage shows what takes the most), then try again.']],
   },
+  // python/device_backup.py _disk_full_message() when the iPhone said how much room it needs.
+  {
+    fix: 'backup-drive-full',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', 'Not enough free space for this backup. It needs more than 118 GB free, but the drive you chose has 62 GB free. Free up space or choose a folder on an external drive, then try again.']],
+  },
   // pymobiledevice3's MissingValueError for an iPhone that never made an encrypted backup (OE-12).
   { fix: 'encrypted-backup-no-such-value', os: WINDOWS, area: 'create_backup', errors: [['backup.start', 'No such value.']] },
+  // MBErrorDomain/104 as 0.10.1 showed it (OE-6, OE-8), and as later versions word it.
+  {
+    fix: 'iphone-could-not-send-files',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', "The device reported an error: {'ErrorCode': 104, 'ErrorDescription': 'Multiple errors uploading files (MBErrorDomain/104)', 'MessageName': 'Response'}.\nPlease report it at https://github.com/doronz88/pymobiledevice3/issues, with the output of the same command run with -v (`pymobiledevice3 -v ...`), so support for it can be added."]],
+  },
+  {
+    fix: 'iphone-could-not-send-files',
+    area: 'create_backup',
+    errors: [['backup.start', "Your iPhone couldn't send some of its files. Restart your iPhone, plug it back in, then try again."]],
+  },
+  // MBErrorDomain/205 after an earlier try stopped partway (OE-6), and the later wording.
+  {
+    fix: 'unfinished-backup-folder',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', "The device reported an error: {'ErrorCode': 205, 'ErrorDescription': 'Error reading backup manifest properties (MBErrorDomain/205). Underlying error: Error deserializing properties: Cannot parse a NULL or zero-length data (MBErrorDomain/11).', 'MessageName': 'Response'}."]],
+  },
+  {
+    fix: 'unfinished-backup-folder',
+    area: 'create_backup',
+    errors: [['backup.start', "The folder you chose has an unfinished backup of this iPhone from an earlier try, and the iPhone can't continue it. Choose a new, empty folder, then try again."]],
+  },
+  // Windows refusing to let the backup tidy up its own files (OE-11), and the later wording.
+  {
+    fix: 'backup-folder-access-denied',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', "[WinError 5] Access is denied: 'D:\\\\iPhone backups\\\\00008030-001A2B3C4D5E6F70\\\\Snapshot\\\\00'"]],
+  },
+  {
+    fix: 'backup-folder-access-denied',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', "OpenExtract wasn't allowed to change a file in the backup folder. This can happen when another program, such as OneDrive or antivirus software, is using it. Choose a new, empty folder outside OneDrive or other synced folders, then try again."]],
+  },
   // python/device_backup.py _device_service_error() on Windows without Apple Devices or iTunes.
   { fix: 'windows-apple-devices', os: WINDOWS, errors: [['backup.list_devices', WINDOWS_NO_DEVICE_SERVICE]] },
   // The same in 0.10.0, pasted into the report by hand (OE-4).

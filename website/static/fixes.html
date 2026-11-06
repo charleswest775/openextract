@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Fixes for common OpenExtract problems — OpenExtract</title>
+  <meta name="description" content="What to do when OpenExtract shows an error: making an iPhone backup on Windows or Mac, opening a backup, encrypted backup passwords, and more. Find the words you see." />
+  <link rel="canonical" href="https://www.openextract.app/fixes" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.openextract.app/fixes" />
+  <meta property="og:title" content="Fixes for common OpenExtract problems" />
+  <meta property="og:description" content="What to do when OpenExtract shows an error, from making an iPhone backup to opening one. Find the words you see." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <!-- fixes-data:start -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "name": "Fixes for common OpenExtract problems",
+    "url": "https://www.openextract.app/fixes",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Part of OpenExtract didn't start",
+        "url": "https://www.openextract.app/fixes#engine-did-not-start",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Quit OpenExtract and open it again. If it still can't open backups, download the latest version from openextract.app and install it over this one. On Windows, security software (Windows Security, Smart App Control or an antivirus) can stop part of OpenExtract from running: check it for a recent alert about OpenExtract."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "The password for an encrypted backup",
+        "url": "https://www.openextract.app/fixes#backup-password",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "An encrypted backup uses the password you chose for backups in Finder or iTunes. It isn't your iPhone passcode or your Apple Account password. If you can't remember it, it can't be recovered, but you can remove it on the iPhone: Settings > General > Transfer or Reset iPhone > Reset > Reset All Settings. That keeps your data but resets settings such as Wi-Fi passwords and wallpaper. Then make a new encrypted backup with a new password."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "macOS needs to allow access",
+        "url": "https://www.openextract.app/fixes#mac-full-disk-access",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "macOS keeps iPhone backups in a protected folder. Open System Settings > Privacy & Security > Full Disk Access, turn on OpenExtract, then quit and reopen OpenExtract."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Your iPhone needs free space to make a backup",
+        "url": "https://www.openextract.app/fixes#iphone-full",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Your iPhone itself is too full to make a backup, however much space the computer or drive has: it needs some free space of its own to prepare one. (OpenExtract 0.10.1 and earlier said the drive was too small instead.) On the iPhone, open Settings > General > iPhone Storage, delete or offload what you don't need, then try the backup again."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "The backup needs more space than the drive has",
+        "url": "https://www.openextract.app/fixes#backup-drive-full",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The drive you chose doesn't have room for the backup. A backup can need much more space than your iPhone shows as used, because the iPhone counts some files more than once. Choose a folder on a drive with more free space, such as an external drive, or free up space on this one, then try again."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Encrypted backups of some iPhones",
+        "url": "https://www.openextract.app/fixes#encrypted-backup-no-such-value",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "OpenExtract 0.10.1 and earlier can't make an encrypted backup of an iPhone that has never made one. Install the latest version from openextract.app. If you can't update yet, turn off \"Encrypt backup\" and try again; an unencrypted backup leaves out some data, such as saved passwords and Health data."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Your iPhone couldn't send some of its files",
+        "url": "https://www.openextract.app/fixes#iphone-could-not-send-files",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The iPhone couldn't read or send some of its files during the backup. Restart your iPhone, plug it back in, unlock it, then try the backup again."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "An unfinished backup in the folder",
+        "url": "https://www.openextract.app/fixes#unfinished-backup-folder",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "An earlier backup into this folder stopped partway, and the iPhone can't continue it. Choose a new, empty folder and try again. Once the new backup has finished, you can delete the unfinished one."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "OpenExtract wasn't allowed to change the backup folder",
+        "url": "https://www.openextract.app/fixes#backup-folder-access-denied",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Another program may be using the backup folder: OneDrive and other cloud folders, and antivirus software, can hold on to files while they work. Choose a new, empty folder that isn't in OneDrive or another synced folder, close any window showing the old one, then try again."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Windows needs Apple Devices to find an iPhone",
+        "url": "https://www.openextract.app/fixes#windows-apple-devices",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "To find or back up an iPhone, Windows needs Apple Devices, Apple's free app (iTunes works too). Get Apple Devices from the Microsoft Store, open it once, then restart your PC. Then plug in your iPhone, unlock it, tap Trust if it asks, and click Refresh in OpenExtract. You don't need it to open backups you already have."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Choosing the backups folder",
+        "url": "https://www.openextract.app/fixes#no-backups-found",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Choose the folder that holds your backups, not one backup inside it. If a backup you were making with OpenExtract didn't finish, there's nothing to open yet: make the backup again first. On a Mac it's Library/Application Support/MobileSync/Backup in your user folder. On Windows it's usually Apple/MobileSync/Backup in your user folder, or AppData/Roaming/Apple Computer/MobileSync/Backup."
+        }
+      }
+    ]
+  }
+  </script>
+  <!-- fixes-data:end -->
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Help</div>
+    <h1>Fixes for common <span class="it">problems</span>.</h1>
+    <p class="page-head__lede">If OpenExtract shows an error, look for its words below. Each problem says what the app shows and what to do about it. On a computer, Ctrl+F (Cmd+F on a Mac) finds the words fast.</p>
+  </header>
+
+  <section class="prose fixes">
+    <div class="prose__inner">
+      <!-- fixes:start -->
+      <h2 id="backup">Backing up an iPhone</h2>
+      <div class="fix" id="iphone-full">
+        <h3>Your iPhone needs free space to make a backup</h3>
+        <p class="fix__seen">What you see: <code>Your iPhone is too full to make a backup</code></p>
+        <p>Your iPhone itself is too full to make a backup, however much space the computer or drive has: it needs some free space of its own to prepare one. (OpenExtract 0.10.1 and earlier said the drive was too small instead.) On the iPhone, open Settings &gt; General &gt; iPhone Storage, delete or offload what you don't need, then try the backup again.</p>
+      </div>
+      <div class="fix" id="backup-drive-full">
+        <h3>The backup needs more space than the drive has</h3>
+        <p class="fix__seen">What you see: <code>Not enough free space for this backup</code></p>
+        <p>The drive you chose doesn't have room for the backup. A backup can need much more space than your iPhone shows as used, because the iPhone counts some files more than once. Choose a folder on a drive with more free space, such as an external drive, or free up space on this one, then try again.</p>
+      </div>
+      <div class="fix" id="encrypted-backup-no-such-value">
+        <h3>Encrypted backups of some iPhones</h3>
+        <p class="fix__seen">What you see: <code>No such value.</code></p>
+        <p class="fix__status">Fixed in OpenExtract 0.10.2. <a href="/#download">Get the latest version</a>.</p>
+        <p>OpenExtract 0.10.1 and earlier can't make an encrypted backup of an iPhone that has never made one. Install the latest version from openextract.app. If you can't update yet, turn off &quot;Encrypt backup&quot; and try again; an unencrypted backup leaves out some data, such as saved passwords and Health data.</p>
+      </div>
+      <div class="fix" id="iphone-could-not-send-files">
+        <h3>Your iPhone couldn't send some of its files</h3>
+        <p class="fix__seen">What you see: <code>Your iPhone couldn't send some of its files</code> or <code>Multiple errors uploading files (MBErrorDomain/104)</code></p>
+        <p>The iPhone couldn't read or send some of its files during the backup. Restart your iPhone, plug it back in, unlock it, then try the backup again.</p>
+      </div>
+      <div class="fix" id="unfinished-backup-folder">
+        <h3>An unfinished backup in the folder</h3>
+        <p class="fix__seen">What you see: <code>unfinished backup of this iPhone from an earlier try</code> or <code>Error reading backup manifest properties (MBErrorDomain/205)</code></p>
+        <p>An earlier backup into this folder stopped partway, and the iPhone can't continue it. Choose a new, empty folder and try again. Once the new backup has finished, you can delete the unfinished one.</p>
+      </div>
+      <div class="fix" id="backup-folder-access-denied">
+        <h3>OpenExtract wasn't allowed to change the backup folder</h3>
+        <p class="fix__seen">What you see: <code>OpenExtract wasn't allowed to change a file in the backup folder</code> or <code>[WinError 5] Access is denied</code></p>
+        <p>Another program may be using the backup folder: OneDrive and other cloud folders, and antivirus software, can hold on to files while they work. Choose a new, empty folder that isn't in OneDrive or another synced folder, close any window showing the old one, then try again.</p>
+      </div>
+      <div class="fix" id="windows-apple-devices">
+        <h3>Windows needs Apple Devices to find an iPhone</h3>
+        <p class="fix__seen">What you see: <code>OpenExtract needs Apple Devices, Apple's free iPhone app for Windows</code> or <code>Cannot connect to Apple Mobile Device Service</code></p>
+        <p>To find or back up an iPhone, Windows needs Apple Devices, Apple's free app (iTunes works too). Get Apple Devices from the Microsoft Store, open it once, then restart your PC. Then plug in your iPhone, unlock it, tap Trust if it asks, and click Refresh in OpenExtract. You don't need it to open backups you already have.</p>
+      </div>
+
+      <h2 id="open">Opening a backup</h2>
+      <div class="fix" id="backup-password">
+        <h3>The password for an encrypted backup</h3>
+        <p class="fix__seen">What you see: <code>Incorrect password. Please try again.</code></p>
+        <p>An encrypted backup uses the password you chose for backups in Finder or iTunes. It isn't your iPhone passcode or your Apple Account password. If you can't remember it, it can't be recovered, but you can remove it on the iPhone: Settings &gt; General &gt; Transfer or Reset iPhone &gt; Reset &gt; Reset All Settings. That keeps your data but resets settings such as Wi-Fi passwords and wallpaper. Then make a new encrypted backup with a new password.</p>
+      </div>
+      <div class="fix" id="mac-full-disk-access">
+        <h3>macOS needs to allow access</h3>
+        <p class="fix__seen">What you see: <code>macOS is blocking OpenExtract from reading</code> or <code>Operation not permitted</code></p>
+        <p>macOS keeps iPhone backups in a protected folder. Open System Settings &gt; Privacy &amp; Security &gt; Full Disk Access, turn on OpenExtract, then quit and reopen OpenExtract.</p>
+      </div>
+      <div class="fix" id="no-backups-found">
+        <h3>Choosing the backups folder</h3>
+        <p class="fix__seen">What you see: <code>No iPhone backups found in</code></p>
+        <p>Choose the folder that holds your backups, not one backup inside it. If a backup you were making with OpenExtract didn't finish, there's nothing to open yet: make the backup again first. On a Mac it's Library/Application Support/MobileSync/Backup in your user folder. On Windows it's usually Apple/MobileSync/Backup in your user folder, or AppData/Roaming/Apple Computer/MobileSync/Backup.</p>
+      </div>
+
+      <h2 id="app">Starting OpenExtract</h2>
+      <div class="fix" id="engine-did-not-start">
+        <h3>Part of OpenExtract didn't start</h3>
+        <p class="fix__seen">What you see: <code>Python sidecar is not running</code></p>
+        <p>Quit OpenExtract and open it again. If it still can't open backups, download the latest version from openextract.app and install it over this one. On Windows, security software (Windows Security, Smart App Control or an antivirus) can stop part of OpenExtract from running: check it for a recent alert about OpenExtract.</p>
+      </div>
+      <!-- fixes:end -->
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2 id="not-here">Not here?</h2>
+      <p>Tell us from the app: click <strong>Report this problem</strong> next to the error, or open Settings and choose <strong>Report a problem or send feedback</strong>. You don't need an account. The report includes what went wrong, but never your messages, photos or other backup content, and you can read it before you send it. You'll get a reference number, and OpenExtract tells you in the app once the problem is fixed.</p>
+      <p>You can also <a href="https://github.com/charleswest775/openextract/issues">open an issue on GitHub</a>, where anyone can see it.</p>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Open your backup and look.</div>
+        <div class="cta-strip__sub">Free and open source. Mac · Windows · Linux. More in the <a href="/blog">blog</a>.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

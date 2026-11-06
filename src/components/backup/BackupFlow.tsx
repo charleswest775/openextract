@@ -332,7 +332,7 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
             ) : deviceError && (
               <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-600">
                 {deviceError}
-                <ReportProblemButton error={deviceError} area="create_backup" className="block mt-1.5" />
+                <div className="mt-1.5"><ReportProblemButton error={deviceError} area="create_backup" /></div>
               </div>
             )}
 
