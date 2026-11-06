@@ -9,15 +9,17 @@ A free, open-source iPhone backup extractor for Windows, Mac and Linux: read and
 
 **No cloud. No subscriptions. Your data stays on your computer.**
 
-[![OpenExtract's Overview of an iPhone backup: counts of messages, photos, contacts, calls, notes and voicemails, with the top conversations and photo stats.](website/static/img/screens/overview-1000.webp)](website/static/img/screens/overview-2000.webp)
+[![The home page of a sample iPhone backup in OpenExtract: tiles with counts of messages, photos, people, address book cards, calls, notes and voicemails, plus web history, timeline and year, under a search box for the whole backup.](website/static/img/screens/home-1000.webp)](website/static/img/screens/home-2000.webp)
 
 ## Features
 
+- 🔎 **Search** — One box searches messages, notes, calls, voicemail, people and web history, and opens the exact message
 - 💬 **Messages** — Browse iMessage/SMS conversations with chat-bubble UI
+- 👥 **People** — Everyone you were in touch with, with your messages, calls and voicemails together
 - 📷 **Photos & Videos** — Gallery view with thumbnails and bulk export
 - 📞 **Voicemail** — Listen to voicemails with caller ID
-- 📋 **Call History** — View calls with contact name resolution
-- 👤 **Contacts** — Browse and export your address book
+- 📋 **Calls** — View calls with contact name resolution
+- 👤 **Address book** — Browse and export your saved contact cards
 - 📝 **Notes** — Read and export your iOS notes
 - 🔒 **Encrypted Backups** — Full support for password-protected backups
 - 📤 **Export** — Save conversations as PDF, HTML, CSV, or plain text
@@ -39,52 +41,78 @@ These use a made-up test backup, so none of the people or messages are real. Cli
 <table>
   <tr>
     <td width="50%" valign="top">
-      <a href="website/static/img/screens/timeline-2000.webp"><img src="website/static/img/screens/timeline-1000.webp" width="100%" alt="The Timeline: messages, calls, photos, voicemails, notes and web visits in one list, newest first, with filters by type, person and date."></a>
-      <br><b>Timeline</b>: messages, calls, photos, voicemails, notes and web visits in one list, by date.
+      <a href="website/static/img/screens/search-2000.webp"><img src="website/static/img/screens/search-1000.webp" width="100%" alt="Search results for a word across the whole backup: notes, messages and web pages, with the first note previewed and every match highlighted."></a>
+      <br><b>Search</b>: one box searches messages, notes, calls, voicemail, people and web history.
     </td>
+    <td width="50%" valign="top">
+      <a href="website/static/img/screens/search-match-2000.webp"><img src="website/static/img/screens/search-match-1000.webp" width="100%" alt="A conversation opened from a search result at the matching message, with the word highlighted and arrows to step through the other matches."></a>
+      <br><b>Straight to the message</b>: a result opens the conversation at that exact message.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="website/static/img/screens/people-2000.webp"><img src="website/static/img/screens/people-1000.webp" width="100%" alt="A person's page in People: their messages, calls and voicemail in one list by date, with a link to their card in the address book."></a>
+      <br><b>People</b>: everyone you were in touch with, with your messages, calls and voicemails together.
+    </td>
+    <td width="50%" valign="top">
+      <a href="website/static/img/screens/address-book-2000.webp"><img src="website/static/img/screens/address-book-1000.webp" width="100%" alt="The Address book: saved cards with names, companies, phone numbers and emails, each linking to that person's history."></a>
+      <br><b>Address book</b>: the saved contact cards. Save them as vCard or CSV.
+    </td>
+  </tr>
+  <tr>
     <td width="50%" valign="top">
       <a href="website/static/img/screens/messages-2000.webp"><img src="website/static/img/screens/messages-1000.webp" width="100%" alt="A text conversation, including a photo of a lake sent in the thread."></a>
       <br><b>Messages</b>: read any conversation, with the photos that were sent in it.
     </td>
-  </tr>
-  <tr>
     <td width="50%" valign="top">
-      <a href="website/static/img/screens/group-chat-2000.webp"><img src="website/static/img/screens/group-chat-1000.webp" width="100%" alt="A group chat with each message labeled by who sent it and a mountain photo in the thread."></a>
+      <a href="website/static/img/screens/group-chat-2000.webp"><img src="website/static/img/screens/group-chat-1000.webp" width="100%" alt="A group chat with other people's messages labeled by who sent them and a mountain photo in the thread."></a>
       <br><b>Group chats</b>: group threads show who said what.
     </td>
-    <td width="50%" valign="top">
-      <a href="website/static/img/screens/photos-2000.webp"><img src="website/static/img/screens/photos-1000.webp" width="100%" alt="The Photos screen: a grid of landscape photos with the backup's albums listed alongside."></a>
-      <br><b>Photos</b>: the whole camera roll, with favorites starred.
-    </td>
   </tr>
   <tr>
+    <td width="50%" valign="top">
+      <a href="website/static/img/screens/photos-2000.webp"><img src="website/static/img/screens/photos-1000.webp" width="100%" alt="The Photos screen: a grid of landscape photos with favorites starred and the backup's albums listed alongside."></a>
+      <br><b>Photos</b>: the whole camera roll, with favorites starred.
+    </td>
     <td width="50%" valign="top">
       <a href="website/static/img/screens/album-2000.webp"><img src="website/static/img/screens/album-1000.webp" width="100%" alt="An album open, showing photos of hot springs, bison and waterfalls."></a>
       <br><b>Albums</b>: the albums made on the phone, kept as they were.
     </td>
-    <td width="50%" valign="top">
-      <a href="website/static/img/screens/contacts-2000.webp"><img src="website/static/img/screens/contacts-1000.webp" width="100%" alt="The Contacts screen: cards with each person's name, company, phone number and email."></a>
-      <br><b>Contacts</b>: the address book, with an Export vCard button.
-    </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <a href="website/static/img/screens/calls-2000.webp"><img src="website/static/img/screens/calls-1000.webp" width="100%" alt="The Calls screen: a table of calls with contact, date, duration, direction and the app used."></a>
-      <br><b>Call history</b>: every call with its date, length and direction, including FaceTime.
+      <a href="website/static/img/screens/calls-2000.webp"><img src="website/static/img/screens/calls-1000.webp" width="100%" alt="The Calls screen: a table of calls with who, when, how long, direction and the app used."></a>
+      <br><b>Calls</b>: every call with its date, length and direction, including FaceTime.
     </td>
+    <td width="50%" valign="top">
+      <a href="website/static/img/screens/voicemail-2000.webp"><img src="website/static/img/screens/voicemail-1000.webp" width="100%" alt="The Voicemail screen: saved voicemails, each with the caller, date and length, and one opened to play."></a>
+      <br><b>Voicemail</b>: saved voicemails with who called and when. Play them or save the audio.
+    </td>
+  </tr>
+  <tr>
     <td width="50%" valign="top">
       <a href="website/static/img/screens/notes-2000.webp"><img src="website/static/img/screens/notes-1000.webp" width="100%" alt="The Notes screen with a note listing national parks visited and planned."></a>
       <br><b>Notes</b>: read any Apple Note and save it as text or PDF.
     </td>
+    <td width="50%" valign="top">
+      <a href="website/static/img/screens/web-history-2000.webp"><img src="website/static/img/screens/web-history-1000.webp" width="100%" alt="Web history: Safari visits with a bar chart of the most visited sites."></a>
+      <br><b>Web history</b>: pages visited, the sites visited most, and the hours you browse.
+    </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <a href="website/static/img/screens/voicemail-2000.webp"><img src="website/static/img/screens/voicemail-1000.webp" width="100%" alt="The Voicemail screen: saved voicemails, each with the caller, date and length."></a>
-      <br><b>Voicemail</b>: saved voicemails with who called and when. Play them or export the audio.
+      <a href="website/static/img/screens/timeline-2000.webp"><img src="website/static/img/screens/timeline-1000.webp" width="100%" alt="The Timeline: messages, calls, photos, voicemails, notes and web visits in one list, newest first, with filters by type, person and date."></a>
+      <br><b>Timeline</b>: messages, calls, photos, voicemails, notes and web visits in one list, by date.
     </td>
     <td width="50%" valign="top">
-      <a href="website/static/img/screens/history-2000.webp"><img src="website/static/img/screens/history-1000.webp" width="100%" alt="Browser History: Safari visits with a bar chart of the most visited sites."></a>
-      <br><b>Browser history</b>: Safari visits, the sites visited most, and the hours you browse.
+      <a href="website/static/img/screens/year-2000.webp"><img src="website/static/img/screens/year-1000.webp" width="100%" alt="The Year view: one square per day, darker on busier days, with filters by type and person."></a>
+      <br><b>Year</b>: a whole year at a glance. Click a day to open it in the Timeline.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="website/static/img/screens/details-2000.webp"><img src="website/static/img/screens/details-1000.webp" width="100%" alt="Backup details: counts of messages, photos, address book cards, calls, notes and voicemails, messages sent and received, the top conversations and photo stats."></a>
+      <br><b>Backup details</b>: what the backup holds, who you message most, and when.
     </td>
   </tr>
 </table>
