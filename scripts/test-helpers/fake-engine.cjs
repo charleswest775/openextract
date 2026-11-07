@@ -69,6 +69,13 @@ const handlers = {
     line({ id, result: params.result ?? 'late' });
   },
 
+  // Block for params.ms, reading nothing else meanwhile, then answer. The real engine
+  // works on one call at a time, so this is how a long export looks to the client.
+  busy: (id, params) => {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, params.ms);
+    line({ id, result: { busy: params.ms } });
+  },
+
   error: (id, params) =>
     line({ id, error: params.message === undefined ? { code: -32000 } : { code: params.code ?? -32000, message: params.message } }),
 
