@@ -11,6 +11,7 @@ import re
 import sys
 import tempfile
 import unittest
+from datetime import timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from messages import _EVENT_FALLBACK, _EVENT_LABELS, MessageExtractor, _PrintAttachmentWriter  # noqa: E402
@@ -69,6 +70,7 @@ class TestEventLabels(unittest.TestCase):
 
     def setUp(self):
         self.ext = MessageExtractor.__new__(MessageExtractor)
+        self.ext.local_tz = timezone.utc
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.out = self.tmp.name
@@ -99,12 +101,12 @@ class TestEventLabels(unittest.TestCase):
     def test_txt_labels_each_type(self):
         result = self.ext._export_txt(_messages(), 1, self.out, "Mom")
         lines = _read(result["file"], "utf-8-sig").splitlines()
-        self.assertEqual(lines, [f"[2026-01-01T09:00:00+00:00] Alice: {label}" for label in EXPECTED.values()])
+        self.assertEqual(lines, [f"[Jan 1, 2026, 9:00 AM] Alice: {label}" for label in EXPECTED.values()])
 
     def test_merged_txt_labels_each_type(self):
         result = self.ext._export_merged_txt(_messages("Mom"), self.out)
         lines = _read(result["files"][0], "utf-8-sig").splitlines()
-        self.assertEqual(lines, [f"[2026-01-01T09:00:00+00:00] (from Mom) Alice: {label}"
+        self.assertEqual(lines, [f"[Jan 1, 2026, 9:00 AM] (from Mom) Alice: {label}"
                                  for label in EXPECTED.values()])
 
     def test_csv_text_column_labels_each_type(self):

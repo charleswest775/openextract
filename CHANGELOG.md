@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - Saving photos, or anything else, to this computer no longer fails with "Sidecar call timed out" when it takes longer than five minutes, as a big photo library can. Thumbnails you scroll to while it saves now show up when it's done instead of failing
 
+### Changed
+- Saved conversations get file names you can read: "Karin Lindqvist, Jul 5 2024 - Jun 21 2026.html" instead of "Karin_Lindqvist--240705091009-000000--260621170638-000000.html". One day reads "Karin Lindqvist, Jul 5 2024", and names keep their accents and emoji. Saving the same conversation again adds " (2)" to the new file instead of replacing the first one, as PDFs already did
+
+### Fixed
+- Saved messages show each time in your computer's time zone, written the way people read it: "Jul 5, 2024, 9:10 AM". They used to show it in UTC, as 2024-07-05T16:10:09+00:00, so in California a message sent at 9:10 in the morning read 16:10, and an evening message could land on the next day. Web pages and PDFs show each day's date once, above its first message, like the conversation in the app. In a spreadsheet (CSV), the Date column keeps its exact form with your time zone added: 2024-07-05T09:10:09-07:00
+
 ## [0.10.2] - 2026-11-06
 
 ### Changed

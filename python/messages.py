@@ -28,6 +28,7 @@ import os
 import re
 import shutil
 import uuid
+from datetime import datetime
 from typing import Optional
 from urllib.parse import quote
 
@@ -82,9 +83,27 @@ _ATTACHMENT_CSS = """.msg img { display: block; max-width: 100%; max-height: 420
   .msg img { max-height: 360px; }
   .sent { margin-left: auto; }
   .received { margin-right: auto; }
-  .meta, .sender { break-after: avoid; }
+  .day, .meta, .sender { break-after: avoid; }
 }
 """
+
+# Month names for the dates in exports, written out so the computer's
+# language settings can't change them (strftime's %b follows the locale).
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+# What can't go in an export's file name: characters Windows refuses (macOS
+# only refuses "/" and ":"), control characters, and the invisible marks that
+# reverse the direction of text, which can disguise a name.
+_FILE_NAME_UNSAFE = r'[<>:"/\\|?*\x00-\x1f\x7f‪-‮⁦-⁩]'
+
+# Names Windows keeps for devices, with or without an extension ("CON.txt").
+_WINDOWS_DEVICE_NAMES = {"CON", "PRN", "AUX", "NUL",
+                         *(f"COM{n}" for n in range(1, 10)), *(f"LPT{n}" for n in range(1, 10))}
+
+# Longest conversation name kept in a file name, so the whole path stays well
+# inside Windows' 260-character limit.
+_FILE_NAME_MAX_NAME = 60
 
 # What exports write for a message with no text and no attachment file, by
 # the engine's message_type. The thread view (src/components/explore/
@@ -161,6 +180,15 @@ def _save_as_jpeg(src_path: str, dest_path: str, max_px: int) -> bool:
         return False
 
 
+def _without_lone_surrogates(text):
+    """A conversation name with half an emoji in it (a lone surrogate, which
+    JSON.stringify sends as "\\ud83c") can't be written as UTF-8, so the export
+    failed. Show that half as "�" instead."""
+    if not isinstance(text, str):
+        return text
+    return "".join("�" if "\ud800" <= ch <= "\udfff" else ch for ch in text)
+
+
 class MessageExtractor:
     """Adapter wrapping the ios-backup-core MessageExtractor.
 
@@ -169,6 +197,10 @@ class MessageExtractor:
     methods (txt/csv/html, separate/merged) inline because the library does
     not provide them.
     """
+
+    # Time zone exports show times in. None is the computer's own, as the
+    # app uses; tests set a fixed one.
+    local_tz = None
 
     def __init__(self):
         self._inner = _CoreMessageExtractor()
@@ -331,6 +363,7 @@ class MessageExtractor:
                             query: Optional[str] = None,
                             display_name: Optional[str] = None) -> dict:
         """Export a conversation to the specified format, with optional date/search filters."""
+        display_name = _without_lone_surrogates(display_name)
         all_messages = self._collect_messages_for_chat(
             backup, chat_id, contacts, date_from, date_to, query
         )
@@ -398,42 +431,105 @@ class MessageExtractor:
             escaped = escaped.replace("\r\n", "\n").replace("\n", "<br>")
         return escaped
 
-    def _get_filename_for_message_export(self, display_name, messages) -> str:
-        """Build a filesystem-safe base filename from the conversation name and the
-        date range of ``messages`` (which must be sorted oldest-first).
+    # ── Dates in exports ─────────────────────────────────────────────────────
+    # The engine gives each message's date in UTC ("2024-07-05T16:10:09+00:00").
+    # Exports show it in local time, the way the app's thread view does
+    # (src/lib/dates.ts): "Jul 5, 2024" for a day, "9:10 AM" for a time.
 
-        Returns "" when nothing usable can be built, so callers can fall back to
-        ``conversation_<chat_id>``.
+    def _local_datetime(self, iso) -> Optional[datetime]:
+        """A message's date in local time, or None if it has none we can read."""
+        if not iso:
+            return None
+        try:
+            return datetime.fromisoformat(iso).astimezone(self.local_tz)
+        except (TypeError, ValueError, OverflowError, OSError):
+            return None
+
+    @staticmethod
+    def _format_day(dt: datetime) -> str:
+        return f"{_MONTHS[dt.month - 1]} {dt.day}, {dt.year}"
+
+    @staticmethod
+    def _format_time(dt: datetime) -> str:
+        return f"{dt.hour % 12 or 12}:{dt.minute:02d} {'AM' if dt.hour < 12 else 'PM'}"
+
+    def _readable_date(self, iso) -> str:
+        """"Jul 5, 2024, 9:10 AM", for a TXT line that reads on its own."""
+        dt = self._local_datetime(iso)
+        if dt is None:
+            return iso or "Unknown date"
+        return f"{self._format_day(dt)}, {self._format_time(dt)}"
+
+    def _csv_date(self, iso) -> str:
+        """The date as ISO 8601 in local time with its offset, e.g.
+        "2024-07-05T09:10:09-07:00": the same moment as the engine's UTC
+        value, so programs read it exactly, and the clock time people expect."""
+        dt = self._local_datetime(iso)
+        return dt.isoformat() if dt is not None else (iso or "")
+
+    def _with_day_and_time(self, messages):
+        """Yield (msg, day, time) for an HTML export: day is "Jul 5, 2024" on
+        the first message of each local day and "" on the rest, time is
+        "9:10 AM". A message without a readable date gets its raw date."""
+        last_day = None
+        for msg in messages:
+            dt = self._local_datetime(msg.get("date"))
+            if dt is None:
+                yield msg, "", msg.get("date") or ""
+                continue
+            day = self._format_day(dt)
+            yield msg, ("" if day == last_day else day), self._format_time(dt)
+            last_day = day
+
+    def _get_filename_for_message_export(self, display_name, messages) -> str:
+        """File name, without extension, saying who a conversation is with and
+        which days it covers, in local time: "Karin Lindqvist, Jul 5 2024 -
+        Jun 21 2026", "Karin Lindqvist, Jul 5 2024" for one day, or just
+        "Karin Lindqvist" for no messages (a date filter that matched nothing).
+        ``messages`` must be sorted oldest-first.
+
+        Safe on Windows and macOS. Returns "" when the name has nothing usable,
+        so callers can fall back to ``conversation_<chat_id>``.
         """
-        from datetime import datetime
         import re
 
-        if not display_name:
+        name = " ".join(re.sub(_FILE_NAME_UNSAFE, " ", str(display_name or "")).split())
+        # A leading dot hides a file on a Mac, Windows drops trailing dots and
+        # spaces, and a trailing comma would double the one added below.
+        name = name[:_FILE_NAME_MAX_NAME].lstrip(". ").rstrip(" .,")
+        if not name:
             return ""
+        if name.split(".")[0].rstrip().upper() in _WINDOWS_DEVICE_NAMES:
+            name = f"_{name}"
 
-        # Collapse runs of whitespace/punctuation into a single underscore (Unicode safe).
-        sanit_name = re.sub(r'\W+', '_', str(display_name)).strip('_')[:50]
+        def first_date(msgs):
+            dates = (self._local_datetime(m.get("date")) for m in msgs)
+            return next((dt for dt in dates if dt is not None), None)
 
-        # Add from and to date, to get distinct file names for other ranges if exporting more often.
-        # Empty exports (e.g. a date filter with no matches) or missing dates just skip this.
-        date_part = ""
-        try:
-            date_format = "%y%m%d%H%M%S-%f"
-            from_date = datetime.fromisoformat(messages[0]["date"]).astimezone().strftime(date_format)
-            to_date = datetime.fromisoformat(messages[-1]["date"]).astimezone().strftime(date_format)
-            date_part = f"{from_date}--{to_date}"
-        except (IndexError, KeyError, TypeError, ValueError):
-            pass
+        first, last = first_date(messages), first_date(reversed(messages))
+        if first is None:
+            return name
+        days = [f"{_MONTHS[dt.month - 1]} {dt.day} {dt.year}" for dt in (first, last)]
+        return f"{name}, {days[0]}" if days[0] == days[1] else f"{name}, {days[0]} - {days[1]}"
 
-        return "--".join(p for p in (sanit_name, date_part) if p)
+    @staticmethod
+    def _unused_name(output_dir, base, ext) -> str:
+        """"Mom.txt", or "Mom (2).txt" if that exists, so saving again never
+        overwrites a file. The PDF export does the same (electron/pdfExport.ts)."""
+        name = f"{base}{ext}"
+        n = 2
+        while os.path.exists(os.path.join(output_dir, name)):
+            name = f"{base} ({n}){ext}"
+            n += 1
+        return name
 
     def _export_txt(self, messages, chat_id, output_dir, display_name = ""):
         base = self._get_filename_for_message_export(display_name, messages)
-        filename = f"{base or f'conversation_{chat_id}'}.txt"
+        filename = self._unused_name(output_dir, base or f"conversation_{chat_id}", ".txt")
         filepath = os.path.join(output_dir, filename)
         with open(filepath, "w", encoding="utf-8-sig") as f:
             for msg in messages:
-                date = msg["date"] or "Unknown date"
+                date = self._readable_date(msg["date"])
                 sender = msg["sender"]
                 text = self._message_text(msg) or "[No content]"
                 f.write(f"[{date}] {sender}: {text}\n")
@@ -441,14 +537,14 @@ class MessageExtractor:
 
     def _export_csv(self, messages, chat_id, output_dir, display_name = ""):
         base = self._get_filename_for_message_export(display_name, messages)
-        filename = f"{base or f'conversation_{chat_id}'}.csv"
+        filename = self._unused_name(output_dir, base or f"conversation_{chat_id}", ".csv")
         filepath = os.path.join(output_dir, filename)
         with open(filepath, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
             writer.writerow(["Date", "Sender", "Text", "Is From Me", "Has Attachments"])
             for msg in messages:
                 writer.writerow([
-                    msg["date"], msg["sender"], self._message_text(msg),
+                    self._csv_date(msg["date"]), msg["sender"], self._message_text(msg),
                     msg["is_from_me"], msg["has_attachments"]
                 ])
         return {"file": filepath, "message_count": len(messages)}
@@ -476,7 +572,7 @@ class MessageExtractor:
     def _export_html(self, messages, chat_id, output_dir, display_name = "",
                      attachments=None):
         base = self._get_filename_for_message_export(display_name, messages)
-        filename = f"{base or f'conversation_{chat_id}'}.html"
+        filename = self._unused_name(output_dir, base or f"conversation_{chat_id}", ".html")
         filepath = os.path.join(output_dir, filename)
         if attachments is not None:
             attachments.begin(filepath)
@@ -491,17 +587,19 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
 .sent {{ background: #007AFF; color: white; float: right; border-bottom-right-radius: 4px; }}
 .received {{ background: #E9E9EB; color: black; float: left; border-bottom-left-radius: 4px; }}
 .meta {{ font-size: 11px; color: #888; clear: both; text-align: center; margin: 12px 0 4px; }}
+.day {{ font-size: 12px; font-weight: 600; color: #555; clear: both; text-align: center; margin: 0 0 4px; padding-top: 24px; }}
 .sender {{ font-size: 11px; color: #666; margin-bottom: 2px; }}
 .conv-title {{ font-size: 18px; color: #333; margin-bottom: 20px; text-align: center; }}
 {_ATTACHMENT_CSS}</style></head><body>
 """)
             if safe_name:
                 f.write(f'<h1 class="conv-title">{safe_name}</h1>\n')
-            for msg in messages:
+            for msg, day, time in self._with_day_and_time(messages):
                 css_class = "sent" if msg["is_from_me"] else "received"
                 text = self._message_html(msg, attachments)
-                date = self._html_escape(msg["date"] or "")
-                f.write(f'<div class="meta">{date}</div>\n')
+                if day:
+                    f.write(f'<div class="day">{day}</div>\n')
+                f.write(f'<div class="meta">{self._html_escape(time)}</div>\n')
                 if not msg["is_from_me"]:
                     f.write(f'<div class="sender">{self._html_escape(msg["sender"])}</div>\n')
                 f.write(f'<div class="msg {css_class}">{text}</div>\n')
@@ -523,6 +621,7 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
         mode="merged"   — all messages in a single file, sorted by timestamp,
                           with explicit sender/recipient context on each line.
         """
+        conversation_names = {k: _without_lone_surrogates(v) for k, v in conversation_names.items()}
         if mode == "merged":
             return self._export_merged(
                 backup, chat_ids, conversation_names, contacts, fmt, output_dir,
@@ -607,7 +706,7 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
         filepath = os.path.join(output_dir, "all_conversations.txt")
         with open(filepath, "w", encoding="utf-8-sig") as f:
             for msg in messages:
-                date = msg["date"] or "Unknown date"
+                date = self._readable_date(msg["date"])
                 sender = msg["sender"]
                 conv = msg["_conversation"]
                 direction = "to" if msg["is_from_me"] else "from"
@@ -623,7 +722,7 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
             for msg in messages:
                 direction = "Sent" if msg["is_from_me"] else "Received"
                 writer.writerow([
-                    msg["date"], msg["_conversation"], direction,
+                    self._csv_date(msg["date"]), msg["_conversation"], direction,
                     msg["sender"], self._message_text(msg),
                     msg["is_from_me"], msg["has_attachments"]
                 ])
@@ -642,18 +741,20 @@ body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 0 auto;
 .sent { background: #007AFF; color: white; float: right; border-bottom-right-radius: 4px; }
 .received { background: #E9E9EB; color: black; float: left; border-bottom-left-radius: 4px; }
 .meta { font-size: 11px; color: #888; clear: both; text-align: center; margin: 12px 0 4px; }
+.day { font-size: 12px; font-weight: 600; color: #555; clear: both; text-align: center; margin: 0 0 4px; padding-top: 24px; }
 .sender { font-size: 11px; color: #666; margin-bottom: 2px; }
 .conv-label { font-size: 10px; color: #999; font-style: italic; }
 """ + _ATTACHMENT_CSS + """</style></head><body>
 <h2>Merged Conversations</h2>
 """)
-            for msg in messages:
+            for msg, day, time in self._with_day_and_time(messages):
                 css_class = "sent" if msg["is_from_me"] else "received"
                 text = self._message_html(msg, attachments)
-                date = self._html_escape(msg["date"] or "")
                 conv = self._html_escape(msg["_conversation"])
                 direction = "to" if msg["is_from_me"] else "from"
-                f.write(f'<div class="meta">{date} <span class="conv-label">({direction} {conv})</span></div>\n')
+                if day:
+                    f.write(f'<div class="day">{day}</div>\n')
+                f.write(f'<div class="meta">{self._html_escape(time)} <span class="conv-label">({direction} {conv})</span></div>\n')
                 if not msg["is_from_me"]:
                     f.write(f'<div class="sender">{self._html_escape(msg["sender"])}</div>\n')
                 f.write(f'<div class="msg {css_class}">{text}</div>\n')
