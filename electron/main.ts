@@ -264,6 +264,7 @@ app.whenReady().then(async () => {
     try {
       const timeoutMs = method === 'backup.start' ? 7_200_000
         : method === 'backup.install_device_support' ? 900_000 // winget may download slowly
+        : method.startsWith('export_') ? 21_600_000 // a whole photo library to a slow drive can take hours
         : undefined;
       const result = await sidecar.call(method, params, timeoutMs);
       feedback.recordCall(method, params, { ok: true, result });
