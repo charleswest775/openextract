@@ -140,11 +140,25 @@ class SidecarServer:
         routes them to a separate notificationHandler callback instead.
 
         This is used by backup.start to stream real-time progress events while
-        the backup RPC call is still in progress.
+        the backup RPC call is still in progress, and by saves (export.progress).
         """
         notification = {"jsonrpc": "2.0", "method": method, "params": params}
         _rpc_out.write(json.dumps(notification) + "\n")
         _rpc_out.flush()
+
+    def _export_progress(self, kind: str):
+        """
+        A progress callback for a save that streams it to Electron:
+            { "jsonrpc":"2.0", "method":"export.progress",
+              "params": { "kind": "photos", "done": int, "total": int, "failed": int } }
+
+        kind says which save it is, so the screen showing it can ignore others.
+        """
+        def notify(done: int, total: int, failed: int) -> None:
+            self.send_notification("export.progress", {
+                "kind": kind, "done": done, "total": total, "failed": failed,
+            })
+        return notify
 
     # ── RPC method handlers ───────────────────────────────────────────────────
 
@@ -343,7 +357,9 @@ class SidecarServer:
         if not options and "include_videos" in params:
             options = {"include_videos": params["include_videos"]}
         backup = self.backup_manager.get_open_backup(udid)
-        return self.photo_extractor.export_photos(backup, output_dir, options)
+        return self.photo_extractor.export_photos(
+            backup, output_dir, options, on_progress=self._export_progress("photos")
+        )
 
     def export_voicemails(self, params):
         udid = params["udid"]

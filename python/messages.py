@@ -9,9 +9,10 @@ of openextract-only behaviour:
     attachments inline in get_messages output but does not expose a per-id
     extraction RPC. openextract's frontend has its own attachment-load flow,
     so we keep the original implementation here.
-  * ``export_conversation`` / ``export_conversations`` (txt, csv, html, and
-    ``pdf_source``, the print-ready HTML with images that Electron turns into
-    a PDF) — file export is out of scope for the library.
+  * ``export_conversation`` / ``export_conversations`` (txt, csv, html with
+    its attachments in a folder beside it, and ``pdf_source``, the print-ready
+    HTML with images that Electron turns into a PDF) — file export is out of
+    scope for the library.
 
 Re-exports the utility constants/functions that the rest of the openextract
 sidecar imports from this module:
@@ -24,8 +25,12 @@ import base64
 import csv
 import html
 import os
+import re
+import shutil
 import uuid
+from datetime import datetime
 from typing import Optional
+from urllib.parse import quote
 
 from ios_backup_core.extractors.messages import MessageExtractor as _CoreMessageExtractor
 from ios_backup_core.text import parse_attributed_body  # noqa: F401  (re-export)
@@ -59,28 +64,54 @@ EXPORT_FOOTER_HTML = (
 # reasonable file size.
 PDF_IMAGE_MAX_PX = 1600
 
-# Styles for images and attachment labels inside bubbles, plus page breaks
-# for the PDF. Harmless in the plain HTML export, which has no images yet.
+# Longest side of the JPEG copy an HTML export writes for a photo browsers
+# can't show (HEIC, TIFF). The original is saved beside it.
+HTML_PREVIEW_MAX_PX = 2048
+
+# Styles for images, players and attachment labels inside bubbles, plus page
+# breaks for the PDF.
 _ATTACHMENT_CSS = """.msg img { display: block; max-width: 100%; max-height: 420px; border-radius: 12px; margin: 2px 0; }
+.msg video { display: block; max-width: 100%; max-height: 420px; border-radius: 12px; margin: 2px 0; background: #000; }
+.msg audio { display: block; width: 260px; max-width: 100%; margin: 2px 0; }
+.msg a { color: inherit; }
 .msg .text { margin-top: 6px; }
 .attachment-label { font-style: italic; opacity: 0.85; }
+.attachment-link { font-size: 12px; opacity: 0.85; }
 @media print {
   body { background: #fff; max-width: none; }
   .msg { float: none; width: fit-content; break-inside: avoid; }
   .msg img { max-height: 360px; }
   .sent { margin-left: auto; }
   .received { margin-right: auto; }
-  .meta, .sender { break-after: avoid; }
+  .day, .meta, .sender { break-after: avoid; }
 }
 """
 
-# What exports write for a message with no text and no attachment file, by
-# the engine's message_type. The thread view (src/components/explore/
-# ChatBubble.tsx) uses the same words. Anything not listed is a "Conversation
-# event": the engine calls group changes (renamed, someone added or removed),
-# unsent messages and FaceTime notices "system" without saying which, and
-# its plain "location" is mostly sms.db item_type 3 (someone left, group
-# photo changed), so a more specific label wouldn't be true.
+# Month names for the dates in exports, written out so the computer's
+# language settings can't change them (strftime's %b follows the locale).
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+# What can't go in an export's file name: characters Windows refuses (macOS
+# only refuses "/" and ":"), control characters, and the invisible marks that
+# reverse the direction of text, which can disguise a name.
+_FILE_NAME_UNSAFE = r'[<>:"/\\|?*\x00-\x1f\x7f‪-‮⁦-⁩]'
+
+# Names Windows keeps for devices, with or without an extension ("CON.txt").
+_WINDOWS_DEVICE_NAMES = {"CON", "PRN", "AUX", "NUL",
+                         *(f"COM{n}" for n in range(1, 10)), *(f"LPT{n}" for n in range(1, 10))}
+
+# Longest conversation name kept in a file name, so the whole path stays well
+# inside Windows' 260-character limit.
+_FILE_NAME_MAX_NAME = 60
+
+# What exports write for a message with no text and no attachment file. The
+# engine says what happened in event_text for a group change, an unsent
+# message or a FaceTime call ("Karin added Theo to the conversation"); other
+# such messages get a label by message_type. Anything else is a
+# "Conversation update": the engine calls rows it can't name "system" (and
+# some "location"), so a more specific label wouldn't be true. The thread
+# view (src/lib/messageEvents.ts) uses the same words.
 _EVENT_LABELS = {
     "location_started_by_me": "You started sharing your location",
     "location_stopped_by_me": "You stopped sharing your location",
@@ -96,12 +127,66 @@ _EVENT_LABELS = {
     "game": "Game message",
     "app": "Message from an iMessage app",
 }
-_EVENT_FALLBACK = "Conversation event"
+_EVENT_FALLBACK = "Conversation update"
 
 # Extensions we try to render as images when sms.db has no mime type.
 _IMAGE_EXTENSIONS = (
     ".jpg", ".jpeg", ".png", ".gif", ".heic", ".heif", ".webp", ".bmp", ".tif", ".tiff",
 )
+
+# Images every browser shows as they are; other photos get a JPEG copy.
+_BROWSER_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
+
+# Videos, for an old backup whose sms.db has no mime type.
+_VIDEO_EXTENSIONS = (".mov", ".mp4", ".m4v")
+
+# Audio most browsers play. iMessage voice messages (.caf) and old .amr ones
+# only get a link, which opens them in another app.
+_BROWSER_AUDIO_EXTENSIONS = (".mp3", ".m4a", ".aac", ".wav")
+
+_heif_registered = False
+
+
+def _save_as_jpeg(src_path: str, dest_path: str, max_px: int) -> bool:
+    """Write an image (HEIC included) as an upright JPEG no bigger than
+    ``max_px`` on its longest side. Returns False, leaving nothing behind,
+    if the image can't be read."""
+    global _heif_registered
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:
+        return False
+    if not _heif_registered:
+        try:
+            import pillow_heif
+            pillow_heif.register_heif_opener()
+        except Exception:
+            pass
+        _heif_registered = True
+    try:
+        with Image.open(src_path) as opened:
+            img = ImageOps.exif_transpose(opened)
+            img.thumbnail((max_px, max_px))
+            if img.mode not in ("RGB", "L"):
+                rgba = img.convert("RGBA")
+                flat = Image.new("RGB", rgba.size, (255, 255, 255))
+                flat.paste(rgba, mask=rgba.getchannel("A"))
+                img = flat
+            img.save(dest_path, "JPEG", quality=85)
+        return True
+    except Exception:
+        if os.path.exists(dest_path):
+            os.remove(dest_path)
+        return False
+
+
+def _without_lone_surrogates(text):
+    """A conversation name with half an emoji in it (a lone surrogate, which
+    JSON.stringify sends as "\\ud83c") can't be written as UTF-8, so the export
+    failed. Show that half as "�" instead."""
+    if not isinstance(text, str):
+        return text
+    return "".join("�" if "\ud800" <= ch <= "\udfff" else ch for ch in text)
 
 
 class MessageExtractor:
@@ -112,6 +197,10 @@ class MessageExtractor:
     methods (txt/csv/html, separate/merged) inline because the library does
     not provide them.
     """
+
+    # Time zone exports show times in. None is the computer's own, as the
+    # app uses; tests set a fixed one.
+    local_tz = None
 
     def __init__(self):
         self._inner = _CoreMessageExtractor()
@@ -276,6 +365,7 @@ class MessageExtractor:
                             query: Optional[str] = None,
                             display_name: Optional[str] = None) -> dict:
         """Export a conversation to the specified format, with optional date/search filters."""
+        display_name = _without_lone_surrogates(display_name)
         all_messages = self._collect_messages_for_chat(
             backup, chat_id, contacts, date_from, date_to, query
         )
@@ -285,7 +375,10 @@ class MessageExtractor:
         elif fmt == "csv":
             return self._export_csv(all_messages, chat_id, output_dir, display_name)
         elif fmt == "html":
-            return self._export_html(all_messages, chat_id, output_dir, display_name)
+            return self._export_html(
+                all_messages, chat_id, output_dir, display_name,
+                attachments=_HtmlAttachmentWriter(self, backup),
+            )
         elif fmt == "pdf_source":
             return self._export_html(
                 all_messages, chat_id, output_dir, display_name,
@@ -318,10 +411,13 @@ class MessageExtractor:
     @staticmethod
     def _event_label(msg) -> str:
         """Label for a message with no text and no attachment file, e.g.
-        "[You started sharing your location]". Only a message flagged as
-        having attachments we know nothing about is an "[Attachment]"."""
+        "[Karin added Theo to the conversation]" or "[You started sharing
+        your location]". Only a message flagged as having attachments we know
+        nothing about is an "[Attachment]"."""
         if msg.get("has_attachments"):
             return "[Attachment]"
+        if msg.get("event_text"):
+            return f"[{msg['event_text']}]"
         return f"[{_EVENT_LABELS.get(msg.get('message_type'), _EVENT_FALLBACK)}]"
 
     def _message_text(self, msg) -> str:
@@ -340,42 +436,105 @@ class MessageExtractor:
             escaped = escaped.replace("\r\n", "\n").replace("\n", "<br>")
         return escaped
 
-    def _get_filename_for_message_export(self, display_name, messages) -> str:
-        """Build a filesystem-safe base filename from the conversation name and the
-        date range of ``messages`` (which must be sorted oldest-first).
+    # ── Dates in exports ─────────────────────────────────────────────────────
+    # The engine gives each message's date in UTC ("2024-07-05T16:10:09+00:00").
+    # Exports show it in local time, the way the app's thread view does
+    # (src/lib/dates.ts): "Jul 5, 2024" for a day, "9:10 AM" for a time.
 
-        Returns "" when nothing usable can be built, so callers can fall back to
-        ``conversation_<chat_id>``.
+    def _local_datetime(self, iso) -> Optional[datetime]:
+        """A message's date in local time, or None if it has none we can read."""
+        if not iso:
+            return None
+        try:
+            return datetime.fromisoformat(iso).astimezone(self.local_tz)
+        except (TypeError, ValueError, OverflowError, OSError):
+            return None
+
+    @staticmethod
+    def _format_day(dt: datetime) -> str:
+        return f"{_MONTHS[dt.month - 1]} {dt.day}, {dt.year}"
+
+    @staticmethod
+    def _format_time(dt: datetime) -> str:
+        return f"{dt.hour % 12 or 12}:{dt.minute:02d} {'AM' if dt.hour < 12 else 'PM'}"
+
+    def _readable_date(self, iso) -> str:
+        """"Jul 5, 2024, 9:10 AM", for a TXT line that reads on its own."""
+        dt = self._local_datetime(iso)
+        if dt is None:
+            return iso or "Unknown date"
+        return f"{self._format_day(dt)}, {self._format_time(dt)}"
+
+    def _csv_date(self, iso) -> str:
+        """The date as ISO 8601 in local time with its offset, e.g.
+        "2024-07-05T09:10:09-07:00": the same moment as the engine's UTC
+        value, so programs read it exactly, and the clock time people expect."""
+        dt = self._local_datetime(iso)
+        return dt.isoformat() if dt is not None else (iso or "")
+
+    def _with_day_and_time(self, messages):
+        """Yield (msg, day, time) for an HTML export: day is "Jul 5, 2024" on
+        the first message of each local day and "" on the rest, time is
+        "9:10 AM". A message without a readable date gets its raw date."""
+        last_day = None
+        for msg in messages:
+            dt = self._local_datetime(msg.get("date"))
+            if dt is None:
+                yield msg, "", msg.get("date") or ""
+                continue
+            day = self._format_day(dt)
+            yield msg, ("" if day == last_day else day), self._format_time(dt)
+            last_day = day
+
+    def _get_filename_for_message_export(self, display_name, messages) -> str:
+        """File name, without extension, saying who a conversation is with and
+        which days it covers, in local time: "Karin Lindqvist, Jul 5 2024 -
+        Jun 21 2026", "Karin Lindqvist, Jul 5 2024" for one day, or just
+        "Karin Lindqvist" for no messages (a date filter that matched nothing).
+        ``messages`` must be sorted oldest-first.
+
+        Safe on Windows and macOS. Returns "" when the name has nothing usable,
+        so callers can fall back to ``conversation_<chat_id>``.
         """
-        from datetime import datetime
         import re
 
-        if not display_name:
+        name = " ".join(re.sub(_FILE_NAME_UNSAFE, " ", str(display_name or "")).split())
+        # A leading dot hides a file on a Mac, Windows drops trailing dots and
+        # spaces, and a trailing comma would double the one added below.
+        name = name[:_FILE_NAME_MAX_NAME].lstrip(". ").rstrip(" .,")
+        if not name:
             return ""
+        if name.split(".")[0].rstrip().upper() in _WINDOWS_DEVICE_NAMES:
+            name = f"_{name}"
 
-        # Collapse runs of whitespace/punctuation into a single underscore (Unicode safe).
-        sanit_name = re.sub(r'\W+', '_', str(display_name)).strip('_')[:50]
+        def first_date(msgs):
+            dates = (self._local_datetime(m.get("date")) for m in msgs)
+            return next((dt for dt in dates if dt is not None), None)
 
-        # Add from and to date, to get distinct file names for other ranges if exporting more often.
-        # Empty exports (e.g. a date filter with no matches) or missing dates just skip this.
-        date_part = ""
-        try:
-            date_format = "%y%m%d%H%M%S-%f"
-            from_date = datetime.fromisoformat(messages[0]["date"]).astimezone().strftime(date_format)
-            to_date = datetime.fromisoformat(messages[-1]["date"]).astimezone().strftime(date_format)
-            date_part = f"{from_date}--{to_date}"
-        except (IndexError, KeyError, TypeError, ValueError):
-            pass
+        first, last = first_date(messages), first_date(reversed(messages))
+        if first is None:
+            return name
+        days = [f"{_MONTHS[dt.month - 1]} {dt.day} {dt.year}" for dt in (first, last)]
+        return f"{name}, {days[0]}" if days[0] == days[1] else f"{name}, {days[0]} - {days[1]}"
 
-        return "--".join(p for p in (sanit_name, date_part) if p)
+    @staticmethod
+    def _unused_name(output_dir, base, ext) -> str:
+        """"Mom.txt", or "Mom (2).txt" if that exists, so saving again never
+        overwrites a file. The PDF export does the same (electron/pdfExport.ts)."""
+        name = f"{base}{ext}"
+        n = 2
+        while os.path.exists(os.path.join(output_dir, name)):
+            name = f"{base} ({n}){ext}"
+            n += 1
+        return name
 
     def _export_txt(self, messages, chat_id, output_dir, display_name = ""):
         base = self._get_filename_for_message_export(display_name, messages)
-        filename = f"{base or f'conversation_{chat_id}'}.txt"
+        filename = self._unused_name(output_dir, base or f"conversation_{chat_id}", ".txt")
         filepath = os.path.join(output_dir, filename)
         with open(filepath, "w", encoding="utf-8-sig") as f:
             for msg in messages:
-                date = msg["date"] or "Unknown date"
+                date = self._readable_date(msg["date"])
                 sender = msg["sender"]
                 text = self._message_text(msg) or "[No content]"
                 f.write(f"[{date}] {sender}: {text}\n")
@@ -383,14 +542,14 @@ class MessageExtractor:
 
     def _export_csv(self, messages, chat_id, output_dir, display_name = ""):
         base = self._get_filename_for_message_export(display_name, messages)
-        filename = f"{base or f'conversation_{chat_id}'}.csv"
+        filename = self._unused_name(output_dir, base or f"conversation_{chat_id}", ".csv")
         filepath = os.path.join(output_dir, filename)
         with open(filepath, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
             writer.writerow(["Date", "Sender", "Text", "Is From Me", "Has Attachments"])
             for msg in messages:
                 writer.writerow([
-                    msg["date"], msg["sender"], self._message_text(msg),
+                    self._csv_date(msg["date"]), msg["sender"], self._message_text(msg),
                     msg["is_from_me"], msg["has_attachments"]
                 ])
         return {"file": filepath, "message_count": len(messages)}
@@ -398,10 +557,11 @@ class MessageExtractor:
     def _message_html(self, msg, attachments=None) -> str:
         """Inner HTML of one message bubble.
 
-        With a ``_PrintAttachmentWriter`` (the PDF export) images are drawn
-        inline and other attachments get a short label; without one (the
-        plain HTML export) every attachment gets a label. A message with no
-        text and no attachment file gets a label saying what it is.
+        ``attachments`` draws each attachment: ``_HtmlAttachmentWriter`` (the
+        HTML export) shows photos, videos and audio and links every file;
+        ``_PrintAttachmentWriter`` (the PDF export) draws images and labels
+        the rest. Without one every attachment gets a label. A message with
+        no text and no attachment file gets a label saying what it is.
         """
         text = self._html_escape(msg.get("text") or "", preserve_newlines=True)
         if msg.get("attachments"):
@@ -417,8 +577,10 @@ class MessageExtractor:
     def _export_html(self, messages, chat_id, output_dir, display_name = "",
                      attachments=None):
         base = self._get_filename_for_message_export(display_name, messages)
-        filename = f"{base or f'conversation_{chat_id}'}.html"
+        filename = self._unused_name(output_dir, base or f"conversation_{chat_id}", ".html")
         filepath = os.path.join(output_dir, filename)
+        if attachments is not None:
+            attachments.begin(filepath)
         safe_name = html.escape(display_name) if display_name else ""
         title = f"Conversation Export: {safe_name}" if safe_name else "Conversation Export"
         with open(filepath, "w", encoding="utf-8") as f:
@@ -430,17 +592,19 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
 .sent {{ background: #007AFF; color: white; float: right; border-bottom-right-radius: 4px; }}
 .received {{ background: #E9E9EB; color: black; float: left; border-bottom-left-radius: 4px; }}
 .meta {{ font-size: 11px; color: #888; clear: both; text-align: center; margin: 12px 0 4px; }}
+.day {{ font-size: 12px; font-weight: 600; color: #555; clear: both; text-align: center; margin: 0 0 4px; padding-top: 24px; }}
 .sender {{ font-size: 11px; color: #666; margin-bottom: 2px; }}
 .conv-title {{ font-size: 18px; color: #333; margin-bottom: 20px; text-align: center; }}
 {_ATTACHMENT_CSS}</style></head><body>
 """)
             if safe_name:
                 f.write(f'<h1 class="conv-title">{safe_name}</h1>\n')
-            for msg in messages:
+            for msg, day, time in self._with_day_and_time(messages):
                 css_class = "sent" if msg["is_from_me"] else "received"
                 text = self._message_html(msg, attachments)
-                date = self._html_escape(msg["date"] or "")
-                f.write(f'<div class="meta">{date}</div>\n')
+                if day:
+                    f.write(f'<div class="day">{day}</div>\n')
+                f.write(f'<div class="meta">{self._html_escape(time)}</div>\n')
                 if not msg["is_from_me"]:
                     f.write(f'<div class="sender">{self._html_escape(msg["sender"])}</div>\n')
                 f.write(f'<div class="msg {css_class}">{text}</div>\n')
@@ -462,6 +626,7 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
         mode="merged"   — all messages in a single file, sorted by timestamp,
                           with explicit sender/recipient context on each line.
         """
+        conversation_names = {k: _without_lone_surrogates(v) for k, v in conversation_names.items()}
         if mode == "merged":
             return self._export_merged(
                 backup, chat_ids, conversation_names, contacts, fmt, output_dir,
@@ -531,7 +696,9 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
         elif fmt == "csv":
             return self._export_merged_csv(all_messages, output_dir)
         elif fmt == "html":
-            return self._export_merged_html(all_messages, output_dir)
+            return self._export_merged_html(
+                all_messages, output_dir, attachments=_HtmlAttachmentWriter(self, backup),
+            )
         elif fmt == "pdf_source":
             return self._export_merged_html(
                 all_messages, output_dir,
@@ -544,7 +711,7 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
         filepath = os.path.join(output_dir, "all_conversations.txt")
         with open(filepath, "w", encoding="utf-8-sig") as f:
             for msg in messages:
-                date = msg["date"] or "Unknown date"
+                date = self._readable_date(msg["date"])
                 sender = msg["sender"]
                 conv = msg["_conversation"]
                 direction = "to" if msg["is_from_me"] else "from"
@@ -560,7 +727,7 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
             for msg in messages:
                 direction = "Sent" if msg["is_from_me"] else "Received"
                 writer.writerow([
-                    msg["date"], msg["_conversation"], direction,
+                    self._csv_date(msg["date"]), msg["_conversation"], direction,
                     msg["sender"], self._message_text(msg),
                     msg["is_from_me"], msg["has_attachments"]
                 ])
@@ -568,6 +735,8 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
 
     def _export_merged_html(self, messages, output_dir, attachments=None):
         filepath = os.path.join(output_dir, "all_conversations.html")
+        if attachments is not None:
+            attachments.begin(filepath)
         with open(filepath, "w", encoding="utf-8") as f:
             f.write("""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Merged Conversations Export</title>
@@ -577,18 +746,20 @@ body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 0 auto;
 .sent { background: #007AFF; color: white; float: right; border-bottom-right-radius: 4px; }
 .received { background: #E9E9EB; color: black; float: left; border-bottom-left-radius: 4px; }
 .meta { font-size: 11px; color: #888; clear: both; text-align: center; margin: 12px 0 4px; }
+.day { font-size: 12px; font-weight: 600; color: #555; clear: both; text-align: center; margin: 0 0 4px; padding-top: 24px; }
 .sender { font-size: 11px; color: #666; margin-bottom: 2px; }
 .conv-label { font-size: 10px; color: #999; font-style: italic; }
 """ + _ATTACHMENT_CSS + """</style></head><body>
 <h2>Merged Conversations</h2>
 """)
-            for msg in messages:
+            for msg, day, time in self._with_day_and_time(messages):
                 css_class = "sent" if msg["is_from_me"] else "received"
                 text = self._message_html(msg, attachments)
-                date = self._html_escape(msg["date"] or "")
                 conv = self._html_escape(msg["_conversation"])
                 direction = "to" if msg["is_from_me"] else "from"
-                f.write(f'<div class="meta">{date} <span class="conv-label">({direction} {conv})</span></div>\n')
+                if day:
+                    f.write(f'<div class="day">{day}</div>\n')
+                f.write(f'<div class="meta">{self._html_escape(time)} <span class="conv-label">({direction} {conv})</span></div>\n')
                 if not msg["is_from_me"]:
                     f.write(f'<div class="sender">{self._html_escape(msg["sender"])}</div>\n')
                 f.write(f'<div class="msg {css_class}">{text}</div>\n')
@@ -615,9 +786,11 @@ class _PrintAttachmentWriter:
         self._backup = backup
         self._dir = os.path.join(output_dir, self.SUBDIR)
         self._written: dict = {}
-        self._heif_registered = False
         self.images_written = 0
         self.images_missing = 0
+
+    def begin(self, html_path: str) -> None:
+        """Nothing to set up: images go into ``attachments/`` beside the page."""
 
     @staticmethod
     def _is_image(att: dict) -> bool:
@@ -628,7 +801,8 @@ class _PrintAttachmentWriter:
         return name.endswith(_IMAGE_EXTENSIONS)
 
     @staticmethod
-    def _label(att: dict, missing: bool = False) -> str:
+    def _label(att: dict, missing: bool = False, href: Optional[str] = None) -> str:
+        """``[Video: clip.mov]`` and the like; a link to the file if ``href`` is given."""
         name = att.get("transfer_name") or os.path.basename(att.get("filename") or "")
         mime = (att.get("mime_type") or "").lower()
         if _PrintAttachmentWriter._is_image(att):
@@ -641,36 +815,13 @@ class _PrintAttachmentWriter:
             kind = "File"
         if missing:
             kind = f"{kind} not in this backup"
-        label = f"[{kind}: {name}]" if name else f"[{kind}]"
-        return f'<div class="attachment-label">{MessageExtractor._html_escape(label)}</div>'
+        label = MessageExtractor._html_escape(f"[{kind}: {name}]" if name else f"[{kind}]")
+        if href:
+            label = f'<a href="{href}">{label}</a>'
+        return f'<div class="attachment-label">{label}</div>'
 
     def _convert(self, src_path: str, dest_path: str) -> bool:
-        try:
-            from PIL import Image, ImageOps
-        except ImportError:
-            return False
-        if not self._heif_registered:
-            try:
-                import pillow_heif
-                pillow_heif.register_heif_opener()
-            except Exception:
-                pass
-            self._heif_registered = True
-        try:
-            with Image.open(src_path) as opened:
-                img = ImageOps.exif_transpose(opened)
-                img.thumbnail((PDF_IMAGE_MAX_PX, PDF_IMAGE_MAX_PX))
-                if img.mode not in ("RGB", "L"):
-                    rgba = img.convert("RGBA")
-                    flat = Image.new("RGB", rgba.size, (255, 255, 255))
-                    flat.paste(rgba, mask=rgba.getchannel("A"))
-                    img = flat
-                img.save(dest_path, "JPEG", quality=85)
-            return True
-        except Exception:
-            if os.path.exists(dest_path):
-                os.remove(dest_path)
-            return False
+        return _save_as_jpeg(src_path, dest_path, PDF_IMAGE_MAX_PX)
 
     def render(self, att: dict) -> str:
         """Return the HTML for one attachment inside a message bubble."""
@@ -705,3 +856,117 @@ class _PrintAttachmentWriter:
             return self._label(att, missing=True)
         alt = MessageExtractor._html_escape(att.get("transfer_name") or "Image")
         return f'<img src="{rel}" alt="{alt}">'
+
+
+class _HtmlAttachmentWriter:
+    """Saves a message's attachments beside an HTML export and shows them.
+
+    Every file is copied as it is into a folder named after the page
+    (``Mom.html`` gets ``Mom_attachments/``), so the two can be moved or
+    shared together. Photos and GIFs show in the bubble, videos and common
+    audio get a player, and everything links to its file, so a format the
+    browser can't play (HEVC video on some PCs, voice messages) still opens
+    in another app. Photos browsers can't show (HEIC, TIFF) also get a JPEG
+    copy for the page. An attachment missing from the backup gets a label,
+    so one bad file never fails the export.
+    """
+
+    def __init__(self, extractor: "MessageExtractor", backup):
+        self._extractor = extractor
+        self._backup = backup
+        self._dir = ""
+        self._rel = ""
+        self._written: dict = {}
+        self.files_written = 0
+        self.files_missing = 0
+
+    def begin(self, html_path: str) -> None:
+        """Use the folder beside ``html_path``. Called before any render()."""
+        base = os.path.splitext(os.path.basename(html_path))[0]
+        self._rel = f"{base}_attachments"
+        self._dir = os.path.join(os.path.dirname(html_path), self._rel)
+
+    @staticmethod
+    def _file_name(att: dict) -> str:
+        """``<attachment id>-<name it was sent with>``, safe on every system.
+
+        attachment_id is sms.db's ROWID, unique within the backup, so two
+        files sent with the same name (IMG_0001.HEIC) never collide.
+        """
+        name = att.get("transfer_name") or os.path.basename(att.get("filename") or "") or "attachment"
+        name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", name.replace("\\", "/").rsplit("/", 1)[-1])
+        name = name.strip(" .") or "attachment"
+        stem, ext = os.path.splitext(name)
+        name = stem[:80] + (ext or _HtmlAttachmentWriter._ext(att))[:16]
+        att_id = att.get("attachment_id")
+        prefix = str(att_id) if isinstance(att_id, int) else f"x{uuid.uuid4().hex[:12]}"
+        return f"{prefix}-{name}"
+
+    @staticmethod
+    def _ext(att: dict) -> str:
+        for name in (att.get("filename"), att.get("transfer_name")):
+            ext = os.path.splitext(name or "")[1].lower()
+            if ext:
+                return ext
+        return ""
+
+    def _href(self, name: str) -> str:
+        return MessageExtractor._html_escape(quote(f"{self._rel}/{name}"))
+
+    def _copy(self, att: dict) -> Optional[str]:
+        """Copy the attachment into the folder once; its file name, or None."""
+        att_id = att.get("attachment_id")
+        if isinstance(att_id, int) and att_id in self._written:
+            return self._written[att_id]
+        name = None
+        src = self._extractor._attachment_file_path(self._backup, att.get("filename") or "")
+        if src:
+            dest = os.path.join(self._dir, self._file_name(att))
+            try:
+                os.makedirs(self._dir, exist_ok=True)
+                # The same conversation saved again into the same folder.
+                if not (os.path.isfile(dest) and os.path.getsize(dest) == os.path.getsize(src)):
+                    shutil.copyfile(src, dest)
+                name = os.path.basename(dest)
+                self.files_written += 1
+            except OSError:
+                pass
+        if name is None:
+            self.files_missing += 1
+        if isinstance(att_id, int):
+            self._written[att_id] = name
+        return name
+
+    def render(self, att: dict) -> str:
+        """Return the HTML for one attachment inside a message bubble."""
+        name = self._copy(att)
+        if name is None:
+            return _PrintAttachmentWriter._label(att, missing=True)
+
+        href = self._href(name)
+        title = MessageExtractor._html_escape(att.get("transfer_name") or name)
+        mime = (att.get("mime_type") or "").lower()
+        ext = self._ext(att)
+
+        if _PrintAttachmentWriter._is_image(att):
+            if ext in _BROWSER_IMAGE_EXTENSIONS:
+                return f'<a href="{href}"><img src="{href}" alt="{title}" loading="lazy"></a>'
+            preview = os.path.splitext(name)[0] + ".jpg"
+            preview_path = os.path.join(self._dir, preview)
+            if os.path.isfile(preview_path) or _save_as_jpeg(
+                os.path.join(self._dir, name), preview_path, HTML_PREVIEW_MAX_PX
+            ):
+                src = self._href(preview)
+                return f'<a href="{src}"><img src="{src}" alt="{title}" loading="lazy"></a>'
+            return _PrintAttachmentWriter._label(att, href=href)
+
+        if mime.startswith("video/") or ext in _VIDEO_EXTENSIONS:
+            # #t=0.001 makes Safari show the first frame instead of a black box.
+            return (f'<video controls preload="metadata" src="{href}#t=0.001" title="{title}"></video>'
+                    f'<div class="attachment-link"><a href="{href}">{title}</a></div>')
+
+        if mime.startswith("audio/") and ext in _BROWSER_AUDIO_EXTENSIONS:
+            return (f'<audio controls preload="none" src="{href}" title="{title}"></audio>'
+                    f'<div class="attachment-link"><a href="{href}">{title}</a></div>')
+
+        return _PrintAttachmentWriter._label(att, href=href)
