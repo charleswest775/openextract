@@ -80,6 +80,76 @@ def asset_table(conn) -> str:
     return "ZGENERICASSET" if "ZASSET" not in tables and "ZGENERICASSET" in tables else "ZASSET"
 
 
+# EXIF tags export_photos writes on a JPEG made from a HEIC.
+_EXIF_ORIENTATION = 0x0112
+_EXIF_IFD = 0x8769
+_EXIF_DATE_TAKEN = 0x9003         # DateTimeOriginal
+_EXIF_DATE_TAKEN_OFFSET = 0x9011  # OffsetTimeOriginal
+_JPEG_MAX_EXIF = 65533            # bytes in one JPEG marker segment
+
+
+def _date_taken(photo: dict) -> Optional[datetime.datetime]:
+    """When the photo was taken, as an aware datetime, or None without a usable date.
+
+    ios-backup-core gives ZDATECREATED as a UTC ISO string ("2024-07-13T23:10:37+00:00").
+    One without a zone is UTC too: read as local time, it would be off by the
+    computer's offset from UTC.
+    """
+    value = photo.get("date_created")
+    if not value:
+        return None
+    try:
+        taken = datetime.datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+    return taken if taken.tzinfo else taken.replace(tzinfo=datetime.timezone.utc)
+
+
+def _set_file_date(path: str, taken: Optional[datetime.datetime]) -> None:
+    """Give a saved file the date its photo was taken, so Finder, Explorer and photo apps sort by it.
+
+    Otherwise a copy has the backup's date and a converted JPEG or .json the
+    time of saving. Sets the modified and accessed times (on a Mac, an earlier
+    modified time moves the created date back too). Skips a missing date, and
+    one the drive can't store.
+    """
+    if taken is None:
+        return
+    try:
+        stamp = taken.timestamp()
+        os.utime(path, (stamp, stamp))
+    except (OSError, OverflowError, ValueError):
+        pass
+
+
+def _jpeg_exif(img, taken: Optional[datetime.datetime]) -> bytes:
+    """EXIF for the JPEG made from a HEIC: the HEIC's own (date taken, place, camera).
+
+    pillow-heif has already turned the pixels upright, so the orientation says
+    so. A HEIC without a date taken gets Photos.sqlite's, in this computer's
+    time zone with its offset, the way a camera writes it. Returns b"" (no
+    EXIF, as before) when the HEIC's EXIF can't be read or won't fit in a JPEG.
+    """
+    try:
+        exif = img.getexif()
+        if exif.get(_EXIF_ORIENTATION, 1) != 1:
+            exif[_EXIF_ORIENTATION] = 1
+        details = exif.get_ifd(_EXIF_IFD)
+        if taken is not None and not details.get(_EXIF_DATE_TAKEN):
+            try:
+                local = taken.astimezone()
+            except (OSError, OverflowError, ValueError):
+                local = None  # Windows can't give local time before 1970
+            if local is not None:
+                offset = local.strftime("%z")
+                details[_EXIF_DATE_TAKEN] = local.strftime("%Y:%m:%d %H:%M:%S")
+                details[_EXIF_DATE_TAKEN_OFFSET] = f"{offset[:3]}:{offset[3:5]}"
+        data = exif.tobytes()
+    except Exception:
+        return b""
+    return data if len(data) <= _JPEG_MAX_EXIF else b""
+
+
 class PhotoExtractor:
     """Adapter wrapping the ios-backup-core PhotoExtractor."""
 
@@ -586,6 +656,7 @@ class PhotoExtractor:
 
         on_progress(done, total, failed) is told how far the save has got, a few
         times a second at most (see export_progress.py).
+        Every file it writes gets the photo's date taken as its modified time.
         """
         if options is None:
             options = {}
@@ -642,17 +713,20 @@ class PhotoExtractor:
 
                 filename = photo.get("filename") or file_hash
                 base, ext = os.path.splitext(filename)
+                taken = _date_taken(photo)
 
                 if fmt == "jpeg" and ext.lower() in (".heic", ".heif") and HAS_PIL:
                     dest_filename = base + ".jpg"
                     dest_path = os.path.join(dest_dir, dest_filename)
                     img = Image.open(source)
+                    exif = _jpeg_exif(img, taken)
                     if img.mode in ("RGBA", "P", "LA"):
                         img = img.convert("RGB")
-                    img.save(dest_path, format="JPEG", quality=jpeg_quality)
+                    img.save(dest_path, format="JPEG", quality=jpeg_quality, exif=exif)
                 else:
                     dest_path = os.path.join(dest_dir, filename)
                     shutil.copy2(source, dest_path)
+                _set_file_date(dest_path, taken)
 
                 exported += 1
 
@@ -660,6 +734,7 @@ class PhotoExtractor:
                     meta = {k: v for k, v in photo.items() if k != "file_hash"}
                     with open(dest_path + ".json", "w", encoding="utf-8") as f:
                         json.dump(meta, f, indent=2, default=str)
+                    _set_file_date(dest_path + ".json", taken)
 
             except Exception:
                 errors += 1
