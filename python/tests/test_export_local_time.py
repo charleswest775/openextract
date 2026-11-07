@@ -144,7 +144,11 @@ class TestSingleConversationExport(_ExportTest):
 
     def test_file_name_uses_the_same_time_zone(self):
         name = self.ext._get_filename_for_message_export("Alice", _messages())
-        self.assertEqual(name, "Alice--240705091009-000000--240706123000-000000")
+        # The last message is Jul 6 in UTC too, but the first is Jul 5 only locally.
+        self.assertEqual(name, "Alice, Jul 5 2024 - Jul 6 2024")
+        self.ext.local_tz = IST
+        self.assertEqual(self.ext._get_filename_for_message_export("Alice", _messages()),
+                         "Alice, Jul 5 2024 - Jul 7 2024")
 
     def test_missing_or_unreadable_dates_do_not_fail(self):
         messages = _messages()[:1]

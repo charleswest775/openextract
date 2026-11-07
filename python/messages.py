@@ -80,6 +80,19 @@ _ATTACHMENT_CSS = """.msg img { display: block; max-width: 100%; max-height: 420
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
+# What can't go in an export's file name: characters Windows refuses (macOS
+# only refuses "/" and ":"), control characters, and the invisible marks that
+# reverse the direction of text, which can disguise a name.
+_FILE_NAME_UNSAFE = r'[<>:"/\\|?*\x00-\x1f\x7f‪-‮⁦-⁩]'
+
+# Names Windows keeps for devices, with or without an extension ("CON.txt").
+_WINDOWS_DEVICE_NAMES = {"CON", "PRN", "AUX", "NUL",
+                         *(f"COM{n}" for n in range(1, 10)), *(f"LPT{n}" for n in range(1, 10))}
+
+# Longest conversation name kept in a file name, so the whole path stays well
+# inside Windows' 260-character limit.
+_FILE_NAME_MAX_NAME = 60
+
 # What exports write for a message with no text and no attachment file, by
 # the engine's message_type. The thread view (src/components/explore/
 # ChatBubble.tsx) uses the same words. Anything not listed is a "Conversation
@@ -108,6 +121,15 @@ _EVENT_FALLBACK = "Conversation event"
 _IMAGE_EXTENSIONS = (
     ".jpg", ".jpeg", ".png", ".gif", ".heic", ".heif", ".webp", ".bmp", ".tif", ".tiff",
 )
+
+
+def _without_lone_surrogates(text):
+    """A conversation name with half an emoji in it (a lone surrogate, which
+    JSON.stringify sends as "\\ud83c") can't be written as UTF-8, so the export
+    failed. Show that half as "�" instead."""
+    if not isinstance(text, str):
+        return text
+    return "".join("�" if "\ud800" <= ch <= "\udfff" else ch for ch in text)
 
 
 class MessageExtractor:
@@ -284,6 +306,7 @@ class MessageExtractor:
                             query: Optional[str] = None,
                             display_name: Optional[str] = None) -> dict:
         """Export a conversation to the specified format, with optional date/search filters."""
+        display_name = _without_lone_surrogates(display_name)
         all_messages = self._collect_messages_for_chat(
             backup, chat_id, contacts, date_from, date_to, query
         )
@@ -399,36 +422,50 @@ class MessageExtractor:
             last_day = day
 
     def _get_filename_for_message_export(self, display_name, messages) -> str:
-        """Build a filesystem-safe base filename from the conversation name and the
-        date range of ``messages`` (which must be sorted oldest-first).
+        """File name, without extension, saying who a conversation is with and
+        which days it covers, in local time: "Karin Lindqvist, Jul 5 2024 -
+        Jun 21 2026", "Karin Lindqvist, Jul 5 2024" for one day, or just
+        "Karin Lindqvist" for no messages (a date filter that matched nothing).
+        ``messages`` must be sorted oldest-first.
 
-        Returns "" when nothing usable can be built, so callers can fall back to
-        ``conversation_<chat_id>``.
+        Safe on Windows and macOS. Returns "" when the name has nothing usable,
+        so callers can fall back to ``conversation_<chat_id>``.
         """
         import re
 
-        if not display_name:
+        name = " ".join(re.sub(_FILE_NAME_UNSAFE, " ", str(display_name or "")).split())
+        # A leading dot hides a file on a Mac, Windows drops trailing dots and
+        # spaces, and a trailing comma would double the one added below.
+        name = name[:_FILE_NAME_MAX_NAME].lstrip(". ").rstrip(" .,")
+        if not name:
             return ""
+        if name.split(".")[0].rstrip().upper() in _WINDOWS_DEVICE_NAMES:
+            name = f"_{name}"
 
-        # Collapse runs of whitespace/punctuation into a single underscore (Unicode safe).
-        sanit_name = re.sub(r'\W+', '_', str(display_name)).strip('_')[:50]
+        def first_date(msgs):
+            dates = (self._local_datetime(m.get("date")) for m in msgs)
+            return next((dt for dt in dates if dt is not None), None)
 
-        # Add from and to date, to get distinct file names for other ranges if exporting more often.
-        # Empty exports (e.g. a date filter with no matches) or missing dates just skip this.
-        date_part = ""
-        try:
-            date_format = "%y%m%d%H%M%S-%f"
-            from_date = datetime.fromisoformat(messages[0]["date"]).astimezone(self.local_tz).strftime(date_format)
-            to_date = datetime.fromisoformat(messages[-1]["date"]).astimezone(self.local_tz).strftime(date_format)
-            date_part = f"{from_date}--{to_date}"
-        except (IndexError, KeyError, TypeError, ValueError):
-            pass
+        first, last = first_date(messages), first_date(reversed(messages))
+        if first is None:
+            return name
+        days = [f"{_MONTHS[dt.month - 1]} {dt.day} {dt.year}" for dt in (first, last)]
+        return f"{name}, {days[0]}" if days[0] == days[1] else f"{name}, {days[0]} - {days[1]}"
 
-        return "--".join(p for p in (sanit_name, date_part) if p)
+    @staticmethod
+    def _unused_name(output_dir, base, ext) -> str:
+        """"Mom.txt", or "Mom (2).txt" if that exists, so saving again never
+        overwrites a file. The PDF export does the same (electron/pdfExport.ts)."""
+        name = f"{base}{ext}"
+        n = 2
+        while os.path.exists(os.path.join(output_dir, name)):
+            name = f"{base} ({n}){ext}"
+            n += 1
+        return name
 
     def _export_txt(self, messages, chat_id, output_dir, display_name = ""):
         base = self._get_filename_for_message_export(display_name, messages)
-        filename = f"{base or f'conversation_{chat_id}'}.txt"
+        filename = self._unused_name(output_dir, base or f"conversation_{chat_id}", ".txt")
         filepath = os.path.join(output_dir, filename)
         with open(filepath, "w", encoding="utf-8-sig") as f:
             for msg in messages:
@@ -440,7 +477,7 @@ class MessageExtractor:
 
     def _export_csv(self, messages, chat_id, output_dir, display_name = ""):
         base = self._get_filename_for_message_export(display_name, messages)
-        filename = f"{base or f'conversation_{chat_id}'}.csv"
+        filename = self._unused_name(output_dir, base or f"conversation_{chat_id}", ".csv")
         filepath = os.path.join(output_dir, filename)
         with open(filepath, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
@@ -474,7 +511,7 @@ class MessageExtractor:
     def _export_html(self, messages, chat_id, output_dir, display_name = "",
                      attachments=None):
         base = self._get_filename_for_message_export(display_name, messages)
-        filename = f"{base or f'conversation_{chat_id}'}.html"
+        filename = self._unused_name(output_dir, base or f"conversation_{chat_id}", ".html")
         filepath = os.path.join(output_dir, filename)
         safe_name = html.escape(display_name) if display_name else ""
         title = f"Conversation Export: {safe_name}" if safe_name else "Conversation Export"
@@ -521,6 +558,7 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
         mode="merged"   — all messages in a single file, sorted by timestamp,
                           with explicit sender/recipient context on each line.
         """
+        conversation_names = {k: _without_lone_surrogates(v) for k, v in conversation_names.items()}
         if mode == "merged":
             return self._export_merged(
                 backup, chat_ids, conversation_names, contacts, fmt, output_dir,
