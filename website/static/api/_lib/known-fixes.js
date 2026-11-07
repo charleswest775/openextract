@@ -27,6 +27,17 @@ const KNOWN_FIXES = [
     text: 'Quit OpenExtract and open it again. If it still can\'t open backups, download the latest version from openextract.app and install it over this one. On Windows, security software (Windows Security, Smart App Control or an antivirus) can stop part of OpenExtract from running: check it for a recent alert about OpenExtract.',
   },
   {
+    id: 'saving-timed-out',
+    title: 'Saving stopped after 5 minutes',
+    area: 'app',
+    seen: ['Sidecar call timed out: export_photos'],
+    // electron/sidecar.ts up to 0.10.2 gave every call 5 minutes, which saving a big photo
+    // library (decrypted file by file from an encrypted backup) runs past (OE-14). Later
+    // versions give saving 2 hours. The engine goes on saving after the app stops waiting.
+    match: /Sidecar call timed out: export_/,
+    text: 'OpenExtract 0.10.2 and earlier stop waiting for a save after 5 minutes. That isn\'t long enough for a big photo library, especially from an encrypted backup. The files usually go on saving anyway: open the folder you chose and wait until new files stop appearing, then quit and reopen OpenExtract before you browse again. Versions after 0.10.2 wait much longer.',
+  },
+  {
     id: 'backup-password',
     title: 'The password for an encrypted backup',
     area: 'open',

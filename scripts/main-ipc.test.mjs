@@ -27,7 +27,7 @@ const EXPECTED_CHANNELS = [
   'add-session', 'app:get-version', 'app:relaunch', 'clipboard:writeText', 'dialog:saveFile',
   'dialog:saveFolder', 'dialog:selectFolder', 'export:pdf', 'feedback:export-check-opt-out',
   'feedback:fixed-reports', 'feedback:get-diagnostics', 'feedback:mark-announced', 'feedback:saved-email',
-  'feedback:send', 'fs:writeFile', 'get-app-state', 'get-recent-sessions', 'increment-export-count',
+  'feedback:send', 'feedback:thanks-offered', 'fs:writeFile', 'get-app-state', 'get-recent-sessions', 'increment-export-count',
   'remove-session', 'set-first-launch-completed', 'shell:openExternal', 'shell:openPath',
   'shell:showItemInFolder', 'sidecar:call', 'text-size:get', 'text-size:set', 'updates:check',
   'updates:download', 'updates:get-state', 'updates:install', 'updates:set-auto-check',
@@ -240,7 +240,10 @@ describe('startup', () => {
 
     const progress = { jsonrpc: '2.0', method: 'backup.progress', params: { percent: 5 } };
     m.sidecar.notificationHandler(progress);
-    assert.deepEqual(m.window.webContents.sent, [['sidecar:notification', progress]]);
+    // Saves report how far they've got the same way, whatever the kind (OE-14).
+    const saving = { jsonrpc: '2.0', method: 'export.progress', params: { kind: 'photos', done: 1234, total: 5678, failed: 0 } };
+    m.sidecar.notificationHandler(saving);
+    assert.deepEqual(m.window.webContents.sent, [['sidecar:notification', progress], ['sidecar:notification', saving]]);
     m.window.destroyed = true;
     assert.doesNotThrow(() => m.sidecar.notificationHandler(progress));
   });
@@ -601,24 +604,58 @@ describe('after an export: share prompt and export check', () => {
     const userData = freshDir('main-userdata');
     const run1 = await loadMain({ userData });
     assert.equal(await run1.invoke('increment-export-count', 'messages'), 1);
-    assert.deepEqual(run1.env.senderSent, [['share-prompt:show']]);
+    assert.deepEqual(run1.env.senderSent, [['share-prompt:show', 'messages']]);
     assert.equal(await run1.invoke('increment-export-count', 'calls'), 2);
-    assert.deepEqual(run1.env.senderSent.at(-1), ['export-check:show', 'calls']);
+    assert.deepEqual(run1.env.senderSent.at(-1), ['export-check:show', 'calls', true]);
     assert.equal(await run1.invoke('increment-export-count', 'notes'), 3);
     assert.equal(run1.env.senderSent.length, 2);
-    assert.equal(run1.readState().sharePromptShown, true);
+    assert.equal(run1.readState().thanksCardShown, true);
     assert.equal(run1.readState().stats.totalExports, 3);
 
     // Next run: no share prompt ever again; the export check comes back once.
     const run2 = await loadMain({ userData });
     assert.equal(await run2.invoke('increment-export-count', 42), 4);
     assert.equal(await run2.invoke('increment-export-count', 'photos'), 5);
-    assert.deepEqual(run2.env.senderSent, [['export-check:show', undefined]]);
+    assert.deepEqual(run2.env.senderSent, [['export-check:show', undefined, true]]);
+  });
+
+  test('"Looks right" asks for thanks once ever, and never after a thank-you was sent', async () => {
+    const userData = freshDir('main-userdata');
+    const run1 = await loadMain({ userData, state: { thanksCardShown: true } });
+    await run1.invoke('increment-export-count', 'messages');
+    assert.deepEqual(run1.env.senderSent, [['export-check:show', 'messages', true]]);
+    await run1.invoke('feedback:thanks-offered');
+    assert.equal(run1.readState().thanksFollowUpShown, true);
+
+    const run2 = await loadMain({ userData });
+    await run2.invoke('increment-export-count', 'photos');
+    assert.deepEqual(run2.env.senderSent, [['export-check:show', 'photos', false]]);
+
+    // Someone who already sent a thank-you isn't asked, even if "Glad it worked" never showed.
+    const run3 = await loadMain({ userData: freshDir('main-userdata'), state: { thanksCardShown: true, thanksSent: true } });
+    await run3.invoke('increment-export-count', 'notes');
+    assert.deepEqual(run3.env.senderSent, [['export-check:show', 'notes', false]]);
+  });
+
+  test('people who saw the older star-only card get the Say thanks card once, unless they already thanked', async () => {
+    const userData = freshDir('main-userdata');
+    const run1 = await loadMain({ userData, state: { sharePromptShown: true, stats: { totalExports: 12 } } });
+    await run1.invoke('increment-export-count', 'calls');
+    assert.deepEqual(run1.env.senderSent, [['share-prompt:show', 'calls']]);
+    assert.equal(run1.readState().thanksCardShown, true);
+
+    const run2 = await loadMain({ userData });
+    await run2.invoke('increment-export-count', 'calls');
+    assert.deepEqual(run2.env.senderSent, [['export-check:show', 'calls', true]]);
+
+    const thanked = await loadMain({ userData: freshDir('main-userdata'), state: { sharePromptShown: true, thanksSent: true } });
+    await thanked.invoke('increment-export-count', 'calls');
+    assert.deepEqual(thanked.env.senderSent, [['export-check:show', 'calls', false]]);
   });
 
   test('"Don\'t ask again" stops the export check, in this run and the next', async () => {
     const userData = freshDir('main-userdata');
-    const run1 = await loadMain({ userData, state: { sharePromptShown: true } });
+    const run1 = await loadMain({ userData, state: { thanksCardShown: true } });
     await run1.invoke('feedback:export-check-opt-out');
     await run1.invoke('increment-export-count', 'messages');
     assert.deepEqual(run1.env.senderSent, []);
@@ -654,14 +691,19 @@ describe('sidecar:call', () => {
     );
   });
 
-  test('backups and the Apple Devices install get long timeouts; everything else the default', async () => {
+  test('backups, the Apple Devices install and exports get long timeouts; everything else the default', async () => {
     const m = await loadMain();
-    for (const method of ['backup.start', 'backup.install_device_support', 'list_messages', 'ping']) {
+    const methods = ['backup.start', 'backup.install_device_support', 'export_photos', 'export_conversations', 'list_messages', 'ping'];
+    for (const method of methods) {
       await m.invoke('sidecar:call', method, {});
     }
     assert.deepEqual(
       m.sidecar.calls.map(c => [c.method, c.timeoutMs]),
-      [['backup.start', 7_200_000], ['backup.install_device_support', 900_000], ['list_messages', undefined], ['ping', undefined]],
+      [
+        ['backup.start', 7_200_000], ['backup.install_device_support', 900_000],
+        ['export_photos', 21_600_000], ['export_conversations', 21_600_000],
+        ['list_messages', undefined], ['ping', undefined],
+      ],
     );
   });
 

@@ -31,6 +31,7 @@ import sys
 import weakref
 from typing import Optional
 
+from export_progress import ExportProgress, ProgressCallback
 from ios_backup_core.db import connect_readonly
 from ios_backup_core.extractors.photos import (
     PhotoExtractor as _CorePhotoExtractor,
@@ -641,7 +642,8 @@ class PhotoExtractor:
         except Exception as e:
             return {"error": f"Failed to read photo: {e}"}
 
-    def export_photos(self, backup, output_dir: str, options: dict = None) -> dict:
+    def export_photos(self, backup, output_dir: str, options: dict = None,
+                      on_progress: Optional[ProgressCallback] = None) -> dict:
         """Export photos with configurable format, folder structure, and metadata sidecars.
 
         Options:
@@ -653,6 +655,8 @@ class PhotoExtractor:
           include_metadata_sidecar (bool)   - default False
 
         Every file it writes gets the photo's date taken as its modified time.
+        on_progress(done, total, failed) is told how far the save has got, a few
+        times a second at most (see export_progress.py).
         """
         if options is None:
             options = {}
@@ -679,8 +683,13 @@ class PhotoExtractor:
 
         exported = 0
         errors = 0
+        progress = ExportProgress(on_progress, sum(
+            1 for p in all_photos
+            if (include_videos or p.get("kind") != "video") and (include_live or p.get("kind") != "live_photo")
+        ))
 
         for photo in all_photos:
+            progress.update(exported + errors, errors)
             file_hash = photo.get("file_hash")
             if not file_hash:
                 errors += 1
@@ -730,6 +739,7 @@ class PhotoExtractor:
             except Exception:
                 errors += 1
 
+        progress.update(exported + errors, errors)
         return {
             "exported": exported,
             "errors": errors,

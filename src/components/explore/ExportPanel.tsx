@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { saveFolder, sidecarCall } from '../../lib/ipc';
-import { photoExportSummary, PhotoExportResult } from '../../lib/photoCounts';
+import { photoExportSummary, photoSaveFailures, photoSaveProgress, PhotoExportResult } from '../../lib/photoCounts';
+import { percentDone } from '../../lib/exportProgress';
 import {
   checkEngineResult, contactsToCsv, contactsToVcard, notesToText, plural, saveConversations, saveTextFile,
   type ContactRecord, type ConversationFormat, type NoteRecord, type SaveResult,
 } from '../../lib/saveData';
 import type { BackupStatsOverview } from '../../hooks/useBackupStats';
 import { useSaveAction } from '../../hooks/useSaveAction';
+import { useExportProgress } from '../../hooks/useExportProgress';
 import PageHeader from '../shared/PageHeader';
-import SaveDialog, { ConversationModeChoice, FORMATS, SaveButton, type SaveFormat } from '../shared/SaveDialog';
+import SaveDialog, { ConversationModeChoice, FORMATS, SaveButton, SaveProgress, type SaveFormat } from '../shared/SaveDialog';
 import { LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon, GlobeIcon, ContactIcon } from '../shared/Icons';
 
 interface Props {
@@ -87,6 +89,7 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
     notes: useSaveAction('notes'),
     browser_history: useSaveAction('browser_history'),
   };
+  const photoProgress = useExportProgress('photos', running === 'photos');
 
   const kinds = KINDS.filter(k => {
     if (k.id === 'browser_history') return hasBrowserHistory;
@@ -194,7 +197,16 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
                 <div className="flex-1 min-w-0">
                   <div className="text-base font-medium text-text-primary">{kind.label}</div>
                   <div className="text-sm text-text-secondary">{kind.what(n)}</div>
-                  <div className="text-xs text-text-tertiary mt-0.5">{formatChoices(kind.formats)}</div>
+                  {kind.id === 'photos' && photoProgress ? (
+                    <SaveProgress
+                      className="mt-1.5"
+                      text={photoSaveProgress(photoProgress.done, photoProgress.total)}
+                      failures={photoSaveFailures(photoProgress.failed)}
+                      percent={percentDone(photoProgress)}
+                    />
+                  ) : (
+                    <div className="text-xs text-text-tertiary mt-0.5">{formatChoices(kind.formats)}</div>
+                  )}
                 </div>
                 <SaveButton onClick={() => start(kind)} busy={running === kind.id} disabled={running !== null} />
               </li>
