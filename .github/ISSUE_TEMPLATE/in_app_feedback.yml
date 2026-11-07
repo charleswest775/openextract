@@ -14,7 +14,7 @@ body:
     id: kind
     attributes:
       label: Type
-      description: "Something's broken / Something in my backup is missing or wrong / An idea or request / Something else"
+      description: "Something's broken / Something in my backup is missing or wrong / An idea or request / Something else / It worked: say thanks"
     validations:
       required: true
 

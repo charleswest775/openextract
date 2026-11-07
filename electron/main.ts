@@ -88,6 +88,10 @@ const store = new JsonStore({
   sharePromptShown: false,
   // True once the user picks "Don't ask again" on the "Did this export come out right?" card.
   exportCheckOptOut: false,
+  // True once a thank-you was sent from the feedback form; the app then stops asking for one.
+  thanksSent: false,
+  // True once "Looks right" on the export check led to "Glad it worked". It shows at most once.
+  thanksFollowUpShown: false,
   // Feedback reports sent from this computer (reference, random lookup code, status),
   // the email last typed into the form, and when their status was last checked.
   feedbackReports: [],
@@ -445,20 +449,27 @@ app.whenReady().then(async () => {
     store.set('exportCheckOptOut', true);
   });
 
+  ipcMain.handle('feedback:thanks-offered', () => {
+    store.set('thanksFollowUpShown', true);
+  });
+
   ipcMain.handle('increment-export-count', (event: any, area?: string) => {
     const stats = store.get('stats', { totalExports: 0 }) as any;
     stats.totalExports = (stats.totalExports || 0) + 1;
     store.set('stats', stats);
     // Every export calls this after it succeeds, so this is where the one-time
     // share prompt starts. Remembered locally; nothing is sent anywhere.
+    const exportArea = typeof area === 'string' ? area : undefined;
     if (!store.get('sharePromptShown', false)) {
       store.set('sharePromptShown', true);
-      event.sender.send('share-prompt:show');
+      event.sender.send('share-prompt:show', exportArea);
     } else if (!exportCheckShownThisRun && !store.get('exportCheckOptOut', false)) {
       // "Did this export come out right?" catches exports that finish without
       // an error but come out empty or wrong. The answer stays on this computer.
+      // "Looks right" may ask for a thank-you, once ever, and never after one was sent.
       exportCheckShownThisRun = true;
-      event.sender.send('export-check:show', typeof area === 'string' ? area : undefined);
+      const offerThanks = !store.get('thanksSent', false) && !store.get('thanksFollowUpShown', false);
+      event.sender.send('export-check:show', exportArea, offerThanks);
     }
     return stats.totalExports;
   });
