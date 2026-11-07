@@ -64,6 +64,8 @@ export default function MessageExplorer({ udid, index, query, openChatId, openMe
   // Opened partway down a long conversation: there are newer messages below
   const [hasNewer, setHasNewer] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Why there are no conversations, when the engine can't read this sms.db (iOS 5 and earlier)
+  const [unreadableNote, setUnreadableNote] = useState<string | null>(null);
   const [minMessageCount, setMinMessageCount] = useState(0);
   const [convDateFilter, setConvDateFilter] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -114,8 +116,11 @@ export default function MessageExplorer({ udid, index, query, openChatId, openMe
   async function loadConversations() {
     setLoading(true);
     try {
-      const result = await sidecarCall<{ conversations: Conversation[] }>('list_conversations', { udid });
+      const result = await sidecarCall<{ conversations: Conversation[]; error?: string; empty_reason?: string }>(
+        'list_conversations', { udid },
+      );
       setConversations(result.conversations);
+      setUnreadableNote(result.empty_reason === 'unsupported_format' ? result.error ?? null : null);
       // Open on the asked-for conversation, else the most recent one rather than an empty pane
       const first = result.conversations.find(c => c.chat_id === openChatId) ?? result.conversations[0];
       if (first) openChat(first.chat_id, first.chat_id === openChatId ? openMessageId ?? undefined : undefined);
@@ -485,7 +490,7 @@ export default function MessageExplorer({ udid, index, query, openChatId, openMe
           {filteredConversations.length === 0 && !loading && (
             <div className="p-4 text-sm text-text-secondary text-center">
               {conversations.length === 0
-                ? 'No conversations in this backup'
+                ? unreadableNote ?? 'No conversations in this backup'
                 : query ? `No messages match "${query}"` : 'No conversations match'}
             </div>
           )}

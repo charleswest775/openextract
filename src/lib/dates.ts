@@ -2,10 +2,21 @@
  * Format ISO date strings for display.
  */
 
+const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+// A bare YYYY-MM-DD is a day on the local calendar; `new Date` would read it as UTC midnight,
+// which is the day before west of UTC.
+function parseDate(isoString: string): Date {
+  const m = DATE_ONLY.exec(isoString);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(isoString);
+}
+
 export function formatDate(isoString: string | null | undefined): string {
   if (!isoString) return '';
   try {
-    const date = new Date(isoString);
+    const date = parseDate(isoString);
+    // toLocaleDateString doesn't throw on a bad date, it returns 'Invalid Date'
+    if (isNaN(date.getTime())) return isoString;
     return date.toLocaleDateString(undefined, {
       year: 'numeric',
       month: 'short',
@@ -19,7 +30,8 @@ export function formatDate(isoString: string | null | undefined): string {
 export function formatTime(isoString: string | null | undefined): string {
   if (!isoString) return '';
   try {
-    const date = new Date(isoString);
+    const date = parseDate(isoString);
+    if (isNaN(date.getTime())) return '';
     return date.toLocaleTimeString(undefined, {
       hour: 'numeric',
       minute: '2-digit',
@@ -37,7 +49,7 @@ export function formatDateTime(isoString: string | null | undefined): string {
 export function formatRelative(isoString: string | null | undefined): string {
   if (!isoString) return '';
   try {
-    const date = new Date(isoString);
+    const date = parseDate(isoString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);

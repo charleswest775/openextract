@@ -10,6 +10,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 - "Not now" on the "Keep OpenExtract up to date?" card no longer turns update checks off for good. The card comes back a week later, and only switching it off in Settings saves a no
 
+## [0.11.0] - 2026-11-07
+
+### Added
+- You can say thanks from inside the app. After your first export, the "Your file is saved" card has a Say thanks button, and so does Settings. If you saw the older version of that card, the new one shows once on your next export. If you answer "Looks right" when the app asks whether an export came out right, it offers once more. A thank-you sends only what you write (even nothing at all), privately, with no details about your computer or backup. You can tick a box to let your words be quoted on openextract.app without your name. Once you've sent one, the app stops asking
+- "Report this problem" has a "Common fixes" link beside it. It opens openextract.app/fixes, which lists what to do for each error OpenExtract knows about, by the words the app shows
+- Messages saved as a web page include their photos, GIFs, videos and other attachments. They're copied into a folder beside the page (Mom.html gets Mom_attachments), so you can move or share the two together. Photos and GIFs show in the conversation, videos and most audio play in it, and every attachment links to its file, so a voice message or a video your browser can't play still opens in another app
+- Backups made by iOS 9 and earlier open now: iTunes backups from about 2011 to 2016, the ones with a Manifest.mbdb file instead of Manifest.db. They used to not show up at all. Encrypted ones open too, with their password. Messages, Contacts, Calls, Photos and Notes all read, including the older call history and notes those iPhones kept. Messages from iOS 5 and earlier still can't be read, and the Messages screen says so
+- Saving photos shows how far it has got: "Saving 1,234 of 5,678 photos and videos…" with a bar that fills as it goes, on the Photos screen and on Save to this computer. A big library can take a long while, especially from an encrypted backup, and the button's "Saving…" alone looked stuck. Photos that couldn't be copied are counted as it goes
+
+### Changed
+- Saved conversations get file names you can read: "Karin Lindqvist, Jul 5 2024 - Jun 21 2026.html" instead of "Karin_Lindqvist--240705091009-000000--260621170638-000000.html". One day reads "Karin Lindqvist, Jul 5 2024", and names keep their accents and emoji. Saving the same conversation again adds " (2)" to the new file instead of replacing the first one, as PDFs already did
+- Messages: notices in a conversation say what happened instead of "[Conversation event]": who added or removed someone, who left, who renamed the conversation and to what, who changed or removed the group photo, who unsent a message, and FaceTime calls. For example "Karin added Theo to the conversation" or "You unsent a message", with names from your contacts. They read the same in the app, the Timeline and saved TXT, CSV, HTML and PDF files. Notices OpenExtract can't name yet say "[Conversation update]"
+
+### Fixed
+- Saving photos, or anything else, to this computer no longer fails with "Sidecar call timed out" when it takes longer than five minutes, as a big photo library can. Thumbnails you scroll to while it saves now show up when it's done instead of failing
+- Saved messages show each time in your computer's time zone, written the way people read it: "Jul 5, 2024, 9:10 AM". They used to show it in UTC, as 2024-07-05T16:10:09+00:00, so in California a message sent at 9:10 in the morning read 16:10, and an evening message could land on the next day. Web pages and PDFs show each day's date once, above its first message, like the conversation in the app. In a spreadsheet (CSV), the Date column keeps its exact form with your time zone added: 2024-07-05T09:10:09-07:00
+- Photos and videos you save now have the date they were taken as their file date, so Finder, File Explorer and photo apps sort them in the order you took them. They used to have the date of the backup instead, so a whole library could look like it was taken on the same day
+
+## [0.10.2] - 2026-11-06
+
+### Changed
+- macOS and Linux: OpenExtract can open a backup as soon as its window appears. Its engine used to unpack itself into a temporary folder every time it started, which could keep you waiting several seconds more on a Mac. It now comes as a folder, as it already did on Windows, and starts in a fraction of a second
+
+### Fixed
+- Windows: backups in a folder whose name has accents or other letters outside English (C:\Users\José, for example) open now; they used to fail. Save to this computer → Messages no longer stops partway through when a conversation's name has an emoji, and no longer writes files with garbled names
+- Mac: after closing OpenExtract's window, reopening it from the Dock left it unable to open or read anything until you quit the app. It works straight away now
+- If the engine can't be started at all, the app says so right away instead of waiting five minutes
+- Back up my iPhone: an encrypted backup of an iPhone that had never made one failed with "No such value." It works now
+- Back up my iPhone: when the iPhone itself is too full to make a backup, the app says so. It used to say the drive you chose didn't have enough free space, even on a nearly empty external drive
+- Back up my iPhone: three more failures say what to do instead of showing a technical error: the iPhone couldn't send some of its files (error 104), the folder holds an unfinished backup from an earlier try (error 205), and Windows wouldn't let OpenExtract change a file in the backup folder ("Access is denied")
+
+## [0.10.1] - 2026-11-04
+
+### Fixed
+- Windows: Back up my iPhone on a PC without Apple's iPhone software used to show a red error. It now explains that Windows needs Apple Devices, Apple's free app, and installs it for you from the Microsoft Store with one click, without needing an administrator (or opens the Store page if you'd rather do it yourself). If Apple Devices is installed but not running yet, as it isn't right after installing, OpenExtract starts it. Opening backups you already have never needed it
+- Other errors while looking for an iPhone now have a Report this problem link
+- Back up my iPhone asks your iPhone to trust this computer once. Every search used to start a new request, so you could be asked to tap Trust and enter your passcode several times in a row. The app now says when to tap Trust, and when the iPhone wants its passcode to start the backup
+- A backup could fail right after you entered your passcode, with a technical "Device locked (MBErrorDomain/208)" error. OpenExtract retried this automatically with older versions of the library it uses to talk to iPhones, but not with newer ones, which word the error differently. It retries again now, and if your iPhone is still locked it asks you to unlock it and click Retry
+- Unplugging your iPhone during a backup now says it was disconnected. An encrypted backup used to say the iPhone was asking for its passcode, and a backup into a folder you'd backed up to before could even say it had finished
+- Back up my iPhone's progress bar no longer jumps to about 90% in the first moments and sits there for most of the backup. It now climbs with the iPhone's own progress all the way through, and a count of how much has been copied ("12.43 GB copied") keeps moving every second, even while the iPhone's percentage pauses on large files. Before that, while the iPhone gets ready and asks for its passcode, the bar stays at 0% instead of showing 11% "Backing up files"
+- Back up my iPhone selects your iPhone when it's the only one connected, as it is the first time. You used to have to click it before you could start
+
 ## [0.10.0] - 2026-11-03
 
 ### Changed

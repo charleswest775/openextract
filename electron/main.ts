@@ -13,6 +13,9 @@ let mainWindow: any = null;
 let sidecar: any = null;
 
 const isDev = !app.isPackaged;
+// The end-to-end tests (scripts/e2e) run an unpackaged build with the renderer from dist/,
+// as packaged builds load it, and the engine from python/. Development builds only.
+const isE2E = isDev && process.env.OPENEXTRACT_E2E === '1';
 
 app.setName('OpenExtract');
 
@@ -83,10 +86,16 @@ const store = new JsonStore({
   updatesAutoCheck: null,
   // When "Not now" was picked on that question: the time (ms) to ask it again. 0 = ask now.
   updatesAskAfter: 0,
-  // True once the "star or tell a friend" prompt has been shown. It shows at most once.
-  sharePromptShown: false,
+  // True once the "Your file is saved" card (Say thanks, tell a friend, star) has been shown.
+  // It shows at most once. It replaced `sharePromptShown`, the flag of the older star-only
+  // card, so people who saw that one get this card once too.
+  thanksCardShown: false,
   // True once the user picks "Don't ask again" on the "Did this export come out right?" card.
   exportCheckOptOut: false,
+  // True once a thank-you was sent from the feedback form; the app then stops asking for one.
+  thanksSent: false,
+  // True once "Looks right" on the export check led to "Glad it worked". It shows at most once.
+  thanksFollowUpShown: false,
   // Feedback reports sent from this computer (reference, random lookup code, status),
   // the email last typed into the form, and when their status was last checked.
   feedbackReports: [],
@@ -103,9 +112,14 @@ let exportCheckShownThisRun = false;
 // Settings > Text size scales the whole window, so layouts keep their proportions.
 const TEXT_SIZE_ZOOM: Record<string, number> = { default: 1, large: 1.15, larger: 1.3 };
 
+// Own keys only: `in` would also accept "toString", "__proto__" and the rest of Object.prototype.
+const isTextSize = (size: unknown): size is string =>
+  typeof size === 'string' && Object.prototype.hasOwnProperty.call(TEXT_SIZE_ZOOM, size);
+
 function applyTextSize() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  mainWindow.webContents.setZoomFactor(TEXT_SIZE_ZOOM[store.get('textSize', 'default')] ?? 1);
+  const size = store.get('textSize', 'default');
+  mainWindow.webContents.setZoomFactor(isTextSize(size) ? TEXT_SIZE_ZOOM[size] : 1);
 }
 
 // macOS needs an app menu for Cmd+C, Cmd+V, Cmd+Q and friends to work, even in text fields.
@@ -157,7 +171,7 @@ function createWindow() {
 
   mainWindow.webContents.on('did-finish-load', applyTextSize);
 
-  if (isDev) {
+  if (isDev && !isE2E) {
     mainWindow.loadURL('http://127.0.0.1:5179');
     mainWindow.webContents.openDevTools();
   } else {
@@ -182,7 +196,7 @@ function findVenvPython(): string {
 
 function getPythonPath(): string {
   if (isDev) {
-    return findVenvPython();
+    return process.env.OPENEXTRACT_PYTHON || findVenvPython();
   }
   const resourcePath = (process as any).resourcesPath || '';
   const binaryName = process.platform === 'win32' ? 'openextract-engine.exe' : 'openextract-engine';
@@ -191,7 +205,7 @@ function getPythonPath(): string {
 
 function getPythonArgs(): string[] {
   if (isDev) {
-    return [path.join(__dirname, '..', 'python', 'main.py'), '--debug'];
+    return [path.join(__dirname, '..', 'python', 'main.py'), ...(isE2E ? [] : ['--debug'])];
   }
   return [];
 }
@@ -256,7 +270,10 @@ app.whenReady().then(async () => {
   // ── Sidecar IPC bridge ──────────────────────────────────────────────────
   ipcMain.handle('sidecar:call', async (_event: any, method: string, params: any) => {
     try {
-      const timeoutMs = method === 'backup.start' ? 7_200_000 : undefined;
+      const timeoutMs = method === 'backup.start' ? 7_200_000
+        : method === 'backup.install_device_support' ? 900_000 // winget may download slowly
+        : method.startsWith('export_') ? 21_600_000 // a whole photo library to a slow drive can take hours
+        : undefined;
       const result = await sidecar.call(method, params, timeoutMs);
       feedback.recordCall(method, params, { ok: true, result });
       if (method === 'open_backup') {
@@ -301,9 +318,13 @@ app.whenReady().then(async () => {
   });
 
   // URLs reach here from untrusted backup content (e.g. links in iMessage text),
-  // so only open web/mail links plus the one System Settings pane we link to.
+  // so only open web/mail links plus the app links we show ourselves: the System
+  // Settings pane for Full Disk Access, and Apple Devices in the Microsoft Store.
   const EXTERNAL_PROTOCOLS = new Set(['https:', 'http:', 'mailto:']);
-  const FULL_DISK_ACCESS_URL = 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles';
+  const APP_LINKS = new Set([
+    'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',
+    'ms-windows-store://pdp/?ProductId=9NP83LWLPZ9K',
+  ]);
 
   ipcMain.handle('shell:openExternal', (_event: any, url: string) => {
     let parsed: URL;
@@ -313,7 +334,7 @@ app.whenReady().then(async () => {
       console.warn('[shell:openExternal] rejected unparseable URL:', url);
       return;
     }
-    if (!EXTERNAL_PROTOCOLS.has(parsed.protocol) && parsed.href !== FULL_DISK_ACCESS_URL) {
+    if (!EXTERNAL_PROTOCOLS.has(parsed.protocol) && !APP_LINKS.has(parsed.href)) {
       console.warn('[shell:openExternal] rejected URL with disallowed scheme:', url);
       return;
     }
@@ -338,7 +359,7 @@ app.whenReady().then(async () => {
   // ── Text size (Settings) ────────────────────────────────────────────────
   ipcMain.handle('text-size:get', () => store.get('textSize', 'default'));
   ipcMain.handle('text-size:set', (_event: any, size: string) => {
-    if (!(size in TEXT_SIZE_ZOOM)) return;
+    if (!isTextSize(size)) return;
     store.set('textSize', size);
     applyTextSize();
   });
@@ -433,20 +454,28 @@ app.whenReady().then(async () => {
     store.set('exportCheckOptOut', true);
   });
 
+  ipcMain.handle('feedback:thanks-offered', () => {
+    store.set('thanksFollowUpShown', true);
+  });
+
   ipcMain.handle('increment-export-count', (event: any, area?: string) => {
     const stats = store.get('stats', { totalExports: 0 }) as any;
     stats.totalExports = (stats.totalExports || 0) + 1;
     store.set('stats', stats);
     // Every export calls this after it succeeds, so this is where the one-time
-    // share prompt starts. Remembered locally; nothing is sent anywhere.
-    if (!store.get('sharePromptShown', false)) {
-      store.set('sharePromptShown', true);
-      event.sender.send('share-prompt:show');
+    // "Your file is saved" card starts, unless a thank-you was already sent.
+    // Remembered locally; nothing is sent anywhere.
+    const exportArea = typeof area === 'string' ? area : undefined;
+    if (!store.get('thanksCardShown', false) && !store.get('thanksSent', false)) {
+      store.set('thanksCardShown', true);
+      event.sender.send('share-prompt:show', exportArea);
     } else if (!exportCheckShownThisRun && !store.get('exportCheckOptOut', false)) {
       // "Did this export come out right?" catches exports that finish without
       // an error but come out empty or wrong. The answer stays on this computer.
+      // "Looks right" may ask for a thank-you, once ever, and never after one was sent.
       exportCheckShownThisRun = true;
-      event.sender.send('export-check:show', typeof area === 'string' ? area : undefined);
+      const offerThanks = !store.get('thanksSent', false) && !store.get('thanksFollowUpShown', false);
+      event.sender.send('export-check:show', exportArea, offerThanks);
     }
     return stats.totalExports;
   });
@@ -463,5 +492,12 @@ app.on('window-all-closed', () => {
 
 app.on('activate', async () => {
   await app.whenReady();
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  if (BrowserWindow.getAllWindows().length === 0) {
+    // On macOS the app outlives its last window, but window-all-closed stopped
+    // the engine, so reopening from the Dock has to start it again.
+    if (sidecar && !sidecar.running) {
+      sidecar.start().catch((err: any) => console.error('Failed to start Python sidecar:', err));
+    }
+    createWindow();
+  }
 });

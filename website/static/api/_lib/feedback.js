@@ -21,6 +21,8 @@ const KINDS = {
   missing: { label: 'Something in my backup is missing or wrong', labels: ['bug'] },
   idea: { label: 'An idea or request', labels: ['enhancement'] },
   other: { label: 'Something else', labels: [] },
+  // A thank-you: no diagnostics, no known fixes, and the app doesn't check on it afterwards.
+  thanks: { label: 'It worked: say thanks', labels: ['thanks'] },
 };
 
 const AREAS = {
@@ -71,13 +73,14 @@ function validateReport(body) {
   const area = str(body.area);
   if (!KINDS[kind] || !AREAS[area]) return { error: 'The report was missing its type or part of the app.' };
 
+  const thanks = kind === 'thanks';
   const details = str(body.details).trim();
-  if (!details) return { error: 'Please describe what happened.' };
+  if (!details && !thanks) return { error: 'Please describe what happened.' };
   if (details.length > LIMITS.details) {
     return { error: `The description is too long. Please keep it under ${LIMITS.details.toLocaleString('en-US')} characters.` };
   }
 
-  const diagnostics = str(body.diagnostics).trim();
+  const diagnostics = thanks ? '' : str(body.diagnostics).trim();
   if (diagnostics.length > LIMITS.diagnostics) {
     return { error: 'The details section is too long. Please delete some of it and try again.' };
   }
@@ -90,46 +93,60 @@ function validateReport(body) {
   const token = str(body.token);
   if (!TOKEN_PATTERN.test(token)) return { error: 'Please update OpenExtract and try again.' };
 
-  return { report: { kind, area, details, diagnostics, email, token } };
+  // Only a thank-you with words in it can be quoted, and only when the sender ticked the box.
+  const quote = thanks && Boolean(details) && body.quote === true;
+
+  return { report: { kind, area, details, diagnostics, email, token, quote } };
 }
 
 /** Area plus the start of what the user wrote, so the issue list is scannable. Same as issueTitle() in src/lib/feedback.ts. */
 function issueTitle(report) {
   const first = report.details.trim().split('\n')[0].replace(/\s+/g, ' ');
   const summary = first.length > 70 ? `${first.slice(0, 67).trimEnd()}…` : first;
-  return `[Feedback] ${AREAS[report.area].label}: ${summary || KINDS[report.kind].label}`;
+  const area = AREAS[report.area].label;
+  if (report.kind === 'thanks') return summary ? `[Thanks] ${area}: ${summary}` : `[Thanks] ${area}`;
+  return `[Feedback] ${area}: ${summary || KINDS[report.kind].label}`;
 }
 
 /** Same headings as the public issue form (.github/ISSUE_TEMPLATE/in_app_feedback.yml), so triage reads both alike. */
 function issueBody(report) {
+  const thanks = report.kind === 'thanks';
   return [
     '### Type', '', KINDS[report.kind].label, '',
     '### Part of the app', '', AREAS[report.area].label, '',
-    '### What happened?', '', report.details, '',
-    '### Diagnostics', '', report.diagnostics || '_Removed by the sender._', '',
+    '### What happened?', '', report.details || '_No message, just a thank-you._', '',
+    ...(thanks ? ['### OK to quote on openextract.app', '', report.quote ? 'Yes, without their name' : 'No', ''] : []),
+    '### Diagnostics', '', thanks ? '_None. A thank-you never includes any._' : report.diagnostics || '_Removed by the sender._', '',
     '### Reply to', '',
-    report.email ? `\`${report.email}\`` : '_No email given. The sender hears about a fix only in the app._',
+    report.email
+      ? `\`${report.email}\``
+      : thanks ? '_No email given._' : '_No email given. The sender hears about a fix only in the app._',
     '',
     `<!-- openextract-report v1 token-sha256=${sha256(report.token)} -->`,
   ].join('\n');
 }
 
 function issueLabels(report) {
-  const labels = new Set(['feedback', ...KINDS[report.kind].labels, ...AREAS[report.area].labels]);
+  // A thank-you skips the area's labels, so searching "messages" or "export" still finds only problems.
+  const areaLabels = report.kind === 'thanks' ? [] : AREAS[report.area].labels;
+  const labels = new Set(['feedback', ...KINDS[report.kind].labels, ...areaLabels]);
   // An iOS version newer than anything we've tested is worth a look on its own.
   const ios = report.diagnostics.match(/· iOS (\d+)/);
   if (ios && Number(ios[1]) >= 27) labels.add('ios-compat');
   if (report.email) labels.add('has-email');
+  if (report.quote) labels.add('ok-to-quote');
   return [...labels];
 }
 
 /** Known problems this report looks like, in the shape the app shows. */
 function matchKnownFixes(report, fixes = KNOWN_FIXES) {
+  if (report.kind === 'thanks') return [];
   const text = `${report.details}\n${report.diagnostics}`;
   return fixes
     .filter(f => f.match.test(text) && (!f.when || f.when.test(text)))
     .slice(0, 2)
-    .map(f => ({ id: f.id, title: f.title, text: f.text, ...(f.url ? { url: f.url } : {}) }));
+    // Each fix has its own section on the "Fixes for common problems" page (website/static/fixes.html).
+    .map(f => ({ id: f.id, title: f.title, text: f.text, url: f.url || `https://www.openextract.app/fixes#${f.id}` }));
 }
 
 /** Where a report stands, from its issue. Labels win over open/closed so a fix can be marked before closing. */
@@ -230,7 +247,7 @@ async function receiveReport(req, env, fetchFn, now = Date.now()) {
   if (checked.error) return { status: 400, body: { error: checked.error } };
   const report = checked.report;
 
-  const key = sha256(JSON.stringify([report.kind, report.area, report.details, report.diagnostics, report.email, report.token]));
+  const key = sha256(JSON.stringify([report.kind, report.area, report.details, report.diagnostics, report.email, report.token, report.quote]));
   const earlier = recent.get(key, now);
   if (earlier) return { status: 200, body: earlier };
 

@@ -10,6 +10,18 @@ import json
 import time
 import tempfile
 
+# ── UTF-8 on the pipes ────────────────────────────────────────────────────────
+# Electron writes and reads UTF-8.  On Windows, Python opens a pipe with the
+# ANSI code page (cp1252) unless PYTHONUTF8 or PYTHONIOENCODING is set, and the
+# PyInstaller-built engine can't count on those, so non-ASCII text in a request
+# (a backup under C:\Users\José, a conversation named with an emoji) arrived
+# garbled.  Set the encoding here, before anything is read or written.  A byte
+# that isn't UTF-8 becomes U+FFFD rather than ending the engine.  (Tests that
+# import this module may have swapped the streams for ones without reconfigure.)
+for _stream, _errors in ((sys.stdin, "replace"), (sys.stdout, "strict"), (sys.stderr, "backslashreplace")):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors=_errors)
+
 # ── Stdout guard ──────────────────────────────────────────────────────────────
 # JSON-RPC uses stdout as its transport channel.  Any non-JSON text printed to
 # stdout by third-party libraries (e.g. "WARN: decrypted N bytes…" from
@@ -111,6 +123,8 @@ class SidecarServer:
             "get_messages_on_day": self.get_messages_on_day,
             # Live device backup
             "backup.list_devices": self.backup_list_devices,
+            "backup.install_device_support": self.backup_install_device_support,
+            "backup.pair_device": self.backup_pair_device,
             "backup.start": self.backup_start,
         }
 
@@ -126,11 +140,25 @@ class SidecarServer:
         routes them to a separate notificationHandler callback instead.
 
         This is used by backup.start to stream real-time progress events while
-        the backup RPC call is still in progress.
+        the backup RPC call is still in progress, and by saves (export.progress).
         """
         notification = {"jsonrpc": "2.0", "method": method, "params": params}
         _rpc_out.write(json.dumps(notification) + "\n")
         _rpc_out.flush()
+
+    def _export_progress(self, kind: str):
+        """
+        A progress callback for a save that streams it to Electron:
+            { "jsonrpc":"2.0", "method":"export.progress",
+              "params": { "kind": "photos", "done": int, "total": int, "failed": int } }
+
+        kind says which save it is, so the screen showing it can ignore others.
+        """
+        def notify(done: int, total: int, failed: int) -> None:
+            self.send_notification("export.progress", {
+                "kind": kind, "done": done, "total": total, "failed": failed,
+            })
+        return notify
 
     # ── RPC method handlers ───────────────────────────────────────────────────
 
@@ -329,7 +357,9 @@ class SidecarServer:
         if not options and "include_videos" in params:
             options = {"include_videos": params["include_videos"]}
         backup = self.backup_manager.get_open_backup(udid)
-        return self.photo_extractor.export_photos(backup, output_dir, options)
+        return self.photo_extractor.export_photos(
+            backup, output_dir, options, on_progress=self._export_progress("photos")
+        )
 
     def export_voicemails(self, params):
         udid = params["udid"]
@@ -459,6 +489,21 @@ class SidecarServer:
         """
         return self.device_backup_manager.list_devices()
 
+    def backup_install_device_support(self, params):
+        """
+        Windows: install and start Apple Devices, which Windows needs to talk to an
+        iPhone. Returns { installed: true }; takes a minute or more.
+        """
+        return self.device_backup_manager.install_device_support()
+
+    def backup_pair_device(self, params):
+        """
+        Ask the iPhone with params["udid"] to trust this computer, without waiting.
+        Returns { state: "trusted" | "waiting" | "locked" | "denied" }; the app calls
+        it again every couple of seconds until "trusted" or "denied".
+        """
+        return self.device_backup_manager.pair_device(params["udid"])
+
     def backup_start(self, params):
         """
         Initiate a full backup of the device identified by params["udid"].
@@ -466,9 +511,12 @@ class SidecarServer:
         Progress is streamed to Electron as JSON-RPC notifications:
             { "jsonrpc":"2.0", "method":"backup.progress",
               "params": { "phase": str, "percent": int,
-                          "files_done": int, "files_total": int } }
+                          "files_done": int, "files_total": int,
+                          "bytes_done": int (received from the iPhone so far,
+                                             also sent once a second while it grows) } }
 
-        Phases: "negotiating" → "backing_up" → "finalizing"
+        Phases: "negotiating" → "waiting" (for the iPhone; still 0%) → "passcode"
+        (if it asks for its passcode to allow the backup) → "backing_up" → "finalizing"
 
         Returns on completion: { "success": true, "backup_path": "..." }
         """
@@ -477,12 +525,13 @@ class SidecarServer:
         encrypted = params.get("encrypted", False)
         password = params.get("password")
 
-        def _notify(phase: str, percent: int, files_done: int, files_total: int) -> None:
+        def _notify(phase: str, percent: int, files_done: int, files_total: int, bytes_done: int = 0) -> None:
             self.send_notification("backup.progress", {
                 "phase": phase,
                 "percent": percent,
                 "files_done": files_done,
                 "files_total": files_total,
+                "bytes_done": bytes_done,
             })
 
         return self.device_backup_manager.start_backup(
@@ -494,11 +543,17 @@ class SidecarServer:
         )
 
     def handle_request(self, request):
+        if not isinstance(request, dict):
+            # A batch array, a string, a number or null: answer instead of crashing on .get().
+            return {
+                "id": None,
+                "error": {"code": -32600, "message": "Invalid Request: expected a JSON object"},
+            }
         req_id = request.get("id")
         method = request.get("method")
         params = request.get("params", {})
 
-        if method not in self.methods:
+        if not isinstance(method, str) or method not in self.methods:
             return {
                 "id": req_id,
                 "error": {"code": -32601, "message": f"Unknown method: {method}"},
