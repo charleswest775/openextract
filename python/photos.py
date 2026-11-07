@@ -654,9 +654,9 @@ class PhotoExtractor:
           folder_structure (str)            - "flat" | "by_date"
           include_metadata_sidecar (bool)   - default False
 
-        Every file it writes gets the photo's date taken as its modified time.
         on_progress(done, total, failed) is told how far the save has got, a few
         times a second at most (see export_progress.py).
+        Every file it writes gets the photo's date taken as its modified time.
         """
         if options is None:
             options = {}
