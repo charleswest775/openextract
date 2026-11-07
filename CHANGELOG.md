@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - Photos and videos you save now have the date they were taken as their file date, so Finder, File Explorer and photo apps sort them in the order you took them. They used to have the date of the backup instead, so a whole library could look like it was taken on the same day
+### Changed
+- Messages: notices in a conversation say what happened instead of "[Conversation event]": who added or removed someone, who left, who renamed the conversation and to what, who changed or removed the group photo, who unsent a message, and FaceTime calls. For example "Karin added Theo to the conversation" or "You unsent a message", with names from your contacts. They read the same in the app, the Timeline and saved TXT, CSV, HTML and PDF files. Notices OpenExtract can't name yet say "[Conversation update]"
 
 ## [0.10.2] - 2026-11-06
 

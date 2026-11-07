@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { formatTime } from '../../lib/dates';
 import { sidecarCall } from '../../lib/ipc';
+import { eventLabel } from '../../lib/messageEvents';
 import Highlight from '../shared/Highlight';
 
 interface Attachment {
@@ -15,6 +16,8 @@ interface Message {
   message_id: number;
   text: string | null;
   message_type: string;
+  /** What happened, for a group change, an unsent message or a FaceTime call. */
+  event_text?: string | null;
   link_preview?: { url?: string; title?: string; summary?: string; sitename?: string };
   date: string;
   is_from_me: boolean;
@@ -34,26 +37,6 @@ interface Props {
   /** The match a search is showing: outlined. */
   current?: boolean;
 }
-
-// What a message with no text and no attachment says, by the engine's
-// message_type. Exports use the same words (_EVENT_LABELS in
-// python/messages.py, which explains the "Conversation event" fallback).
-const EVENT_LABELS: Record<string, string> = {
-  location_started_by_me: 'You started sharing your location',
-  location_stopped_by_me: 'You stopped sharing your location',
-  location_started_by_them: 'Started sharing their location',
-  location_stopped_by_them: 'Stopped sharing their location',
-  audio: 'Audio message not in this backup',
-  attachment: 'Attachment',
-  link: 'Link',
-  payment: 'Apple Pay payment',
-  digital_touch: 'Digital Touch message',
-  handwriting: 'Handwritten message',
-  fitness: 'Fitness activity',
-  game: 'Game message',
-  app: 'Message from an iMessage app',
-};
-const EVENT_FALLBACK = 'Conversation event';
 
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.heic', '.heif', '.webp', '.bmp', '.tiff', '.tif'];
 
@@ -162,7 +145,7 @@ export default function ChatBubble({ message, showSender, udid, query = '', curr
           )}
           {!message.text && !message.has_attachments && (
             <p className={`text-xs italic ${isMine ? 'text-white/75' : 'text-text-tertiary'}`}>
-              [{EVENT_LABELS[message.message_type] ?? EVENT_FALLBACK}]
+              [{eventLabel(message)}]
             </p>
           )}
         </div>
