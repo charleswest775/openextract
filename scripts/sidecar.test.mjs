@@ -158,6 +158,30 @@ describe('PythonSidecar with a running engine', () => {
     assert.equal(sidecar.pending.size, 0);
   });
 
+  test('a call waiting behind a slow one doesn\'t time out while it waits its turn', async () => {
+    // Like thumbnails asked for while a long export runs.
+    const slow = sidecar.call('busy', { ms: 400 });
+    const queued = sidecar.call('echo', { queued: true }, 150);
+    assert.deepEqual(await slow, { busy: 400 });
+    assert.equal((await queued).params.queued, true);
+    assert.equal(sidecar.pending.size, 0);
+  });
+
+  test('a call behind one that timed out gets its own time limit from then on', async () => {
+    const started = Date.now();
+    const stuck = sidecar.call('busy', { ms: 600 }, 100);
+    const queued = sidecar.call('echo', { queued: true }, 150);
+    await assert.rejects(stuck, { message: 'Sidecar call timed out: busy' });
+    await assert.rejects(queued, { message: 'Sidecar call timed out: echo' });
+    // Its clock started when the first call gave up (100 ms), not when it was sent.
+    const elapsed = Date.now() - started;
+    assert.ok(elapsed >= 240, `timed out after ${elapsed} ms`);
+    assert.ok(elapsed < 550, `waited for the engine (${elapsed} ms) instead of timing out`);
+    assert.equal(sidecar.pending.size, 0);
+    // Once the engine is free again, calls work.
+    assert.equal((await sidecar.call('echo', { after: true })).params.after, true);
+  });
+
   test('the engine\'s stderr is appended to the log file', async () => {
     await waitFor(() => readLog(logPath).includes('[STDERR] fake engine starting'), { what: 'startup stderr in the log' });
     await sidecar.call('stderr', { text: 'Traceback (most recent call last):\nValueError: bad manifest\n' });

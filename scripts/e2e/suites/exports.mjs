@@ -48,7 +48,7 @@ export default {
       const prompts = async () => {
         const t = await app.text();
         if (/star|tell a friend|share/i.test(t) && /OpenExtract/.test(t)) shareSeen = true;
-        if (/Did this export come out right/i.test(t)) exportCheckSeen++;
+        if (/Did that come out right/i.test(t)) exportCheckSeen++;
         await app.eval(() => [...document.querySelectorAll('button')].filter(b => /^(Not now|Close|Dismiss|No thanks|×)$/.test(b.textContent.trim()) && b.closest('.fixed')).forEach(b => b.click()));
       };
 
@@ -93,6 +93,15 @@ export default {
         const res = await run(dir, 'Save conversation', format);
         timing(`export one conversation ${format}`, res.ms ?? 0);
         let pass = res.files.length === 1, detail = {};
+        if (format === 'html') {
+          // The page, and its photos in the folder named after it (OE-15).
+          const pages = res.files.filter(f => !f.includes('/'));
+          const folder = pages[0]?.replace(/\.html$/, '_attachments/');
+          const attached = res.files.filter(f => folder && f.startsWith(folder));
+          const imgs = pages[0] ? (fs.readFileSync(path.join(dir, pages[0]), 'utf-8').match(/<img /g) || []).length : 0;
+          pass = pages.length === 1 && attached.length === res.files.length - 1 && imgs === 7;
+          detail = { attached: attached.length, imgs };
+        }
         if (format === 'pdf' && res.files[0]) { const s = pdfStats(path.join(dir, res.files[0])); pass = pass && s.photos === 7; detail = s; }
         if (format === 'csv' && res.files[0]) { const rows = csvRows(path.join(dir, res.files[0])); const want = key.messages.filter(m => m.chat_identifier === '+14065550107' && !m.is_reaction).length; pass = pass && rows >= want * 0.9; detail = { rows, want }; }
         ok(`conversation as ${format}`, res, { pass, detail });

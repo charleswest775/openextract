@@ -3,9 +3,13 @@ const { spawn } = require('child_process');
 const { StringDecoder } = require('string_decoder');
 
 interface PendingRequest {
+  method: string;
   resolve: (value: any) => void;
   reject: (reason: any) => void;
-  timeout: NodeJS.Timeout;
+  // How long the engine may spend on this call, and the timer for that. The timer
+  // is null while the call waits behind earlier ones (see startClock).
+  timeoutMs: number;
+  timeout: NodeJS.Timeout | null;
   // The engine process the request went to. After a restart, the old engine's
   // exit must only reject the calls it was given, not the new engine's.
   proc: any;
@@ -113,10 +117,40 @@ export class PythonSidecar {
     if (this.process === proc) this.process = null;
     for (const [id, req] of this.pending) {
       if (req.proc !== proc) continue;
-      clearTimeout(req.timeout);
+      if (req.timeout) clearTimeout(req.timeout);
       this.pending.delete(id);
       req.reject(new Error(reason));
     }
+  }
+
+  /**
+   * The engine works on one call at a time, in the order they were sent, so a
+   * call's time limit starts only when every call sent to `proc` before it is done.
+   * Otherwise thumbnails asked for during a long export would time out while they
+   * wait their turn. A call that times out stops holding up the ones behind it, so
+   * a stuck engine can't keep them waiting forever.
+   */
+  private startClock(proc: any): void {
+    for (const [id, req] of this.pending) {
+      if (req.proc !== proc) continue;
+      if (!req.timeout) {
+        req.timeout = setTimeout(() => {
+          this.finish(id);
+          req.reject(new Error(`Sidecar call timed out: ${req.method}`));
+        }, req.timeoutMs);
+      }
+      return;
+    }
+  }
+
+  /** Stop waiting for call `id` and start the clock of the next one in line. */
+  private finish(id: number): PendingRequest | undefined {
+    const req = this.pending.get(id);
+    if (!req) return undefined;
+    if (req.timeout) clearTimeout(req.timeout);
+    this.pending.delete(id);
+    this.startClock(req.proc);
+    return req;
   }
 
   private processBuffer(): void {
@@ -141,10 +175,8 @@ export class PythonSidecar {
         }
 
         // Normal response: match by id to a pending call.
-        const pending = this.pending.get(message.id);
+        const pending = this.finish(message.id);
         if (pending) {
-          clearTimeout(pending.timeout);
-          this.pending.delete(message.id);
           if (message.error) {
             pending.reject(new Error(message.error.message || 'Unknown error'));
           } else {
@@ -167,16 +199,10 @@ export class PythonSidecar {
     const request = JSON.stringify({ id, method, params }) + '\n';
 
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error(`Sidecar call timed out: ${method}`));
-      }, timeoutMs ?? this.TIMEOUT_MS);
-
-      this.pending.set(id, { resolve, reject, timeout, proc });
+      this.pending.set(id, { method, resolve, reject, timeoutMs: timeoutMs ?? this.TIMEOUT_MS, timeout: null, proc });
+      this.startClock(proc);
       proc.stdin.write(request, (err: Error | null | undefined) => {
-        if (!err || !this.pending.has(id)) return;
-        clearTimeout(timeout);
-        this.pending.delete(id);
+        if (!err || !this.finish(id)) return;
         reject(new Error('Python sidecar is not running'));
       });
     });
