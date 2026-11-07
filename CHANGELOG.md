@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 - "Report this problem" has a "Common fixes" link beside it. It opens openextract.app/fixes, which lists what to do for each error OpenExtract knows about, by the words the app shows
+- Saving photos shows how far it has got: "Saving 1,234 of 5,678 photos and videos…" with a bar that fills as it goes, on the Photos screen and on Save to this computer. A big library can take a long while, especially from an encrypted backup, and the button's "Saving…" alone looked stuck. Photos that couldn't be copied are counted as it goes
 
 ### Fixed
 - Saving photos, or anything else, to this computer no longer fails with "Sidecar call timed out" when it takes longer than five minutes, as a big photo library can. Thumbnails you scroll to while it saves now show up when it's done instead of failing

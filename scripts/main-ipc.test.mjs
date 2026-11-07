@@ -240,7 +240,10 @@ describe('startup', () => {
 
     const progress = { jsonrpc: '2.0', method: 'backup.progress', params: { percent: 5 } };
     m.sidecar.notificationHandler(progress);
-    assert.deepEqual(m.window.webContents.sent, [['sidecar:notification', progress]]);
+    // Saves report how far they've got the same way, whatever the kind (OE-14).
+    const saving = { jsonrpc: '2.0', method: 'export.progress', params: { kind: 'photos', done: 1234, total: 5678, failed: 0 } };
+    m.sidecar.notificationHandler(saving);
+    assert.deepEqual(m.window.webContents.sent, [['sidecar:notification', progress], ['sidecar:notification', saving]]);
     m.window.destroyed = true;
     assert.doesNotThrow(() => m.sidecar.notificationHandler(progress));
   });
