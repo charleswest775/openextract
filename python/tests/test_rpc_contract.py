@@ -593,8 +593,15 @@ def case_export_photos(ctx):
     m = ctx.maren
     filenames = sorted(p["filename"] for p in m.expected["photos"])
     out = ctx.out("photos")  # missing: the engine makes it
+    seen = len(m.notifications)
     result = m.rpc("export_photos", output_dir=str(out))
     assert (result["exported"], result["errors"], result["not_in_backup"]) == (len(filenames), 0, 0)
+    # How far along it is, for "Saving 12 of 40 photos and videos…": ends at the total, never goes back.
+    progress = [n["params"] for n in m.notifications[seen:]]
+    assert progress and all(n["method"] == "export.progress" for n in m.notifications[seen:])
+    assert {p["kind"] for p in progress} == {"photos"} and {p["total"] for p in progress} == {len(filenames)}
+    assert [p["done"] for p in progress] == sorted(p["done"] for p in progress)
+    assert (progress[0]["done"], progress[-1]["done"], progress[-1]["failed"]) == (0, len(filenames), 0)
     assert same_path(result["output_dir"], out)
     written = files_under(out)
     assert sorted(p.name for p in written) == filenames and all(p.parent == out for p in written)
@@ -1305,4 +1312,8 @@ def test_stdout_stayed_pure_json(runtime):
     assert not problems, f"non-JSON lines or stray ids on stdout: {problems}"
     for engine in runtime.live_engines():
         for note in engine.notifications:
-            assert note.get("jsonrpc") == "2.0" and note.get("method") == "backup.progress", note
+            assert note.get("jsonrpc") == "2.0" and note.get("method") in ("backup.progress", "export.progress"), note
+            if note["method"] == "export.progress":
+                params = note["params"]
+                assert set(params) == {"kind", "done", "total", "failed"}, note
+                assert 0 <= params["failed"] <= params["done"] <= params["total"], note
