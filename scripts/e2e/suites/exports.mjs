@@ -93,6 +93,15 @@ export default {
         const res = await run(dir, 'Save conversation', format);
         timing(`export one conversation ${format}`, res.ms ?? 0);
         let pass = res.files.length === 1, detail = {};
+        if (format === 'html') {
+          // The page, and its photos in the folder named after it (OE-15).
+          const pages = res.files.filter(f => !f.includes('/'));
+          const folder = pages[0]?.replace(/\.html$/, '_attachments/');
+          const attached = res.files.filter(f => folder && f.startsWith(folder));
+          const imgs = pages[0] ? (fs.readFileSync(path.join(dir, pages[0]), 'utf-8').match(/<img /g) || []).length : 0;
+          pass = pages.length === 1 && attached.length === res.files.length - 1 && imgs === 7;
+          detail = { attached: attached.length, imgs };
+        }
         if (format === 'pdf' && res.files[0]) { const s = pdfStats(path.join(dir, res.files[0])); pass = pass && s.photos === 7; detail = s; }
         if (format === 'csv' && res.files[0]) { const rows = csvRows(path.join(dir, res.files[0])); const want = key.messages.filter(m => m.chat_identifier === '+14065550107' && !m.is_reaction).length; pass = pass && rows >= want * 0.9; detail = { rows, want }; }
         ok(`conversation as ${format}`, res, { pass, detail });
