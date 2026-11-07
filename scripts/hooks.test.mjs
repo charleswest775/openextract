@@ -55,9 +55,15 @@ test('normalizeMessage: a message in its conversation', () => {
   assert.equal(e.contactName, 'Mom');
   assert.equal(e.contactIdentifier, '+15035550123');
   assert.deepEqual(e.message, {
-    text: 'Running late 🚗', isFromMe: true, sender: '+15035550123', messageType: 'text',
+    text: 'Running late 🚗', isFromMe: true, sender: '+15035550123', messageType: 'text', eventText: null,
     conversationName: 'Mom', service: 'iMessage', chatId: 12, isGroup: false,
   });
+  // A group change or unsent message keeps the engine's words for it
+  const event = normalizeMessage(msg(9002, local(2024, 3, 10, 8, 16), null, {
+    message_type: 'group_member_added', event_text: 'Karin added Theo to the conversation',
+  }), MOM_CHAT);
+  assert.equal(event.message.messageType, 'group_member_added');
+  assert.equal(event.message.eventText, 'Karin added Theo to the conversation');
   // An unnamed conversation goes by its handle
   const unnamed = normalizeMessage(msg(1, local(2024, 1, 1), null), { ...MOM_CHAT, display_name: '' });
   assert.equal(unnamed.contactName, '+15035550123');
