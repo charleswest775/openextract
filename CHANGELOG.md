@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 - "Report this problem" has a "Common fixes" link beside it. It opens openextract.app/fixes, which lists what to do for each error OpenExtract knows about, by the words the app shows
+- Messages saved as a web page include their photos, GIFs, videos and other attachments. They're copied into a folder beside the page (Mom.html gets Mom_attachments), so you can move or share the two together. Photos and GIFs show in the conversation, videos and most audio play in it, and every attachment links to its file, so a voice message or a video your browser can't play still opens in another app
 
 ## [0.10.2] - 2026-11-06
 
