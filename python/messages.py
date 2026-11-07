@@ -178,10 +178,12 @@ class MessageExtractor:
             return {"error": "sms.db not found"}
 
         conn = self._inner._get_conn(db_path, backup)
+        # Older sms.db files have no attachment.transfer_name.
+        transfer_name = "transfer_name" if self._inner._schema(db_path, conn)["has_transfer_name"] else "NULL"
 
         try:
             row = conn.execute(
-                "SELECT filename, mime_type, transfer_name FROM attachment WHERE ROWID = ?",
+                f"SELECT filename, mime_type, {transfer_name} AS transfer_name FROM attachment WHERE ROWID = ?",
                 (attachment_id,)
             ).fetchone()
 

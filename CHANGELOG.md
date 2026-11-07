@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 - "Report this problem" has a "Common fixes" link beside it. It opens openextract.app/fixes, which lists what to do for each error OpenExtract knows about, by the words the app shows
+- Backups made by iOS 9 and earlier open now: iTunes backups from about 2011 to 2016, the ones with a Manifest.mbdb file instead of Manifest.db. They used to not show up at all. Encrypted ones open too, with their password. Messages, Contacts, Calls, Photos and Notes all read, including the older call history and notes those iPhones kept. Messages from iOS 5 and earlier still can't be read, and the Messages screen says so
 
 ## [0.10.2] - 2026-11-06
 
