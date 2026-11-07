@@ -48,7 +48,7 @@ export default {
       const prompts = async () => {
         const t = await app.text();
         if (/star|tell a friend|share/i.test(t) && /OpenExtract/.test(t)) shareSeen = true;
-        if (/Did this export come out right/i.test(t)) exportCheckSeen++;
+        if (/Did that come out right/i.test(t)) exportCheckSeen++;
         await app.eval(() => [...document.querySelectorAll('button')].filter(b => /^(Not now|Close|Dismiss|No thanks|×)$/.test(b.textContent.trim()) && b.closest('.fixed')).forEach(b => b.click()));
       };
 

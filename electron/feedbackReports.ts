@@ -10,6 +10,9 @@ export {};
  *    nobody else, look the report up later.
  *  - Follow-up checks send only the report number and that code, at most every
  *    few days, and only while a report is still open (for up to six months).
+ *  - A thank-you holds only what the user wrote (and an email, if they typed
+ *    one). It's never checked on afterwards; the app only remembers that one
+ *    was sent, so it stops asking.
  */
 
 const SITE = 'https://www.openextract.app';
@@ -27,6 +30,8 @@ export interface ReportInput {
   email?: string;
   /** Random hex made once per form, so a retry of the same report isn't filed twice. */
   token: string;
+  /** Thank-yous only: OK to quote on openextract.app, without the sender's name. */
+  quote?: boolean;
 }
 
 export interface KnownFix {
@@ -70,6 +75,9 @@ type Fetch = (url: string, init: any) => Promise<{ ok: boolean; status: number; 
 
 const OFFLINE = "Couldn't reach openextract.app. Check your internet connection and try again, or copy the report to send later.";
 const UNAVAILABLE = "The report couldn't be sent right now. Try again later, copy the report, or post it on GitHub instead.";
+// A thank-you has no Copy or GitHub fallback in the form.
+const OFFLINE_THANKS = "Couldn't reach openextract.app. Check your internet connection and try again.";
+const UNAVAILABLE_THANKS = "Your thanks couldn't be sent right now. Please try again later.";
 
 /** -1, 0 or 1, comparing dotted version numbers ("0.9.10" is newer than "0.9.2"). */
 export function compareVersions(a: string, b: string): number {
@@ -132,29 +140,41 @@ export class FeedbackReports {
 
   async send(input: ReportInput): Promise<SendResult> {
     const email = String(input.email ?? '').trim();
+    const thanks = input.kind === 'thanks';
     const payload = {
       kind: String(input.kind ?? ''),
       area: String(input.area ?? ''),
       details: String(input.details ?? ''),
-      diagnostics: String(input.diagnostics ?? ''),
+      diagnostics: thanks ? '' : String(input.diagnostics ?? ''),
       ...(email ? { email } : {}),
       token: String(input.token ?? ''),
+      ...(thanks && input.quote === true ? { quote: true } : {}),
     };
 
     let res;
     try {
       res = await this.post('/api/feedback', payload);
     } catch {
-      return { ok: false, error: OFFLINE };
+      return { ok: false, error: thanks ? OFFLINE_THANKS : OFFLINE };
     }
     const body = await res.json().catch(() => ({}));
     if (!res.ok || !Number.isInteger(body?.number)) {
       // The site's own messages (a bad email, too long, too many reports) are written for users.
-      const message = typeof body?.error === 'string' && [400, 429].includes(res.status) ? body.error.slice(0, 300) : UNAVAILABLE;
+      const message = typeof body?.error === 'string' && [400, 429].includes(res.status)
+        ? body.error.slice(0, 300)
+        : thanks ? UNAVAILABLE_THANKS : UNAVAILABLE;
       return { ok: false, error: message };
     }
 
     const reference = typeof body.reference === 'string' ? body.reference : `OE-${body.number}`;
+    // Remembered on this computer only, to fill in the form next time.
+    this.store.set('feedbackEmail', email);
+    if (thanks) {
+      // Nothing to follow up on. Remembered so the app stops asking for thanks.
+      this.store.set('thanksSent', true);
+      return { ok: true, reference, knownFixes: [] };
+    }
+
     const now = new Date().toISOString();
     const kept = this.reports().filter(r => r.number !== body.number);
     kept.push({
@@ -166,8 +186,6 @@ export class FeedbackReports {
       status: 'open',
     });
     this.store.set('feedbackReports', kept.slice(-MAX_KEPT));
-    // Remembered on this computer only, to fill in the form next time.
-    this.store.set('feedbackEmail', email);
     // The first follow-up waits a few days; nothing will have changed sooner.
     this.store.set('feedbackLastCheck', Date.now());
 

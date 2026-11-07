@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { MessageSquare } from 'lucide-react';
+import { Heart, MessageSquare } from 'lucide-react';
 import {
-  FEEDBACK_AREAS, FEEDBACK_KINDS, FIXES_URL, PRIVACY_URL, formatDiagnostics, fullReport, githubIssueUrl, newReportToken,
+  FEEDBACK_AREAS, FEEDBACK_KINDS, FIXES_URL, PRIVACY_URL, SITE_URL, formatDiagnostics, fullReport, githubIssueUrl, newReportToken,
   type FeedbackArea, type FeedbackForm, type FeedbackKind, type FeedbackRequest,
 } from '../../lib/feedback';
 import type { KnownFix } from '../../types';
@@ -12,6 +12,9 @@ import type { KnownFix } from '../../types';
  * openextract.app (electron/feedbackReports.ts), where it's filed privately; no
  * account is needed. The user sees and can edit every word first. If sending
  * fails, they can copy the report or post it on GitHub instead.
+ *
+ * openFeedback({ kind: 'thanks' }) opens a short "Say thanks" form instead: an
+ * optional message and email, no diagnostics, and nothing to follow up on.
  */
 
 const FeedbackContext = createContext<{ openFeedback: (req?: FeedbackRequest) => void }>({
@@ -79,6 +82,10 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
   const [sendError, setSendError] = useState<string | null>(null);
   const [done, setDone] = useState<Done | null>(null);
   const [copied, setCopied] = useState(false);
+  const [quote, setQuote] = useState(false);
+  const thanks = kind === 'thanks';
+  // Opened straight to "Say thanks" (from a card after an export): skip the list of problem kinds.
+  const thanksOnly = request.kind === 'thanks';
   // One code per form, so pressing Send again after a failure can't file the report twice.
   const [token] = useState(newReportToken);
   const detailsRef = useRef<HTMLTextAreaElement>(null);
@@ -88,7 +95,7 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
     const api = window.openextract?.feedback;
     api?.savedEmail?.().then(saved => { if (!cancelled && saved) setEmail(e => e || saved); }).catch(() => {});
     const load = api?.getDiagnostics;
-    if (!load) {
+    if (!load || request.kind === 'thanks') {
       setDiagnostics('');
       return;
     }
@@ -96,7 +103,7 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
       .then(d => { if (!cancelled) setDiagnostics(formatDiagnostics(d)); })
       .catch(() => { if (!cancelled) setDiagnostics(''); });
     return () => { cancelled = true; };
-  }, [request.error]);
+  }, [request.error, request.kind]);
 
   useEffect(() => {
     detailsRef.current?.focus();
@@ -105,8 +112,11 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const form: FeedbackForm = { kind, area, details, diagnostics: diagnostics ?? '' };
-  const ready = details.trim().length > 0 && diagnostics !== null && !sending;
+  const form: FeedbackForm = thanks
+    ? { kind, area, details, diagnostics: '', quote: quote && details.trim().length > 0 }
+    : { kind, area, details, diagnostics: diagnostics ?? '' };
+  // A thank-you can be sent without a message.
+  const ready = !sending && (thanks || (details.trim().length > 0 && diagnostics !== null));
 
   const copyReport = async () => {
     try {
@@ -126,7 +136,9 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
       if (result.ok) setDone({ via: 'app', reference: result.reference, knownFixes: result.knownFixes });
       else setSendError(result.error);
     } catch {
-      setSendError("The report couldn't be sent. Copy it, or post it on GitHub instead.");
+      setSendError(thanks
+        ? "Your thanks couldn't be sent right now. Please try again later."
+        : "The report couldn't be sent. Copy it, or post it on GitHub instead.");
     } finally {
       setSending(false);
     }
@@ -140,6 +152,36 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
     window.openextract.openExternal(url);
     setDone({ via: 'github', shortened });
   };
+
+  if (done?.via === 'app' && thanks) {
+    return (
+      <Shell onClose={onClose} thanks>
+        <p className="text-sm text-text-primary mb-1">Thank you. Your message was sent.</p>
+        <p className="text-xs text-text-secondary leading-relaxed mb-4">
+          Hearing that OpenExtract helped is what keeps it going. If you know someone who could use it,
+          passing on the link helps them find it.
+        </p>
+        <div className="flex justify-end gap-2">
+          <button
+            className="hearth-ghost-btn"
+            aria-live="polite"
+            onClick={async () => {
+              try {
+                await window.openextract.copyText(SITE_URL);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2500);
+              } catch {
+                // Clipboard unavailable: leave the button as it was.
+              }
+            }}
+          >
+            {copied ? 'Link copied' : 'Copy link'}
+          </button>
+          <button className="hearth-primary-btn" onClick={onClose}>Done</button>
+        </div>
+      </Shell>
+    );
+  }
 
   if (done?.via === 'app') {
     return (
@@ -198,44 +240,55 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
   }
 
   return (
-    <Shell onClose={onClose}>
-      <fieldset className="mb-4">
-        <legend className="hearth-eyebrow mb-2">What kind of feedback?</legend>
-        <div className="grid grid-cols-2 gap-2">
-          {FEEDBACK_KINDS.map(k => (
-            <label
-              key={k.id}
-              className={`p-2.5 rounded-lg border cursor-pointer text-left transition-colors focus-within:ring-2 focus-within:ring-accent ${
-                kind === k.id ? 'border-accent bg-surface' : 'border-border-default hover:border-border-strong'
-              }`}
-            >
-              <input type="radio" name="feedback-kind" className="sr-only" checked={kind === k.id} onChange={() => setKind(k.id)} />
-              <div className="text-sm text-text-primary leading-snug">{k.label}</div>
-              <div className="text-xs text-text-tertiary leading-snug mt-0.5">{k.hint}</div>
-            </label>
-          ))}
-        </div>
-      </fieldset>
+    <Shell onClose={onClose} thanks={thanksOnly}>
+      {thanksOnly ? (
+        <p className="text-sm text-text-secondary leading-relaxed mb-4">
+          OpenExtract is free, made by an independent developer with help from contributors. A few
+          words about how it helped mean a lot.
+        </p>
+      ) : (
+        <fieldset className="mb-4">
+          <legend className="hearth-eyebrow mb-2">What kind of feedback?</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {FEEDBACK_KINDS.map(k => (
+              <label
+                key={k.id}
+                className={`p-2.5 rounded-lg border cursor-pointer text-left transition-colors focus-within:ring-2 focus-within:ring-accent ${
+                  kind === k.id ? 'border-accent bg-surface' : 'border-border-default hover:border-border-strong'
+                } ${k.id === 'thanks' ? 'col-span-2' : ''}`}
+              >
+                <input type="radio" name="feedback-kind" className="sr-only" checked={kind === k.id} onChange={() => setKind(k.id)} />
+                <div className="text-sm text-text-primary leading-snug">{k.label}</div>
+                <div className="text-xs text-text-tertiary leading-snug mt-0.5">{k.hint}</div>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
+      {!thanks && (
+        <label className="block mb-4">
+          <span className="hearth-eyebrow block mb-1.5">Which part of OpenExtract?</span>
+          <select
+            className="w-full text-sm rounded-md border border-border-default bg-base px-2.5 py-1.5 text-text-primary"
+            value={area}
+            onChange={e => setArea(e.target.value as FeedbackArea)}
+          >
+            {FEEDBACK_AREAS.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+          </select>
+        </label>
+      )}
 
       <label className="block mb-4">
-        <span className="hearth-eyebrow block mb-1.5">Which part of OpenExtract?</span>
-        <select
-          className="w-full text-sm rounded-md border border-border-default bg-base px-2.5 py-1.5 text-text-primary"
-          value={area}
-          onChange={e => setArea(e.target.value as FeedbackArea)}
-        >
-          {FEEDBACK_AREAS.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
-        </select>
-      </label>
-
-      <label className="block mb-4">
-        <span className="hearth-eyebrow block mb-1.5">What happened?</span>
+        <span className="hearth-eyebrow block mb-1.5">{thanks ? 'Your message (optional)' : 'What happened?'}</span>
         <textarea
           ref={detailsRef}
           className="w-full h-24 text-sm rounded-md border border-border-default bg-base px-2.5 py-2 text-text-primary resize-y"
-          placeholder={kind === 'idea'
-            ? 'What would you like OpenExtract to do, and what would it help you with?'
-            : 'What did you do, what did you expect, and what happened instead?'}
+          placeholder={thanks
+            ? 'What did OpenExtract help you do?'
+            : kind === 'idea'
+              ? 'What would you like OpenExtract to do, and what would it help you with?'
+              : 'What did you do, what did you expect, and what happened instead?'}
           value={details}
           onChange={e => setDetails(e.target.value)}
         />
@@ -244,21 +297,30 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
         </span>
       </label>
 
-      <label className="block mb-4">
-        <span className="hearth-eyebrow block mb-1.5">Details we'll include (you can edit or delete any of it)</span>
-        <textarea
-          className="w-full h-32 text-xs font-mono rounded-md border border-border-default bg-surface px-2.5 py-2 text-text-secondary resize-y"
-          value={diagnostics ?? 'Gathering details…'}
-          disabled={diagnostics === null}
-          onChange={e => setDiagnostics(e.target.value)}
-          spellCheck={false}
-        />
-        <span className="text-xs text-text-tertiary">
-          App and system versions, your phone's model and iOS version, and recent errors. Your
-          folder names, device name, email addresses and phone numbers are replaced with
-          placeholders. Nothing from inside your backup is included.
-        </span>
-      </label>
+      {thanks && (
+        <label className="flex items-start gap-2 mb-4 text-xs text-text-secondary cursor-pointer">
+          <input type="checkbox" className="mt-0.5" checked={quote} onChange={e => setQuote(e.target.checked)} />
+          <span>OK to quote what I wrote on openextract.app, without my name</span>
+        </label>
+      )}
+
+      {!thanks && (
+        <label className="block mb-4">
+          <span className="hearth-eyebrow block mb-1.5">Details we'll include (you can edit or delete any of it)</span>
+          <textarea
+            className="w-full h-32 text-xs font-mono rounded-md border border-border-default bg-surface px-2.5 py-2 text-text-secondary resize-y"
+            value={diagnostics ?? 'Gathering details…'}
+            disabled={diagnostics === null}
+            onChange={e => setDiagnostics(e.target.value)}
+            spellCheck={false}
+          />
+          <span className="text-xs text-text-tertiary">
+            App and system versions, your phone's model and iOS version, and recent errors. Your
+            folder names, device name, email addresses and phone numbers are replaced with
+            placeholders. Nothing from inside your backup is included.
+          </span>
+        </label>
+      )}
 
       <label className="block mb-4">
         <span className="hearth-eyebrow block mb-1.5">Your email (optional)</span>
@@ -271,14 +333,16 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
           autoComplete="email"
         />
         <span className="text-[11px] text-text-tertiary">
-          Only used to write to you about this report. It's never shared or added to a mailing list.
+          {thanks ? 'Only used to write back to you.' : 'Only used to write to you about this report.'}
+          {' '}It's never shared or added to a mailing list.
         </span>
       </label>
 
       <p className="text-xs text-text-secondary mb-4">
-        Send delivers this report privately to OpenExtract's developer. It isn't posted anywhere
-        public, and you don't need an account. While it's open, OpenExtract checks on it every few
-        days and tells you here when it's fixed.{' '}
+        {thanks
+          ? "Send delivers your message privately to OpenExtract's developer. Nothing about your computer or your backup is included, and you don't need an account."
+          : "Send delivers this report privately to OpenExtract's developer. It isn't posted anywhere public, and you don't need an account. While it's open, OpenExtract checks on it every few days and tells you here when it's fixed."}
+        {' '}
         <button className="text-accent hover:underline" onClick={() => window.openextract.openExternal(PRIVACY_URL)}>
           How this works
         </button>
@@ -286,35 +350,39 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
 
       {sendError && (
         <div role="alert" className="rounded-lg border border-border-strong bg-surface p-3 mb-4">
-          <p className="text-xs text-text-primary leading-relaxed mb-2">{sendError}</p>
-          <button className="text-xs text-accent hover:underline" disabled={!ready} onClick={() => openOnGitHub()}>
-            Post it on GitHub instead (public, needs a GitHub account)
-          </button>
+          <p className={`text-xs text-text-primary leading-relaxed ${thanks ? '' : 'mb-2'}`}>{sendError}</p>
+          {!thanks && (
+            <button className="text-xs text-accent hover:underline" disabled={!ready} onClick={() => openOnGitHub()}>
+              Post it on GitHub instead (public, needs a GitHub account)
+            </button>
+          )}
         </div>
       )}
 
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <button
-          className="text-xs text-text-secondary hover:text-text-primary mr-auto"
-          disabled={!ready}
-          onClick={async () => {
-            if (await copyReport()) {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2500);
-            }
-          }}
-        >
-          {copied ? 'Copied' : 'Copy report'}
-        </button>
+        {!thanks && (
+          <button
+            className="text-xs text-text-secondary hover:text-text-primary mr-auto"
+            disabled={!ready}
+            onClick={async () => {
+              if (await copyReport()) {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2500);
+              }
+            }}
+          >
+            {copied ? 'Copied' : 'Copy report'}
+          </button>
+        )}
         <button className="hearth-primary-btn" disabled={!ready} onClick={() => send()}>
-          {sending ? 'Sending…' : sendError ? 'Try again' : 'Send report'}
+          {sending ? 'Sending…' : sendError ? 'Try again' : thanks ? 'Send thanks' : 'Send report'}
         </button>
       </div>
     </Shell>
   );
 }
 
-function Shell({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+function Shell({ onClose, thanks = false, children }: { onClose: () => void; thanks?: boolean; children: ReactNode }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
       <div
@@ -326,9 +394,9 @@ function Shell({ onClose, children }: { onClose: () => void; children: ReactNode
       >
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-full bg-elevated flex items-center justify-center">
-            <MessageSquare className="text-text-secondary" size={18} />
+            {thanks ? <Heart className="text-accent" size={18} /> : <MessageSquare className="text-text-secondary" size={18} />}
           </div>
-          <div id="feedback-title" className="flex-1 text-sm font-medium text-text-primary">Send feedback</div>
+          <div id="feedback-title" className="flex-1 text-sm font-medium text-text-primary">{thanks ? 'Say thanks' : 'Send feedback'}</div>
           <button onClick={onClose} className="text-text-tertiary hover:text-text-primary" aria-label="Close">×</button>
         </div>
         {children}

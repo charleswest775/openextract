@@ -14,7 +14,8 @@ export const BRIDGE = [
   'updates.getState', 'updates.setAutoCheck', 'updates.check', 'updates.download', 'updates.install', 'updates.onStatus',
   'getAppState', 'setFirstLaunchCompleted', 'addSession', 'removeSession', 'getRecentSessions', 'incrementExportCount',
   'onSharePrompt', 'feedback.getDiagnostics', 'feedback.send', 'feedback.savedEmail', 'feedback.fixedReports',
-  'feedback.markAnnounced', 'feedback.onFixed', 'feedback.optOutOfExportCheck', 'feedback.onExportCheck', 'copyText',
+  'feedback.markAnnounced', 'feedback.onFixed', 'feedback.optOutOfExportCheck', 'feedback.thanksOffered',
+  'feedback.onExportCheck', 'copyText',
 ];
 
 export default {
@@ -106,13 +107,21 @@ export default {
       await app.api('removeSession', 'e2e-1');
 
       // Exports counter, share prompt (once) and the export check (once per run).
-      await app.eval(() => { window.__share = 0; window.__check = 0; window.openextract.onSharePrompt(() => window.__share++); window.openextract.feedback.onExportCheck(() => window.__check++); });
+      await app.eval(() => {
+        window.__share = [];
+        window.__check = [];
+        window.openextract.onSharePrompt((area) => window.__share.push(area));
+        window.openextract.feedback.onExportCheck((area, offerThanks) => window.__check.push([area, offerThanks]));
+      });
       const n1 = (await app.api('incrementExportCount', 'messages')).value;
       const n2 = (await app.api('incrementExportCount', 'photos')).value;
       await app.api('incrementExportCount', 'notes');
       await sleep(300);
       const prompts = await app.eval(() => ({ share: window.__share, check: window.__check }));
-      check('incrementExportCount counts; share prompt once, export check once', n2 === n1 + 1 && prompts.share === 1 && prompts.check === 1, { n1, n2, prompts });
+      check('incrementExportCount counts; share prompt once, export check once', n2 === n1 + 1 && prompts.share.length === 1 && prompts.check.length === 1, { n1, n2, prompts });
+      check('the share prompt and export check get the export\'s area; a fresh profile may be asked for thanks',
+        prompts.share[0] === 'messages' && prompts.check[0]?.[0] === 'photos' && prompts.check[0]?.[1] === true, prompts);
+      await app.api('feedback.thanksOffered');
       await app.api('feedback.optOutOfExportCheck');
 
       // Feedback: diagnostics and the saved email are local; sending is not exercised here
