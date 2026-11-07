@@ -767,8 +767,9 @@ class PhotoExtractor:
     def _resolve_file(self, backup, file_hash: str) -> Optional[str]:
         """Resolve a file hash (or path-based key) to an absolute path on disk.
 
-        For unencrypted backups, files sit at backup_dir/XX/XXXX... and can
-        be read directly. For encrypted backups the Manifest.db is also
+        For unencrypted backups, files sit at backup_dir/XX/XXXX... (directly
+        in backup_dir for iOS 9 and earlier) and can be read directly. For
+        encrypted backups the Manifest.db is also
         encrypted, so list_photos stores ``dcim:<relative_path>`` as the
         file_hash. We detect that prefix here and call backup.get_file()
         directly instead of going through the manifest.
@@ -779,9 +780,10 @@ class PhotoExtractor:
             return backup.get_file(file_hash[len("dcim:"):], domain="CameraRollDomain")
 
         if not backup.encrypted:
-            source = os.path.join(backup.backup_dir, file_hash[:2], file_hash)
-            if os.path.exists(source):
-                return source
+            for source in (os.path.join(backup.backup_dir, file_hash[:2], file_hash),
+                           os.path.join(backup.backup_dir, file_hash)):  # iOS 9 and earlier
+                if os.path.isfile(source):
+                    return source
 
         # Look up the logical path by fileID hash, then let backup.get_file()
         # handle extraction / decryption into a temp file.
