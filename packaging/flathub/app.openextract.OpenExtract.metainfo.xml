@@ -59,6 +59,12 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.11.0" date="2026-11-07">
+      <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.11.0</url>
+      <description>
+        <p>Conversations saved as a web page now include their photos, GIFs, videos and other files, in a folder beside the page. Backups made by iOS 9 and earlier, the ones with a Manifest.mbdb file, open now, encrypted ones too. Saved conversations get readable file names and show times in your time zone, and notices in a conversation say what happened, such as who was added or who left. Saved photos keep the date they were taken, and saving a big photo library shows how far it has got instead of timing out. OpenExtract also starts faster, because its engine no longer unpacks itself each time.</p>
+      </description>
+    </release>
     <release version="0.10.0" date="2026-11-03">
       <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.10.0</url>
       <description>

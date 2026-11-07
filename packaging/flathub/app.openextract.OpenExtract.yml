@@ -19,16 +19,17 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
   # No --share=network on purpose: reading and saving backups needs no
   # internet, and in a Flatpak updates come from Flathub, not the in-app
-  # updater. Only feedback goes online (sending a report to openextract.app,
-  # then checking whether it was fixed); here Send can't connect, and the
-  # app offers to copy the report or post it on GitHub in the browser instead.
+  # updater. Only feedback goes online (sending a report or a thank-you to
+  # openextract.app, then checking whether a report was fixed); here Send
+  # can't connect, and the app offers to copy the report or post it on GitHub
+  # in the browser instead.
 modules:
   - name: openextract
     buildsystem: simple
     sources:
       - type: file
-        url: https://github.com/charleswest775/openextract/releases/download/v0.10.0/openextract_0.10.0_amd64.deb
-        sha256: 06fd5ec84f7cb16184f135d13356ac07a7fed7557a33be252727ccf130e0744f
+        url: https://github.com/charleswest775/openextract/releases/download/v0.11.0/openextract_0.11.0_amd64.deb
+        sha256: 4fbde2dc807a5aec019dd35c7e8225e91756a9c889be3ff210c20b11816aae80
         dest-filename: openextract.deb
         only-arches:
           - x86_64
