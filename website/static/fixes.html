@@ -35,6 +35,15 @@
       },
       {
         "@type": "Question",
+        "name": "Saving stopped after 5 minutes",
+        "url": "https://www.openextract.app/fixes#saving-timed-out",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "OpenExtract 0.10.2 and earlier stop waiting for a save after 5 minutes. That isn't long enough for a big photo library, especially from an encrypted backup. The files usually go on saving anyway: open the folder you chose and wait until new files stop appearing, then quit and reopen OpenExtract before you browse again. Versions after 0.10.2 wait much longer."
+        }
+      },
+      {
+        "@type": "Question",
         "name": "The password for an encrypted backup",
         "url": "https://www.openextract.app/fixes#backup-password",
         "acceptedAnswer": {
@@ -220,6 +229,11 @@
         <h3>Part of OpenExtract didn't start</h3>
         <p class="fix__seen">What you see: <code>Python sidecar is not running</code></p>
         <p>Quit OpenExtract and open it again. If it still can't open backups, download the latest version from openextract.app and install it over this one. On Windows, security software (Windows Security, Smart App Control or an antivirus) can stop part of OpenExtract from running: check it for a recent alert about OpenExtract.</p>
+      </div>
+      <div class="fix" id="saving-timed-out">
+        <h3>Saving stopped after 5 minutes</h3>
+        <p class="fix__seen">What you see: <code>Sidecar call timed out: export_photos</code></p>
+        <p>OpenExtract 0.10.2 and earlier stop waiting for a save after 5 minutes. That isn't long enough for a big photo library, especially from an encrypted backup. The files usually go on saving anyway: open the folder you chose and wait until new files stop appearing, then quit and reopen OpenExtract before you browse again. Versions after 0.10.2 wait much longer.</p>
       </div>
       <!-- fixes:end -->
     </div>
