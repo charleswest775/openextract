@@ -7,7 +7,7 @@ name: Pre-release check
 # but unsigned and unpublished, then
 #   - runs the backup corpus (public items plus every generated one) against the engine
 #     inside the packaged app, and
-#   - drives the packaged app end to end with scripts/e2e-packaged.mjs.
+#   - drives the packaged app through every end-to-end suite in scripts/e2e (docs/TESTING.md).
 #
 # Third-party backups (Hickman, FCSC) may not be screenshotted or redistributed, so the
 # only artifacts uploaded are the e2e results for the fictional maren backups.
@@ -90,22 +90,20 @@ jobs:
       - name: Build Electron app
         run: npm run build
 
-      # No signing secrets here: drop the notarize hook and Azure signing, and turn off
-      # hardened runtime so an ad-hoc signature is enough to launch on Apple silicon.
+      # No signing secrets here: drop the notarize hook and Azure signing. On macOS
+      # electron-builder signs ad hoc ("-"), with the hardened runtime and entitlements a
+      # release has, so the engine runs under the same rules as in a release (and Apple
+      # silicon needs a signature to launch at all).
       - name: Unsigned packaging config
         run: |
           node -e '
             const fs = require("fs"); const p = JSON.parse(fs.readFileSync("package.json"));
             delete p.build.afterSign; delete p.build.win.azureSignOptions;
-            p.build.mac.hardenedRuntime = false; p.build.mac.identity = null;
+            p.build.mac.identity = "-";
             fs.writeFileSync("package.json", JSON.stringify(p, null, 2));'
 
       - name: Package (unpacked, no publish)
         run: npx electron-builder --dir --publish never
-
-      - name: Ad-hoc sign (macOS)
-        if: runner.os == 'macOS'
-        run: codesign --force --deep -s - release/mac-arm64/OpenExtract.app
 
       - name: Fetch public backups
         id: fetch
@@ -127,38 +125,22 @@ jobs:
           echo "Items: $OPENEXTRACT_CORPUS_ITEMS"
           pytest python/tests/corpus -m corpus -q -rfE
 
-      # Runs even when the corpus step fails, so one run shows both.
+      # Runs even when the corpus step fails, so one run shows both. Every end-to-end suite
+      # (scripts/e2e) against the packaged app, plus the Hickman backup and the smoke suite.
+      # PYTHONUTF8 is unset so the engine uses the OS's own text encoding, as it does for users.
       - name: End to end
         id: e2e
         if: ${{ !cancelled() && steps.fetch.outcome == 'success' }}
         run: |
           npm install --no-save --no-audit --no-fund playwright-core@1.59.1
+          python scripts/e2e/backups.py e2e-backups.json --hickman
           # Node on Windows needs C:\ paths, not Git Bash's /c/ ones.
           native() { if command -v cygpath >/dev/null; then cygpath -w "$1"; else echo "$1"; fi; }
-          python - <<'EOF'
-          import os
-          from corpus.manifest import load_manifest
-          from corpus.synthetic import ensure_generated, load_synthetic
-          syn = load_synthetic()
-          paths = [
-              ensure_generated(syn["syn-maren-ios26-plain"]),
-              ensure_generated(syn["syn-maren-ios26-encrypted"]),
-              load_manifest()["pub-hickman-15.3.1"].backup_dir(),
-          ]
-          if None in paths:
-              raise SystemExit(f"Missing test backup: {paths}")
-          with open(os.environ["GITHUB_WORKSPACE"] + "/e2e-backups.txt", "w", encoding="utf-8", newline="\n") as f:
-              f.write("\n".join(map(str, paths)) + "\n")
-          EOF
-          # macOS runners have bash 3.2, which has no mapfile. Strip CRs too: a stray one
-          # at the end of a Windows path makes the backup folder "not found".
-          backups=()
-          while IFS= read -r line; do if [ -n "$line" ]; then backups+=("$line"); fi; done < <(tr -d '\r' < e2e-backups.txt)
-          printf 'Backup: %q\n' "${backups[@]}"
-          args=(scripts/e2e-packaged.mjs "$(native "$GITHUB_WORKSPACE/release/${{ matrix.app }}")" "$(native "$GITHUB_WORKSPACE/e2e-out")" "${backups[@]}")
-          if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a -s '-screen 0 1600x1000x24' node "${args[@]}"; else node "${args[@]}"; fi
+          args=(scripts/e2e/run.mjs --app "$(native "$GITHUB_WORKSPACE/release/${{ matrix.app }}")" --backups e2e-backups.json --out e2e-out
+                --suites first-run,open,screens,exports,empty,ipc,network,hickman,smoke)
+          if [ "$RUNNER_OS" = Linux ]; then env -u PYTHONUTF8 xvfb-run -a -s '-screen 0 1600x1000x24' node "${args[@]}"; else env -u PYTHONUTF8 node "${args[@]}"; fi
 
-      # Maren is fictional; scripts/e2e-packaged.mjs keeps every Hickman screenshot and
+      # Maren and einstein are fictional; the hickman suite keeps every Hickman screenshot and
       # export out of e2e-out.
       - name: Upload end-to-end results (maren only)
         if: ${{ !cancelled() && (steps.e2e.outcome == 'success' || steps.e2e.outcome == 'failure') }}

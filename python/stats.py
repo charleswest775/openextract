@@ -234,8 +234,11 @@ class StatsComputer:
             # Top 5 conversations
             top_conversations = []
             try:
-                rows = c.execute("""
-                    SELECT ch.ROWID, ch.chat_identifier, ch.display_name,
+                # Older sms.db files have no chat.display_name.
+                chat_columns = {r[1] for r in c.execute("PRAGMA table_info(chat)")}
+                display_name = "ch.display_name" if "display_name" in chat_columns else "NULL"
+                rows = c.execute(f"""
+                    SELECT ch.ROWID, ch.chat_identifier, {display_name},
                            COUNT(cmj.message_id) AS msg_count
                     FROM chat ch
                     JOIN chat_message_join cmj ON ch.ROWID = cmj.chat_id

@@ -229,8 +229,8 @@ openextract/
 ## Building for Distribution
 
 ```bash
-# Bundle the Python sidecar (one file on macOS and Linux, a folder on Windows
-# so every DLL in it can be signed)
+# Bundle the Python sidecar (a folder: it starts without unpacking, and every
+# library in it can be signed)
 npm run python:bundle
 
 # Package the Electron app

@@ -39,6 +39,37 @@ export function SaveButton({ onClick, disabled, busy, label = 'Save', primary = 
   );
 }
 
+/**
+ * How far a long save has got: "Saving 1,234 of 5,678 photos and videos…" over
+ * a bar, with what failed so far (e.g. "3 couldn't be copied") beside it.
+ */
+export function SaveProgress({ text, failures, percent, className = '' }: {
+  text: string;
+  failures?: string;
+  /** 0 to 100 */
+  percent: number;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-sm text-text-secondary">{text}</span>
+        {failures && <span className="text-xs text-text-tertiary flex-shrink-0">{failures}</span>}
+      </div>
+      <div
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        aria-valuetext={text}
+        className="mt-1.5 h-1.5 rounded-full overflow-hidden bg-sand"
+      >
+        <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: `${Math.max(2, percent)}%` }} />
+      </div>
+    </div>
+  );
+}
+
 interface Props<T extends string> {
   /** e.g. "Save your conversation with Karin" */
   title: string;

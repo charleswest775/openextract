@@ -1,0 +1,4 @@
+{
+  "_comment": "End-to-end checks expected to fail until an app bug is fixed. 'check' is the full name the run prints ('suite: check'); 'platforms' (optional) limits an entry to some of darwin, win32, linux. Strict: a listed check that passes fails the run, so remove its entry in the PR that fixes the bug.",
+  "issues": []
+}

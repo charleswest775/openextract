@@ -7,10 +7,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 const require = createRequire(import.meta.url);
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'oe-feedback-test-'));
 
 /** Transpile one TS file to CommonJS in a temp dir and require it. */
@@ -151,10 +152,12 @@ test('FeedbackRecorder keeps backup facts but not names, and scrubs recorded err
   rec.recordCall('list_voicemails', {}, { ok: false, error: 'Kim Phone: cannot read /Volumes/Ext/MyBackups/abcd1234efgh/Manifest.db' });
   // An empty_reason is a legitimate empty state, not a failure.
   rec.recordCall('list_notes', {}, { ok: true, result: { error: 'needs encryption', empty_reason: 'requires_encryption' } });
+  // Nor is a video, which has no thumbnail.
+  rec.recordCall('get_photo_thumbnail', {}, { ok: true, result: { error: 'video', is_video: true } });
 
   const d = rec.diagnostics('Error for Kim Phone');
   assert.deepEqual(d.backup, { model: 'iPhone14,2', iosVersion: '17.4', encrypted: true, sizeGB: 54.2 });
-  assert.deepEqual(d.loaded, ['list_calls', 'list_notes', 'open_backup']);
+  assert.deepEqual(d.loaded, ['get_photo_thumbnail', 'list_calls', 'list_notes', 'open_backup']);
   assert.deepEqual(d.failed, ['list_voicemails']);
   assert.equal(d.recentErrors.length, 1);
   assert.equal(d.recentErrors[0].count, 2);
@@ -338,6 +341,40 @@ test('a lookalike code line in the user\'s text doesn\'t unlock the report', () 
   assert.ok(site.tokenMatches(body, TOKEN));
 });
 
+test('a thank-you needs no message, never carries diagnostics, and gets only its own labels', () => {
+  const bare = site.validateReport(goodReport({ kind: 'thanks', area: 'messages', details: '  ', quote: true }));
+  assert.equal(bare.error, undefined);
+  assert.equal(bare.report.details, '');
+  assert.equal(bare.report.diagnostics, '', 'dropped even if an app sends some');
+  assert.equal(bare.report.quote, false, 'nothing to quote');
+  assert.equal(site.issueTitle(bare.report), '[Thanks] Messages');
+  assert.equal(site.issueTitle(bare.report), lib.issueTitle(bare.report));
+  const body = site.issueBody(bare.report);
+  for (const h of ['### Type', '### Part of the app', '### What happened?', '### OK to quote on openextract.app', '### Diagnostics', '### Reply to']) {
+    assert.ok(body.includes(h), h);
+  }
+  assert.ok(body.includes('_No message, just a thank-you._'));
+  assert.ok(body.includes('### OK to quote on openextract.app\n\nNo\n'));
+  assert.ok(!body.includes('sidecar'));
+  assert.ok(site.tokenMatches(body, TOKEN));
+  // No area labels, so searching "messages" still finds only problems.
+  assert.deepEqual(site.issueLabels(bare.report).sort(), ['feedback', 'thanks']);
+  assert.deepEqual(site.matchKnownFixes({ ...bare.report, details: 'Python sidecar is not running' }), []);
+
+  const worded = site.validateReport(goodReport({
+    kind: 'thanks', area: 'voicemail', details: "Got my mum's voicemails back.\nThank you!", email: 'pat@example.com', quote: true,
+  })).report;
+  assert.equal(site.issueTitle(worded), "[Thanks] Voicemail: Got my mum's voicemails back.");
+  assert.equal(site.issueTitle(worded), lib.issueTitle(worded));
+  assert.ok(site.issueBody(worded).includes('### OK to quote on openextract.app\n\nYes, without their name'));
+  assert.deepEqual(site.issueLabels(worded).sort(), ['feedback', 'has-email', 'ok-to-quote', 'thanks']);
+
+  // Only an explicit true counts, and only on a thank-you.
+  assert.equal(site.validateReport(goodReport({ kind: 'thanks', details: 'x', quote: 'yes' })).report.quote, false);
+  assert.equal(site.validateReport(goodReport({ quote: true })).report.quote, false);
+  assert.ok(!site.issueBody(site.validateReport(goodReport()).report).includes('OK to quote'));
+});
+
 test('known fixes match on the error text and, where given, the system', () => {
   const engine = site.matchKnownFixes(site.validateReport(goodReport()).report);
   assert.deepEqual(engine.map(f => f.id), ['engine-did-not-start']);
@@ -430,6 +467,10 @@ test('the password fix doesn\'t show for other decryption, passcode or password 
   }
 });
 
+// python/device_backup.py _device_service_error(), now and up to 0.10.0.
+const WINDOWS_NO_DEVICE_SERVICE = "DEVICE_SERVICE_REQUIRED: To find your iPhone, OpenExtract needs Apple Devices, Apple's free iPhone app for Windows, and it isn't installed. Install it from the Microsoft Store, then search again.";
+const OLD_NO_DEVICE_SERVICE = 'Cannot connect to Apple Mobile Device Service. On Windows, install iTunes or the Apple Devices app from the Microsoft Store, then make sure it is running before searching for devices.';
+
 // One real error per known fix; the last test checks that every fix has one.
 const REAL_ERRORS = [
   // electron/sidecar.ts call(), once the engine has stopped (#169).
@@ -457,6 +498,94 @@ const REAL_ERRORS = [
     reportedError: 'No iPhone backups found in /Users/jane/Desktop/iPhone stuff. Pick the parent folder that contains a UDID-named subfolder (e.g. MobileSync/Backup).',
   },
   { fix: 'backup-password', errors: [['open_backup', WRONG_PASSWORD]] },
+  // The iPhone's own storage full, which 0.10.1 blamed on the drive (OE-10).
+  {
+    fix: 'iphone-full',
+    area: 'create_backup',
+    details: "its says 960 Gigs of free space isn't enough on my external drive??",
+    errors: [['backup.start', 'Not enough free space for this backup. The drive you chose only has 961 GB free. Free up space or choose a folder on an external drive, then try again.']],
+    log: [
+      '[RPC ERROR] backup.start: Traceback (most recent call last):',
+      '  File "device_backup.py", line 654, in _run_backup',
+      "pymobiledevice3.exceptions.NotEnoughDiskSpaceError: Device refused the backup: {'ErrorCode': 105, 'ErrorDescription': 'Failed to create snapshot: No space left on device (28) at path \"/private/var\" (MBErrorDomain/105)', 'MessageName': 'Response'}. The device counts every hardlink and clone at full size, because each is stored as a separate file in the backup, so this can far exceed the data stored on the device.",
+      '',
+      'The above exception was the direct cause of the following exception:',
+      '',
+      'Traceback (most recent call last):',
+      '  File "main.py", line 509, in backup_start',
+      'RuntimeError: Not enough free space for this backup. The drive you chose only has 961 GB free. Free up space or choose a folder on an external drive, then try again.',
+    ].join('\n'),
+  },
+  // python/device_backup.py _IPHONE_FULL, from the version after 0.10.1.
+  {
+    fix: 'iphone-full',
+    area: 'create_backup',
+    errors: [['backup.start', 'Your iPhone is too full to make a backup: it needs some free space of its own to prepare one. Free up space on the iPhone (Settings > General > iPhone Storage shows what takes the most), then try again.']],
+  },
+  // python/device_backup.py _disk_full_message() when the iPhone said how much room it needs.
+  {
+    fix: 'backup-drive-full',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', 'Not enough free space for this backup. It needs more than 118 GB free, but the drive you chose has 62 GB free. Free up space or choose a folder on an external drive, then try again.']],
+  },
+  // pymobiledevice3's MissingValueError for an iPhone that never made an encrypted backup (OE-12).
+  { fix: 'encrypted-backup-no-such-value', os: WINDOWS, area: 'create_backup', errors: [['backup.start', 'No such value.']] },
+  // MBErrorDomain/104 as 0.10.1 showed it (OE-6, OE-8), and as later versions word it.
+  {
+    fix: 'iphone-could-not-send-files',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', "The device reported an error: {'ErrorCode': 104, 'ErrorDescription': 'Multiple errors uploading files (MBErrorDomain/104)', 'MessageName': 'Response'}.\nPlease report it at https://github.com/doronz88/pymobiledevice3/issues, with the output of the same command run with -v (`pymobiledevice3 -v ...`), so support for it can be added."]],
+  },
+  {
+    fix: 'iphone-could-not-send-files',
+    area: 'create_backup',
+    errors: [['backup.start', "Your iPhone couldn't send some of its files. Restart your iPhone, plug it back in, then try again."]],
+  },
+  // MBErrorDomain/205 after an earlier try stopped partway (OE-6), and the later wording.
+  {
+    fix: 'unfinished-backup-folder',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', "The device reported an error: {'ErrorCode': 205, 'ErrorDescription': 'Error reading backup manifest properties (MBErrorDomain/205). Underlying error: Error deserializing properties: Cannot parse a NULL or zero-length data (MBErrorDomain/11).', 'MessageName': 'Response'}."]],
+  },
+  {
+    fix: 'unfinished-backup-folder',
+    area: 'create_backup',
+    errors: [['backup.start', "The folder you chose has an unfinished backup of this iPhone from an earlier try, and the iPhone can't continue it. Choose a new, empty folder, then try again."]],
+  },
+  // Windows refusing to let the backup tidy up its own files (OE-11), and the later wording.
+  {
+    fix: 'backup-folder-access-denied',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', "[WinError 5] Access is denied: 'D:\\\\iPhone backups\\\\00008030-001A2B3C4D5E6F70\\\\Snapshot\\\\00'"]],
+  },
+  {
+    fix: 'backup-folder-access-denied',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', "OpenExtract wasn't allowed to change a file in the backup folder. This can happen when another program, such as OneDrive or antivirus software, is using it. Choose a new, empty folder outside OneDrive or other synced folders, then try again."]],
+  },
+  // python/device_backup.py _device_service_error() on Windows without Apple Devices or iTunes.
+  { fix: 'windows-apple-devices', os: WINDOWS, errors: [['backup.list_devices', WINDOWS_NO_DEVICE_SERVICE]] },
+  // The same in 0.10.0, pasted into the report by hand (OE-4).
+  {
+    fix: 'windows-apple-devices',
+    os: WINDOWS,
+    area: 'general',
+    details: OLD_NO_DEVICE_SERVICE,
+    errors: [['backup.list_devices', OLD_NO_DEVICE_SERVICE]],
+  },
+  // electron/sidecar.ts call() giving up on a photo save after 5 minutes in 0.10.2, and the
+  // thumbnails that waited behind it (OE-14).
+  {
+    fix: 'saving-timed-out',
+    os: WINDOWS,
+    area: 'photos',
+    errors: [['export_photos', 'Sidecar call timed out: export_photos'], ['get_photo_thumbnail', 'Sidecar call timed out: get_photo_thumbnail']],
+  },
 ];
 
 test('each known fix shows for the app\'s real error, and only that fix', async () => {
@@ -477,6 +606,10 @@ test('reports about something else get no known fix', async () => {
   }
   // Full Disk Access is only a macOS setting.
   assert.deepEqual(await knownFixesFor({ ...REAL_ERRORS[2], os: WINDOWS }), []);
+  // A Mac without usbmuxd needs a restart, not Apple Devices.
+  assert.deepEqual(await knownFixesFor({
+    errors: [['backup.list_devices', "DEVICE_SERVICE_REQUIRED: OpenExtract can't reach the part of macOS that talks to iPhones (usbmuxd). Restart your Mac, then search again."]],
+  }), []);
 });
 
 test('a report\'s status comes from its labels, then open or closed', () => {
@@ -589,6 +722,36 @@ test('the app keeps the reference, and drops links in known fixes that point els
   assert.equal(store.data.feedbackReports.length, 1);
   assert.equal(store.data.feedbackReports[0].token, TOKEN);
   assert.equal(store.data.feedbackReports[0].summary, 'It says the engine is not running');
+});
+
+test('the app sends a thank-you without diagnostics, keeps nothing to check on, and stops asking', async () => {
+  const gh = fakeGitHub();
+  const store = memoryStore();
+  const app = new reports.FeedbackReports(store, siteFetch(gh, '192.0.2.77'), '0.10.3');
+  const sent = await app.send(goodReport({ kind: 'thanks', area: 'export', details: 'Thank you!', quote: true, token: '4d'.repeat(24) }));
+  assert.ok(sent.ok, sent.error);
+  assert.deepEqual(sent.knownFixes, []);
+  const [issue] = [...gh.issues.values()];
+  assert.equal(issue.title, '[Thanks] Exporting: Thank you!');
+  assert.ok(!issue.body.includes('sidecar'), 'no diagnostics');
+  assert.deepEqual(issue.labels.map(l => l.name).sort(), ['feedback', 'ok-to-quote', 'thanks']);
+  assert.equal(store.data.thanksSent, true);
+  assert.equal(store.data.feedbackReports, undefined);
+  assert.equal(store.data.feedbackLastCheck, undefined);
+
+  const calls = gh.calls.length;
+  assert.equal(await app.checkIfDue(Date.now() + 30 * 24 * 60 * 60 * 1000), false);
+  assert.equal(gh.calls.length, calls, 'a thank-you is never looked up');
+
+  // Failures don't point at Copy or GitHub, which the thank-you form doesn't have.
+  const offline = new reports.FeedbackReports(memoryStore(), async () => { throw new Error('ENOTFOUND'); }, '0.10.3');
+  const off = await offline.send(goodReport({ kind: 'thanks' }));
+  assert.match(off.error, /internet connection/);
+  assert.doesNotMatch(off.error, /copy|GitHub/i);
+  const downStore = memoryStore();
+  const down = new reports.FeedbackReports(downStore, async () => reply(503, {}), '0.10.3');
+  assert.match((await down.send(goodReport({ kind: 'thanks' }))).error, /thanks couldn't be sent/);
+  assert.equal(downStore.data.thanksSent, undefined);
 });
 
 test('send, fix, and the app finds out: the whole loop', async () => {
