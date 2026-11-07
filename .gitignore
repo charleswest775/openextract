@@ -51,3 +51,8 @@ temp_stdout.txt
 # Claude worktrees
 .claude/*
 !.claude/skills/
+
+# Test runs (docs/TESTING.md)
+e2e-out/
+e2e-backups.json
+installer-out/

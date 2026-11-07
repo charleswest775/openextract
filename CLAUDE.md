@@ -91,8 +91,8 @@ npm install
 # Run in development
 npm run dev
 
-# Build Python sidecar
-pyinstaller --onefile sidecar/main.py
+# Build Python sidecar (a PyInstaller folder in python/dist/openextract-engine)
+npm run python:bundle
 
 # Build Electron app
 npm run build

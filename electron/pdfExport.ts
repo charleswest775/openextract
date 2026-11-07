@@ -159,7 +159,9 @@ function closeWindow(win: any): Promise<void> {
  */
 export function removeStaleStagingDirs(maxAgeMs = 60 * 60 * 1000): void {
   try {
-    const tempDir = app.getPath('temp');
+    // Real path, as the running exports' folders in activeStagingDirs are (the temp
+    // path can go through a symlink or junction, e.g. macOS /var -> /private/var).
+    const tempDir = fs.realpathSync(app.getPath('temp'));
     for (const name of fs.readdirSync(tempDir)) {
       if (!name.startsWith(STAGING_PREFIX)) continue;
       const dir = path.join(tempDir, name);

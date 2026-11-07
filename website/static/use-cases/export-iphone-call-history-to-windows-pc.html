@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Export iPhone call history to a Windows PC, free — OpenExtract</title>
+  <meta name="description" content="Save your iPhone call history to a Windows 10 or 11 PC as a spreadsheet: who, when, how long, missed or answered. Needs an encrypted backup. Free, open source, nothing uploaded." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/export-iphone-call-history-to-windows-pc" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/export-iphone-call-history-to-windows-pc" />
+  <meta property="og:title" content="Export iPhone call history to a Windows PC, free" />
+  <meta property="og:description" content="Make an encrypted backup, then save every call as a spreadsheet." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Export iPhone call history to a Windows PC",
+    "description": "Save your iPhone call history to a Windows 10 or 11 PC as a spreadsheet: who, when, how long, missed or answered. Needs an encrypted backup. Free, open source, nothing uploaded.",
+    "url": "https://www.openextract.app/use-cases/export-iphone-call-history-to-windows-pc",
+    "datePublished": "2026-11-05",
+    "dateModified": "2026-11-05",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/overview-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Why does OpenExtract show no calls?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Most likely the backup isn't encrypted. Since iOS 13, Apple leaves call history out of unencrypted backups, so there's nothing for any app to read. Make a new backup with encryption turned on, then open that one."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "I've forgotten my backup password. What now?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Backups made with that password can't be opened by OpenExtract or anyone else. Apple's support pages explain how to set a new one: on the iPhone, Reset All Settings clears the backup password without erasing your data, though it does reset things like screen brightness, the Home Screen layout and the wallpaper. Then make a new encrypted backup."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it get FaceTime calls?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. FaceTime calls are listed along with ordinary phone calls, and calls from other apps that show in the iPhone's Recents list appear too. The App column says which one each call came from."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I save the calls with one person?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Open People, pick the person, and you'll see your calls, messages and voicemails with them on one page, with a button to save everything. The Calls screen's Save button always saves the whole call log."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does anything get uploaded?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. The only thing it asks the internet for is whether a new version is out, and it asks you before it checks. You can turn that off in Settings."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it really free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. The code is on GitHub."
+        }
+      }
+    ]
+  }
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 4 min</div>
+    <h1>Export iPhone call history<br />to a <span class="it">Windows PC</span>.</h1>
+    <p class="page-head__lede">Make an encrypted backup of the iPhone on your PC, open it in OpenExtract, a free Windows app, and save every call as a spreadsheet: who, when, how long, and whether it was incoming, outgoing or missed. The encrypted part matters, because Apple leaves call history out of backups that aren't encrypted.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <p>The iPhone's Recents list has no export button, and Windows can't read the phone's call log on its own. Most of the tools that come up when you search for this are paid apps. OpenExtract does the same job for free, with no trial, no limit on how much you save and no account, and it reads everything on your own PC.</p>
+      <h2>The catch: call history is only in encrypted backups</h2>
+      <p>Since iOS 13, Apple treats the call log as private data and only puts it in a backup when <strong>Encrypt local backup</strong> is turned on. An ordinary backup has your texts and photos but no calls, so no app, free or paid, can get them out of it. If you open one in OpenExtract, the Calls tile says <em>Only in encrypted backups</em>.</p>
+      <p>Turning encryption on means choosing a backup password. Write it down. The backup can't be opened without it, by OpenExtract or anyone else, and that's also what keeps it safe if the PC is lost. An encrypted backup also holds more than an ordinary one, such as Health data and web history; <a href="/blog/encrypted-backups-are-better">here's why encrypted backups are better</a>.</p>
+    </div>
+  </section>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>Install OpenExtract for Windows</h2>
+        <p>Download it from <a href="/download/windows">the Windows download page</a> and run the installer. The installer is signed by Charles West, the developer. If SmartScreen shows a notice for a new app, choose More info, then Run anyway.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>Make an encrypted backup</h2>
+        <p>On OpenExtract's start screen, click <strong>Back up my iPhone</strong> and connect the iPhone with a cable. Tap <strong>Trust</strong> on the phone and enter its passcode if it asks. Tick <strong>Encrypt backup</strong>, set a password, choose a folder for the backup, and start. Windows needs Apple's free Apple Devices app to talk to an iPhone; if it isn't installed, OpenExtract offers to install it from the Microsoft Store for you. A backup often takes about half an hour.</p>
+        <p>You can also make the backup in the Apple Devices app or iTunes: select the iPhone, choose to back up to this computer, tick <strong>Encrypt local backup</strong>, set the password, and click <strong>Back Up Now</strong>.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>Open the backup</h2>
+        <p>A backup made in OpenExtract opens when it finishes; type the password you just set. For one made in Apple Devices or iTunes, choose <strong>Open a backup folder</strong> and pick the <code>Backup</code> folder, usually <code>%USERPROFILE%\Apple\MobileSync\Backup</code> (the Apple Devices app, or iTunes from the Microsoft Store) or <code>%APPDATA%\Apple Computer\MobileSync\Backup</code> (iTunes downloaded from Apple's website), then type the password.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Look through your calls</h2>
+        <p>Click <strong>Calls</strong> on the backup's home page. Each call shows who it was with (the name from the iPhone's address book, or the number), when, how long, whether it was incoming, outgoing or missed, and the app it came from, such as Phone or FaceTime. To narrow the list, type a name, part of a number, or <em>missed</em> in the search box at the top.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">05</div>
+      <div>
+        <h2>Save it as a spreadsheet</h2>
+        <p>Click <strong>Save</strong> at the top right and pick a folder. OpenExtract writes <code>call_history.csv</code>, one row per call, with the date, contact name, phone number or email, direction, status (answered or missed), duration in seconds and app. It opens in Excel or Google Sheets, where you can sort, filter and print it. Save always writes every call in the backup, even when the search box narrows the list.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>What else you can do with it</h2>
+      <ul>
+        <li><strong>See calls next to everything else.</strong> The Timeline puts calls in one list by date with messages, photos and notes, and the Year view shows a square for each day.</li>
+        <li><strong>See everything with one person.</strong> Under People, each person's page has your calls, messages and voicemails with them together.</li>
+        <li><strong>Search the whole backup.</strong> The search box on the home page finds calls along with messages, notes and voicemails.</li>
+      </ul>
+      <h2>What it can't do</h2>
+      <ul>
+        <li><strong>It only gets what the iPhone kept.</strong> The iPhone doesn't keep calls forever, so a backup made today may not reach back very far. An older encrypted backup has the calls from when it was made, so open old backups too if you have them.</li>
+        <li><strong>No unencrypted backups.</strong> Apple leaves calls out of those, so there's nothing to read.</li>
+        <li><strong>No iCloud.</strong> It works from a backup on the PC, not from iCloud.</li>
+        <li><strong>Spreadsheet only.</strong> Calls save as CSV. To print them, open the file in Excel and print from there.</li>
+        <li><strong>It can't put calls back</strong> on an iPhone or onto another phone. The file is a record for your PC.</li>
+      </ul>
+      <h2>Common questions</h2>
+      <p><strong>Why does OpenExtract show no calls?</strong> Most likely the backup isn&#x27;t encrypted. Since iOS 13, Apple leaves call history out of unencrypted backups, so there&#x27;s nothing for any app to read. Make a new backup with encryption turned on, then open that one.</p>
+      <p><strong>I&#x27;ve forgotten my backup password. What now?</strong> Backups made with that password can&#x27;t be opened by OpenExtract or anyone else. Apple&#x27;s support pages explain how to set a new one: on the iPhone, Reset All Settings clears the backup password without erasing your data, though it does reset things like screen brightness, the Home Screen layout and the wallpaper. Then make a new encrypted backup.</p>
+      <p><strong>Does it get FaceTime calls?</strong> Yes. FaceTime calls are listed along with ordinary phone calls, and calls from other apps that show in the iPhone&#x27;s Recents list appear too. The App column says which one each call came from.</p>
+      <p><strong>Can I save the calls with one person?</strong> Open People, pick the person, and you&#x27;ll see your calls, messages and voicemails with them on one page, with a button to save everything. The Calls screen&#x27;s Save button always saves the whole call log.</p>
+      <p><strong>Does anything get uploaded?</strong> No. OpenExtract reads the backup on your own computer and doesn&#x27;t send it anywhere. The only thing it asks the internet for is whether a new version is out, and it asks you before it checks. You can turn that off in Settings.</p>
+      <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Windows 10 &amp; 11</div>
+        <h3>Your call history,<br /><span class="it">on your PC.</span></h3>
+        <p>Free, open source, and the backup never leaves your computer.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/use-cases/save-iphone-texts-to-windows-pc">Save iPhone texts to a Windows PC →</a>
+        <a class="uc-related__link" href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails from an iPhone backup →</a>
+        <a class="uc-related__link" href="/use-cases/view-iphone-backup-on-windows">Find and open an iPhone backup on Windows →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Your call history, saved on your PC.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/download/windows">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

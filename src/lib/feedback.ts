@@ -15,6 +15,10 @@ import type { FeedbackDiagnostics } from '../types';
 export const FEEDBACK_REPO = 'charleswest775/openextract';
 export const FEEDBACK_TEMPLATE = 'in_app_feedback.yml';
 export const PRIVACY_URL = 'https://www.openextract.app/privacy#feedback';
+/** Fixes for common problems, made from the same list as the answers a sent report gets (website/static/fixes.html). */
+export const FIXES_URL = 'https://www.openextract.app/fixes';
+/** The link people copy to tell a friend. */
+export const SITE_URL = 'https://www.openextract.app';
 
 /** Random code the site keeps a hash of, so only this computer can look the report up later. */
 export function newReportToken(): string {
@@ -23,13 +27,15 @@ export function newReportToken(): string {
   return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export type FeedbackKind = 'broken' | 'missing' | 'idea' | 'other';
+export type FeedbackKind = 'broken' | 'missing' | 'idea' | 'other' | 'thanks';
 
 export const FEEDBACK_KINDS: { id: FeedbackKind; label: string; hint: string }[] = [
   { id: 'broken', label: "Something's broken", hint: 'An error, a crash, or a button that does nothing' },
   { id: 'missing', label: 'Something in my backup is missing or wrong', hint: "Data you expected isn't there, or an export came out wrong" },
   { id: 'idea', label: 'An idea or request', hint: 'Something OpenExtract should do' },
   { id: 'other', label: 'Something else', hint: 'A question, or just telling us how it went' },
+  // A thank-you sends only what the user wrote: no diagnostics, and nothing to follow up on.
+  { id: 'thanks', label: 'It worked: say thanks', hint: 'Tell the developer OpenExtract helped' },
 ];
 
 export type FeedbackArea =
@@ -68,8 +74,10 @@ export interface FeedbackForm {
   kind: FeedbackKind;
   area: FeedbackArea;
   details: string;
-  /** The diagnostics text as the user left it after reviewing/editing. */
+  /** The diagnostics text as the user left it after reviewing/editing. Always empty for a thank-you. */
   diagnostics: string;
+  /** Thank-yous only: the sender is OK with their words being quoted on openextract.app, without their name. */
+  quote?: boolean;
 }
 
 // GitHub rejects issue URLs much over 8 KB.
@@ -133,7 +141,9 @@ export function formatDiagnostics(d: FeedbackDiagnostics): string {
 export function issueTitle(form: Pick<FeedbackForm, 'area' | 'details' | 'kind'>): string {
   const first = form.details.trim().split('\n')[0].replace(/\s+/g, ' ');
   const summary = first.length > 70 ? `${first.slice(0, 67).trimEnd()}…` : first;
-  return `[Feedback] ${areaLabel(form.area)}: ${summary || kindLabel(form.kind)}`;
+  const area = areaLabel(form.area);
+  if (form.kind === 'thanks') return summary ? `[Thanks] ${area}: ${summary}` : `[Thanks] ${area}`;
+  return `[Feedback] ${area}: ${summary || kindLabel(form.kind)}`;
 }
 
 /**

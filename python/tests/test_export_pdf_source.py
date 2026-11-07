@@ -206,7 +206,8 @@ class TestExportConversationDispatch(unittest.TestCase):
 
 
 class TestHtmlExportLabelsAttachments(unittest.TestCase):
-    """The plain HTML export names attachments but draws no images (that's #83)."""
+    """Without an attachment writer, the HTML page names attachments and draws
+    nothing. The HTML export itself copies them (test_export_html_attachments.py)."""
 
     def test_attachment_only_message_is_labelled_not_drawn(self):
         ext = MessageExtractor.__new__(MessageExtractor)

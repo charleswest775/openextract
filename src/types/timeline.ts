@@ -12,6 +12,7 @@ export interface TimelineEntry {
     isFromMe: boolean;
     sender: string;
     messageType: string;
+    eventText?: string | null;          // e.g. "Karin added Theo to the conversation"
     conversationName: string;
     service: string;
     chatId?: number;

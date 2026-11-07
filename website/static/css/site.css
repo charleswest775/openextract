@@ -169,6 +169,15 @@ img { max-width: 100%; display: block; }
 /* Windows paths are one long word; let them break on a phone instead of widening the page. */
 .prose__inner code, .page-head__lede code, .uc-step p code, .uc-reason__v code { overflow-wrap: anywhere; }
 
+/* Fixes for common problems (fixes.html): one block per problem, linked to from the app. */
+.fixes .fix { padding: 20px 0 4px; border-top: 1px solid var(--line); scroll-margin-top: 96px; }
+.fixes h2 + .fix { border-top: 0; padding-top: 4px; }
+.fixes .fix h3 { font-size: 22px; font-weight: 500; letter-spacing: -0.01em; line-height: 1.3; margin: 0 0 8px; }
+.fixes .fix:target h3 { color: var(--coral); }
+.fixes .fix__seen { font-size: 15px; color: var(--ink-soft); }
+.fixes .fix__status { font-size: 15px; color: var(--sage); font-weight: 500; }
+.fixes h2 { scroll-margin-top: 96px; }
+
 /* ── CTA strip (used near bottom of subpages) ────────── */
 .cta-strip { padding: 40px 56px 72px; }
 .cta-strip__inner {
@@ -822,6 +831,7 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .wheres__row-
 }
 .uc-step h2 { font-size: 26px; font-weight: 500; letter-spacing: -0.015em; margin-bottom: 10px; }
 .uc-step p { font-size: 16px; color: var(--ink-soft); line-height: 1.65; }
+.uc-step p + p { margin-top: 16px; }
 .uc-step a { color: var(--coral); font-weight: 600; }
 
 .uc-related { padding: 32px 56px 16px; }

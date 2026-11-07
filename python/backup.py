@@ -27,6 +27,7 @@ from typing import Optional
 
 from ios_backup_core.backup import (
     LocalBackupAccessor,
+    manifest_format,
     open_local_backup,
 )
 
@@ -248,12 +249,17 @@ class BackupManager:
                 "permission_denied": permission_denied}
 
     def _read_backup_info(self, backup_dir: str) -> Optional[dict]:
-        """Read metadata from a backup directory."""
+        """Read metadata from a backup directory.
+
+        A backup folder has a Manifest.db, or a Manifest.mbdb if iOS 9 or
+        earlier made it (``manifest_format`` "db" or "mbdb"). Both have the
+        same Info.plist and Manifest.plist.
+        """
         info_plist = os.path.join(backup_dir, "Info.plist")
         manifest_plist = os.path.join(backup_dir, "Manifest.plist")
-        manifest_db = os.path.join(backup_dir, "Manifest.db")
 
-        if not os.path.exists(manifest_db):
+        fmt = manifest_format(backup_dir)
+        if fmt is None:
             return None
 
         info = {}
@@ -312,6 +318,7 @@ class BackupManager:
 
         info["encrypted"] = encrypted
         info["backup_dir"] = backup_dir
+        info["manifest_format"] = fmt
 
         # Size is computed lazily via get_backup_size() to keep list_backups fast.
         info["size_bytes"] = None
@@ -383,7 +390,7 @@ class BackupManager:
             else:
                 _tlog(
                     f"open_backup fast-path MISS: dir={backup_dir!r} "
-                    f"udid_param={udid!r} — no Manifest.db found at this path or one level deep"
+                    f"udid_param={udid!r} — no Manifest.db or Manifest.mbdb at this path or one level deep"
                 )
         elif backup_dir:
             _tlog(f"open_backup: backup_dir supplied but is not a directory: {backup_dir!r}")
@@ -416,6 +423,7 @@ class BackupManager:
 
         backup_dir = backup_info["backup_dir"]
         encrypted = backup_info["encrypted"]
+        legacy = backup_info.get("manifest_format") == "mbdb"
 
         # Surface the same "needs password" sentinel response openextract has
         # always returned BEFORE delegating to ios-backup-core (which raises).
@@ -425,26 +433,36 @@ class BackupManager:
                 "info": backup_info,
             }
 
-        # Delegate the actual opening (passphrase validation + EncryptedBackup
-        # construction for encrypted backups) to ios-backup-core. It raises
-        # ValueError on bad password and RuntimeError if the optional
-        # iphone-backup-decrypt extra is missing.
-        try:
-            accessor = open_local_backup(backup_dir, password=password)
-        except Exception:
-            # open_local_backup raises ValueError("Failed to decrypt backup: ...")
-            # — preserve the same surface error openextract emitted before.
-            raise
+        # Delegate passphrase validation + EncryptedBackup construction for
+        # encrypted backups to ios-backup-core (which decrypts iOS 9-and-earlier
+        # backups itself). It raises ValueError on bad password ("Failed to
+        # decrypt backup: ...") and RuntimeError if the optional
+        # iphone-backup-decrypt extra is missing. An unencrypted backup needs
+        # neither.
+        decrypted_backup = None
+        if encrypted:
+            decrypted_backup = open_local_backup(backup_dir, password=password)._decrypted_backup
 
-        # Wrap the accessor in OpenBackup so we keep get_manifest_db() and the
-        # overridden plain-attribute properties for backward compatibility.
+        # OpenBackup keeps get_manifest_db() and the overridden plain-attribute
+        # properties for backward compatibility.
         backup = OpenBackup(
-            backup_dir=accessor.backup_dir,
+            backup_dir=backup_dir,
             udid=udid,
             info=backup_info,
             encrypted=encrypted,
-            decrypted_backup=accessor._decrypted_backup,
+            decrypted_backup=decrypted_backup,
         )
+        if legacy and not encrypted:
+            # Turn Manifest.mbdb into a database now, so a damaged one fails here
+            # with a clear message instead of every screen coming up empty.
+            # (Opening an encrypted one above has already read it.)
+            t_mb = time.perf_counter()
+            try:
+                backup.check_manifest()
+            except ValueError:
+                backup.close()
+                raise
+            _tlog(f"open_backup read Manifest.mbdb: {time.perf_counter()-t_mb:.3f}s")
 
         # Opening a backup again replaces the earlier one; release its files.
         self.close_backup(backup_info["udid"])
@@ -509,11 +527,16 @@ class BackupManager:
         """
         Return the total size of a backup directory.
         Results are cached in ~/.openextract/size_cache.json keyed by backup_dir
-        and the mtime of Manifest.db, so repeated calls are instant.
+        and the mtime of Manifest.db (Manifest.mbdb for iOS 9 and earlier), so
+        repeated calls are instant.
         """
-        manifest_db = os.path.join(backup_dir, "Manifest.db")
+        manifest = os.path.join(backup_dir, "Manifest.db")
+        # iOS 9 and earlier (Manifest.mbdb) kept the files directly in the folder.
+        flat = not os.path.exists(manifest)
+        if flat:
+            manifest = os.path.join(backup_dir, "Manifest.mbdb")
         try:
-            mtime = os.path.getmtime(manifest_db)
+            mtime = os.path.getmtime(manifest)
         except OSError:
             mtime = 0.0
 
@@ -523,7 +546,8 @@ class BackupManager:
         if entry and entry.get("mtime") == mtime:
             return {"size_bytes": entry["size_bytes"], "size_gb": entry["size_gb"]}
 
-        # Compute by scanning one level of hex subdirs
+        # Compute by scanning one level of hex subdirs, or for iOS 9 and
+        # earlier the files directly in the folder.
         total_size = 0
         try:
             for entry_dir in os.scandir(backup_dir):
@@ -531,6 +555,8 @@ class BackupManager:
                     for f in os.scandir(entry_dir.path):
                         if f.is_file():
                             total_size += f.stat().st_size
+                elif flat and entry_dir.is_file():
+                    total_size += entry_dir.stat().st_size
         except Exception:
             pass
 
