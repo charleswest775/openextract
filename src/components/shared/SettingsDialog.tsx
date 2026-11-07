@@ -119,6 +119,7 @@ export default function SettingsDialog({ onClose }: Props) {
           <button className="hearth-ghost-btn" onClick={() => open(WEBSITE_URL)}>Website</button>
           <button className="hearth-ghost-btn" onClick={() => open(state?.releasesUrl ?? WEBSITE_URL)}>Release notes</button>
           <button className="hearth-ghost-btn" onClick={() => { onClose(); openFeedback(); }}>Report a problem or send feedback</button>
+          <button className="hearth-ghost-btn" onClick={() => { onClose(); openFeedback({ kind: 'thanks' }); }}>Say thanks</button>
         </div>
       </div>
     </div>

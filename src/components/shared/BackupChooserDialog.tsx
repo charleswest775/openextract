@@ -12,8 +12,13 @@ interface Props {
 export default function BackupChooserDialog({ folder, backups, onChoose, onCancel }: Props) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-base rounded-xl shadow-xl w-[420px] max-h-[80vh] flex flex-col p-6">
-        <div className="text-sm font-medium text-text-primary mb-1">Choose a backup</div>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="backup-chooser-title"
+        className="bg-base rounded-xl shadow-xl w-[420px] max-h-[80vh] flex flex-col p-6"
+      >
+        <h2 id="backup-chooser-title" className="text-sm font-medium text-text-primary mb-1">Choose a backup</h2>
         <p className="text-xs text-text-tertiary mb-4 break-words">
           {backups.length} backups found in {folder}
         </p>
