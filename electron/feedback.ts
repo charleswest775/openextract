@@ -216,10 +216,12 @@ export class FeedbackRecorder {
     }
 
     // Some extractors return { error } inside a successful result. An empty_reason
-    // means the data is legitimately absent (e.g. needs an encrypted backup), not a bug.
+    // means the data is legitimately absent (e.g. needs an encrypted backup), not a bug;
+    // so does is_video from get_photo_thumbnail (a video has no thumbnail).
     let error: string | null = outcome.ok ? null : outcome.error;
     if (outcome.ok && outcome.result && typeof outcome.result === 'object'
-        && typeof outcome.result.error === 'string' && outcome.result.error && !outcome.result.empty_reason) {
+        && typeof outcome.result.error === 'string' && outcome.result.error
+        && !outcome.result.empty_reason && !outcome.result.is_video) {
       error = outcome.result.error;
     }
 
