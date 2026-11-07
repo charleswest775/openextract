@@ -1,6 +1,6 @@
 {
   "name": "openextract",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Free, open-source iPhone backup extractor",
   "main": "dist-electron/main.js",
   "author": "OpenExtract Contributors",
@@ -12,7 +12,8 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "build": "npm run build:renderer && npm run build:electron",
     "preview": "vite preview",
-    "test": "node --test scripts/feedback.test.mjs scripts/search.test.mjs",
+    "test": "node scripts/run-tests.mjs",
+    "test:e2e": "node scripts/e2e/run.mjs --backups e2e-backups.json",
     "package": "npm run build && electron-builder",
     "python:install": "cd python && ../.venv/Scripts/pip install -r requirements.txt",
     "python:install:dev": "cd python && ../.venv/Scripts/pip install -r requirements-dev.txt",
@@ -56,6 +57,12 @@
       "dist/**/*",
       "dist-electron/**/*.js"
     ],
+    "extraResources": [
+      {
+        "from": "python/dist/openextract-engine",
+        "to": "python"
+      }
+    ],
     "publish": {
       "provider": "github",
       "owner": "charleswest775",
@@ -73,13 +80,7 @@
         "dmg",
         "zip"
       ],
-      "category": "public.app-category.utilities",
-      "extraResources": [
-        {
-          "from": "python/dist/openextract-engine",
-          "to": "python/openextract-engine"
-        }
-      ]
+      "category": "public.app-category.utilities"
     },
     "win": {
       "target": "nsis",
@@ -92,13 +93,7 @@
         "endpoint": "https://eus.codesigning.azure.net/",
         "certificateProfileName": "openextract",
         "codeSigningAccountName": "openextract-signing"
-      },
-      "extraResources": [
-        {
-          "from": "python/dist/openextract-engine",
-          "to": "python"
-        }
-      ]
+      }
     },
     "linux": {
       "target": [
@@ -106,13 +101,7 @@
         "AppImage"
       ],
       "category": "Utility",
-      "maintainer": "OpenExtract Contributors <security@openextract.app>",
-      "extraResources": [
-        {
-          "from": "python/dist/openextract-engine",
-          "to": "python/openextract-engine"
-        }
-      ]
+      "maintainer": "OpenExtract Contributors <security@openextract.app>"
     },
     "deb": {
       "depends": [

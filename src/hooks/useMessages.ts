@@ -23,6 +23,8 @@ export interface Message {
   message_id: number;
   text: string | null;
   message_type: string;
+  /** What happened, for a group change, an unsent message or a FaceTime call. */
+  event_text?: string | null;
   link_preview?: LinkPreview;
   date: string;
   is_from_me: boolean;

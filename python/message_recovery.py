@@ -115,8 +115,21 @@ class MessageRecoveryExtractor:
 
         conn = connect_readonly(db_path, backup)
         conn.row_factory = sqlite3.Row
+        if not _table_exists(conn, "chat_message_join"):
+            # An iOS 5 sms.db (no chats; see ios_backup_core's is_legacy_sms_db).
+            conn.close()
+            return {
+                "conversations": [],
+                "messages_by_conversation": {},
+                "scanned": {"recently_deleted": 0, "orphaned": 0},
+                "schema_support": {"recently_deleted": False},
+            }
         try:
             has_recoverable = _table_exists(conn, "chat_recoverable_message_join")
+            # Older sms.db files have no attributedBody: the text column is all there is.
+            attributed_body = (
+                "m.attributedBody" if _column_exists(conn, "message", "attributedBody") else "NULL"
+            )
 
             # Conversation bucket keyed by recovery_id
             # Each bucket: { meta: {...}, messages: [...] }
@@ -135,7 +148,7 @@ class MessageRecoveryExtractor:
                     f"""
                     SELECT m.ROWID         AS message_id,
                            m.text          AS text,
-                           m.attributedBody AS attributed_body,
+                           {attributed_body} AS attributed_body,
                            m.date          AS date,
                            m.is_from_me    AS is_from_me,
                            h.id            AS handle_identifier,
@@ -182,7 +195,7 @@ class MessageRecoveryExtractor:
                 f"""
                 SELECT m.ROWID         AS message_id,
                        m.text          AS text,
-                       m.attributedBody AS attributed_body,
+                       {attributed_body} AS attributed_body,
                        m.date          AS date,
                        m.is_from_me    AS is_from_me,
                        h.id            AS handle_identifier,
@@ -299,10 +312,12 @@ class MessageRecoveryExtractor:
         considered a group if it has >1 participant in chat_handle_join, or its
         identifier starts with "chat".
         """
+        # Older sms.db files have no chat.display_name.
+        display_name = "display_name" if _column_exists(conn, "chat", "display_name") else "NULL"
         try:
             row = conn.execute(
-                """
-                SELECT chat_identifier, display_name, service_name
+                f"""
+                SELECT chat_identifier, {display_name} AS display_name, service_name
                 FROM chat WHERE ROWID = ?
                 """,
                 (chat_id,),

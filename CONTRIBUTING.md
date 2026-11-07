@@ -39,8 +39,13 @@ npx tsc --noEmit -p tsconfig.electron.json  # Electron main-process types
 pip install -r python/requirements-dev.txt  # ruff and pytest, once
 ruff check python/ corpus/                # Python lint
 pytest python/tests/ -v                   # Python tests
+npm test                                  # JavaScript tests
 npm run build                             # build check
 ```
+
+CI also drives the real app end to end on Linux, macOS and Windows. [docs/TESTING.md](docs/TESTING.md)
+explains every layer, how to run the end-to-end suites yourself, and what to add when you add a
+screen, an export, an IPC channel or an engine method (CI tells you if you forget).
 
 Changes to backup parsing can also be checked against real public iPhone backups.
 See `corpus/README.md` for how to fetch them, then run

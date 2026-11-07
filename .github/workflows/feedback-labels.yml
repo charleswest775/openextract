@@ -29,6 +29,7 @@ jobs:
               "Something in my backup is missing or wrong": ['bug'],
               "An idea or request": ['enhancement'],
               "Something else": [],
+              "It worked: say thanks": ['thanks'],
             };
             const AREA_LABELS = {
               'The app in general': ['ui'],

@@ -33,3 +33,15 @@ export function photoExportSummary(result: PhotoExportResult): string {
   }
   return parts.join(' · ');
 }
+
+/** "Saving 1,234 of 5,678 photos and videos…", counting the file it's on. */
+export function photoSaveProgress(done: number, total: number): string {
+  const current = Math.min(done + 1, total);
+  const what = total === 1 ? 'photo or video' : 'photos and videos';
+  return `Saving ${current.toLocaleString()} of ${total.toLocaleString()} ${what}…`;
+}
+
+/** Under that, once any have failed: "3 couldn't be copied". Matches photoExportSummary. */
+export function photoSaveFailures(failed: number): string {
+  return failed > 0 ? `${failed.toLocaleString()} couldn't be copied` : '';
+}

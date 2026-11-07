@@ -2,11 +2,15 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { sidecarCall, saveFolder } from '../../lib/ipc';
 import { CameraIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
-import { allOnlyInIcloud, moreOnlyInIcloud, photoExportSummary, PhotoExportResult } from '../../lib/photoCounts';
+import {
+  allOnlyInIcloud, moreOnlyInIcloud, photoExportSummary, photoSaveFailures, photoSaveProgress, PhotoExportResult,
+} from '../../lib/photoCounts';
+import { percentDone } from '../../lib/exportProgress';
 import PageHeader from '../shared/PageHeader';
 import EmptyState from '../shared/EmptyState';
-import { SaveButton } from '../shared/SaveDialog';
+import { SaveButton, SaveProgress } from '../shared/SaveDialog';
 import { useSaveAction } from '../../hooks/useSaveAction';
+import { useExportProgress } from '../../hooks/useExportProgress';
 import { checkEngineResult, plural } from '../../lib/saveData';
 import { TimelinePhotoLightbox } from '../timeline/TimelineEntryCard';
 import type { TimelineEntry } from '../../types/timeline';
@@ -74,6 +78,7 @@ export default function PhotoExplorer({ udid, open }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [kindFilter, setKindFilter] = useState<string>('all');
   const { busy, run } = useSaveAction('photos');
+  const saving = useExportProgress('photos', busy);
   const [videoLoading, setVideoLoading] = useState(false);
 
   const offsetRef = useRef(0);
@@ -320,6 +325,14 @@ export default function PhotoExplorer({ udid, open }: Props) {
           </>
         }
       />
+      {saving && (
+        <SaveProgress
+          className="px-6 py-2.5 border-b border-rule"
+          text={photoSaveProgress(saving.done, saving.total)}
+          failures={photoSaveFailures(saving.failed)}
+          percent={percentDone(saving)}
+        />
+      )}
       {notInBackup > 0 && shownCount > 0 && (
         <p className="px-6 py-2 text-sm text-text-secondary border-b border-rule">{moreOnlyInIcloud(notInBackup)}</p>
       )}

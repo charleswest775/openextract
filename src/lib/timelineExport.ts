@@ -34,7 +34,8 @@ function entryDescription(e: TimelineEntry): string {
         handwriting: '[Handwriting]',
         system: '[System message]',
       };
-      const text = m.text || typeLabels[m.messageType] || `[${m.messageType || 'No text'}]`;
+      const text = m.text || (m.eventText && `[${m.eventText}]`) || typeLabels[m.messageType]
+        || `[${m.messageType || 'No text'}]`;
       return `${dir}: ${text}`;
     }
     case 'call': {
