@@ -152,10 +152,12 @@ test('FeedbackRecorder keeps backup facts but not names, and scrubs recorded err
   rec.recordCall('list_voicemails', {}, { ok: false, error: 'Kim Phone: cannot read /Volumes/Ext/MyBackups/abcd1234efgh/Manifest.db' });
   // An empty_reason is a legitimate empty state, not a failure.
   rec.recordCall('list_notes', {}, { ok: true, result: { error: 'needs encryption', empty_reason: 'requires_encryption' } });
+  // Nor is a video, which has no thumbnail.
+  rec.recordCall('get_photo_thumbnail', {}, { ok: true, result: { error: 'video', is_video: true } });
 
   const d = rec.diagnostics('Error for Kim Phone');
   assert.deepEqual(d.backup, { model: 'iPhone14,2', iosVersion: '17.4', encrypted: true, sizeGB: 54.2 });
-  assert.deepEqual(d.loaded, ['list_calls', 'list_notes', 'open_backup']);
+  assert.deepEqual(d.loaded, ['get_photo_thumbnail', 'list_calls', 'list_notes', 'open_backup']);
   assert.deepEqual(d.failed, ['list_voicemails']);
   assert.equal(d.recentErrors.length, 1);
   assert.equal(d.recentErrors[0].count, 2);

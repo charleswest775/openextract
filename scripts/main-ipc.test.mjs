@@ -654,14 +654,19 @@ describe('sidecar:call', () => {
     );
   });
 
-  test('backups and the Apple Devices install get long timeouts; everything else the default', async () => {
+  test('backups, the Apple Devices install and exports get long timeouts; everything else the default', async () => {
     const m = await loadMain();
-    for (const method of ['backup.start', 'backup.install_device_support', 'list_messages', 'ping']) {
+    const methods = ['backup.start', 'backup.install_device_support', 'export_photos', 'export_conversations', 'list_messages', 'ping'];
+    for (const method of methods) {
       await m.invoke('sidecar:call', method, {});
     }
     assert.deepEqual(
       m.sidecar.calls.map(c => [c.method, c.timeoutMs]),
-      [['backup.start', 7_200_000], ['backup.install_device_support', 900_000], ['list_messages', undefined], ['ping', undefined]],
+      [
+        ['backup.start', 7_200_000], ['backup.install_device_support', 900_000],
+        ['export_photos', 21_600_000], ['export_conversations', 21_600_000],
+        ['list_messages', undefined], ['ping', undefined],
+      ],
     );
   });
 
