@@ -542,6 +542,14 @@ const REAL_ERRORS = [
     details: OLD_NO_DEVICE_SERVICE,
     errors: [['backup.list_devices', OLD_NO_DEVICE_SERVICE]],
   },
+  // electron/sidecar.ts call() giving up on a photo save after 5 minutes in 0.10.2, and the
+  // thumbnails that waited behind it (OE-14).
+  {
+    fix: 'saving-timed-out',
+    os: WINDOWS,
+    area: 'photos',
+    errors: [['export_photos', 'Sidecar call timed out: export_photos'], ['get_photo_thumbnail', 'Sidecar call timed out: get_photo_thumbnail']],
+  },
 ];
 
 test('each known fix shows for the app\'s real error, and only that fix', async () => {
