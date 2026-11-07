@@ -341,6 +341,40 @@ test('a lookalike code line in the user\'s text doesn\'t unlock the report', () 
   assert.ok(site.tokenMatches(body, TOKEN));
 });
 
+test('a thank-you needs no message, never carries diagnostics, and gets only its own labels', () => {
+  const bare = site.validateReport(goodReport({ kind: 'thanks', area: 'messages', details: '  ', quote: true }));
+  assert.equal(bare.error, undefined);
+  assert.equal(bare.report.details, '');
+  assert.equal(bare.report.diagnostics, '', 'dropped even if an app sends some');
+  assert.equal(bare.report.quote, false, 'nothing to quote');
+  assert.equal(site.issueTitle(bare.report), '[Thanks] Messages');
+  assert.equal(site.issueTitle(bare.report), lib.issueTitle(bare.report));
+  const body = site.issueBody(bare.report);
+  for (const h of ['### Type', '### Part of the app', '### What happened?', '### OK to quote on openextract.app', '### Diagnostics', '### Reply to']) {
+    assert.ok(body.includes(h), h);
+  }
+  assert.ok(body.includes('_No message, just a thank-you._'));
+  assert.ok(body.includes('### OK to quote on openextract.app\n\nNo\n'));
+  assert.ok(!body.includes('sidecar'));
+  assert.ok(site.tokenMatches(body, TOKEN));
+  // No area labels, so searching "messages" still finds only problems.
+  assert.deepEqual(site.issueLabels(bare.report).sort(), ['feedback', 'thanks']);
+  assert.deepEqual(site.matchKnownFixes({ ...bare.report, details: 'Python sidecar is not running' }), []);
+
+  const worded = site.validateReport(goodReport({
+    kind: 'thanks', area: 'voicemail', details: "Got my mum's voicemails back.\nThank you!", email: 'pat@example.com', quote: true,
+  })).report;
+  assert.equal(site.issueTitle(worded), "[Thanks] Voicemail: Got my mum's voicemails back.");
+  assert.equal(site.issueTitle(worded), lib.issueTitle(worded));
+  assert.ok(site.issueBody(worded).includes('### OK to quote on openextract.app\n\nYes, without their name'));
+  assert.deepEqual(site.issueLabels(worded).sort(), ['feedback', 'has-email', 'ok-to-quote', 'thanks']);
+
+  // Only an explicit true counts, and only on a thank-you.
+  assert.equal(site.validateReport(goodReport({ kind: 'thanks', details: 'x', quote: 'yes' })).report.quote, false);
+  assert.equal(site.validateReport(goodReport({ quote: true })).report.quote, false);
+  assert.ok(!site.issueBody(site.validateReport(goodReport()).report).includes('OK to quote'));
+});
+
 test('known fixes match on the error text and, where given, the system', () => {
   const engine = site.matchKnownFixes(site.validateReport(goodReport()).report);
   assert.deepEqual(engine.map(f => f.id), ['engine-did-not-start']);
@@ -688,6 +722,36 @@ test('the app keeps the reference, and drops links in known fixes that point els
   assert.equal(store.data.feedbackReports.length, 1);
   assert.equal(store.data.feedbackReports[0].token, TOKEN);
   assert.equal(store.data.feedbackReports[0].summary, 'It says the engine is not running');
+});
+
+test('the app sends a thank-you without diagnostics, keeps nothing to check on, and stops asking', async () => {
+  const gh = fakeGitHub();
+  const store = memoryStore();
+  const app = new reports.FeedbackReports(store, siteFetch(gh, '192.0.2.77'), '0.10.3');
+  const sent = await app.send(goodReport({ kind: 'thanks', area: 'export', details: 'Thank you!', quote: true, token: '4d'.repeat(24) }));
+  assert.ok(sent.ok, sent.error);
+  assert.deepEqual(sent.knownFixes, []);
+  const [issue] = [...gh.issues.values()];
+  assert.equal(issue.title, '[Thanks] Exporting: Thank you!');
+  assert.ok(!issue.body.includes('sidecar'), 'no diagnostics');
+  assert.deepEqual(issue.labels.map(l => l.name).sort(), ['feedback', 'ok-to-quote', 'thanks']);
+  assert.equal(store.data.thanksSent, true);
+  assert.equal(store.data.feedbackReports, undefined);
+  assert.equal(store.data.feedbackLastCheck, undefined);
+
+  const calls = gh.calls.length;
+  assert.equal(await app.checkIfDue(Date.now() + 30 * 24 * 60 * 60 * 1000), false);
+  assert.equal(gh.calls.length, calls, 'a thank-you is never looked up');
+
+  // Failures don't point at Copy or GitHub, which the thank-you form doesn't have.
+  const offline = new reports.FeedbackReports(memoryStore(), async () => { throw new Error('ENOTFOUND'); }, '0.10.3');
+  const off = await offline.send(goodReport({ kind: 'thanks' }));
+  assert.match(off.error, /internet connection/);
+  assert.doesNotMatch(off.error, /copy|GitHub/i);
+  const downStore = memoryStore();
+  const down = new reports.FeedbackReports(downStore, async () => reply(503, {}), '0.10.3');
+  assert.match((await down.send(goodReport({ kind: 'thanks' }))).error, /thanks couldn't be sent/);
+  assert.equal(downStore.data.thanksSent, undefined);
 });
 
 test('send, fix, and the app finds out: the whole loop', async () => {
