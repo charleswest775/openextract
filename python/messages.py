@@ -25,6 +25,7 @@ import csv
 import html
 import os
 import uuid
+from datetime import datetime
 from typing import Optional
 
 from ios_backup_core.extractors.messages import MessageExtractor as _CoreMessageExtractor
@@ -70,9 +71,14 @@ _ATTACHMENT_CSS = """.msg img { display: block; max-width: 100%; max-height: 420
   .msg img { max-height: 360px; }
   .sent { margin-left: auto; }
   .received { margin-right: auto; }
-  .meta, .sender { break-after: avoid; }
+  .day, .meta, .sender { break-after: avoid; }
 }
 """
+
+# Month names for the dates in exports, written out so the computer's
+# language settings can't change them (strftime's %b follows the locale).
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 # What exports write for a message with no text and no attachment file, by
 # the engine's message_type. The thread view (src/components/explore/
@@ -112,6 +118,10 @@ class MessageExtractor:
     methods (txt/csv/html, separate/merged) inline because the library does
     not provide them.
     """
+
+    # Time zone exports show times in. None is the computer's own, as the
+    # app uses; tests set a fixed one.
+    local_tz = None
 
     def __init__(self):
         self._inner = _CoreMessageExtractor()
@@ -338,6 +348,56 @@ class MessageExtractor:
             escaped = escaped.replace("\r\n", "\n").replace("\n", "<br>")
         return escaped
 
+    # ── Dates in exports ─────────────────────────────────────────────────────
+    # The engine gives each message's date in UTC ("2024-07-05T16:10:09+00:00").
+    # Exports show it in local time, the way the app's thread view does
+    # (src/lib/dates.ts): "Jul 5, 2024" for a day, "9:10 AM" for a time.
+
+    def _local_datetime(self, iso) -> Optional[datetime]:
+        """A message's date in local time, or None if it has none we can read."""
+        if not iso:
+            return None
+        try:
+            return datetime.fromisoformat(iso).astimezone(self.local_tz)
+        except (TypeError, ValueError, OverflowError, OSError):
+            return None
+
+    @staticmethod
+    def _format_day(dt: datetime) -> str:
+        return f"{_MONTHS[dt.month - 1]} {dt.day}, {dt.year}"
+
+    @staticmethod
+    def _format_time(dt: datetime) -> str:
+        return f"{dt.hour % 12 or 12}:{dt.minute:02d} {'AM' if dt.hour < 12 else 'PM'}"
+
+    def _readable_date(self, iso) -> str:
+        """"Jul 5, 2024, 9:10 AM", for a TXT line that reads on its own."""
+        dt = self._local_datetime(iso)
+        if dt is None:
+            return iso or "Unknown date"
+        return f"{self._format_day(dt)}, {self._format_time(dt)}"
+
+    def _csv_date(self, iso) -> str:
+        """The date as ISO 8601 in local time with its offset, e.g.
+        "2024-07-05T09:10:09-07:00": the same moment as the engine's UTC
+        value, so programs read it exactly, and the clock time people expect."""
+        dt = self._local_datetime(iso)
+        return dt.isoformat() if dt is not None else (iso or "")
+
+    def _with_day_and_time(self, messages):
+        """Yield (msg, day, time) for an HTML export: day is "Jul 5, 2024" on
+        the first message of each local day and "" on the rest, time is
+        "9:10 AM". A message without a readable date gets its raw date."""
+        last_day = None
+        for msg in messages:
+            dt = self._local_datetime(msg.get("date"))
+            if dt is None:
+                yield msg, "", msg.get("date") or ""
+                continue
+            day = self._format_day(dt)
+            yield msg, ("" if day == last_day else day), self._format_time(dt)
+            last_day = day
+
     def _get_filename_for_message_export(self, display_name, messages) -> str:
         """Build a filesystem-safe base filename from the conversation name and the
         date range of ``messages`` (which must be sorted oldest-first).
@@ -345,7 +405,6 @@ class MessageExtractor:
         Returns "" when nothing usable can be built, so callers can fall back to
         ``conversation_<chat_id>``.
         """
-        from datetime import datetime
         import re
 
         if not display_name:
@@ -359,8 +418,8 @@ class MessageExtractor:
         date_part = ""
         try:
             date_format = "%y%m%d%H%M%S-%f"
-            from_date = datetime.fromisoformat(messages[0]["date"]).astimezone().strftime(date_format)
-            to_date = datetime.fromisoformat(messages[-1]["date"]).astimezone().strftime(date_format)
+            from_date = datetime.fromisoformat(messages[0]["date"]).astimezone(self.local_tz).strftime(date_format)
+            to_date = datetime.fromisoformat(messages[-1]["date"]).astimezone(self.local_tz).strftime(date_format)
             date_part = f"{from_date}--{to_date}"
         except (IndexError, KeyError, TypeError, ValueError):
             pass
@@ -373,7 +432,7 @@ class MessageExtractor:
         filepath = os.path.join(output_dir, filename)
         with open(filepath, "w", encoding="utf-8-sig") as f:
             for msg in messages:
-                date = msg["date"] or "Unknown date"
+                date = self._readable_date(msg["date"])
                 sender = msg["sender"]
                 text = self._message_text(msg) or "[No content]"
                 f.write(f"[{date}] {sender}: {text}\n")
@@ -388,7 +447,7 @@ class MessageExtractor:
             writer.writerow(["Date", "Sender", "Text", "Is From Me", "Has Attachments"])
             for msg in messages:
                 writer.writerow([
-                    msg["date"], msg["sender"], self._message_text(msg),
+                    self._csv_date(msg["date"]), msg["sender"], self._message_text(msg),
                     msg["is_from_me"], msg["has_attachments"]
                 ])
         return {"file": filepath, "message_count": len(messages)}
@@ -428,17 +487,19 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
 .sent {{ background: #007AFF; color: white; float: right; border-bottom-right-radius: 4px; }}
 .received {{ background: #E9E9EB; color: black; float: left; border-bottom-left-radius: 4px; }}
 .meta {{ font-size: 11px; color: #888; clear: both; text-align: center; margin: 12px 0 4px; }}
+.day {{ font-size: 12px; font-weight: 600; color: #555; clear: both; text-align: center; margin: 0 0 4px; padding-top: 24px; }}
 .sender {{ font-size: 11px; color: #666; margin-bottom: 2px; }}
 .conv-title {{ font-size: 18px; color: #333; margin-bottom: 20px; text-align: center; }}
 {_ATTACHMENT_CSS}</style></head><body>
 """)
             if safe_name:
                 f.write(f'<h1 class="conv-title">{safe_name}</h1>\n')
-            for msg in messages:
+            for msg, day, time in self._with_day_and_time(messages):
                 css_class = "sent" if msg["is_from_me"] else "received"
                 text = self._message_html(msg, attachments)
-                date = self._html_escape(msg["date"] or "")
-                f.write(f'<div class="meta">{date}</div>\n')
+                if day:
+                    f.write(f'<div class="day">{day}</div>\n')
+                f.write(f'<div class="meta">{self._html_escape(time)}</div>\n')
                 if not msg["is_from_me"]:
                     f.write(f'<div class="sender">{self._html_escape(msg["sender"])}</div>\n')
                 f.write(f'<div class="msg {css_class}">{text}</div>\n')
@@ -542,7 +603,7 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
         filepath = os.path.join(output_dir, "all_conversations.txt")
         with open(filepath, "w", encoding="utf-8-sig") as f:
             for msg in messages:
-                date = msg["date"] or "Unknown date"
+                date = self._readable_date(msg["date"])
                 sender = msg["sender"]
                 conv = msg["_conversation"]
                 direction = "to" if msg["is_from_me"] else "from"
@@ -558,7 +619,7 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
             for msg in messages:
                 direction = "Sent" if msg["is_from_me"] else "Received"
                 writer.writerow([
-                    msg["date"], msg["_conversation"], direction,
+                    self._csv_date(msg["date"]), msg["_conversation"], direction,
                     msg["sender"], self._message_text(msg),
                     msg["is_from_me"], msg["has_attachments"]
                 ])
@@ -575,18 +636,20 @@ body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 0 auto;
 .sent { background: #007AFF; color: white; float: right; border-bottom-right-radius: 4px; }
 .received { background: #E9E9EB; color: black; float: left; border-bottom-left-radius: 4px; }
 .meta { font-size: 11px; color: #888; clear: both; text-align: center; margin: 12px 0 4px; }
+.day { font-size: 12px; font-weight: 600; color: #555; clear: both; text-align: center; margin: 0 0 4px; padding-top: 24px; }
 .sender { font-size: 11px; color: #666; margin-bottom: 2px; }
 .conv-label { font-size: 10px; color: #999; font-style: italic; }
 """ + _ATTACHMENT_CSS + """</style></head><body>
 <h2>Merged Conversations</h2>
 """)
-            for msg in messages:
+            for msg, day, time in self._with_day_and_time(messages):
                 css_class = "sent" if msg["is_from_me"] else "received"
                 text = self._message_html(msg, attachments)
-                date = self._html_escape(msg["date"] or "")
                 conv = self._html_escape(msg["_conversation"])
                 direction = "to" if msg["is_from_me"] else "from"
-                f.write(f'<div class="meta">{date} <span class="conv-label">({direction} {conv})</span></div>\n')
+                if day:
+                    f.write(f'<div class="day">{day}</div>\n')
+                f.write(f'<div class="meta">{self._html_escape(time)} <span class="conv-label">({direction} {conv})</span></div>\n')
                 if not msg["is_from_me"]:
                     f.write(f'<div class="sender">{self._html_escape(msg["sender"])}</div>\n')
                 f.write(f'<div class="msg {css_class}">{text}</div>\n')
