@@ -96,6 +96,11 @@ test('what each kind of entry says', () => {
   assert.equal(describe(message(DAY, null, { messageType: 'digital_touch' })), 'Received: [Digital Touch]');
   assert.equal(describe(message(DAY, '', { messageType: 'sticker' })), 'Received: [sticker]');
   assert.equal(describe(message(DAY, null, { messageType: '' })), 'Received: [No text]');
+  // Group changes, unsent messages and FaceTime calls: the engine's words
+  assert.equal(describe(message(DAY, null, { messageType: 'group_member_left', eventText: 'Theo left the conversation' })),
+    'Received: [Theo left the conversation]');
+  assert.equal(describe(message(DAY, null, { messageType: 'unsent', eventText: 'You unsent a message', isFromMe: true })),
+    'Sent: [You unsent a message]');
 
   assert.equal(describe(call(DAY, { status: 'missed' })), 'Incoming - Missed');
   assert.equal(describe(call(DAY, { direction: 'outgoing', duration: 3725 })), 'Outgoing - Answered - 62:05');

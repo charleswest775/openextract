@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 - "Report this problem" has a "Common fixes" link beside it. It opens openextract.app/fixes, which lists what to do for each error OpenExtract knows about, by the words the app shows
 
+### Changed
+- Messages: notices in a conversation say what happened instead of "[Conversation event]": who added or removed someone, who left, who renamed the conversation and to what, who changed or removed the group photo, who unsent a message, and FaceTime calls. For example "Karin added Theo to the conversation" or "You unsent a message", with names from your contacts. They read the same in the app, the Timeline and saved TXT, CSV, HTML and PDF files. Notices OpenExtract can't name yet say "[Conversation update]"
+
 ## [0.10.2] - 2026-11-06
 
 ### Changed

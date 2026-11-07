@@ -415,12 +415,13 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
   let body: React.ReactNode = null;
 
   if (entry.type === 'message' && entry.message) {
-    const { text, isFromMe, conversationName, service, messageType } = entry.message;
+    const { text, isFromMe, conversationName, service, messageType, eventText } = entry.message;
     const displayText = messageType === 'app' ? '📱 App message'
       : messageType === 'attachment' ? '📎 Attachment'
       : messageType === 'audio' ? '🎙 Audio message'
       : messageType === 'location' ? '📍 Location'
       : text ? text
+      : eventText ? eventText
       : '(no text)';
 
     body = (

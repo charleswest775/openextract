@@ -45,6 +45,7 @@ export function normalizeMessage(msg: Message, conv: Conversation): TimelineEntr
       isFromMe: msg.is_from_me,
       sender: msg.sender,
       messageType: msg.message_type,
+      eventText: msg.event_text ?? null,
       conversationName: conv.display_name || conv.chat_identifier,
       service: conv.service,
       chatId: conv.chat_id,

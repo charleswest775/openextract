@@ -74,13 +74,13 @@ _ATTACHMENT_CSS = """.msg img { display: block; max-width: 100%; max-height: 420
 }
 """
 
-# What exports write for a message with no text and no attachment file, by
-# the engine's message_type. The thread view (src/components/explore/
-# ChatBubble.tsx) uses the same words. Anything not listed is a "Conversation
-# event": the engine calls group changes (renamed, someone added or removed),
-# unsent messages and FaceTime notices "system" without saying which, and
-# its plain "location" is mostly sms.db item_type 3 (someone left, group
-# photo changed), so a more specific label wouldn't be true.
+# What exports write for a message with no text and no attachment file. The
+# engine says what happened in event_text for a group change, an unsent
+# message or a FaceTime call ("Karin added Theo to the conversation"); other
+# such messages get a label by message_type. Anything else is a
+# "Conversation update": the engine calls rows it can't name "system" (and
+# some "location"), so a more specific label wouldn't be true. The thread
+# view (src/lib/messageEvents.ts) uses the same words.
 _EVENT_LABELS = {
     "location_started_by_me": "You started sharing your location",
     "location_stopped_by_me": "You stopped sharing your location",
@@ -96,7 +96,7 @@ _EVENT_LABELS = {
     "game": "Game message",
     "app": "Message from an iMessage app",
 }
-_EVENT_FALLBACK = "Conversation event"
+_EVENT_FALLBACK = "Conversation update"
 
 # Extensions we try to render as images when sms.db has no mime type.
 _IMAGE_EXTENSIONS = (
@@ -316,10 +316,13 @@ class MessageExtractor:
     @staticmethod
     def _event_label(msg) -> str:
         """Label for a message with no text and no attachment file, e.g.
-        "[You started sharing your location]". Only a message flagged as
-        having attachments we know nothing about is an "[Attachment]"."""
+        "[Karin added Theo to the conversation]" or "[You started sharing
+        your location]". Only a message flagged as having attachments we know
+        nothing about is an "[Attachment]"."""
         if msg.get("has_attachments"):
             return "[Attachment]"
+        if msg.get("event_text"):
+            return f"[{msg['event_text']}]"
         return f"[{_EVENT_LABELS.get(msg.get('message_type'), _EVENT_FALLBACK)}]"
 
     def _message_text(self, msg) -> str:
