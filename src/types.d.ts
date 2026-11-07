@@ -45,7 +45,7 @@ declare global {
       getRecentSessions: () => Promise<RecentSession[]>;
       /** `area` (e.g. 'calls') labels the follow-up "did it come out right?" card. */
       incrementExportCount: (area?: string) => Promise<number>;
-      /** Called once, after the first successful export, to show the share prompt. Returns a cleanup function. */
+      /** Called once, after the first successful export (or the next one, after the older star-only card), to show the share prompt. Returns a cleanup function. */
       onSharePrompt: (callback: (area?: string) => void) => () => void;
       feedback: {
         /** Scrubbed facts for the feedback form (no backup content, paths or names). */

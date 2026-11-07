@@ -9,7 +9,8 @@ export const REPO_URL = 'https://github.com/charleswest775/openextract';
 /**
  * One-time card after a successful export, asking for a thank-you, a word to a
  * friend, or a GitHub star. The main process decides when to show it (first
- * export, never again after that, remembered in the local app state file).
+ * export, or the next one for people who saw the older star-only card; never
+ * again after that, or after a thank-you; remembered in the local app state file).
  * Nothing here talks to the network: "Say thanks" opens the feedback form, which
  * sends only if the user clicks Send there; the rest open the user's browser or
  * copy a link.

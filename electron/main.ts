@@ -84,8 +84,10 @@ const store = new JsonStore({
   stats: { totalExports: 0 },
   // null until the user answers the "check for updates automatically?" question.
   updatesAutoCheck: null,
-  // True once the "star or tell a friend" prompt has been shown. It shows at most once.
-  sharePromptShown: false,
+  // True once the "Your file is saved" card (Say thanks, tell a friend, star) has been shown.
+  // It shows at most once. It replaced `sharePromptShown`, the flag of the older star-only
+  // card, so people who saw that one get this card once too.
+  thanksCardShown: false,
   // True once the user picks "Don't ask again" on the "Did this export come out right?" card.
   exportCheckOptOut: false,
   // True once a thank-you was sent from the feedback form; the app then stops asking for one.
@@ -458,10 +460,11 @@ app.whenReady().then(async () => {
     stats.totalExports = (stats.totalExports || 0) + 1;
     store.set('stats', stats);
     // Every export calls this after it succeeds, so this is where the one-time
-    // share prompt starts. Remembered locally; nothing is sent anywhere.
+    // "Your file is saved" card starts, unless a thank-you was already sent.
+    // Remembered locally; nothing is sent anywhere.
     const exportArea = typeof area === 'string' ? area : undefined;
-    if (!store.get('sharePromptShown', false)) {
-      store.set('sharePromptShown', true);
+    if (!store.get('thanksCardShown', false) && !store.get('thanksSent', false)) {
+      store.set('thanksCardShown', true);
       event.sender.send('share-prompt:show', exportArea);
     } else if (!exportCheckShownThisRun && !store.get('exportCheckOptOut', false)) {
       // "Did this export come out right?" catches exports that finish without
