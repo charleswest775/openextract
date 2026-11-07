@@ -10,6 +10,7 @@ import os
 import sys
 import tempfile
 import unittest
+from urllib.parse import quote
 
 from PIL import Image
 
@@ -82,7 +83,8 @@ class TestHtmlExportAttachments(unittest.TestCase):
         with open(page, encoding="utf-8") as f:
             content = f.read()
         folder = os.path.splitext(page)[0] + "_attachments"
-        return result, content, folder, os.path.basename(folder)
+        # Links to the folder, percent-encoded: export names have spaces and commas.
+        return result, content, folder, quote(os.path.basename(folder))
 
     def test_photo_is_copied_beside_the_page_and_shown(self):
         png = self._file("IMG_0001.png", image="PNG")
@@ -186,13 +188,16 @@ class TestHtmlExportAttachments(unittest.TestCase):
         self.assertEqual(content.count(f'<img src="{rel}/12-dup.png"'), 2)
         self.assertEqual(os.listdir(folder), ["12-dup.png"])
 
-    def test_saving_again_into_the_same_folder_works(self):
+    def test_saving_again_keeps_the_first_page_and_its_folder(self):
         self._file("again.png", image="PNG")
         messages = [_msg(1, "", [_att(13, "again.png", "image/png")])]
-        _, first, folder, _ = self._export(messages)
-        _, second, _, _ = self._export(messages)
-        self.assertEqual(first, second)
-        self.assertEqual(os.listdir(folder), ["13-again.png"])
+        first, _, first_folder, _ = self._export(messages)
+        second, content, second_folder, rel = self._export(messages)
+        self.assertNotEqual(first["file"], second["file"])
+        self.assertTrue(os.path.isfile(first["file"]))
+        self.assertEqual(os.listdir(first_folder), ["13-again.png"])
+        self.assertEqual(os.listdir(second_folder), ["13-again.png"])
+        self.assertIn(f'<img src="{rel}/13-again.png"', content)
 
     def test_names_sent_by_others_cannot_leave_the_folder_or_break_the_page(self):
         self._file("x.mov")
@@ -200,7 +205,8 @@ class TestHtmlExportAttachments(unittest.TestCase):
         _, content, folder, rel = self._export([_msg(1, "", [att])])
 
         self.assertEqual(os.listdir(folder), ["14-evil _b_x_.mov"])
-        self.assertEqual(sorted(os.listdir(self.out)), sorted([os.path.basename(folder), rel[:-len("_attachments")] + ".html"]))
+        name = os.path.basename(folder)
+        self.assertEqual(sorted(os.listdir(self.out)), sorted([name, name[:-len("_attachments")] + ".html"]))
         self.assertNotIn("<b>", content)
         self.assertIn(f'src="{rel}/14-evil%20_b_x_.mov#t=0.001"', content)
         self.assertIn("&lt;b&gt;&quot;x&quot;", content)
