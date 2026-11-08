@@ -30,22 +30,22 @@
     },
     {
       "source": "/download/mac/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.11.0/OpenExtract-0.11.0-arm64.dmg",
+      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.12.0/OpenExtract-0.12.0-arm64.dmg",
       "permanent": false
     },
     {
       "source": "/download/windows/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.11.0/OpenExtract-Setup-0.11.0.exe",
+      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.12.0/OpenExtract-Setup-0.12.0.exe",
       "permanent": false
     },
     {
       "source": "/download/linux/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.11.0/openextract_0.11.0_amd64.deb",
+      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.12.0/openextract_0.12.0_amd64.deb",
       "permanent": false
     },
     {
       "source": "/download/linux-appimage/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.11.0/OpenExtract-0.11.0.AppImage",
+      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.12.0/OpenExtract-0.12.0.AppImage",
       "permanent": false
     },
     {
