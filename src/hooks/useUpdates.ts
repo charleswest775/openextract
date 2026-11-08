@@ -23,9 +23,16 @@ export function useUpdates() {
     await api.setAutoCheck(enabled);
   }, [api]);
 
+  const askLater = useCallback(async () => {
+    if (!api) return;
+    setState(s => (s ? { ...s, askLater: true } : s));
+    await api.askLater();
+  }, [api]);
+
   return {
     state,
     setAutoCheck,
+    askLater,
     check: () => api?.check(),
     download: () => api?.download(),
     install: () => api?.install(),

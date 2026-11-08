@@ -127,6 +127,28 @@ describe('no network unless the user opted in', () => {
     assert.equal((await u.invoke('updates:get-state')).autoCheck, true);
   });
 
+  test('"Not now" puts the question off for a week without saving a no or checking', async () => {
+    const u = await setup({ autoCheck: null });
+    const before = Date.now();
+    await u.invoke('updates:ask-later');
+    await flush();
+    assert.deepEqual(u.networkCalls(), []);
+    assert.equal(u.data.has('updatesAutoCheck'), true);
+    assert.equal(u.data.get('updatesAutoCheck'), null);
+    const askAfter = u.data.get('updatesAskAfter');
+    const week = 7 * 24 * 60 * 60 * 1000;
+    assert.ok(askAfter >= before + week && askAfter <= Date.now() + week, `asks again a week later (${askAfter})`);
+    const state = await u.invoke('updates:get-state');
+    assert.equal(state.askLater, true);
+    assert.equal(state.autoCheck, null);
+  });
+
+  test('once the week is over, the question is asked again', async () => {
+    const u = await setup({ autoCheck: null });
+    u.data.set('updatesAskAfter', Date.now() - 1);
+    assert.equal((await u.invoke('updates:get-state')).askLater, false);
+  });
+
   test('the Check for updates button checks, whatever the automatic setting', async () => {
     const u = await setup({ autoCheck: false });
     await u.invoke('updates:check');
@@ -165,6 +187,7 @@ describe('what the renderer sees', () => {
       supported: true,
       flatpak: false,
       autoCheck: null,
+      askLater: false,
       currentVersion: '1.2.3',
       releasesUrl: state.releasesUrl,
       status: { state: 'idle' },
