@@ -91,12 +91,14 @@ function Show-Dump {
   $cdb = Find-Cdb
   if (-not $cdb) { Write-Output 'cdb.exe not found'; return }
   Write-Output "===== $Dump (cdb: $cdb)"
-  $first = & $cdb -z $Dump -c '.effmach x86; .exr -1; .ecxr; r; kv 20; ub @eip L30; u @eip L10; lm; q' 2>&1
-  $first | Write-Output
+  $first = & $cdb -z $Dump -c '.exr -1; .ecxr; r; kv 20; u @eip L8; dd @esp L8; lm; q' 2>&1
+  $first | Where-Object { $_ -notmatch 'NatVis script|Repository :|Debugger Extensions Gallery|^\s*(ExtensionRepository|UseExperimental|AllowNuget|NonInteractive|AllowParallel|EnableRedirect)' } | Write-Output
   $fault = ($first | Select-String -Pattern 'Parameter\[1\]: ([0-9a-fA-F`]+)' | Select-Object -First 1)
   if ($fault) {
     $a = $fault.Matches[0].Groups[1].Value -replace '`', ''
     Write-Output "===== memory around fault address $a"
-    & $cdb -z $Dump -c ".effmach x86; !address $a; !address $a-1; db $a-0x100 L100; du $a-0x800 L100; .ecxr; !address @esi; !address @edi; dd @esp L30; q" 2>&1 | Write-Output
+    # copymem(dst, src, n) at System+0x1563: edi = dst, ecx = src - dst, edx = current dst, esi = bytes left.
+    & $cdb -z $Dump -c ".ecxr; .echo fault address, bytes copied, bytes left:; ? @ecx+@edx; ? @edx-@edi; ? @esi; .echo source:; du @ecx+@edi L80; !heap -x @ecx+@edi; !address @ecx+@edi; .echo first byte past the copy:; !address $a; q" 2>&1 |
+      Where-Object { $_ -notmatch 'NatVis script|Repository :|Debugger Extensions Gallery|^\s*(ExtensionRepository|UseExperimental|AllowNuget|NonInteractive|AllowParallel|EnableRedirect)' } | Write-Output
   }
 }
