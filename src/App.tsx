@@ -110,6 +110,9 @@ export default function App() {
           onOpenBackup={async (session) => {
             await openAndNavigate(session.id, undefined, session.backupDir, session, undefined);
           }}
+          onOpenFoundBackup={async (b) => {
+            await openAndNavigate(b.udid, undefined, b.backup_dir, undefined, b);
+          }}
           onCreateBackup={() => setScreen('create-backup')}
           onBrowseForBackup={async () => {
             setOpenError(null);

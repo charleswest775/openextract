@@ -145,7 +145,13 @@ class BackupManager:
         self._open_backups: dict[str, OpenBackup] = {}
 
     def _get_default_backup_dirs(self) -> list[str]:
-        """Return platform-specific default backup locations."""
+        """Return the platform's usual backup locations, whether or not they exist.
+
+        list_backups() skips the missing ones. Checking here with os.path.isdir()
+        would also drop a folder macOS won't let us read, because isdir() returns
+        False on a permission error, and the home screen could never ask for
+        Full Disk Access (#84).
+        """
         dirs = []
         if sys.platform == "darwin":
             home = Path.home()
@@ -170,7 +176,7 @@ class BackupManager:
             home = Path.home()
             dirs.append(str(home / "MobileSync" / "Backup"))
 
-        return [d for d in dirs if os.path.isdir(d)]
+        return list(dict.fromkeys(dirs))
 
     @staticmethod
     def _permission_error(path: str) -> RuntimeError:
@@ -218,20 +224,28 @@ class BackupManager:
         else:
             search_dirs = self._get_default_backup_dirs()
 
+        searched = []
         for search_dir in search_dirs:
             try:
-                for entry in os.listdir(search_dir):
-                    backup_dir = os.path.join(search_dir, entry)
-                    if not os.path.isdir(backup_dir):
-                        continue
-
-                    info = self._read_backup_info(backup_dir)
-                    if info:
-                        backups.append(info)
+                entries = os.listdir(search_dir)
+            except (FileNotFoundError, NotADirectoryError):
+                continue
             except PermissionError:
                 permission_denied.append(search_dir)
+                continue
+            searched.append(search_dir)
+            for entry in entries:
+                backup_dir = os.path.join(search_dir, entry)
+                if not os.path.isdir(backup_dir):
+                    continue
 
-        return {"backups": backups, "search_dirs": search_dirs,
+                info = self._read_backup_info(backup_dir)
+                if info:
+                    backups.append(info)
+
+        # Newest first. last_backup is an ISO date in UTC, or "" when unknown.
+        backups.sort(key=lambda b: str(b.get("last_backup") or ""), reverse=True)
+        return {"backups": backups, "search_dirs": searched,
                 "permission_denied": permission_denied}
 
     def _read_backup_info(self, backup_dir: str) -> Optional[dict]:
