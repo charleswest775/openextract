@@ -117,22 +117,17 @@ jobs:
           name: ${{ inputs.artifact }}
           path: installer
 
-      # On windows-2025 runners the installer's NSIS System.dll plugin crashes at startup
-      # on about half the attempts (0xC0000005 at offset 0x1581), before App Control is
-      # on. A crash takes under a second, so try up to ten times; the Application log has
-      # the details.
+      # One attempt. Installers built with electron-builder 26.8.1 (0.11.0 and earlier)
+      # crashed in NSIS's System.dll (0xC0000005 at offset 0x1581) on about one fresh install
+      # in four, before App Control is on; 26.12 fixed it, so a crash here means it's back.
+      # Checking one of those older releases by hand may need a re-run.
       - name: Install silently with /S
         id: install
         run: |
           $exe = @(Get-ChildItem installer -Filter '*.exe')
           if ($exe.Count -ne 1) { throw "Expected one installer, found $($exe.Count): $($exe.Name -join ', ')" }
           $began = Get-Date
-          foreach ($attempt in 1..10) {
-            $p = Start-Process -FilePath $exe[0].FullName -ArgumentList '/S' -Wait -PassThru
-            if ($p.ExitCode -eq 0) { break }
-            Write-Output "::warning::Silent install attempt $attempt exited with $($p.ExitCode)"
-            Start-Sleep -Seconds 3
-          }
+          $p = Start-Process -FilePath $exe[0].FullName -ArgumentList '/S' -Wait -PassThru
           Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Id = 1000; StartTime = $began } -ErrorAction SilentlyContinue |
             ForEach-Object { Write-Output ($_.Message -split "`r?`n" | Select-Object -First 4) }
           if ($p.ExitCode -ne 0) { throw "Silent install exited with $($p.ExitCode)" }
