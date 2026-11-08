@@ -7,6 +7,10 @@ reads them (encrypted ones too) and the older databases inside them; these
 tests drive the engine's own methods over backups that ios-backup-core's
 backupgen writes the old way (backupgen/legacy.py), against its answer key.
 
+Encrypted backups made by iOS 10.0 and 10.1 (issue #107) use Manifest.db but
+still the older keybag, without DPSL, and used to fail with "Failed to decrypt
+backup: b'DPSL'". backupgen.legacy writes those too (--ios 10.1.1).
+
 Needs ios-backup-core with backupgen.legacy: skipped without it, or failed when
 OPENEXTRACT_REQUIRE_GENERATED=1 (CI).
 """
@@ -27,8 +31,9 @@ from corpus.synthetic import backupgen_root  # noqa: E402
 
 PASSWORD = "test"
 JPEG_MAGIC = b"\xff\xd8\xff"
-# (iOS version, password): the oldest and newest releases with Manifest.mbdb, and an encrypted one.
-BACKUPS = [("6.1.6", None), ("9.3.5", None), ("9.3.5", PASSWORD)]
+# (iOS version, password): the oldest and newest releases with Manifest.mbdb, an encrypted one,
+# and an encrypted iOS 10.1 one (Manifest.db, keybag without DPSL).
+BACKUPS = [("6.1.6", None), ("9.3.5", None), ("9.3.5", PASSWORD), ("10.1.1", PASSWORD)]
 
 
 def _generate_legacy():
@@ -39,7 +44,15 @@ def _generate_legacy():
         skip_or_fail(f"the ios-backup-core checkout at {root} has no backupgen/legacy.py; update it")
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
-    return importlib.import_module("backupgen.legacy").generate_legacy
+    generate_legacy = importlib.import_module("backupgen.legacy").generate_legacy
+
+    def generate(out, *, ios, **kwargs):
+        backup_dir = generate_legacy(out, ios=ios, **kwargs)
+        if ios.startswith("10.") and not (backup_dir / "Manifest.db").is_file():
+            skip_or_fail(f"the ios-backup-core checkout at {root} can't write iOS 10.0/10.1 backups; update it")
+        return backup_dir
+
+    return generate
 
 
 @pytest.fixture(scope="module")
@@ -71,16 +84,20 @@ def opened(request, server, tmp_path_factory):
 
 def test_listed_with_its_details(opened):
     info, expected = opened["info"], opened["expected"]
-    assert info["manifest_format"] == "mbdb"
+    assert info["manifest_format"] == expected["manifest_format"]
     assert info["product_version"] == expected["ios"]
     assert info["device_name"] == "Sam's iPhone"
     assert info["backup_dir"] == str(opened["dir"])
     assert info["last_backup"].startswith("2016-09-10T18:30:00")
 
 
-def test_size_counts_the_flat_files(server, opened):
+def test_size_counts_the_stored_files(server, opened):
     size = _call(server, "get_backup_size", backup_dir=str(opened["dir"]))
-    assert size["size_bytes"] == sum(p.stat().st_size for p in opened["dir"].iterdir())
+    if opened["info"]["manifest_format"] == "mbdb":
+        files = list(opened["dir"].iterdir())  # flat in the folder
+    else:
+        files = [f for d in opened["dir"].iterdir() if d.is_dir() for f in d.iterdir()]
+    assert size["size_bytes"] == sum(f.stat().st_size for f in files)
 
 
 def test_messages(server, opened):
@@ -178,8 +195,9 @@ def test_found_when_the_parent_folder_is_picked(server, tmp_path):
     mgr.close_backup(info["udid"])
 
 
-def test_wrong_password(server, tmp_path):
-    backup_dir = _generate_legacy()(tmp_path, ios="8.4.1", password=PASSWORD, seed=2)
+@pytest.mark.parametrize("ios", ["8.4.1", "10.1.1"])
+def test_wrong_password(server, tmp_path, ios):
+    backup_dir = _generate_legacy()(tmp_path, ios=ios, password=PASSWORD, seed=2)
     (info,) = _call(server, "list_backups", path=str(tmp_path))["backups"]
     udid = info["udid"]
     assert info["encrypted"] is True

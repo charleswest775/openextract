@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - Windows: the installer no longer crashes as it starts on a PC where OpenExtract isn't installed (including after uninstalling it). On GitHub's Windows test machines about one such install in three stopped before showing anything, silent or not; running it again usually worked. Installing over an earlier version, and updates from inside the app, weren't affected
+- Encrypted backups of iPhones on iOS 10.0 or 10.1 open now with their password. They used to fail with "Failed to decrypt backup: b'DPSL'" even when the password was right
 
 ## [0.11.0] - 2026-11-07
 
