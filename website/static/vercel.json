@@ -30,7 +30,7 @@
     },
     {
       "source": "/support/pay",
-      "destination": "https://buy.stripe.com/REPLACE_WITH_LIVE_PAYMENT_LINK",
+      "destination": "https://buy.stripe.com/6oUcN5eYMfeebeR5n62wU00",
       "permanent": false
     },
     {
