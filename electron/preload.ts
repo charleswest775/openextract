@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld('openextract', {
   updates: {
     getState: () => ipcRenderer.invoke('updates:get-state'),
     setAutoCheck: (enabled: boolean) => ipcRenderer.invoke('updates:set-auto-check', enabled),
+    askLater: () => ipcRenderer.invoke('updates:ask-later'),
     check: () => ipcRenderer.invoke('updates:check'),
     download: () => ipcRenderer.invoke('updates:download'),
     install: () => ipcRenderer.invoke('updates:install'),
