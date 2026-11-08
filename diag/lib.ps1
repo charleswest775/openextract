@@ -22,7 +22,7 @@ function Reset-Install {
 function Invoke-Trial {
   param([string]$Exe, [int]$KillAfter = 0, [string[]]$Arguments = @('/S'))
   $sw = [Diagnostics.Stopwatch]::StartNew()
-  $p = Start-Process -FilePath $Exe -ArgumentList $Arguments -PassThru
+  $p = if ($Arguments.Count) { Start-Process -FilePath $Exe -ArgumentList $Arguments -PassThru } else { Start-Process -FilePath $Exe -PassThru }
   $null = $p.Handle   # keeps ExitCode readable after exit
   $limit = if ($KillAfter -gt 0) { $KillAfter * 1000 } else { 300000 }
   $exited = $p.WaitForExit($limit)
@@ -60,19 +60,29 @@ function Get-FaultEvents {
       Code   = if ($m -match 'Exception code: (0x[0-9a-fA-F]+)') { $Matches[1] } else { '?' }
       Offset = if ($m -match 'Fault offset: (0x[0-9a-fA-F]+)') { $Matches[1] } else { '?' }
       Path   = if ($m -match 'Faulting module path: (.+)') { $Matches[1].Trim() } else { '?' }
+      Message = $m
     }
   }
 }
 
+function Show-FaultEvents {
+  param([datetime]$Since)
+  $ev = @(Get-FaultEvents -Since $Since)
+  Write-Host '--- Application event 1000 since the trials began (app, module, code, offset)'
+  $ev | Group-Object App, Module, Code, Offset | ForEach-Object { Write-Host ("{0,4}  {1}" -f $_.Count, $_.Name) }
+  $ev | Where-Object { $_.App -eq '?' } | Select-Object -First 3 | ForEach-Object { Write-Host "--- unparsed event:`n$($_.Message)" }
+}
+
 function Write-Summary {
   param($Results, [string]$Title)
-  $lines = @("### $Title", '', '| Variant | Trials | Crashed (0xC0000005) | Other non-zero | OK/alive |', '|---|---|---|---|---|')
-  foreach ($g in ($Results | Group-Object Variant)) {
+  $lines = @("### $Title", '', '| Variant | Trials | Crashed (0xC0000005) | Other non-zero | OK/alive | OK but not installed |', '|---|---|---|---|---|---|')
+  foreach ($g in ($Results | Where-Object { $_ -isnot [string] } | Group-Object Variant)) {
     $crash = @($g.Group | Where-Object { $_.Code -eq -1073741819 }).Count
     $ok = @($g.Group | Where-Object { $_.Code -eq 0 -or $_.Code -eq 'alive' }).Count
+    $missing = @($g.Group | Where-Object { $_.Code -eq 0 -and $_.PSObject.Properties['Installed'] -and -not $_.Installed }).Count
     $other = $g.Count - $crash - $ok
-    $lines += "| $($g.Name) | $($g.Count) | $crash | $other | $ok |"
-    Write-Output "RESULT variant=$($g.Name) trials=$($g.Count) crashed=$crash other=$other ok=$ok"
+    $lines += "| $($g.Name) | $($g.Count) | $crash | $other | $ok | $missing |"
+    Write-Host "RESULT variant=$($g.Name) trials=$($g.Count) crashed=$crash other=$other ok=$ok ok_not_installed=$missing"
   }
   $lines -join "`n" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
 }
