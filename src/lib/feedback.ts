@@ -19,6 +19,8 @@ export const PRIVACY_URL = 'https://www.openextract.app/privacy#feedback';
 export const FIXES_URL = 'https://www.openextract.app/fixes';
 /** The link people copy to tell a friend. */
 export const SITE_URL = 'https://www.openextract.app';
+/** Where people can chip in. The site page holds the payment link, so the service can change without a release. */
+export const SUPPORT_URL = 'https://www.openextract.app/support';
 
 /** Random code the site keeps a hash of, so only this computer can look the report up later. */
 export function newReportToken(): string {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useUpdates, releaseNotesUrl } from '../../hooks/useUpdates';
 import { SettingsIcon } from './Icons';
 import { useFeedback } from './Feedback';
+import { SUPPORT_URL } from '../../lib/feedback';
 import type { TextSize, UpdateStatus } from '../../types';
 
 const TEXT_SIZES: { id: TextSize; label: string }[] = [
@@ -118,8 +119,9 @@ export default function SettingsDialog({ onClose }: Props) {
         <div className="flex flex-wrap gap-2">
           <button className="hearth-ghost-btn" onClick={() => open(WEBSITE_URL)}>Website</button>
           <button className="hearth-ghost-btn" onClick={() => open(state?.releasesUrl ?? WEBSITE_URL)}>Release notes</button>
-          <button className="hearth-ghost-btn" onClick={() => { onClose(); openFeedback(); }}>Report a problem or send feedback</button>
           <button className="hearth-ghost-btn" onClick={() => { onClose(); openFeedback({ kind: 'thanks' }); }}>Say thanks</button>
+          <button className="hearth-ghost-btn" onClick={() => open(SUPPORT_URL)}>Chip in</button>
+          <button className="hearth-ghost-btn" onClick={() => { onClose(); openFeedback(); }}>Report a problem or send feedback</button>
         </div>
       </div>
     </div>
