@@ -43,14 +43,18 @@
     <keyword>voicemail</keyword>
   </keywords>
   <screenshots>
-    <!-- Flathub wants PNG or JPEG. These PNGs go live once site PR #148 merges. -->
+    <!-- Flathub wants PNG or JPEG. These PNGs are served from website/static/img/screens/. -->
     <screenshot type="default">
       <caption>A conversation, with its photos</caption>
       <image>https://www.openextract.app/img/screens/messages-2000.png</image>
     </screenshot>
     <screenshot>
-      <caption>Everything in the backup at a glance</caption>
-      <image>https://www.openextract.app/img/screens/overview-2000.png</image>
+      <caption>Everything in the backup on one page</caption>
+      <image>https://www.openextract.app/img/screens/home-2000.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>One search box for messages, notes, calls and more</caption>
+      <image>https://www.openextract.app/img/screens/search-2000.png</image>
     </screenshot>
     <screenshot>
       <caption>Voicemails you can play and save</caption>

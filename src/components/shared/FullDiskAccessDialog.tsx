@@ -6,12 +6,14 @@ const SETTINGS_URL = 'x-apple.systempreferences:com.apple.preference.security?Pr
 
 interface Props {
   /** The sidecar's FULL_DISK_ACCESS_REQUIRED error message. */
-  message: string;
+  message?: string;
+  /** The blocked folder, when there's no error message to read it from. */
+  blockedFolder?: string;
   onClose: () => void;
 }
 
-export default function FullDiskAccessDialog({ message, onClose }: Props) {
-  const folder = message.match(/from reading (.+?)\. Open System Settings/)?.[1];
+export default function FullDiskAccessDialog({ message, blockedFolder, onClose }: Props) {
+  const folder = blockedFolder ?? message?.match(/from reading (.+?)\. Open System Settings/)?.[1];
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { AppStateData } from '../../lib/appState';
 import AppHeader from '../shared/AppHeader';
 import PrivacyFooter from '../shared/PrivacyFooter';
@@ -7,12 +8,14 @@ import { FolderIcon, PhoneIcon } from '../shared/Icons';
 
 interface Props {
   data: AppStateData;
+  /** Backups found in the usual folders that aren't in the recent list. */
+  found: ReactNode;
   onOpenSession: (id: string) => void;
   onGetMoreData: () => void;
   onBrowseForBackup: () => void;
 }
 
-export default function WorkspaceView({ data, onOpenSession, onGetMoreData, onBrowseForBackup }: Props) {
+export default function WorkspaceView({ data, found, onOpenSession, onGetMoreData, onBrowseForBackup }: Props) {
   return (
     <div className="h-screen flex flex-col bg-base">
       <AppHeader showVersion={false} />
@@ -37,6 +40,8 @@ export default function WorkspaceView({ data, onOpenSession, onGetMoreData, onBr
             sessions={data.sessions}
             onOpenSession={onOpenSession}
           />
+
+          {found}
 
           <PrivacyFooter variant="compact" />
         </div>

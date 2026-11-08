@@ -7,10 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- The first screen lists the backups Finder, iTunes and the Apple Devices app saved on this computer, each with an Open button, so most people don't need to pick a folder. Backups already in your list aren't shown twice. On a Mac, macOS hides that folder until OpenExtract has Full Disk Access, so the first screen offers to explain how to allow it
+
 ### Changed
 - "Not now" on the "Keep OpenExtract up to date?" card no longer turns update checks off for good. The card comes back a week later, and only switching it off in Settings saves a no
 
 ### Fixed
+- Windows: the installer no longer crashes as it starts on a PC where OpenExtract isn't installed (including after uninstalling it). On GitHub's Windows test machines about one such install in three stopped before showing anything, silent or not; running it again usually worked. Installing over an earlier version, and updates from inside the app, weren't affected
 - Encrypted backups of iPhones on iOS 10.0 or 10.1 open now with their password. They used to fail with "Failed to decrypt backup: b'DPSL'" even when the password was right
 
 ## [0.11.0] - 2026-11-07

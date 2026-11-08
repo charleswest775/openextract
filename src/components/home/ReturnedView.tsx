@@ -1,14 +1,17 @@
+import type { ReactNode } from 'react';
 import AppHeader from '../shared/AppHeader';
 import PrivacyFooter from '../shared/PrivacyFooter';
 import { LinesIcon, CameraIcon, ClockIcon, ExportIcon } from '../shared/Icons';
 import HomeActionCards from './HomeActions';
 
 interface Props {
+  /** Backups found in the usual folders, if any. */
+  found: ReactNode;
   onGetMyData: () => void;
   onBrowseForBackup: () => void;
 }
 
-export default function ReturnedView({ onGetMyData, onBrowseForBackup }: Props) {
+export default function ReturnedView({ found, onGetMyData, onBrowseForBackup }: Props) {
   return (
     <div className="h-screen flex flex-col bg-base">
       <AppHeader />
@@ -22,6 +25,8 @@ export default function ReturnedView({ onGetMyData, onBrowseForBackup }: Props) 
           Once your iPhone is backed up, we'll gently pull out every message, photo, and voicemail —
           all privately on this machine.
         </p>
+
+        {found}
 
         <HomeActionCards onBackUp={onGetMyData} onOpenFolder={onBrowseForBackup} wide />
         <div className="h-8" />

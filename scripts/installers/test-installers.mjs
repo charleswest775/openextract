@@ -213,14 +213,18 @@ async function mac() {
 const WIN_DIR = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'OpenExtract');
 const START_MENU = path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'OpenExtract.lnk');
 
-/** NSIS's System.dll crashes at startup on about half the runs on windows-2025 runners (see windows-app-control.yml). */
-function nsisInstall(installer) {
+/**
+ * Installers built with electron-builder 26.8.1 (0.11.0 and earlier) crash in NSIS's System.dll on
+ * about one fresh install in four (see windows-app-control.yml), so the previous release gets
+ * `attempts` tries. Once the previous release is built with 26.12 or later, it needs only one.
+ */
+function nsisInstall(installer, attempts = 1) {
   let r;
-  for (let attempt = 1; attempt <= 10; attempt++) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     r = run(installer, ['/S'], { timeout: 300_000 });
     if (r.status === 0) return { ok: true, attempts: attempt };
     console.log(`Silent install attempt ${attempt} exited with ${r.status}`);
-    spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},3000)']);
+    if (attempt < attempts) spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},3000)']);
   }
   return { ok: false, status: r.status };
 }
@@ -250,7 +254,7 @@ async function windows() {
 
   const previous = find(opts.previous, /^OpenExtract[- ]Setup[- ][\d.]+\.exe$/);
   if (previous) {
-    const p = nsisInstall(previous);
+    const p = nsisInstall(previous, 10);
     check(`the previous release (${path.basename(previous)}) installs`, p.ok, p);
     check('the previous release is registered', !!uninstallEntry().found);
   }
