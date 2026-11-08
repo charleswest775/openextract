@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld('openextract', {
   updates: {
     getState: () => ipcRenderer.invoke('updates:get-state'),
     setAutoCheck: (enabled: boolean) => ipcRenderer.invoke('updates:set-auto-check', enabled),
+    askLater: () => ipcRenderer.invoke('updates:ask-later'),
     check: () => ipcRenderer.invoke('updates:check'),
     download: () => ipcRenderer.invoke('updates:download'),
     install: () => ipcRenderer.invoke('updates:install'),
@@ -71,9 +72,9 @@ contextBridge.exposeInMainWorld('openextract', {
   // `area` (e.g. 'calls') only labels the follow-up "did it come out right?" card.
   incrementExportCount: (area?: string) => ipcRenderer.invoke('increment-export-count', area),
 
-  // One-time "star or tell a friend" prompt after the first successful export.
-  onSharePrompt: (callback: () => void) => {
-    const listener = () => callback();
+  // One-time "say thanks or tell a friend" prompt after the first successful export.
+  onSharePrompt: (callback: (area?: string) => void) => {
+    const listener = (_event: any, area?: string) => callback(area);
     ipcRenderer.on('share-prompt:show', listener);
     return () => ipcRenderer.removeListener('share-prompt:show', listener);
   },
@@ -91,8 +92,9 @@ contextBridge.exposeInMainWorld('openextract', {
       return () => ipcRenderer.removeListener('feedback:fixed', listener);
     },
     optOutOfExportCheck: () => ipcRenderer.invoke('feedback:export-check-opt-out'),
-    onExportCheck: (callback: (area?: string) => void) => {
-      const listener = (_event: any, area?: string) => callback(area);
+    thanksOffered: () => ipcRenderer.invoke('feedback:thanks-offered'),
+    onExportCheck: (callback: (area?: string, offerThanks?: boolean) => void) => {
+      const listener = (_event: any, area?: string, offerThanks?: boolean) => callback(area, offerThanks);
       ipcRenderer.on('export-check:show', listener);
       return () => ipcRenderer.removeListener('export-check:show', listener);
     },

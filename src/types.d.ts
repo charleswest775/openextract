@@ -31,6 +31,8 @@ declare global {
       updates: {
         getState: () => Promise<UpdatesState>;
         setAutoCheck: (enabled: boolean) => Promise<void>;
+        /** "Not now": leave the setting unanswered and ask again in a week. */
+        askLater: () => Promise<void>;
         check: () => Promise<void>;
         download: () => Promise<void>;
         install: () => Promise<void>;
@@ -45,8 +47,8 @@ declare global {
       getRecentSessions: () => Promise<RecentSession[]>;
       /** `area` (e.g. 'calls') labels the follow-up "did it come out right?" card. */
       incrementExportCount: (area?: string) => Promise<number>;
-      /** Called once, after the first successful export, to show the share prompt. Returns a cleanup function. */
-      onSharePrompt: (callback: () => void) => () => void;
+      /** Called once, after the first successful export (or the next one, after the older star-only card), to show the share prompt. Returns a cleanup function. */
+      onSharePrompt: (callback: (area?: string) => void) => () => void;
       feedback: {
         /** Scrubbed facts for the feedback form (no backup content, paths or names). */
         getDiagnostics: (reportedError?: string) => Promise<FeedbackDiagnostics>;
@@ -60,8 +62,13 @@ declare global {
         /** A follow-up check found a fix. Returns a cleanup function. */
         onFixed: (callback: () => void) => () => void;
         optOutOfExportCheck: () => Promise<void>;
-        /** Shown at most once per run after an export. Returns a cleanup function. */
-        onExportCheck: (callback: (area?: string) => void) => () => void;
+        /** "Glad it worked" was shown after "Looks right"; it isn't shown again. */
+        thanksOffered: () => Promise<void>;
+        /**
+         * Shown at most once per run after an export. `offerThanks` says whether
+         * "Looks right" may ask for a thank-you. Returns a cleanup function.
+         */
+        onExportCheck: (callback: (area?: string, offerThanks?: boolean) => void) => () => void;
       };
       /** Copy text to the system clipboard. */
       copyText: (text: string) => Promise<void>;
@@ -93,6 +100,8 @@ export interface FeedbackSendInput {
   diagnostics: string;
   email?: string;
   token: string;
+  /** Thank-yous only: OK to quote on openextract.app, without the sender's name. */
+  quote?: boolean;
 }
 
 export interface KnownFix {
@@ -140,6 +149,8 @@ export interface UpdatesState {
   flatpak?: boolean;
   /** null until the user has answered the "check automatically?" question. */
   autoCheck: boolean | null;
+  /** "Not now" was picked on that question recently, so don't ask it yet. */
+  askLater: boolean;
   currentVersion: string;
   releasesUrl: string;
   status: UpdateStatus;

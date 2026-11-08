@@ -1,0 +1,253 @@
+name: Installers
+
+# Installs the packages people download (dmg and zip, NSIS installer, deb and AppImage) on
+# fresh macOS, Windows and Linux runners, checks what landed where, runs the end-to-end smoke
+# suite against the installed app, upgrades over the previous release, and uninstalls. See
+# scripts/installers/test-installers.mjs and docs/TESTING.md.
+#
+# Without a tag it builds unsigned packages the way release.yml does (Linux inside Ubuntu
+# 22.04, for glibc) and tests those. release.yml calls it with the draft release's tag, so the
+# signed packages users will get are tested before the release is published.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Test this release''s packages (it may still be a draft) instead of building'
+        type: string
+        required: false
+        default: ''
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to test (blank = build unsigned packages from this branch)'
+        required: false
+        default: ''
+  schedule:
+    - cron: '41 6 * * 1'  # Mondays 06:41 UTC
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'build/**'
+      - 'electron/main.ts'
+      - 'python/requirements.txt'
+      - 'scripts/bundle-engine.mjs'
+      - 'scripts/installers/**'
+      - '.github/workflows/installers.yml'
+
+concurrency:
+  group: installers-${{ inputs.tag || github.ref }}
+  cancel-in-progress: ${{ !inputs.tag }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: ${{ !inputs.tag }}
+    name: build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+          - os: windows-latest
+          - os: ubuntu-latest
+            container: ubuntu:22.04
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # electron-builder skips all macOS signing on pull requests unless this is set. Only
+      # the ad hoc signature below is made here; this job has no signing secrets.
+      CSC_FOR_PULL_REQUEST: 'true'
+      # See release.yml's build-linux: make setup-python fetch its Ubuntu 22.04 build.
+      AGENT_TOOLSDIRECTORY: ${{ matrix.container && '/opt/toolcache' || '' }}
+    steps:
+      - name: Install Linux build dependencies
+        if: matrix.container
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git ca-certificates binutils xz-utils libarchive-tools libsqlite3-0 libreadline8
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install Node dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Clone ios-backup-core (sibling for editable install)
+        run: |
+          git clone --depth=1 https://github.com/charleswest775/ios-backup-core.git "$GITHUB_WORKSPACE/../ios-backup-core"
+
+      - name: Install Python dependencies and PyInstaller
+        working-directory: python
+        run: pip install pyinstaller -r requirements.txt
+
+      - name: Build Python sidecar
+        run: npm run python:bundle
+
+      - name: Build Electron app
+        run: npm run build
+
+      # Same as prerelease-check.yml: no signing secrets, so no notarizing or Azure signing.
+      # On macOS electron-builder signs ad hoc ("-") instead of with the Developer ID, but
+      # otherwise as a release does: every binary in the app, each of the engine's .so and
+      # .dylib files included, with the hardened runtime and our entitlements. The macOS
+      # test checks each one, which notarization would otherwise be first to catch.
+      - name: Unsigned packaging config
+        run: |
+          node -e '
+            const fs = require("fs"); const p = JSON.parse(fs.readFileSync("package.json"));
+            delete p.build.afterSign; delete p.build.win.azureSignOptions;
+            p.build.mac.identity = "-";
+            fs.writeFileSync("package.json", JSON.stringify(p, null, 2));'
+
+      - name: Package (no publish)
+        run: npx electron-builder --publish never
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ runner.os }}
+          path: |
+            release/*.dmg
+            release/*-mac.zip
+            release/*.exe
+            release/*.deb
+            release/*.AppImage
+            release/latest*.yml
+          retention-days: 3
+          if-no-files-found: error
+
+  # A draft release's assets can only be read with write access, so this small job fetches
+  # them and hands them to the test jobs, which stay read-only.
+  fetch:
+    if: inputs.tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - name: Download the release's packages
+        run: |
+          get() { d=$1; shift; mkdir -p "$d"; args=(); for p in "$@"; do args+=(--pattern "$p"); done; gh release download "$TAG" --repo "$GITHUB_REPOSITORY" "${args[@]}" --dir "$d"; }
+          get packages/macOS '*-mac.zip' '*.dmg' 'latest-mac.yml'
+          get packages/Windows 'OpenExtract-Setup-*.exe' 'latest.yml'
+          get packages/Linux '*.deb' '*.AppImage' 'latest-linux.yml'
+          ls -laR packages
+
+      - uses: actions/upload-artifact@v4
+        with: { name: packages-macOS, path: packages/macOS, retention-days: 3, if-no-files-found: error }
+      - uses: actions/upload-artifact@v4
+        with: { name: packages-Windows, path: packages/Windows, retention-days: 3, if-no-files-found: error }
+      - uses: actions/upload-artifact@v4
+        with: { name: packages-Linux, path: packages/Linux, retention-days: 3, if-no-files-found: error }
+
+  test:
+    needs: [build, fetch]
+    if: ${{ !cancelled() && (needs.build.result == 'success' || needs.fetch.result == 'success') }}
+    name: install (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || '' }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install Node dependencies and Playwright
+        run: |
+          npm ci --no-audit --no-fund
+          npm install --no-save --no-audit --no-fund playwright-core@1.59.1
+
+      - name: Download the packages to test
+        uses: actions/download-artifact@v5
+        with:
+          name: packages-${{ runner.os }}
+          path: packages
+
+      # The last published release, to upgrade from (not the one under test).
+      - name: Download the previous release's packages
+        run: |
+          prev=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 5 --json tagName --jq '.[].tagName' | grep -vx "${TAG:-none}" | head -n1)
+          echo "Previous release: $prev"
+          mkdir -p previous
+          case "$RUNNER_OS" in
+            Windows) gh release download "$prev" --repo "$GITHUB_REPOSITORY" --pattern 'OpenExtract-Setup-*.exe' --dir previous ;;
+            Linux)   gh release download "$prev" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --dir previous ;;
+          esac
+          ls -la previous
+
+      # Fresh package lists, so apt can resolve the .deb's dependencies.
+      - name: Update apt
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends desktop-file-utils xvfb
+
+      - name: Generate the test backups
+        run: |
+          git clone --depth=1 https://github.com/charleswest775/ios-backup-core.git "$GITHUB_WORKSPACE/../ios-backup-core"
+          (cd python && pip install -r requirements.txt)
+          python scripts/e2e/backups.py e2e-backups.json
+
+      - name: Install and test
+        env:
+          SIGNED: ${{ inputs.tag && '--signed' || '' }}
+        run: |
+          # Node on Windows needs C:\ paths, not Git Bash's /c/ ones.
+          native() { if command -v cygpath >/dev/null; then cygpath -w "$1"; else echo "$1"; fi; }
+          node scripts/installers/test-installers.mjs --dir "$(native "$PWD/packages")" --previous "$(native "$PWD/previous")" \
+            --backups "$(native "$PWD/e2e-backups.json")" --out "$(native "$PWD/installer-out")" $SIGNED
+
+      # The smoke suite only screenshots the fictional maren backup.
+      - name: Upload results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ runner.os }}${{ inputs.tag && format('-{0}', inputs.tag) || '' }}
+          path: installer-out
+          retention-days: 14
+          if-no-files-found: ignore

@@ -5,14 +5,14 @@ import NoticeCard from './NoticeCard';
 
 /**
  * Bottom-corner card for auto-updates, shown on every screen:
- *  - once, to ask whether OpenExtract may check for updates automatically
+ *  - to ask whether OpenExtract may check for updates automatically, until the user answers
+ *    (Check automatically) or turns it off in Settings; "Not now" asks again a week later
  *  - when an update is available, downloading, or ready to install
  * Background check failures (e.g. offline) stay quiet here; Settings shows them.
  */
 export default function UpdateNotice() {
-  const { state, setAutoCheck, download, install } = useUpdates();
+  const { state, setAutoCheck, askLater, download, install } = useUpdates();
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
-  const [askedThisSession, setAskedThisSession] = useState(false);
   const prevState = useRef<string | undefined>(undefined);
   const [downloadFailed, setDownloadFailed] = useState<string | null>(null);
 
@@ -30,7 +30,8 @@ export default function UpdateNotice() {
 
   const openNotes = () => window.openextract.openExternal(releaseNotesUrl(state.releasesUrl, status.version));
 
-  if (state.autoCheck === null && !askedThisSession) {
+  // "Not now" leaves the question unanswered and asks again in a week; only Settings saves a no.
+  if (state.autoCheck === null && !state.askLater) {
     return (
       <Card title="Keep OpenExtract up to date?">
         <p className="text-xs text-text-secondary leading-relaxed mb-3">
@@ -38,10 +39,10 @@ export default function UpdateNotice() {
           version is. Your backups and data are never sent. You can change this in Settings.
         </p>
         <div className="flex justify-end gap-2">
-          <button className="hearth-ghost-btn" onClick={() => { setAskedThisSession(true); setAutoCheck(false); }}>
+          <button className="hearth-ghost-btn" onClick={() => askLater()}>
             Not now
           </button>
-          <button className="hearth-primary-btn" onClick={() => { setAskedThisSession(true); setAutoCheck(true); }}>
+          <button className="hearth-primary-btn" onClick={() => setAutoCheck(true)}>
             Check automatically
           </button>
         </div>

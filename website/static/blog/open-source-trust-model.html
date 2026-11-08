@@ -14,7 +14,7 @@
   <meta property="og:description" content="The MIT license changes the trust model. Here's what that means in practice when you hand a tool your backup." />
   <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
   <meta property="article:published_time" content="2026-04-24" />
-  <meta property="article:modified_time" content="2026-11-02" />
+  <meta property="article:modified_time" content="2026-11-03" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
@@ -27,7 +27,7 @@
     "url": "https://www.openextract.app/blog/open-source-trust-model",
     "mainEntityOfPage": "https://www.openextract.app/blog/open-source-trust-model",
     "datePublished": "2026-04-24",
-    "dateModified": "2026-11-02",
+    "dateModified": "2026-11-07",
     "image": "https://www.openextract.app/img/og-image.png",
     "author": {
       "@type": "Organization",
@@ -132,7 +132,7 @@
     <p>Because MIT-license-plus-public-repo is still abstract, these are the concrete commitments we hold ourselves to:</p>
 
     <ul>
-      <li><strong>Your data never leaves your computer.</strong> The extractor doesn't call home and doesn't send crash reports. The one network call is the update check, which is off until you turn it on and only asks GitHub whether a newer release exists. If you want to verify, the repo is <code>charleswest775/openextract</code>.</li>
+      <li><strong>Your data never leaves your computer.</strong> The extractor doesn't call home and doesn't send crash reports. It goes online for only two things, both your choice. One is the update check, which is off until you turn it on and only asks GitHub whether a newer release exists. The other is a feedback report, which goes to openextract.app only when you click Send, after the app shows you everything in it. Nothing from inside your backup goes with either. If you want to verify, the repo is <code>charleswest775/openextract</code>.</li>
       <li><strong>No account, ever.</strong> No email capture. No license server. The installer doesn't know who you are.</li>
       <li><strong>No analytics on the desktop app.</strong> The website uses Vercel Web Analytics (cookieless, no personal data stored). The app itself is silent.</li>
       <li><strong>Every change is public.</strong> The commit history is the source of truth. We don't rewrite it.</li>
@@ -208,6 +208,7 @@
         <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
         <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
         <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
       </ul>
     </div>
     <div>
