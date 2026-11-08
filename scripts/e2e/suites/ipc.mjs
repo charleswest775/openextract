@@ -11,7 +11,7 @@ import { check, launch, sleep } from '../harness.mjs';
 export const BRIDGE = [
   'call', 'exportPdf', 'selectFolder', 'saveFolder', 'saveFile', 'writeFile', 'openExternal', 'relaunch',
   'openPath', 'showInFolder', 'textSize.get', 'textSize.set', 'onNotification', 'getVersion',
-  'updates.getState', 'updates.setAutoCheck', 'updates.check', 'updates.download', 'updates.install', 'updates.onStatus',
+  'updates.getState', 'updates.setAutoCheck', 'updates.askLater', 'updates.check', 'updates.download', 'updates.install', 'updates.onStatus',
   'getAppState', 'setFirstLaunchCompleted', 'addSession', 'removeSession', 'getRecentSessions', 'incrementExportCount',
   'onSharePrompt', 'feedback.getDiagnostics', 'feedback.send', 'feedback.savedEmail', 'feedback.fixedReports',
   'feedback.markAnnounced', 'feedback.onFixed', 'feedback.optOutOfExportCheck', 'feedback.thanksOffered',
@@ -135,6 +135,9 @@ export default {
       // Updates: state only; a fresh profile never checks by itself.
       const u = (await app.api('updates.getState')).value;
       check('updates.getState: no automatic check on a fresh profile', u && u.autoCheck !== true, u);
+      await app.api('updates.askLater');
+      const later = (await app.api('updates.getState')).value;
+      check('updates.askLater puts the question off without saving a no', later.askLater === true && later.autoCheck === null, later);
       await app.api('updates.setAutoCheck', false);
       check('updates.setAutoCheck(false) is remembered', (await app.api('updates.getState')).value.autoCheck === false);
       const listeners = await app.eval(() => { window.openextract.updates.onStatus(() => {}); window.openextract.feedback.onFixed(() => {}); return true; });

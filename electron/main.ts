@@ -84,6 +84,8 @@ const store = new JsonStore({
   stats: { totalExports: 0 },
   // null until the user answers the "check for updates automatically?" question.
   updatesAutoCheck: null,
+  // When "Not now" was picked on that question: the time (ms) to ask it again. 0 = ask now.
+  updatesAskAfter: 0,
   // True once the "Your file is saved" card (Say thanks, tell a friend, star) has been shown.
   // It shows at most once. It replaced `sharePromptShown`, the flag of the older star-only
   // card, so people who saw that one get this card once too.

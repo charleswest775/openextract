@@ -7,7 +7,8 @@ const fs = require('fs');
 //
 // Privacy rules, because the website promises no network activity by default:
 //  - Nothing touches the network until the user says yes. `autoCheck` starts as
-//    null ("never asked"); the renderer asks once and stores true or false.
+//    null ("never asked"); the renderer asks until the user answers. "Not now" keeps it
+//    null and asks again a week later; true or false is only stored from a clear choice.
 //  - A check only fetches latest*.yml from the GitHub release. No backup data,
 //    no identifiers.
 //  - Downloads only start when the user clicks Update.
@@ -42,6 +43,8 @@ interface Options {
 }
 
 const STARTUP_CHECK_DELAY_MS = 10_000;
+// "Not now" on the "check automatically?" question asks again this long after.
+const ASK_AGAIN_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 const RELEASES_URL = 'https://github.com/charleswest775/openextract/releases';
 
 let status: UpdateStatus = { state: 'idle' };
@@ -128,6 +131,7 @@ export function initUpdater({ store, getWindow, beforeInstall }: Options) {
     supported,
     flatpak,
     autoCheck: store.get('updatesAutoCheck', null),
+    askLater: Date.now() < Number(store.get('updatesAskAfter', 0) || 0),
     currentVersion: app.getVersion(),
     releasesUrl: RELEASES_URL,
     status,
@@ -136,6 +140,10 @@ export function initUpdater({ store, getWindow, beforeInstall }: Options) {
   ipcMain.handle('updates:set-auto-check', (_event: any, enabled: boolean) => {
     store.set('updatesAutoCheck', !!enabled);
     if (enabled) check();
+  });
+
+  ipcMain.handle('updates:ask-later', () => {
+    store.set('updatesAskAfter', Date.now() + ASK_AGAIN_AFTER_MS);
   });
 
   ipcMain.handle('updates:check', () => check());
