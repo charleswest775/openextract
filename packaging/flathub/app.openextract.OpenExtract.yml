@@ -17,15 +17,19 @@ finish-args:
   # wherever the user picks. Read-write home is the simplest honest grant.
   - --filesystem=home
   - --talk-name=org.freedesktop.Notifications
-  # No --share=network on purpose: nothing the app does needs the internet,
-  # and in a Flatpak updates come from Flathub, not the in-app updater.
+  # No --share=network on purpose: reading and saving backups needs no
+  # internet, and in a Flatpak updates come from Flathub, not the in-app
+  # updater. Only feedback goes online (sending a report or a thank-you to
+  # openextract.app, then checking whether a report was fixed); here Send
+  # can't connect, and the app offers to copy the report or post it on GitHub
+  # in the browser instead.
 modules:
   - name: openextract
     buildsystem: simple
     sources:
       - type: file
-        url: https://github.com/charleswest775/openextract/releases/download/v0.9.0/openextract_0.9.0_amd64.deb
-        sha256: dfe2013be92b7f7824aa899f4eb74018c2b90cd857fe1ac72225d069948f2054
+        url: https://github.com/charleswest775/openextract/releases/download/v0.11.0/openextract_0.11.0_amd64.deb
+        sha256: 4fbde2dc807a5aec019dd35c7e8225e91756a9c889be3ff210c20b11816aae80
         dest-filename: openextract.deb
         only-arches:
           - x86_64
@@ -46,8 +50,8 @@ modules:
       - mv opt/OpenExtract /app/OpenExtract
       # The Flatpak sandbox replaces Chromium's setuid helper.
       - rm -f /app/OpenExtract/chrome-sandbox
-      # Flathub updates the app. Without this marker electron-updater doesn't pick its
-      # .deb updater, so 0.9.0 (from before the app checked FLATPAK_ID) offers no updates.
+      # Flathub updates the app. Since 0.10.0 the app turns its updater off when FLATPAK_ID
+      # is set; without this marker electron-updater also never picks its .deb updater.
       - rm -f /app/OpenExtract/resources/package-type
       - install -Dm755 openextract.sh /app/bin/openextract
       # Flathub wants the icon under the app ID; this is OpenExtract's own
