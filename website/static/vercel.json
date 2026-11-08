@@ -29,6 +29,11 @@
       "permanent": true
     },
     {
+      "source": "/support/pay",
+      "destination": "https://buy.stripe.com/6oUcN5eYMfeebeR5n62wU00",
+      "permanent": false
+    },
+    {
       "source": "/download/mac/file",
       "destination": "https://github.com/charleswest775/openextract/releases/download/v0.12.0/OpenExtract-0.12.0-arm64.dmg",
       "permanent": false

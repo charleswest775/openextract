@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Heart, MessageSquare } from 'lucide-react';
 import {
-  FEEDBACK_AREAS, FEEDBACK_KINDS, FIXES_URL, PRIVACY_URL, SITE_URL, formatDiagnostics, fullReport, githubIssueUrl, newReportToken,
+  FEEDBACK_AREAS, FEEDBACK_KINDS, FIXES_URL, PRIVACY_URL, SITE_URL, SUPPORT_URL, formatDiagnostics, fullReport, githubIssueUrl, newReportToken,
   type FeedbackArea, type FeedbackForm, type FeedbackKind, type FeedbackRequest,
 } from '../../lib/feedback';
 import type { KnownFix } from '../../types';
@@ -157,9 +157,13 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
     return (
       <Shell onClose={onClose} thanks>
         <p className="text-sm text-text-primary mb-1">Thank you. Your message was sent.</p>
-        <p className="text-xs text-text-secondary leading-relaxed mb-4">
+        <p className="text-xs text-text-secondary leading-relaxed mb-2">
           Hearing that OpenExtract helped is what keeps it going. If you know someone who could use it,
           passing on the link helps them find it.
+        </p>
+        <p className="text-xs text-text-secondary leading-relaxed mb-4">
+          OpenExtract stays free for everyone. If you'd like to chip in toward code signing and development,
+          you can, in any amount.
         </p>
         <div className="flex justify-end gap-2">
           <button
@@ -177,6 +181,7 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
           >
             {copied ? 'Link copied' : 'Copy link'}
           </button>
+          <button className="hearth-ghost-btn" onClick={() => window.openextract.openExternal(SUPPORT_URL)}>Chip in</button>
           <button className="hearth-primary-btn" onClick={onClose}>Done</button>
         </div>
       </Shell>

@@ -992,3 +992,8 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .wheres__row-
   /* Comparison tables: the desktop padding makes three columns wider than a phone, and .matrix clips the overflow. */
   .matrix th, .matrix td { padding: 12px 10px; }
 }
+
+/* ── Support page ─────────────────────────────────── */
+.prose__inner a.support-pay { color: white; margin: 4px 0 4px; }
+.prose__inner a.support-pay:hover { text-decoration: none; filter: brightness(0.95); }
+.prose__inner .support-note { font-size: 14px; color: var(--ink-soft); }
