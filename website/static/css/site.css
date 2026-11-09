@@ -131,6 +131,11 @@ img { max-width: 100%; display: block; }
   font-weight: 500;
   line-height: 0.98;
 }
+.page-head__voice {
+  font-family: var(--serif); font-style: italic; font-weight: 400;
+  font-size: 36px; line-height: 1.1;
+  margin: 18px 0 0;
+}
 .page-head__lede {
   font-size: 22px;
   color: var(--ink-soft);
@@ -262,6 +267,13 @@ img { max-width: 100%; display: block; }
   letter-spacing: -0.035em;
   font-weight: 500;
   margin: 28px 0 28px;
+}
+/* The H1 names the product in searchers' words; the voice lives in this line under it. */
+.hero__voice {
+  font-family: var(--serif); font-style: italic; font-weight: 400;
+  font-size: 40px; line-height: 1.1; letter-spacing: -0.01em;
+  color: var(--coral);
+  margin: -8px 0 24px;
 }
 .hero__sub {
   font-size: 20px;
@@ -416,7 +428,7 @@ img { max-width: 100%; display: block; }
 .how__eyebrow { font-size: 12px; color: var(--butter); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px; font-family: var(--mono); }
 .how__title { font-size: 48px; letter-spacing: -0.025em; margin: 0; font-weight: 500; max-width: 720px; line-height: 1.02; }
 .how__lede { font-size: 15px; color: rgba(250,246,241,0.65); max-width: 320px; line-height: 1.55; }
-.how__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; }
+.how__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 36px; }
 .how__num { font-family: var(--serif); font-style: italic; font-size: 80px; font-weight: 400; line-height: 1; margin-bottom: 18px; letter-spacing: -0.03em; }
 .how__step-title { font-size: 24px; font-weight: 500; letter-spacing: -0.015em; margin-bottom: 12px; }
 .how__step-desc { font-size: 15px; color: rgba(250,246,241,0.65); margin: 0; line-height: 1.6; }
@@ -509,8 +521,8 @@ details.qa p {
   margin: 12px 0 0; max-width: 720px; line-height: 1.65;
 }
 /* Links inside running text, which otherwise inherit the text color and look like plain words. */
-details.qa p a, .uc-reason__v a, .step-note p a, .wheres__row-v a, .post-body p a, .post-body li a { color: var(--coral); }
-details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .wheres__row-v a:hover, .post-body p a:hover, .post-body li a:hover { text-decoration: underline; }
+details.qa p a, .uc-reason__v a, .step-note p a, .step-body p a, .wheres__row-v a, .page-head__lede a, .post-body p a, .post-body li a { color: var(--coral); }
+details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .step-body p a:hover, .wheres__row-v a:hover, .page-head__lede a:hover, .post-body p a:hover, .post-body li a:hover { text-decoration: underline; }
 .uc-reason__v code { font-family: var(--mono); background: var(--line-soft); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
 
 /* ── Final CTA (landing) ───────────────────────────── */
@@ -965,6 +977,8 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .wheres__row-
   }
   .hero { padding-top: 32px; padding-bottom: 32px; gap: 32px; }
   .hero h1 { font-size: 48px; }
+  .hero__voice { font-size: 26px; }
+  .page-head__voice { font-size: 28px; }
   .hero-visual { height: 460px; }
   .phone { width: 220px; height: 440px; }
   .recovered { width: 280px; }

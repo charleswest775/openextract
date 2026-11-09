@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#faf6f1" />
   <title>OpenExtract vs iMazing: an honest comparison (free vs paid)</title>
-  <meta name="description" content="iMazing is subscription-only now, and its trial stops at 25 messages. OpenExtract is free and open source. A side-by-side look, including where iMazing wins." />
+  <meta name="description" content="iMazing is subscription-only and its trial stops at 25 messages. OpenExtract is free and open source. Feature by feature, including where iMazing wins." />
   <link rel="canonical" href="https://www.openextract.app/vs-imazing" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta property="og:type" content="article" />
@@ -16,6 +16,60 @@
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "OpenExtract vs iMazing: an honest comparison",
+    "description": "iMazing is subscription-only and its trial stops at 25 messages. OpenExtract is free and open source. Feature by feature, including where iMazing wins.",
+    "url": "https://www.openextract.app/vs-imazing",
+    "datePublished": "2026-04-18",
+    "dateModified": "2026-11-09",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": { "@type": "WebSite", "name": "OpenExtract", "url": "https://www.openextract.app/" },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "mentions": {
+      "@type": "SoftwareApplication",
+      "name": "iMazing",
+      "url": "https://imazing.com/"
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/home-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      { "@type": "Question", "name": "Is OpenExtract a fork of iMazing?", "acceptedAnswer": { "@type": "Answer", "text": "No. It's an independent project that reads the documented Apple iPhone-backup format. Any compliant tool can read those files." } },
+      { "@type": "Question", "name": "Can I use OpenExtract exports in court?", "acceptedAnswer": { "@type": "Answer", "text": "Exports keep the date, time and sender of every message, so they read clearly when printed. Whether a court accepts them depends on your jurisdiction and your case, so ask your lawyer." } },
+      { "@type": "Question", "name": "Does OpenExtract handle encrypted backups?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Supply the password; decryption happens on your laptop. Encrypted backups contain more data (saved passwords, Safari history)." } },
+      { "@type": "Question", "name": "Is OpenExtract safe to install?", "acceptedAnswer": { "@type": "Answer", "text": "Source is public on GitHub. Installers are code-signed. Nothing you extract is ever uploaded, and update checks are off unless you turn them on. You can verify all of that yourself." } },
+      { "@type": "Question", "name": "Will it work on backups iMazing made?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. iMazing writes standard Apple backups unless you configure it otherwise." } }
+    ]
+  }
+  </script>
+
   <script defer src="/_vercel/insights/script.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -43,7 +97,7 @@
   <header class="page-head">
     <div class="page-head__eyebrow">Comparison · honest</div>
     <h1>OpenExtract <span class="it it--coral">vs</span> iMazing</h1>
-    <p class="page-head__lede">A fair look at two tools for extracting data from iPhone backups — from someone who built one of them. Including the places iMazing is the better call.</p>
+    <p class="page-head__lede">A fair look at two tools for extracting data from iPhone backups — from someone who built one of them. Including the places iMazing is the better call. If you just want a free way to get your data out, see what OpenExtract covers as a <a href="/use-cases/free-imazing-alternative">free iMazing alternative</a>.</p>
   </header>
 
   <section class="verdict-wrap">
@@ -98,7 +152,6 @@
           <tr><td class="matrix__k">Cross-device transfers</td><td class="matrix__cell">No</td><td class="matrix__cell matrix__cell--win-im">Yes</td></tr>
           <tr><td class="matrix__k">App / music / ringtone sync</td><td class="matrix__cell">No</td><td class="matrix__cell matrix__cell--win-im">Yes</td></tr>
           <tr><td class="matrix__k">Paid commercial support</td><td class="matrix__cell">No · free help on GitHub</td><td class="matrix__cell matrix__cell--win-im">Yes, vendor-backed</td></tr>
-          <tr><td class="matrix__k">Manages the phone itself (apps, ringtones, live transfers)</td><td class="matrix__cell">No, reads backups only</td><td class="matrix__cell matrix__cell--win-im">Yes</td></tr>
         </tbody>
       </table>
     </div>
@@ -108,7 +161,7 @@
     <div>
       <h3>Where OpenExtract <span class="it it--coral">wins</span></h3>
       <div class="wheres__row"><div class="wheres__row-k">Price.</div><div class="wheres__row-v">Free and open source. No trial, no paywall and no paid tier.</div></div>
-      <div class="wheres__row"><div class="wheres__row-k">Open source.</div><div class="wheres__row-v">MIT-licensed. Read every line. Fork it. Modify it. Verify exactly what it does to your backup.</div></div>
+      <div class="wheres__row"><div class="wheres__row-k">Open source.</div><div class="wheres__row-v">MIT-licensed. Read every line. Fork it. Modify it. Verify exactly what it does to your backup. <a href="/blog/open-source-trust-model">What that means in practice</a>.</div></div>
       <div class="wheres__row"><div class="wheres__row-k">Auditability for sensitive work.</div><div class="wheres__row-v">For legal or investigative use, "this tool's code is public" is a different trust model from "trust the vendor."</div></div>
       <div class="wheres__row"><div class="wheres__row-k">Linux support.</div><div class="wheres__row-v">Runs on Linux too, so you can get your texts off an iPhone backup on any computer you own. <a href="/use-cases/iphone-backup-extractor-linux">Linux guide</a>.</div></div>
       <div class="wheres__row"><div class="wheres__row-k">No account, no telemetry.</div><div class="wheres__row-v">Nothing to register. Nothing phoned home. Nothing to cancel.</div></div>
@@ -119,7 +172,6 @@
       <div class="wheres__row"><div class="wheres__row-k">Maturity.</div><div class="wheres__row-v">iMazing has over a decade of edge-case handling across iOS versions. OpenExtract is newer; you may hit rough spots it hasn't.</div></div>
       <div class="wheres__row"><div class="wheres__row-k">Live device management.</div><div class="wheres__row-v">Transferring between phones, managing apps, syncing music — iMazing does it. We don't.</div></div>
       <div class="wheres__row"><div class="wheres__row-k">Paid commercial support.</div><div class="wheres__row-v">When something breaks on a deadline, a vendor support team is different from GitHub issues.</div></div>
-      <div class="wheres__row"><div class="wheres__row-k">Managing the phone itself.</div><div class="wheres__row-v">iMazing can manage apps, ringtones and live transfers on a connected iPhone. OpenExtract only reads backups.</div></div>
     </div>
   </section>
 
