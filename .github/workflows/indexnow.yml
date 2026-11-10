@@ -1,0 +1,75 @@
+name: IndexNow
+
+# After Vercel finishes a production deploy of www.openextract.app, tell the IndexNow
+# search engines (Bing, Yandex, Seznam and others) which pages it changed, so they
+# recrawl them without waiting. scripts/indexnow.mjs works out the pages; the key is
+# website/static/<key>.txt. Vercel reports each deploy to GitHub as a deployment, so
+# this runs on its "success" status. Run it by hand to send every page in the sitemap.
+
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      all:
+        description: "Send every page in the sitemap, not just the last deploy's changes"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  submit:
+    if: >-
+      github.repository == 'charleswest775/openextract' && (
+        github.event_name == 'workflow_dispatch' || (
+          github.event.deployment_status.state == 'success' &&
+          github.event.deployment.environment == 'Production'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.deployment.sha || github.sha }}
+          fetch-depth: 2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+
+      # Diff against the last production deploy that succeeded, not just the parent
+      # commit: a rebase-merge deploys only its last commit, and a failed deploy's
+      # changes go out with the next one. Falls back to the parent commit.
+      - name: Find the previous production deploy
+        if: github.event_name == 'deployment_status'
+        id: prev
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ID: ${{ github.event.deployment.id }}
+          SHA: ${{ github.event.deployment.sha }}
+        run: |
+          prev=""
+          for row in $(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=Production&per_page=30" \
+              --jq ".[] | select(.id < $ID and .sha != \"$SHA\") | \"\(.id),\(.sha)\""); do
+            state=$(gh api "repos/$GITHUB_REPOSITORY/deployments/${row%%,*}/statuses?per_page=1" --jq '.[0].state' || true)
+            if [ "$state" = success ]; then prev=${row#*,}; break; fi
+          done
+          if [ -n "$prev" ] && git fetch --quiet --depth=1 origin "$prev"; then
+            echo "base=$prev" >> "$GITHUB_OUTPUT"
+          else
+            echo "base=HEAD~1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Submit changed pages
+        env:
+          ALL: ${{ github.event_name == 'workflow_dispatch' && inputs.all }}
+          BASE: ${{ steps.prev.outputs.base || 'HEAD~1' }}
+        run: |
+          if [ "$ALL" = true ]; then
+            node scripts/indexnow.mjs --all
+          else
+            node scripts/indexnow.mjs "$BASE" HEAD
+          fi

@@ -1,0 +1,58 @@
+# OpenExtract
+
+> OpenExtract is a free, open-source desktop app that reads the iPhone backups stored on your own computer and saves what's in them: text messages and iMessages, photos and videos, contacts, call history, notes, voicemails and browser history. It can also make a new backup of an iPhone connected by cable. It runs on Windows, macOS (Apple Silicon only) and Linux. It is MIT licensed, has no paid tier and needs no account.
+
+OpenExtract is made by Charles West, an independent developer, with help from contributors. The source code is public at https://github.com/charleswest775/openextract, and the latest version and its release notes are at https://github.com/charleswest775/openextract/releases/latest.
+
+## Facts
+
+- Price: free. No trial, no paid tier, no export limits, no account.
+- License: MIT (open source).
+- Platforms:
+  - Windows 10 and 11 (64-bit).
+  - macOS on Apple Silicon (M1 and later) only. There is no build for Intel Macs.
+  - Linux on 64-bit x86 PCs: a .deb package for Ubuntu and Debian, and an AppImage for other distributions (the AppImage needs FUSE 2: libfuse2, or libfuse2t64 on Ubuntu 24.04 and later).
+- What it opens: iPhone backups made by Finder on a Mac, or by iTunes or the Apple Devices app on Windows, encrypted or not. It finds backups in the usual folders, and can open any backup folder that has a Manifest.db file in it. Backups from iOS 9 and earlier, which have a Manifest.mbdb file instead, open too. An encrypted backup needs its password.
+- Making a backup: it can make a new local backup of an iPhone connected by cable, encrypted if you choose, and then open it. On Windows this uses Apple's free Apple Devices app (or iTunes); if neither is installed, OpenExtract offers to install Apple Devices from the Microsoft Store.
+- What it reads from a backup:
+  - Messages: SMS, MMS and iMessage, including group chats and the photos sent in them.
+  - Photos and videos from the camera roll, in their original formats (such as HEIC, JPEG and MOV), with your albums.
+  - Contacts (the address book).
+  - Call history. Apple puts call history only in encrypted backups.
+  - Notes from Apple Notes.
+  - Voicemails, where the carrier offers Visual Voicemail.
+  - Web history from Safari (only in encrypted backups) and from Firefox for iOS.
+  - It also shows a timeline of everything by date, searches the whole backup from one box, and can scan the messages database for deleted messages that are still recoverable.
+- How it saves: messages as PDF, HTML, CSV or plain text; photos and videos as the original files; contacts as vCard or CSV; call history as CSV; notes as text or PDF; voicemails as audio files with a CSV list; web history as CSV; deleted messages it finds as CSV, HTML or PDF.
+- What it doesn't do:
+  - It doesn't read WhatsApp chats, or chats from other third-party messaging apps. (Calls made with apps like WhatsApp can appear in the call history, because iOS logs them there.)
+  - It doesn't read iCloud backups or anything stored in iCloud, only backups on a computer.
+  - It doesn't manage a phone: no app, music or ringtone syncing, and no transfers between phones. The only thing it does with a connected iPhone is back it up.
+  - It can't open an encrypted backup without its password, and it can't recover or guess a forgotten password.
+  - It never changes a backup it opens. It reads backups read-only, and saves exports only where you choose.
+- Privacy, in the words of the privacy policy (https://www.openextract.app/privacy): "All reading and decryption happens on your computer. OpenExtract has no account, and it doesn't upload, sell or share your data with anyone." "The app contains no analytics, advertising or tracking." The policy describes the app's network use in full.
+
+## Compared with other tools
+
+- iMazing: iMazing also manages a connected iPhone and has paid support. Its trial mode copies out at most 25 messages, 50 photos, 10 contacts, 5 call-history entries, 5 notes and 1 voicemail, and since June 2025 it is sold only as a yearly subscription. OpenExtract reads backups (and can make one), with no export limits, and is free. iMazing runs on Windows and Mac; OpenExtract also runs on Linux.
+- Comparisons with iExplorer, iBackup Viewer and Reincubate's iPhone Backup Extractor are on the site, each linking the other tool's own pages.
+
+## Key pages
+
+- [Home](https://www.openextract.app/): what it does and the downloads.
+- [How it works](https://www.openextract.app/how-it-works): how to extract data from an iPhone backup, step by step.
+- [Free iMazing alternative](https://www.openextract.app/use-cases/free-imazing-alternative): what OpenExtract covers for people leaving iMazing.
+- [OpenExtract vs iMazing](https://www.openextract.app/vs-imazing): a feature-by-feature comparison, including where iMazing wins.
+- [OpenExtract vs iExplorer](https://www.openextract.app/vs-iexplorer)
+- [OpenExtract vs iBackup Viewer](https://www.openextract.app/vs-ibackup-viewer)
+- [OpenExtract vs Reincubate](https://www.openextract.app/vs-reincubate)
+- [Free iPhone backup viewer](https://www.openextract.app/use-cases/free-iphone-backup-viewer)
+- [iPhone backups on Linux](https://www.openextract.app/use-cases/iphone-backup-extractor-linux)
+- [Guides](https://www.openextract.app/guides): printing texts for court, iMessage to PDF, texts to a Windows PC, call history to a Windows PC, viewing a backup on Windows, saving voicemails, recovering deleted texts, moving from iPhone to Android.
+- [Fixes for common problems](https://www.openextract.app/fixes)
+- [Screenshots](https://www.openextract.app/screenshots): the main screens, opened on a made-up sample backup.
+- [Privacy policy](https://www.openextract.app/privacy)
+- [About](https://www.openextract.app/about)
+- [Support OpenExtract](https://www.openextract.app/support)
+- [Blog](https://www.openextract.app/blog)
+- [Downloads on GitHub](https://github.com/charleswest775/openextract/releases/latest)

@@ -16,6 +16,26 @@
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "How to extract data from an iPhone backup",
+    "description": "Find your iPhone backup on Windows, Mac or Linux, unlock it if it's encrypted, browse what's in it and save the messages, photos, contacts and voicemails with OpenExtract. No phone needed.",
+    "url": "https://www.openextract.app/how-it-works",
+    "image": "https://www.openextract.app/img/screens/home-2000.png",
+    "estimatedCost": { "@type": "MonetaryAmount", "currency": "USD", "value": "0" },
+    "supply": [{ "@type": "HowToSupply", "name": "An iPhone backup made by iTunes, Finder or Apple Devices" }],
+    "tool": [{ "@type": "HowToTool", "name": "OpenExtract (free, open source)" }],
+    "step": [
+      { "@type": "HowToStep", "position": 1, "name": "Find your backup", "text": "OpenExtract scans the usual backup folders on Mac and Windows automatically. On Linux, or for a backup on an external drive, point it at any folder that holds a Manifest.db file.", "url": "https://www.openextract.app/how-it-works#find" },
+      { "@type": "HowToStep", "position": 2, "name": "Unlock if encrypted", "text": "If the backup is encrypted, type the backup password. Decryption happens on your computer.", "url": "https://www.openextract.app/how-it-works#unlock" },
+      { "@type": "HowToStep", "position": 3, "name": "Browse what's in there", "text": "Open any conversation, play any voicemail or view any photo. Everything is read-only; nothing you click changes the backup.", "url": "https://www.openextract.app/how-it-works#browse" },
+      { "@type": "HowToStep", "position": 4, "name": "Export what you want", "text": "Pick what you need and a format: messages as PDF, HTML, CSV or text, photos as originals, contacts as vCard or CSV, call history as CSV, voicemails as audio files.", "url": "https://www.openextract.app/how-it-works#export" }
+    ]
+  }
+  </script>
+
   <script defer src="/_vercel/insights/script.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -42,12 +62,13 @@
 
   <header class="page-head">
     <div class="page-head__eyebrow">Guide · 5 minute read</div>
-    <h1>Four steps,<br /><span class="it">no phone needed.</span></h1>
+    <h1>How to extract data<br /><span class="it">from an iPhone backup.</span></h1>
+    <p class="page-head__voice">Four steps, no phone needed.</p>
     <p class="page-head__lede">You don't need the phone. You don't need your Apple ID. You don't need an internet connection. You just need a backup that's already on a computer you own.</p>
   </header>
 
   <section class="steps-wrap">
-    <div class="step-row">
+    <div class="step-row" id="find">
       <div class="step-num" style="color: var(--coral);">01</div>
       <div class="step-body">
         <h2>Find your backup</h2>
@@ -63,7 +84,7 @@
       </div>
     </div>
 
-    <div class="step-row">
+    <div class="step-row" id="unlock">
       <div class="step-num" style="color: var(--butter);">02</div>
       <div class="step-body">
         <h2>Unlock if encrypted</h2>
@@ -75,7 +96,7 @@
       </div>
     </div>
 
-    <div class="step-row">
+    <div class="step-row" id="browse">
       <div class="step-num" style="color: var(--sage);">03</div>
       <div class="step-body">
         <h2>Browse what's in there</h2>
@@ -87,7 +108,7 @@
       </div>
     </div>
 
-    <div class="step-row">
+    <div class="step-row" id="export">
       <div class="step-num" style="color: var(--plum);">04</div>
       <div class="step-body">
         <h2>Save what you want</h2>
