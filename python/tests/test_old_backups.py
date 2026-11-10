@@ -64,7 +64,11 @@ def server():
 
 
 def _call(server, method, **params):
-    return server.methods[method](params)
+    result = server.methods[method](params)
+    # What the app gets must be plain JSON as it is: an iOS 6 backup's photo UUIDs
+    # came back as raw bytes, and writing them ended the engine (OE-26 to OE-28).
+    json.dumps(result)
+    return result
 
 
 @pytest.fixture(scope="module", params=BACKUPS, ids=lambda b: f"ios{b[0]}-{'encrypted' if b[1] else 'plain'}")
@@ -135,7 +139,15 @@ def test_photos(server, opened):
     udid, expected = opened["udid"], opened["expected"]
     photos = _call(server, "list_photos", udid=udid)["photos"]
     assert sorted(p["filename"] for p in photos) == sorted(p["filename"] for p in expected["photos"])
+    # iOS 6 keeps ZUUID as 16 raw bytes; list_photos gives it as the string later releases
+    # store. (Older ios-backup-core checkouts write expected.json without photo UUIDs.)
+    want_uuid = {p["filename"]: p.get("uuid") for p in expected["photos"]}
     for photo in photos:
+        assert isinstance(photo["uuid"], str)
+        if want_uuid[photo["filename"]]:
+            assert photo["uuid"] == want_uuid[photo["filename"]]
+        meta = _call(server, "get_photo_metadata", udid=udid, asset_uuid=photo["uuid"])
+        assert meta["filename"] == photo["filename"]
         path = _call(server, "get_photo_path", udid=udid, file_hash=photo["file_hash"])["path"]
         assert Path(path).read_bytes()[:3] == JPEG_MAGIC
         thumb = _call(server, "get_photo_thumbnail", udid=udid, file_hash=photo["file_hash"])

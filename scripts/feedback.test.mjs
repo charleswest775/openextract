@@ -386,6 +386,16 @@ test('known fixes match on the error text and, where given, the system', () => {
   assert.deepEqual(site.matchKnownFixes(site.validateReport(goodReport({ details: 'Photos look fine', diagnostics: '' })).report), []);
 });
 
+test('a known fix can hide a vaguer one whose advice would be wrong', () => {
+  const report = site.validateReport(goodReport({ details: 'it broke', diagnostics: 'Python sidecar is not running' })).report;
+  const fix = (id, extra = {}) => ({ id, title: id, text: id, match: /sidecar/, ...extra });
+  const ids = fixes => site.matchKnownFixes(report, fixes).map(f => f.id);
+  assert.deepEqual(ids([fix('vague'), fix('other')]), ['vague', 'other']);
+  assert.deepEqual(ids([fix('specific', { hides: ['vague'] }), fix('vague'), fix('other')]), ['specific', 'other']);
+  // Only a fix that matched hides anything.
+  assert.deepEqual(ids([fix('specific', { match: /nope/, hides: ['vague'] }), fix('vague')]), ['vague']);
+});
+
 // Known fixes against what the app really says. Each error below is copied from the
 // code that produces it, so a fix whose pattern drifts from the real wording fails
 // here instead of quietly never showing.
@@ -473,6 +483,23 @@ const OLD_NO_DEVICE_SERVICE = 'Cannot connect to Apple Mobile Device Service. On
 
 // One real error per known fix; the last test checks that every fix has one.
 const REAL_ERRORS = [
+  // python/main.py in 0.12.0, exiting on list_photos' raw bytes from an iOS 6 backup (OE-26 to
+  // OE-28): the engine log's traceback, then every call after it. Reinstalling (engine-did-not-start)
+  // wouldn't help, so that fix is hidden.
+  {
+    fix: 'ios6-photos-stop-engine',
+    errors: [['list_photos', 'Sidecar exited with code 1'], ['get_messages', 'Python sidecar is not running']],
+    log: [
+      '[STDERR] Traceback (most recent call last):',
+      '  File "main.py", line 618, in <module>',
+      '[STDERR] File "main.py", line 602, in run',
+      '  File "json/__init__.py", line 231, in dumps',
+      '  File "json/encoder.py", line 180, in default',
+      'TypeError: Object of type bytes is not JSON serializable',
+      "[PYI-53468:ERROR] Failed to execute script 'main' due to unhandled exception!",
+      '[EXIT] code 1',
+    ].join('\n'),
+  },
   // electron/sidecar.ts call(), once the engine has stopped (#169).
   { fix: 'engine-did-not-start', os: WINDOWS, errors: [['list_backups', 'Python sidecar is not running']] },
   // electron/sidecar.ts start(): the launch failed, written to the engine log.
@@ -605,7 +632,7 @@ test('reports about something else get no known fix', async () => {
     }), []);
   }
   // Full Disk Access is only a macOS setting.
-  assert.deepEqual(await knownFixesFor({ ...REAL_ERRORS[2], os: WINDOWS }), []);
+  assert.deepEqual(await knownFixesFor({ ...REAL_ERRORS.find(c => c.fix === 'mac-full-disk-access'), os: WINDOWS }), []);
   // A Mac without usbmuxd needs a restart, not Apple Devices.
   assert.deepEqual(await knownFixesFor({
     errors: [['backup.list_devices', "DEVICE_SERVICE_REQUIRED: OpenExtract can't reach the part of macOS that talks to iPhones (usbmuxd). Restart your Mac, then search again."]],

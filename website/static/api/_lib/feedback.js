@@ -142,8 +142,11 @@ function issueLabels(report) {
 function matchKnownFixes(report, fixes = KNOWN_FIXES) {
   if (report.kind === 'thanks') return [];
   const text = `${report.details}\n${report.diagnostics}`;
-  return fixes
-    .filter(f => f.match.test(text) && (!f.when || f.when.test(text)))
+  const matched = fixes.filter(f => f.match.test(text) && (!f.when || f.when.test(text)));
+  // A fix can stand in for a vaguer one whose advice would be wrong here (`hides` in known-fixes.js).
+  const hidden = new Set(matched.flatMap(f => f.hides || []));
+  return matched
+    .filter(f => !hidden.has(f.id))
     .slice(0, 2)
     // Each fix has its own section on the "Fixes for common problems" page (website/static/fixes.html).
     .map(f => ({ id: f.id, title: f.title, text: f.text, url: f.url || `https://www.openextract.app/fixes#${f.id}` }));
