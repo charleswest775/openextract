@@ -1,0 +1,24 @@
+{"op": "DownloadFiles", "paths": ["{udid}/Status.plist"], "progress": 0.0, "t": 0.0}
+{"op": "DownloadFiles", "paths": ["{udid}/Manifest.db"], "progress": 0.0, "t": 0.0}
+{"op": "GetFreeDiskSpace", "t": 0.0}
+{"op": "CreateDirectory", "path": "{udid}/Snapshot", "t": 0.013}
+{"op": "CreateDirectory", "path": "{udid}/Snapshot/1a", "t": 0.013}
+{"op": "CreateDirectory", "path": "{udid}/Snapshot/31", "t": 0.013}
+{"op": "CreateDirectory", "path": "{udid}/Snapshot/3d", "t": 0.013}
+{"op": "CreateDirectory", "path": "{udid}/Snapshot/4f", "t": 0.014}
+{"op": "CreateDirectory", "path": "{udid}/Snapshot/5a", "t": 0.014}
+{"op": "CreateDirectory", "path": "{udid}/Snapshot/60", "t": 0.014}
+{"op": "CreateDirectory", "path": "{udid}/Snapshot/61", "t": 0.014}
+{"op": "CreateDirectory", "path": "{udid}/Snapshot/7f", "t": 0.014}
+{"op": "CreateDirectory", "path": "{udid}/Snapshot/8a", "t": 0.014}
+{"op": "CreateDirectory", "path": "{udid}/Snapshot/98", "t": 0.014}
+{"op": "CreateDirectory", "path": "{udid}/Snapshot/d0", "t": 0.015}
+{"op": "CreateDirectory", "path": "{udid}/Snapshot/dc", "t": 0.015}
+{"op": "CreateDirectory", "path": "{udid}/Snapshot/f8", "t": 0.015}
+{"files": [{"device_name": "sha1:959070b4173c6a8b", "path": "{udid}/Snapshot/3d/3d0d7e5fb2ce288813306e4d4636395e047a3d28", "size": 327680}, {"device_name": "sha1:ab2ef448faf8ac3c", "path": "{udid}/Snapshot/31/31bb7ba8914766d4ba40d6dfb6113c8b614be442", "size": 98304}, {"device_name": "sha1:7a1541820f13be60", "path": "{udid}/Snapshot/5a/5a4935c78a5255723f707230a451d79c540d2741", "size": 65536}, {"device_name": "sha1:c859db5a22df935f", "path": "{udid}/Snapshot/4f/4f98687d8ab0d6d1a371110e6b7300f6e465bef2", "size": 131072}, {"device_name": "sha1:6a255f8ef05374b4", "path": "{udid}/Snapshot/1a/1a0e7afc19d307da602ccdcece51af33afe92c53", "size": 49152}, {"device_name": "sha1:2f5be9137a7c38d6", "path": "{udid}/Snapshot/d0/d0d309050701fd9807cbc9d2f332630c4c25a718", "size": 24576}], "op": "UploadFiles", "progress": 1.0, "t": 0.016}
+{"files": [{"device_name": "sha1:ba1ec231173664c8", "path": "{udid}/Snapshot/7f/7f9e69e82a8ecc3c70f0caea8d886fadd8def1c6", "size": 22921}, {"device_name": "sha1:55977491378c42bf", "path": "{udid}/Snapshot/dc/dc8dafc36c3fde2ed73ab9ec9781a9d5bca546a0", "size": 662}, {"device_name": "sha1:b34387b69f4e4f97", "path": "{udid}/Snapshot/98/988bb7afc919b1ac5867df57baaaa2e687b12de1", "size": 48333}, {"device_name": "sha1:6f0a0ffe30ab5c9c", "path": "{udid}/Snapshot/61/615e61fb0ac51cdd2402a0875179014f193afb11", "size": 37108}, {"device_name": "sha1:596ae4243aaa5740", "path": "{udid}/Snapshot/60/604657dbe8ca88df9909bd436423edc25330c9c4", "size": 755}, {"device_name": "sha1:8616fa41c6696ff0", "path": "{udid}/Snapshot/8a/8a222838fb97ff2a27f69755e8be01fa0838a9c8", "size": 31130}], "op": "UploadFiles", "progress": 33.33, "t": 0.017}
+{"files": [{"device_name": "sha1:0729cf7189545f57", "path": "{udid}/Snapshot/f8/f8219878999320606b6f6645e44ff365d1122994", "size": 1572864}], "op": "UploadFiles", "progress": 65.67, "t": 0.018}
+{"files": [{"device_name": "sha1:9f70ba06ebc891b6", "path": "{udid}/Snapshot/Manifest.db", "size": 20480}, {"device_name": "sha1:415c96c00e6fbf0f", "path": "{udid}/Snapshot/Manifest.plist", "size": 383}, {"device_name": "sha1:bf2958b217ceedf0", "path": "{udid}/Snapshot/Status.plist", "size": 189}], "op": "UploadFiles", "progress": 98.5, "t": 0.02}
+{"items": {"{udid}/Snapshot/1a": "{udid}/1a", "{udid}/Snapshot/31": "{udid}/31", "{udid}/Snapshot/3d": "{udid}/3d", "{udid}/Snapshot/4f": "{udid}/4f", "{udid}/Snapshot/5a": "{udid}/5a", "{udid}/Snapshot/60": "{udid}/60", "{udid}/Snapshot/61": "{udid}/61", "{udid}/Snapshot/7f": "{udid}/7f", "{udid}/Snapshot/8a": "{udid}/8a", "{udid}/Snapshot/98": "{udid}/98", "{udid}/Snapshot/Manifest.db": "{udid}/Manifest.db", "{udid}/Snapshot/Manifest.plist": "{udid}/Manifest.plist", "{udid}/Snapshot/Status.plist": "{udid}/Status.plist", "{udid}/Snapshot/d0": "{udid}/d0", "{udid}/Snapshot/dc": "{udid}/dc", "{udid}/Snapshot/f8": "{udid}/f8"}, "op": "MoveItems", "progress": 100.0, "t": 0.02}
+{"op": "RemoveItems", "paths": ["{udid}/Snapshot"], "progress": 100.0, "t": 0.022}
+{"content": {"ErrorCode": 0, "ErrorDescription": ""}, "op": "ProcessMessage", "t": 0.023}
