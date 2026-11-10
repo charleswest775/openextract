@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 - A Chip in button in Settings, and on the screen after you send a thank-you, opens openextract.app/support in your browser. There you can pay any amount, once, through Stripe, toward code signing and development. OpenExtract stays free for everyone, nothing unlocks, and the app sends nothing when you click it
 
+### Fixed
+- Back up my iPhone: a big backup that takes more than 2 hours no longer stops partway with "Sidecar call timed out: backup.start" while it's still copying. The app now gives up only after 2 hours with no progress at all
+
 ## [0.12.0] - 2026-11-07
 
 ### Added

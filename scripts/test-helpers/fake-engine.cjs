@@ -101,6 +101,18 @@ const handlers = {
     line({ id, result: { notified: params.count } });
   },
 
+  // Send params.count progress reports params.every ms apart, like a long backup.
+  // Then answer, or with params.stall go quiet without answering (a later
+  // `release` answers it), like a backup that has stopped moving.
+  progress: async (id, params) => {
+    for (let i = 1; i <= params.count; i++) {
+      await sleep(params.every);
+      line({ jsonrpc: '2.0', method: 'backup.progress', params: { phase: 'backing_up', percent: i } });
+    }
+    if (params.stall) held.push({ id, params });
+    else line({ id, result: { reports: params.count } });
+  },
+
   // Things a stray print, a library or a broken engine could put on stdout.
   noise: id => {
     out('WARN: decrypted 1234 bytes' + EOL);
