@@ -54,6 +54,26 @@
       "permanent": false
     },
     {
+      "source": "/for/legal",
+      "destination": "/use-cases/print-text-messages-for-court",
+      "statusCode": 301
+    },
+    {
+      "source": "/for/personal",
+      "destination": "/use-cases/export-iphone-data",
+      "statusCode": 301
+    },
+    {
+      "source": "/for/investigators",
+      "destination": "/use-cases/free-iphone-backup-viewer",
+      "statusCode": 301
+    },
+    {
+      "source": "/what-you-can-recover",
+      "destination": "/blog/what-is-in-an-iphone-backup",
+      "statusCode": 301
+    },
+    {
       "source": "/:path(.*)",
       "has": [
         {
