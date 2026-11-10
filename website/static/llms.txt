@@ -36,6 +36,7 @@ OpenExtract is made by Charles West, an independent developer, with help from co
 
 - iMazing: iMazing also manages a connected iPhone and has paid support. Its trial mode copies out at most 25 messages, 50 photos, 10 contacts, 5 call-history entries, 5 notes and 1 voicemail, and since June 2025 it is sold only as a yearly subscription. OpenExtract reads backups (and can make one), with no export limits, and is free. iMazing runs on Windows and Mac; OpenExtract also runs on Linux.
 - Comparisons with iExplorer, iBackup Viewer and Reincubate's iPhone Backup Extractor are on the site, each linking the other tool's own pages.
+- A roundup of iMazing alternatives, free and paid (iBackup Viewer, Reincubate, Decipher TextMessage, imessage-exporter, Apple's Finder and Apple Devices app, AnyTrans, CopyTrans and iExplorer), says what each costs, what its free version does and which job it fits: https://www.openextract.app/imazing-alternatives
 
 ## Key pages
 
@@ -46,6 +47,7 @@ OpenExtract is made by Charles West, an independent developer, with help from co
 - [OpenExtract vs iExplorer](https://www.openextract.app/vs-iexplorer)
 - [OpenExtract vs iBackup Viewer](https://www.openextract.app/vs-ibackup-viewer)
 - [OpenExtract vs Reincubate](https://www.openextract.app/vs-reincubate)
+- [iMazing alternatives compared](https://www.openextract.app/imazing-alternatives): free and paid apps for reading backups or managing an iPhone, with prices and what each one's free version does.
 - [Free iPhone backup viewer](https://www.openextract.app/use-cases/free-iphone-backup-viewer)
 - [iPhone backups on Linux](https://www.openextract.app/use-cases/iphone-backup-extractor-linux)
 - [Guides](https://www.openextract.app/guides): printing texts for court, iMessage to PDF, texts to a Windows PC, call history to a Windows PC, viewing a backup on Windows, saving voicemails, recovering deleted texts, moving from iPhone to Android.
