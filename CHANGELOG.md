@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - Backups keep the computer awake while they run. A computer that went to sleep disconnected the iPhone partway through a big backup, often after a few GB, even with the iPhone still plugged in. On Windows the screen now stays on during a backup, because that is what keeps a laptop from sleeping. Closing a laptop's lid still puts it to sleep, and the app then says that's what stopped the backup
 - When the connection drops partway through a backup, the message says how much had been copied and points to sleep or the USB connection. It used to ask you to tap Trust, or on an encrypted backup to enter your passcode, which can't be the problem once data is flowing
+- Back up my iPhone: a big backup that takes more than 2 hours no longer stops partway with "Sidecar call timed out: backup.start" while it's still copying. The app now gives up only after 2 hours with no progress at all
+- Backups made by iOS 6 no longer stop OpenExtract a few moments after they open. Reading their photos used to end the part of OpenExtract that reads backups, so Messages, Contacts, Notes, Photos and everything after failed with "Sidecar exited with code 1", then "Python sidecar is not running", until you quit. Their photos show now, and anything else the engine can't send is reported as an error on that screen instead of stopping it
+- If OpenExtract can't look for the backups on this computer, the first screen says so and has a Look again button. The "Also on this computer" list used to just disappear
 
 ## [0.12.0] - 2026-11-07
 
