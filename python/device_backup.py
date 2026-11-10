@@ -5,6 +5,7 @@ Uses pymobiledevice3 for device communication and MobileBackup2 protocol.
 """
 
 import asyncio
+import errno
 import logging
 import os
 import re
@@ -14,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import warnings
 from typing import Callable, Optional
 
 _LOG_PATH = os.environ.get('OPENEXTRACT_LOG_PATH') or os.path.join(tempfile.gettempdir(), 'python_log.txt')
@@ -70,14 +72,42 @@ _FOLDER_IN_USE = (
 )
 
 
+# pymobiledevice3 takes the iPhone's sync lock before a backup and gives up after 10 seconds
+# while another app holds it: Apple Devices, iTunes or Finder syncing or backing up the iPhone.
+# 11.26 words it "Failed to lock itunes sync file", later 11.x "Could not lock the device's
+# sync lock file; another sync or backup may be running."
+_SYNC_LOCK_RE = re.compile(r"Failed to lock itunes sync file|Could not lock the device's sync lock file")
+_SYNC_IN_PROGRESS = (
+    "Another app is syncing or backing up your iPhone, such as Apple Devices, iTunes or Finder. "
+    "Wait for it to finish or close it, then try again."
+)
+
+
+def _is_disk_full(exc: Exception) -> bool:
+    """The computer's drive filled up while the backup was writing to it."""
+    # ERROR_HANDLE_DISK_FULL (39) and ERROR_DISK_FULL (112) on Windows; Python maps 112 to ENOSPC.
+    return isinstance(exc, OSError) and (exc.errno == errno.ENOSPC or getattr(exc, "winerror", None) in (39, 112))
+
+
 def _is_inside(path, folder: str) -> bool:
     if not isinstance(path, (str, os.PathLike)):
         return False
-    folder = os.path.normcase(os.path.abspath(folder))
+    # pymobiledevice3 names files from the folder's resolved path (DeviceLink resolves its root),
+    # so resolve both: a folder reached through a link, a mapped drive or a short (8.3) name
+    # wouldn't match otherwise.
+    folder = os.path.normcase(os.path.realpath(folder))
     try:
-        return os.path.commonpath([os.path.normcase(os.path.abspath(path)), folder]) == folder
+        return os.path.commonpath([os.path.normcase(os.path.realpath(path)), folder]) == folder
     except ValueError:  # on another drive
         return False
+
+
+def _is_relative(path) -> bool:
+    # pymobiledevice3 names files from the backup folder's absolute path. On macOS and Linux,
+    # shutil.rmtree (which removes Snapshot at the end of a backup) reports an item it couldn't
+    # delete by its own name only ("[Errno 13] Permission denied: '61'"), so a relative name
+    # is an item inside the backup folder.
+    return isinstance(path, (str, os.PathLike)) and not os.path.isabs(path)
 
 
 def _backup_error_message(exc: Exception, output_dir: str) -> Optional[str]:
@@ -88,7 +118,9 @@ def _backup_error_message(exc: Exception, output_dir: str) -> Optional[str]:
         return _FILES_NOT_SENT
     if code == 205:
         return _UNFINISHED_BACKUP
-    if isinstance(exc, OSError) and _is_inside(exc.filename, output_dir):
+    if _SYNC_LOCK_RE.search(str(exc)):
+        return _SYNC_IN_PROGRESS
+    if isinstance(exc, OSError) and (_is_inside(exc.filename, output_dir) or _is_relative(exc.filename)):
         if isinstance(exc, PermissionError):
             return _FOLDER_IN_USE
         if isinstance(exc, FileNotFoundError):
@@ -271,6 +303,10 @@ class _ReceivedBytes:
                 pass  # not created yet, or moved into place: keep the last size seen
         return self._current_size
 
+
+# Warnings logged per backup, e.g. "Failed to fully upload: <file>. Reason: ..." for each file
+# the iPhone couldn't send.
+_MAX_LOGGED_WARNINGS = 50
 
 # How often the bytes copied so far are sent between the device's own progress reports.
 _BYTES_REPORT_INTERVAL_S = 1.0
@@ -768,17 +804,25 @@ class DeviceBackupManager:
             passcode_watcher = _BackupPasscodeWatcher(_on_passcode_prompt)
             mb2_logger.addHandler(passcode_watcher)
             bytes_reporter = asyncio.create_task(_report_bytes())
-            try:
-                async with Mobilebackup2Service(lockdown) as mb2:
-                    await mb2.backup(
-                        full=True,
-                        backup_directory=output_dir,
-                        progress_callback=_progress_cb,
-                        filter_callback=received.file_started,
-                    )
-            finally:
-                bytes_reporter.cancel()
-                mb2_logger.removeHandler(passcode_watcher)
+            # pymobiledevice3 reports each file the iPhone couldn't send (the reason for
+            # MBErrorDomain/104) only as a warning, which nothing showed: log them.
+            with warnings.catch_warnings(record=True) as backup_warnings:
+                warnings.simplefilter("always")
+                try:
+                    async with Mobilebackup2Service(lockdown) as mb2:
+                        await mb2.backup(
+                            full=True,
+                            backup_directory=output_dir,
+                            progress_callback=_progress_cb,
+                            filter_callback=received.file_started,
+                        )
+                finally:
+                    bytes_reporter.cancel()
+                    mb2_logger.removeHandler(passcode_watcher)
+                    for w in backup_warnings[:_MAX_LOGGED_WARNINGS]:
+                        _dev_log(f"during the backup: {w.category.__name__}: {w.message}")
+                    if len(backup_warnings) > _MAX_LOGGED_WARNINGS:
+                        _dev_log(f"during the backup: {len(backup_warnings) - _MAX_LOGGED_WARNINGS} more warnings")
 
             _tracked_notify("finalizing", 100, 0, 0)
 
@@ -836,7 +880,9 @@ class DeviceBackupManager:
                 _dev_log(f"connection dropped partway: {copied} bytes received, last device "
                          f"progress {last_pct[0]}%: {e!r}")
                 raise RuntimeError(_CONNECTION_DROPPED.format(copied=_copied_so_far(copied))) from e
-            elif encrypted:
+            elif encrypted or passcode_asked:
+                # The iPhone asked for its passcode and ended the backup before copying
+                # anything: it wasn't entered in time. Not a Trust or cable problem.
                 raise RuntimeError(
                     "PASSCODE_REQUIRED: Your iPhone is prompting for your passcode "
                     "to allow the backup. Check your iPhone screen, enter your "
@@ -858,6 +904,13 @@ class DeviceBackupManager:
                     "PASSCODE_REQUIRED: Your iPhone was locked when the backup started. Unlock it, "
                     "enter your passcode when it asks, keep it unlocked, then click Retry."
                 ) from e
+            if _is_disk_full(e):
+                # The drive filled up while files arrived ("[Errno 28] No space left on
+                # device"): the iPhone's own free-space check passed, so the error came from
+                # writing, not from the iPhone's refusal (MBErrorDomain/105) handled above.
+                free_bytes = _free_bytes(output_dir)
+                _dev_log(f"disk full while writing: {e!r} free={free_bytes} phone_used={phone_used_bytes}")
+                raise RuntimeError(_disk_full_message(free_bytes, None, phone_used_bytes)) from e
             message = _backup_error_message(e, output_dir)
             if message is None:
                 raise
@@ -948,6 +1001,18 @@ class DeviceBackupManager:
         if already_encrypted:
             print("[encryption] already enabled, skipping change_password", file=sys.stderr, flush=True)
             return
+
+        # Every backup try leaves an empty Manifest.plist until it finishes (pymobiledevice3
+        # writes one first). Turning encryption on makes the iPhone read it, and an empty one fails
+        # with MBErrorDomain/205 "Error reading backup manifest properties" (OE-6). An empty one
+        # holds nothing, and the backup itself deletes it anyway.
+        manifest_plist = os.path.join(backup_directory, lockdown.udid or "", "Manifest.plist")
+        try:
+            if lockdown.udid and os.path.getsize(manifest_plist) == 0:
+                os.remove(manifest_plist)
+                _dev_log(f"removed the empty Manifest.plist an earlier try left: {manifest_plist!r}")
+        except OSError:
+            pass
 
         try:
             print(f"[encryption] calling change_password (backup_directory={backup_directory})", file=sys.stderr, flush=True)

@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - A Chip in button in Settings, and on the screen after you send a thank-you, opens openextract.app/support in your browser. There you can pay any amount, once, through Stripe, toward code signing and development. OpenExtract stays free for everyone, nothing unlocks, and the app sends nothing when you click it
 
 ### Fixed
+- Backing up an iPhone: when the computer's drive fills up partway, the app says there isn't enough free space instead of "[Errno 28] No space left on device"
+- Backing up an iPhone: when Apple Devices, iTunes or Finder is syncing the iPhone, the app says so and asks you to wait or close it, instead of "Failed to lock itunes sync file" or "Could not lock the device's sync lock file"
+- Backing up an iPhone: when the iPhone asks for its passcode and nobody enters it in time, the app asks for the passcode instead of telling you to tap Trust and check the cable
+- Backing up an iPhone into a folder reached through a link, a mapped drive or a short (8.3) Windows name: when another program, such as OneDrive or antivirus software, is using the backup folder, the app says so instead of showing "Access is denied" or "Permission denied" with a file path
+- Backing up an iPhone on a Mac or Linux: when a permission problem stops the backup from tidying up its temporary Snapshot folder at the end, the app says it wasn't allowed to change the backup folder instead of "[Errno 13] Permission denied: '61'"
+- Turning on encryption for a backup into a folder where an earlier try didn't finish no longer fails with "The folder you chose has an unfinished backup of this iPhone" (OE-6)
 - Backups keep the computer awake while they run. A computer that went to sleep disconnected the iPhone partway through a big backup, often after a few GB, even with the iPhone still plugged in. On Windows the screen now stays on during a backup, because that is what keeps a laptop from sleeping. Closing a laptop's lid still puts it to sleep, and the app then says that's what stopped the backup
 - When the connection drops partway through a backup, the message says how much had been copied and points to sleep or the USB connection. It used to ask you to tap Trust, or on an encrypted backup to enter your passcode, which can't be the problem once data is flowing
 - Back up my iPhone: a big backup that takes more than 2 hours no longer stops partway with "Sidecar call timed out: backup.start" while it's still copying. The app now gives up only after 2 hours with no progress at all
