@@ -256,7 +256,8 @@ class MobileBackup2(Service):
         self.phone.notify(op["name"])
 
     def op_Sleep(self, op: dict) -> None:
-        time.sleep(op["seconds"])
+        if self.phone.gone.wait(op["seconds"]):
+            raise HostClosed(f"{self.sock.name}: unplugged while waiting")
 
     def op_Drop(self, op: dict) -> bool:
         raise Dropped(f"{self.sock.name}: dropped by the plan")

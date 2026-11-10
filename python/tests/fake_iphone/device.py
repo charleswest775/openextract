@@ -120,6 +120,7 @@ class FakeIPhone:
         self._threads: list[threading.Thread] = []
         self._lock = threading.Lock()
         self._t0 = time.monotonic()
+        self.gone = threading.Event()  # set once unplugged or closed: ends the phone's waits
 
     # ── for tests ──
     def before(self, op_name: str, fn: Callable[[dict], Any]) -> None:
@@ -130,6 +131,7 @@ class FakeIPhone:
         """The cable comes out: gone from usbmuxd's list, every connection closed."""
         self.log("unplugged")
         self.connected = False
+        self.gone.set()
         with self._lock:
             sockets = list(self._sockets)
         for s in sockets:
@@ -212,6 +214,7 @@ class FakeIPhone:
                     self.close()
 
     def close(self, timeout: float = 5.0) -> None:
+        self.gone.set()
         with self._lock:
             sockets, threads = list(self._sockets), list(self._threads)
         for s in sockets:

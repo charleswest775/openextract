@@ -13,6 +13,7 @@ import errno
 import os
 import stat
 import sys
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -64,10 +65,24 @@ class BackupRun:
         assert sizes == sorted(sizes), f"bytes copied went backwards: {sizes}"
 
 
+# A scenario takes a second or two. One that runs this long is stuck: the fake iPhone unplugs
+# itself, so the engine's reads fail and the test fails instead of holding up CI.
+HANG_TIMEOUT_S = 60.0
+
+
 def run_backup(phone: FakeIPhone, output_dir: Path, *, encrypted: bool = False,
                password: Optional[str] = None) -> BackupRun:
     run = BackupRun(phone=phone, output_dir=Path(output_dir))
     t0 = time.monotonic()
+    hung = threading.Event()
+
+    def give_up() -> None:
+        hung.set()
+        phone.log(f"watchdog: no result after {HANG_TIMEOUT_S:.0f}s, unplugging")
+        phone.unplug()
+
+    watchdog = threading.Timer(HANG_TIMEOUT_S, give_up)
+    watchdog.daemon = True
 
     # main.py's backup.start notify, recorded instead of written to stdout.
     def notify(phase: str, percent: int, files_done: int, files_total: int, bytes_done: int = 0) -> None:
@@ -77,6 +92,7 @@ def run_backup(phone: FakeIPhone, output_dir: Path, *, encrypted: bool = False,
         })
 
     with phone.plugged_in():
+        watchdog.start()
         try:
             run.result = device_backup.DeviceBackupManager().start_backup(
                 udid=phone.udid, output_dir=str(output_dir), encrypted=encrypted, password=password, notify=notify,
@@ -84,7 +100,12 @@ def run_backup(phone: FakeIPhone, output_dir: Path, *, encrypted: bool = False,
         except Exception as e:  # main.py turns this into {"error": {"message": str(e)}}
             run.exception = e
             run.error = str(e)
+        finally:
+            watchdog.cancel()
     run.seconds = time.monotonic() - t0
+    assert not hung.is_set(), (
+        f"the backup was still running after {HANG_TIMEOUT_S:.0f}s; the fake iPhone's last events: "
+        f"{phone.events[-15:]}; the engine then reported: {run.error!r}")
     assert not phone.errors, "the fake iPhone itself failed:\n" + "\n".join(phone.errors)
     return run
 
