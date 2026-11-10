@@ -24,7 +24,7 @@
     "description": "iMazing is subscription-only and its trial stops at 25 messages. OpenExtract is free and open source. Feature by feature, including where iMazing wins.",
     "url": "https://www.openextract.app/vs-imazing",
     "datePublished": "2026-04-18",
-    "dateModified": "2026-11-09",
+    "dateModified": "2026-11-10",
     "image": "https://www.openextract.app/img/og-image.png",
     "isPartOf": { "@type": "WebSite", "name": "OpenExtract", "url": "https://www.openextract.app/" },
     "publisher": {
@@ -65,7 +65,7 @@
       { "@type": "Question", "name": "Can I use OpenExtract exports in court?", "acceptedAnswer": { "@type": "Answer", "text": "Exports keep the date, time and sender of every message, so they read clearly when printed. Whether a court accepts them depends on your jurisdiction and your case, so ask your lawyer." } },
       { "@type": "Question", "name": "Does OpenExtract handle encrypted backups?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Supply the password; decryption happens on your laptop. Encrypted backups contain more data (saved passwords, Safari history)." } },
       { "@type": "Question", "name": "Is OpenExtract safe to install?", "acceptedAnswer": { "@type": "Answer", "text": "Source is public on GitHub. Installers are code-signed. Nothing you extract is ever uploaded, and update checks are off unless you turn them on. You can verify all of that yourself." } },
-      { "@type": "Question", "name": "Will it work on backups iMazing made?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. iMazing writes standard Apple backups unless you configure it otherwise." } }
+      { "@type": "Question", "name": "Will it work on backups iMazing made?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, with one extra step. iMazing keeps its backups in its own folder, so OpenExtract won't find them on its own. Use iMazing's Export Backup as Folder, which writes a standard Apple backup, and open that folder in OpenExtract." } }
     ]
   }
   </script>
@@ -178,12 +178,12 @@
   <section class="migrate">
     <div class="migrate__inner">
       <div class="migrate__eyebrow">Migrating from iMazing</div>
-      <h2>Your backups <span class="it">already work</span>.</h2>
-      <p>iMazing reads the same iTunes/Finder backup format Apple writes. So does OpenExtract. You don't need to re-back-up anything.</p>
+      <h2>Bring your backups <span class="it">with you</span>.</h2>
+      <p>OpenExtract finds the backups Finder, iTunes or the Apple Devices app made on its own. iMazing keeps the backups it makes in its own folder, and its advice for opening one in another app is Export Backup as Folder, which writes a standard Apple backup.</p>
       <ol>
         <li>Install OpenExtract. Free, about 180 MB.</li>
-        <li>Launch it. It scans for existing backups automatically.</li>
-        <li>If your backup was stored in iMazing's custom location, point OpenExtract at the folder. Any folder with a <code>Manifest.db</code> works.</li>
+        <li>Launch it. It scans Apple's usual backup folders automatically.</li>
+        <li>For a backup iMazing made, use Export Backup as Folder in iMazing, then point OpenExtract at that folder. Any folder with a <code>Manifest.db</code> works.</li>
         <li>Export what you need. Done.</li>
       </ol>
     </div>
@@ -209,7 +209,7 @@
     </details>
     <details class="qa">
       <summary>Will it work on backups iMazing made?</summary>
-      <p>Yes. iMazing writes standard Apple backups unless you configure it otherwise.</p>
+      <p>Yes, with one extra step. iMazing keeps its backups in its own folder, so OpenExtract won't find them on its own. Use iMazing's Export Backup as Folder, which writes a standard Apple backup, and open that folder in OpenExtract.</p>
     </details>
   </section>
 
