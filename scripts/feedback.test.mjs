@@ -595,6 +595,40 @@ const REAL_ERRORS = [
     area: 'create_backup',
     errors: [['backup.start', "OpenExtract wasn't allowed to change a file in the backup folder. This can happen when another program, such as OneDrive or antivirus software, is using it. Choose a new, empty folder outside OneDrive or other synced folders, then try again."]],
   },
+  // The connection dropping partway: as 0.12.0 worded it with the iPhone still listed (OE-29)
+  // and with it gone (OE-31), then python/device_backup.py _CONNECTION_DROPPED and
+  // electron/main.ts COMPUTER_SLEPT from the version after 0.12.0.
+  {
+    fix: 'backup-connection-dropped',
+    os: MAC,
+    area: 'create_backup',
+    details: 'it keeps disconnecting partway through, and I never touch the cable',
+    errors: [['backup.start', "The connection to your iPhone was terminated unexpectedly. Make sure you have tapped 'Trust' on the device when prompted, and that the cable is securely connected. Then try again."]],
+  },
+  {
+    fix: 'backup-connection-dropped',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', 'DEVICE_DISCONNECTED: Your iPhone was disconnected before the backup finished. Plug it back in, unlock it, then click Retry.']],
+  },
+  {
+    fix: 'backup-connection-dropped',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', 'DEVICE_DISCONNECTED: Your iPhone was disconnected before the backup finished. If it stayed plugged in, the computer may have gone to sleep or the USB connection dropped. Keep the computer plugged in and awake, plug the iPhone straight into it rather than into a hub, unlock it, then click Retry.']],
+  },
+  {
+    fix: 'backup-connection-dropped',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', 'The connection to your iPhone dropped partway through the backup, after 3.2 GB. This usually means the computer went to sleep or the USB connection was interrupted. Keep the computer plugged in and awake, plug the iPhone straight into it rather than into a hub, then try again.']],
+  },
+  {
+    fix: 'backup-connection-dropped',
+    os: MAC,
+    area: 'create_backup',
+    errors: [['backup.start', 'DEVICE_DISCONNECTED: Your computer went to sleep during the backup, which disconnects the iPhone. Keep the computer plugged in with its lid open until the backup finishes, then click Retry.']],
+  },
   // python/device_backup.py _device_service_error() on Windows without Apple Devices or iTunes.
   { fix: 'windows-apple-devices', os: WINDOWS, errors: [['backup.list_devices', WINDOWS_NO_DEVICE_SERVICE]] },
   // The same in 0.10.0, pasted into the report by hand (OE-4).

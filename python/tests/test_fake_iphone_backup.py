@@ -32,6 +32,8 @@ pytestmark = pytest.mark.fake_iphone
 
 MiB = plans.MiB
 TERMINATED = "The connection to your iPhone was terminated unexpectedly."
+# Once files have started to arrive, Trust and the passcode are settled (PR #229).
+DROPPED = "The connection to your iPhone dropped partway through the backup"
 
 
 @pytest.fixture(autouse=True)
@@ -145,7 +147,8 @@ def test_connection_drops_partway(out):
     run = run_backup(phone, out)
 
     assert run.result is None
-    assert run.error.startswith(TERMINATED)
+    assert run.error.startswith(DROPPED), run.error
+    assert "Trust" not in run.error
     assert phone.drops == 1
     assert "backing_up" in run.phases and run.progress[-1]["percent"] < 100
     assert run.progress[-1]["bytes_done"] <= 12 * MiB
@@ -190,7 +193,7 @@ def test_drop_in_a_folder_with_an_older_backup_is_not_a_success(out):
     os.utime(old / "Manifest.db", (1_600_000_000, 1_600_000_000))
 
     run = run_backup(FakeIPhone(drop_after_bytes=6 * MiB), out)
-    assert run.error is not None and run.error.startswith(TERMINATED)
+    assert run.error is not None and run.error.startswith(DROPPED)
 
 
 def test_every_connection_drops_but_the_iphone_stays_plugged_in(out):
@@ -200,7 +203,7 @@ def test_every_connection_drops_but_the_iphone_stays_plugged_in(out):
     run = run_backup(phone, out)
 
     assert phone.connected
-    assert run.error.startswith(TERMINATED)
+    assert run.error.startswith(DROPPED)
 
 
 def _raised_in(exc, function):
@@ -223,7 +226,17 @@ def test_connection_reset_partway(out):
     # Windows reports a connection usbmuxd tore down as "forcibly closed" (WinError 10054).
     phone = FakeIPhone(_through_first_file_batch(plans.synthetic_backup()) + [{"op": "Drop"}], reset_on_drop=True)
     run = run_backup(phone, out)
-    assert run.error.startswith(TERMINATED)
+    assert run.error.startswith(DROPPED)
+
+
+def test_drop_before_any_progress_keeps_the_trust_advice(out):
+    # While the iPhone is still making folders it hasn't reported any progress (a real one first
+    # does with Status.plist, just before its files), so the app can't say "partway through" and
+    # keeps the Trust and cable advice.
+    ops = plans.synthetic_backup()
+    plan = ops[:next(i for i, op in enumerate(ops) if op["op"] == "UploadFiles")] + [{"op": "Drop"}]
+    run = run_backup(FakeIPhone(plan), out)
+    assert run.error is not None and run.error.startswith(TERMINATED), run.error
 
 
 # ── A slow computer ──────────────────────────────────────────────────────────
@@ -262,7 +275,7 @@ def test_iphone_gives_up_when_the_computer_stalls(out, monkeypatch):
     run = run_backup(phone, out)
 
     assert phone.stalled
-    assert run.error is not None and run.error.startswith(TERMINATED)
+    assert run.error is not None and run.error.startswith(DROPPED)
 
 
 # ── The computer's disk ──────────────────────────────────────────────────────

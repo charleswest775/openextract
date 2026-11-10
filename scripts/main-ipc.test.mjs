@@ -727,6 +727,88 @@ describe('sidecar:call', () => {
   });
 });
 
+describe('backups keep the computer awake', () => {
+  // A backup.start whose answer the test controls, so it can look while it's running.
+  function pendingBackup(m) {
+    let finish;
+    m.sidecar.answer = method => (method === 'backup.start'
+      ? new Promise((resolve, reject) => { finish = { resolve, reject }; })
+      : Promise.resolve({ answered: method }));
+    const result = m.invoke('sidecar:call', 'backup.start', { udid: 'U1', output_dir: 'D' });
+    return { result, finish: () => finish };
+  }
+  const SLEPT = 'DEVICE_DISCONNECTED: Your computer went to sleep during the backup, which disconnects the iPhone. '
+    + 'Keep the computer plugged in with its lid open until the backup finishes, then click Retry.';
+
+  test('a backup holds a wake lock until it ends, whether it succeeds or fails', async () => {
+    const m = await asPlatform('darwin', () => loadMain());
+    const ok = pendingBackup(m);
+    await waitFor(() => ok.finish(), { what: 'the backup to reach the engine' });
+    assert.deepEqual([...m.env.blockers.values()], ['prevent-app-suspension']);
+    ok.finish().resolve({ success: true, backup_path: 'D/U1' });
+    assert.equal((await ok.result).success, true);
+    assert.equal(m.env.blockers.size, 0);
+
+    const bad = pendingBackup(m);
+    await waitFor(() => bad.finish(), { what: 'the backup to reach the engine' });
+    assert.equal(m.env.blockers.size, 1);
+    bad.finish().reject(new Error('Not enough free space for this backup.'));
+    assert.equal((await bad.result).success, false);
+    assert.equal(m.env.blockers.size, 0);
+    assert.equal(m.env.powerMonitor.listenerCount('suspend'), 0);
+    assert.equal(m.env.powerMonitor.listenerCount('resume'), 0);
+  });
+
+  test('on Windows the wake lock keeps the screen on, which is what stops a Modern Standby laptop sleeping', async () => {
+    const m = await asPlatform('win32', () => loadMain());
+    const b = pendingBackup(m);
+    await waitFor(() => b.finish(), { what: 'the backup to reach the engine' });
+    assert.deepEqual([...m.env.blockers.values()], ['prevent-display-sleep']);
+    b.finish().resolve({ success: true });
+    await b.result;
+    assert.equal(m.env.blockers.size, 0);
+  });
+
+  test('nothing else takes a wake lock', async () => {
+    const m = await loadMain();
+    for (const method of ['backup.list_devices', 'export_photos', 'list_messages']) {
+      await m.invoke('sidecar:call', method, {});
+    }
+    assert.deepEqual(m.env.callsTo('powerSaveBlocker.start'), []);
+  });
+
+  test('a backup that fails after the computer slept says so, and the log keeps what the engine said', async () => {
+    const m = await loadMain();
+    const b = pendingBackup(m);
+    await waitFor(() => b.finish(), { what: 'the backup to reach the engine' });
+    m.env.powerMonitor.emit('suspend');
+    m.env.powerMonitor.emit('resume');
+    const engineSaid = 'DEVICE_DISCONNECTED: Your iPhone was disconnected before the backup finished.';
+    b.finish().reject(new Error(engineSaid));
+    assert.deepEqual(await b.result, { success: false, error: SLEPT });
+    assert.equal(m.recorder.recorded.at(-1).outcome.error, SLEPT);
+    const log = fs.readFileSync(m.sidecar.logPath, 'utf-8');
+    assert.match(log, /\[Electron\] the computer went to sleep during backup\.start/);
+    assert.match(log, /\[Electron\] the computer woke up during backup\.start/);
+    assert.ok(log.includes(`[Electron] backup.start failed after the computer slept: ${engineSaid}`));
+  });
+
+  test('a sleep doesn\'t replace an error it didn\'t cause, and only counts while the backup runs', async () => {
+    const m = await loadMain();
+    m.env.powerMonitor.emit('suspend'); // before any backup: nobody is listening
+    const b = pendingBackup(m);
+    await waitFor(() => b.finish(), { what: 'the backup to reach the engine' });
+    b.finish().reject(new Error('DEVICE_DISCONNECTED: Your iPhone was disconnected before the backup finished.'));
+    assert.match((await b.result).error, /^DEVICE_DISCONNECTED: Your iPhone was disconnected/);
+
+    const full = pendingBackup(m);
+    await waitFor(() => full.finish(), { what: 'the backup to reach the engine' });
+    m.env.powerMonitor.emit('suspend');
+    full.finish().reject(new Error('Not enough free space for this backup.'));
+    assert.equal((await full.result).error, 'Not enough free space for this backup.');
+  });
+});
+
 describe('export:pdf', () => {
   test('passes the engine, method and params through and wraps the answer', async () => {
     const m = await loadMain();

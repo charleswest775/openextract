@@ -312,10 +312,34 @@ _MAX_LOGGED_WARNINGS = 50
 _BYTES_REPORT_INTERVAL_S = 1.0
 
 # The app shows this as a step, not a bug (src/components/backup/BackupFlow.tsx).
+# Reporters stress the iPhone stayed plugged in (OE-29, OE-31): a computer going to
+# sleep, or the USB link resetting, also takes it off usbmuxd's list.
 _DEVICE_DISCONNECTED = (
-    "DEVICE_DISCONNECTED: Your iPhone was disconnected before the backup finished. Plug it "
-    "back in, unlock it, then click Retry."
+    "DEVICE_DISCONNECTED: Your iPhone was disconnected before the backup finished. If it "
+    "stayed plugged in, the computer may have gone to sleep or the USB connection dropped. "
+    "Keep the computer plugged in and awake, plug the iPhone straight into it rather than "
+    "into a hub, unlock it, then click Retry."
 )
+
+# The connection closed after data had started to arrive, with the iPhone still listed.
+# Trust and the passcode are settled by then, so neither is the cause (they were what
+# the app used to suggest, OE-17 and OE-29). Left reportable on purpose: the iPhone's
+# backup agent stopping can look the same, and reports of it are how we learn more.
+_CONNECTION_DROPPED = (
+    "The connection to your iPhone dropped partway through the backup{copied}. This usually "
+    "means the computer went to sleep or the USB connection was interrupted. Keep the "
+    "computer plugged in and awake, plug the iPhone straight into it rather than into a hub, "
+    "then try again."
+)
+
+
+def _copied_so_far(received_bytes: int) -> str:
+    """The ", after 3.2 GB" part of _CONNECTION_DROPPED; empty before anything arrived."""
+    if received_bytes >= 1e9:
+        return f", after {received_bytes / 1e9:.1f} GB"
+    if received_bytes >= 1e6:
+        return f", after {round(received_bytes / 1e6)} MB"
+    return ""
 
 
 def _device_connected(udid: str) -> bool:
@@ -849,9 +873,14 @@ class DeviceBackupManager:
             # first, and a folder used before has an older Manifest.db.)
             actual = self._resolve_backup_path(output_dir, udid)
             manifest_path = os.path.join(actual, "Manifest.db")
+            copied = received.update()
             if os.path.exists(manifest_path) and os.path.getmtime(manifest_path) >= started_at:
                 _tracked_notify("finalizing", 100, 0, 0)
-            elif encrypted or (passcode_asked and not transferring):
+            elif transferring or copied > 0:
+                _dev_log(f"connection dropped partway: {copied} bytes received, last device "
+                         f"progress {last_pct[0]}%: {e!r}")
+                raise RuntimeError(_CONNECTION_DROPPED.format(copied=_copied_so_far(copied))) from e
+            elif encrypted or passcode_asked:
                 # The iPhone asked for its passcode and ended the backup before copying
                 # anything: it wasn't entered in time. Not a Trust or cable problem.
                 raise RuntimeError(
