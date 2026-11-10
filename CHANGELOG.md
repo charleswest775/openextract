@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 - A Chip in button in Settings, and on the screen after you send a thank-you, opens openextract.app/support in your browser. There you can pay any amount, once, through Stripe, toward code signing and development. OpenExtract stays free for everyone, nothing unlocks, and the app sends nothing when you click it
 
+### Fixed
+- Backups made by iOS 6 no longer stop OpenExtract a few moments after they open. Reading their photos used to end the part of OpenExtract that reads backups, so Messages, Contacts, Notes, Photos and everything after failed with "Sidecar exited with code 1", then "Python sidecar is not running", until you quit. Their photos show now, and anything else the engine can't send is reported as an error on that screen instead of stopping it
+- If OpenExtract can't look for the backups on this computer, the first screen says so and has a Look again button. The "Also on this computer" list used to just disappear
+
 ## [0.12.0] - 2026-11-07
 
 ### Added
