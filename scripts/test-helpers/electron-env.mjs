@@ -253,6 +253,25 @@ export function createElectron({
     showItemInFolder: p => record('shell.showItemInFolder', p),
   };
 
+  // powerSaveBlocker: the blockers started and not yet stopped, by id → type.
+  // powerMonitor: an emitter a test fires 'suspend' / 'resume' on.
+  const blockers = new Map();
+  let nextBlockerId = 1;
+  const powerSaveBlocker = {
+    start(type) {
+      const id = nextBlockerId++;
+      blockers.set(id, type);
+      record('powerSaveBlocker.start', type);
+      return id;
+    },
+    stop(id) {
+      blockers.delete(id);
+      record('powerSaveBlocker.stop', id);
+    },
+    isStarted: id => blockers.has(id),
+  };
+  const powerMonitor = new EventEmitter();
+
   const electron = {
     app,
     ipcMain,
@@ -260,6 +279,8 @@ export function createElectron({
     session,
     dialog,
     shell,
+    powerSaveBlocker,
+    powerMonitor,
     Menu: {
       buildFromTemplate: template => ({ template }),
       setApplicationMenu: menu => record('Menu.setApplicationMenu', menu),
@@ -280,6 +301,8 @@ export function createElectron({
   return {
     electron,
     app,
+    blockers,
+    powerMonitor,
     handlers,
     invoke,
     senderSent,

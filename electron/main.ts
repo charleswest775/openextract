@@ -1,5 +1,5 @@
 export {};
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, protocol, net, session, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, protocol, net, session, clipboard, powerSaveBlocker, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -210,6 +210,62 @@ function getPythonArgs(): string[] {
   return [];
 }
 
+// ── Keeping the computer awake during a backup ──────────────────────────────
+// A big backup runs for hours while nobody touches the computer. Windows 11 laptops
+// sleep after 3 minutes idle on battery and 5 plugged in, Macs on battery soon after
+// the display sleeps, and a sleeping computer drops the iPhone partway (OE-29, OE-31).
+// Copying data doesn't count as activity, so ask the OS to stay awake for the whole
+// backup. On Windows that has to keep the screen on: 'prevent-app-suspension' becomes
+// PowerRequestExecutionRequired there, which doesn't stop a Modern Standby laptop
+// sleeping (on battery Windows drops such requests 5 minutes after the sleep timeout,
+// per PowerSetRequest's docs), while a display request does. On macOS
+// 'prevent-app-suspension' is an IOPM assertion against idle system sleep, so the
+// screen may turn off there. Closing a laptop's lid sleeps it anyway, so a sleep is
+// noted in the engine log and the error then says what happened.
+const BACKUP_WAKE_LOCK = process.platform === 'win32' ? 'prevent-display-sleep' : 'prevent-app-suspension';
+
+function appendLog(logPath: string, line: string) {
+  try {
+    fs.appendFileSync(logPath, `[${new Date().toTimeString().slice(0, 8)}] ${line}\n`);
+  } catch {
+    // The log is for reports; a backup never fails over it.
+  }
+}
+
+function keepAwakeDuringBackup(logPath: string) {
+  let blocker: number | null = null;
+  try {
+    blocker = powerSaveBlocker.start(BACKUP_WAKE_LOCK);
+  } catch (err) {
+    appendLog(logPath, `[Electron] couldn't keep the computer awake for the backup: ${err}`);
+  }
+  let slept = false;
+  const onSuspend = () => {
+    slept = true;
+    appendLog(logPath, '[Electron] the computer went to sleep during backup.start');
+  };
+  const onResume = () => appendLog(logPath, '[Electron] the computer woke up during backup.start');
+  powerMonitor.on('suspend', onSuspend);
+  powerMonitor.on('resume', onResume);
+  return {
+    slept: () => slept,
+    stop() {
+      powerMonitor.removeListener('suspend', onSuspend);
+      powerMonitor.removeListener('resume', onResume);
+      if (blocker !== null && powerSaveBlocker.isStarted(blocker)) powerSaveBlocker.stop(blocker);
+    },
+  };
+}
+
+// The errors a sleep causes: the iPhone gone (DEVICE_DISCONNECTED), the connection
+// dropped, an encrypted backup's drop read as a passcode prompt, or the time limit
+// running out while asleep (python/device_backup.py, electron/sidecar.ts).
+const LOST_CONNECTION = /^(DEVICE_DISCONNECTED|PASSCODE_REQUIRED):|connection to your iPhone|Sidecar call timed out/;
+// DEVICE_DISCONNECTED is a step for the user, not a bug (src/components/backup/BackupFlow.tsx).
+const COMPUTER_SLEPT =
+  'DEVICE_DISCONNECTED: Your computer went to sleep during the backup, which disconnects the iPhone. ' +
+  'Keep the computer plugged in with its lid open until the backup finishes, then click Retry.';
+
 app.whenReady().then(async () => {
   // Belt and braces for the spellcheck: false above: with no languages set,
   // the default session has no dictionary to fetch. No-op on macOS.
@@ -269,6 +325,7 @@ app.whenReady().then(async () => {
 
   // ── Sidecar IPC bridge ──────────────────────────────────────────────────
   ipcMain.handle('sidecar:call', async (_event: any, method: string, params: any) => {
+    const awake = method === 'backup.start' ? keepAwakeDuringBackup(logPath) : null;
     try {
       const timeoutMs = method === 'backup.start' ? 7_200_000
         : method === 'backup.install_device_support' ? 900_000 // winget may download slowly
@@ -285,13 +342,20 @@ app.whenReady().then(async () => {
       return { success: true, data: result };
     } catch (error: any) {
       console.error(`Sidecar call failed: ${method}`, error);
-      feedback.recordCall(method, params, { ok: false, error: String(error?.message ?? error) });
+      let message = String(error?.message ?? error);
+      if (awake?.slept() && LOST_CONNECTION.test(message)) {
+        appendLog(logPath, `[Electron] backup.start failed after the computer slept: ${message.split('\n')[0]}`);
+        message = COMPUTER_SLEPT;
+      }
+      feedback.recordCall(method, params, { ok: false, error: message });
       if (method === 'open_backup') {
         const ts = new Date().toTimeString().slice(0, 8);
         fs.appendFileSync(logPath,
           `[${ts}] [Electron] open_backup FAILED: ${error.message} | udid=${params?.udid} dir=${params?.backup_dir}\n`);
       }
-      return { success: false, error: error.message };
+      return { success: false, error: message };
+    } finally {
+      awake?.stop();
     }
   });
 
