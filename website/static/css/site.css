@@ -1011,3 +1011,33 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .step-body p 
 .prose__inner a.support-pay { color: white; margin: 4px 0 4px; }
 .prose__inner a.support-pay:hover { text-decoration: none; filter: brightness(0.95); }
 .prose__inner .support-note { font-size: 14px; color: var(--ink-soft); }
+
+/* ── Roundup: iMazing alternatives ────────────────── */
+.alt-disclosure { font-size: 15px; color: var(--ink-dim); margin: 18px 0 0; max-width: 720px; line-height: 1.5; }
+.alt-disclosure a { color: var(--coral); }
+.alt-disclosure a:hover { text-decoration: underline; }
+.matrix th.matrix__head--plain { color: var(--ink-dim); width: 30%; }
+.matrix tr.matrix__row--oe td { background: var(--coral-15); }
+.matrix td.matrix__k a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.matrix td.matrix__k a:hover { color: var(--coral); }
+.matrix__sub { display: block; font-size: 12px; color: var(--ink-dim); font-weight: 400; margin-top: 2px; }
+.matrix-note { font-size: 13px; color: var(--ink-dim); margin-top: 12px; }
+.alts { padding: 0 56px 48px; max-width: 1100px; margin: 0 auto; }
+.alts h2 { font-size: 44px; letter-spacing: -0.02em; font-weight: 500; margin: 0 0 12px; line-height: 1.02; }
+.alts__intro { font-size: 17px; color: var(--ink-soft); line-height: 1.6; max-width: 720px; margin: 0 0 24px; }
+.alts__intro a, .alt p a { color: var(--coral); }
+.alts__intro a:hover, .alt p a:hover { text-decoration: underline; }
+.alts__list { background: white; border: 1px solid var(--line); border-radius: 20px; padding: 6px 28px; }
+.alt { padding: 22px 0; border-top: 1px solid var(--line); scroll-margin-top: 24px; }
+.alt:first-child { border-top: none; }
+.alt h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; line-height: 1.25; }
+.alt h3 .alt__maker { font-size: 15px; font-weight: 400; color: var(--ink-dim); letter-spacing: 0; }
+.alt--oe h3 { color: var(--coral); }
+.alt__facts { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); margin: 0 0 10px; line-height: 1.5; }
+.alt p { font-size: 15px; color: var(--ink-soft); line-height: 1.6; margin: 0 0 8px; }
+.alt p.alt__more a { font-weight: 600; }
+@media (max-width: 720px) {
+  .alts { padding-left: 24px; padding-right: 24px; }
+  .alts h2 { font-size: 32px; }
+  .alts__list { padding: 4px 18px; }
+}

@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Backing up an iPhone into a folder reached through a link, a mapped drive or a short (8.3) Windows name: when another program, such as OneDrive or antivirus software, is using the backup folder, the app says so instead of showing "Access is denied" or "Permission denied" with a file path
 - Backing up an iPhone on a Mac or Linux: when a permission problem stops the backup from tidying up its temporary Snapshot folder at the end, the app says it wasn't allowed to change the backup folder instead of "[Errno 13] Permission denied: '61'"
 - Turning on encryption for a backup into a folder where an earlier try didn't finish no longer fails with "The folder you chose has an unfinished backup of this iPhone" (OE-6)
+- Back up my iPhone: a big backup that takes more than 2 hours no longer stops partway with "Sidecar call timed out: backup.start" while it's still copying. The app now gives up only after 2 hours with no progress at all
+- Backups made by iOS 6 no longer stop OpenExtract a few moments after they open. Reading their photos used to end the part of OpenExtract that reads backups, so Messages, Contacts, Notes, Photos and everything after failed with "Sidecar exited with code 1", then "Python sidecar is not running", until you quit. Their photos show now, and anything else the engine can't send is reported as an error on that screen instead of stopping it
+- If OpenExtract can't look for the backups on this computer, the first screen says so and has a Look again button. The "Also on this computer" list used to just disappear
 
 ## [0.12.0] - 2026-11-07
 

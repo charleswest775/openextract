@@ -27,3 +27,17 @@ export function notYetOpened(found: BackupInfo[], sessions: RecentSession[]): Ba
     s.backupDir ? samePath(s.backupDir, b.backup_dir) : s.id === b.udid,
   ));
 }
+
+/**
+ * What the home screen says when looking for backups failed, above its Look again
+ * button, instead of leaving out the found list without a word (in-app report OE-27).
+ * `error` is the failed list_backups call's message.
+ */
+export function lookFailedMessage(error: string): string {
+  // The engine has exited (it used to on an iOS 6 backup's photos) and the app
+  // doesn't start it again by itself, so only reopening it helps.
+  if (/sidecar is not running|sidecar exited/i.test(error)) {
+    return "OpenExtract couldn't look for other backups on this computer because its engine stopped. Quit and reopen OpenExtract to look again.";
+  }
+  return "OpenExtract couldn't look for other backups on this computer.";
+}

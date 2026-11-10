@@ -270,7 +270,9 @@ app.whenReady().then(async () => {
   // ── Sidecar IPC bridge ──────────────────────────────────────────────────
   ipcMain.handle('sidecar:call', async (_event: any, method: string, params: any) => {
     try {
-      const timeoutMs = method === 'backup.start' ? 7_200_000
+      // Backups and saves send progress reports, and each one starts the time limit
+      // over (sidecar.ts), so these limits are how long they may go without one.
+      const timeoutMs = method === 'backup.start' ? 7_200_000 // the iPhone can sit preparing or waiting for its passcode
         : method === 'backup.install_device_support' ? 900_000 // winget may download slowly
         : method.startsWith('export_') ? 21_600_000 // a whole photo library to a slow drive can take hours
         : undefined;

@@ -45,6 +45,89 @@ def _tlog(msg: str) -> None:
     except Exception:
         pass
 
+
+def _log_rpc_error(method, message: str) -> None:
+    """Note a failed call in the log as "[RPC ERROR] ...", the entries feedback reports include."""
+    try:
+        with open(_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(f"[RPC ERROR] {method}: {message}\n")
+    except Exception:
+        pass
+    print(f"[RPC ERROR] {method}: {message}", file=sys.stderr, flush=True)
+
+
+# ── Sending a result ──────────────────────────────────────────────────────────
+# A result that json can't write used to end the engine: json.dumps raised outside
+# handle_request's try, so the process exited and took every call waiting
+# behind it along (in-app reports OE-26 to OE-28: an iOS 6 backup's photos
+# came back with their UUIDs as raw bytes). Now raw bytes go as text, and a
+# result that still can't be written becomes an error naming the method.
+
+def _bytes_as_text(raw: bytes) -> str:
+    """Raw bytes for JSON: the text they hold when they are UTF-8 text, else hex."""
+    try:
+        text = raw.decode("utf-8").rstrip("\x00")
+    except UnicodeDecodeError:
+        return raw.hex()
+    if any(ch < " " and ch not in "\t\n\r" for ch in text):
+        return raw.hex()  # binary that happens to be valid UTF-8
+    return text
+
+
+def _without_bytes(value, path: str, found: dict):
+    """``value`` with every bytes object in it turned into text.
+
+    Counts each place one was found in ``found``, by a path like
+    ``result.photos[].uuid`` (list positions left out, so a list is one place).
+    """
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        found[path] = found.get(path, 0) + 1
+        return _bytes_as_text(bytes(value))
+    if isinstance(value, dict):
+        out = {}
+        for key, item in value.items():
+            if isinstance(key, (bytes, bytearray, memoryview)):
+                key = _bytes_as_text(bytes(key))
+            out[key] = _without_bytes(item, f"{path}.{key}" if path else str(key), found)
+        return out
+    if isinstance(value, (list, tuple)):
+        return [_without_bytes(item, f"{path}[]", found) for item in value]
+    return value
+
+
+def encode_response(response: dict, method=None) -> str:
+    """One JSON-RPC response as a line of JSON. Never raises.
+
+    A result holding raw bytes is sent with them as text, and the log says
+    where they were so the reader that returned them can be fixed. A result
+    that still can't be written (an object json doesn't know) is replaced by
+    a JSON-RPC error that names the method, and the engine carries on.
+    """
+    try:
+        return json.dumps(response)
+    except (TypeError, ValueError, RecursionError):
+        pass
+    found: dict = {}
+    try:
+        return_line = json.dumps(_without_bytes(response, "", found))
+        failure = None
+    except Exception as e:  # noqa: BLE001  anything at all: the engine must answer
+        return_line, failure = None, e
+    if found:
+        places = ", ".join(p + (f" ({n} values)" if n > 1 else "") for p, n in found.items())
+        _log_rpc_error(method, f"sent raw bytes as text at {places}")
+    if failure is None:
+        return return_line
+    _log_rpc_error(method, f"couldn't send the result: {type(failure).__name__}: {failure}")
+    error = {
+        "code": -32603,
+        "message": f"OpenExtract couldn't send the result of {method}: {type(failure).__name__}: {failure}",
+    }
+    try:
+        return json.dumps({"id": response.get("id"), "error": error})
+    except (TypeError, ValueError):
+        return json.dumps({"id": None, "error": error})
+
 from backup import BackupManager  # noqa: E402
 from messages import MessageExtractor  # noqa: E402
 from contacts import ContactResolver  # noqa: E402
@@ -599,7 +682,8 @@ class SidecarServer:
                 continue
 
             response = self.handle_request(request)
-            _rpc_out.write(json.dumps(response) + "\n")
+            method = request.get("method") if isinstance(request, dict) else None
+            _rpc_out.write(encode_response(response, method) + "\n")
             _rpc_out.flush()
 
 

@@ -15,8 +15,24 @@
 // For the page: `area` is the section it goes in ('backup', 'open' or 'app'), `seen`
 // is the words the app shows, so people can search for them, and `fixedIn` is the
 // version that fixed a bug of ours. Nothing from a private report goes in here.
+//
+// `hides`, if given, lists fixes not to show alongside this one, for a vaguer fix whose
+// advice would be wrong once this one matches (the app shows at most two).
 
 const KNOWN_FIXES = [
+  {
+    id: 'ios6-photos-stop-engine',
+    title: 'Backups made by iOS 6 stop OpenExtract',
+    area: 'open',
+    seen: ['Sidecar exited with code 1', 'Python sidecar is not running'],
+    // python/main.py in 0.12.0 exited when a result held raw bytes, which list_photos gave for
+    // an iOS 6 backup (Photos.sqlite keeps photo UUIDs as bytes there), so every later call
+    // failed with "Python sidecar is not running" (OE-26 to OE-28). Its traceback is in the
+    // report's engine log. Reinstalling, which engine-did-not-start suggests, doesn't help.
+    match: /Object of type bytes is not JSON serializable/,
+    hides: ['engine-did-not-start'],
+    text: "OpenExtract 0.12.0 stops working a few moments after it opens a backup made by iOS 6, when it reads the backup's photos. After that, everything says \"Sidecar exited with code 1\" or \"Python sidecar is not running\". Reinstalling won't help. The next version fixes it: if openextract.app offers a version newer than 0.12.0, install it. Until then, OpenExtract can't show backups made by iOS 6.",
+  },
   {
     id: 'engine-did-not-start',
     title: "Part of OpenExtract didn't start",

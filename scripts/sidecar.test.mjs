@@ -182,6 +182,38 @@ describe('PythonSidecar with a running engine', () => {
     assert.equal((await sidecar.call('echo', { after: true })).params.after, true);
   });
 
+  test('a call that keeps reporting progress runs past its time limit', async () => {
+    // Like a big backup over a slow connection: longer than its limit, but never
+    // a whole limit between two progress reports.
+    const seen = [];
+    sidecar.notificationHandler = n => seen.push(n.params.percent);
+    try {
+      const started = Date.now();
+      assert.deepEqual(await sidecar.call('progress', { count: 8, every: 50 }, 200), { reports: 8 });
+      const elapsed = Date.now() - started;
+      assert.ok(elapsed > 250, `finished in ${elapsed} ms, inside the limit, so it proves nothing`);
+      assert.deepEqual(seen, [1, 2, 3, 4, 5, 6, 7, 8]);
+      assert.equal(sidecar.pending.size, 0);
+    } finally {
+      sidecar.notificationHandler = null;
+    }
+  });
+
+  test('a call that stops reporting progress times out a whole limit after its last report', async () => {
+    const started = Date.now();
+    await assert.rejects(
+      sidecar.call('progress', { count: 3, every: 50, stall: true }, 150),
+      { message: 'Sidecar call timed out: progress' },
+    );
+    // The last report came at about 150 ms, so the limit ran out at about 300.
+    const elapsed = Date.now() - started;
+    assert.ok(elapsed >= 280, `timed out after ${elapsed} ms, counting from the start instead of the last report`);
+    assert.equal(sidecar.pending.size, 0);
+    // Answer the stalled call (late, ignored) so later tests start with nothing held.
+    assert.deepEqual(await sidecar.call('release'), { released: 1 });
+    assert.equal(sidecar.pending.size, 0);
+  });
+
   test('the engine\'s stderr is appended to the log file', async () => {
     await waitFor(() => readLog(logPath).includes('[STDERR] fake engine starting'), { what: 'startup stderr in the log' });
     await sidecar.call('stderr', { text: 'Traceback (most recent call last):\nValueError: bad manifest\n' });
