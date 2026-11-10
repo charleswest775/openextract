@@ -10,6 +10,10 @@ export interface BackupInfo {
   encrypted: boolean;
   size_gb: number | null;
   backup_dir: string;
+  /** The backup stopped partway (python/backup_status.py). */
+  unfinished?: boolean;
+  /** False when there's nothing in it to open; opening it says why. */
+  openable?: boolean;
 }
 
 export function useBackup() {
@@ -74,6 +78,7 @@ export function useBackup() {
         sizeGB: result.info.size_gb ?? 0,
         iosVersion: result.info.product_version,
         backupDir: result.info.backup_dir,
+        unfinished: !!result.info.unfinished,
       });
 
       return { status: 'open', info: result.info };

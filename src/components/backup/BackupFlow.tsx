@@ -258,6 +258,8 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
         lastOpened: new Date().toISOString(),
         iosVersion: selectedDevice.ios_version,
         backupDir: result.backup_path,
+        // This backup just finished; clear a "Didn't finish" left from an earlier try.
+        unfinished: false,
       });
 
       if (onBackupComplete) {

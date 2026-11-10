@@ -936,7 +936,8 @@ class TestStartBackup(unittest.TestCase):
 
         async def _backup(**kwargs):
             path = os.path.join(kwargs["backup_directory"], "abc-123", "video")
-            os.makedirs(os.path.dirname(path))
+            # The engine makes the folder first, to mark it (backup_status.BackupTry).
+            os.makedirs(os.path.dirname(path), exist_ok=True)
             kwargs["filter_callback"](SimpleNamespace(file_name="abc-123/video"))
             kwargs["progress_callback"](40.0)
             for _ in range(3):

@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Back up my iPhone: a big backup that takes more than 2 hours no longer stops partway with "Sidecar call timed out: backup.start" while it's still copying. The app now gives up only after 2 hours with no progress at all
 - Backups made by iOS 6 no longer stop OpenExtract a few moments after they open. Reading their photos used to end the part of OpenExtract that reads backups, so Messages, Contacts, Notes, Photos and everything after failed with "Sidecar exited with code 1", then "Python sidecar is not running", until you quit. Their photos show now, and anything else the engine can't send is reported as an error on that screen instead of stopping it
 - If OpenExtract can't look for the backups on this computer, the first screen says so and has a Look again button. The "Also on this computer" list used to just disappear
+- A backup that stopped partway, made by OpenExtract or another app, is marked "Didn't finish" in your backup lists, and opening it says so above every screen, instead of opening as if it were complete and then failing one section at a time (Calls showed "file is not a database"). What arrived can still be looked at. One that stopped before there was anything to open says so, instead of "No iPhone backups found". OpenExtract's own backups now record when they finish, so this doesn't rely on guesswork (OE-31)
 
 ## [0.12.0] - 2026-11-07
 

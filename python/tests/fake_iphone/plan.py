@@ -257,12 +257,14 @@ def manifest_plist(values: dict) -> bytes:
     }, fmt=plistlib.FMT_BINARY)
 
 
-def status_plist() -> bytes:
+def status_plist(state: str = "finished") -> bytes:
+    """The iPhone's Status.plist. A step can give its "state": "finished" is the only one a real
+    backup's last Status.plist has; what it writes before that isn't in the trace (names only)."""
     return plistlib.dumps({
         "BackupState": "new",
         "Date": datetime.now(timezone.utc).replace(tzinfo=None),
         "IsFullBackup": True,
-        "SnapshotState": "finished",
+        "SnapshotState": state,
         "UUID": str(uuid.uuid4()).upper(),
         "Version": "3.3",
     }, fmt=plistlib.FMT_BINARY)

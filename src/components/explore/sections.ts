@@ -129,4 +129,6 @@ export interface ExploreContext {
   openTab: (tab: Tab, opts?: OpenOptions) => void;
   onBack: () => void;
   openSettings: () => void;
+  /** The backup stopped partway (python/backup_status.py). */
+  unfinished: boolean;
 }
