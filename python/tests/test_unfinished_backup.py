@@ -57,11 +57,11 @@ def _first(ops, name):
 
 def _like_a_real_iphone(ops=None):
     """
-    A backup plan with the iPhone's own Status.plist written in place before the first file, the
-    first move, Snapshot's removal, and after it. The trace of a real backup has these four
-    writes, but not what they say (it keeps names and sizes, never contents): libimobiledevice
-    counts a backup as good only when the last one says "finished", so the earlier ones are
-    modelled as the steps they come before.
+    A backup plan whose Status.plist says what the iPhone is doing. A real iPhone writes it in
+    place four times: before the first file, before the first move, before Snapshot is removed,
+    and after. synthetic_backup() does too, but every one says "finished", because the trace
+    keeps names and sizes, never contents. libimobiledevice counts a backup as good only when
+    the last one says "finished", so the earlier ones are modelled as the steps they come before.
     """
     ops = [op for op in (ops or plans.synthetic_backup())
            if not (op["op"] == "UploadFiles" and [f["path"] for f in op["files"]] == ["{udid}/Status.plist"])]
@@ -184,7 +184,7 @@ def test_cut_off_partway_over_an_older_backup(out):
     assert can_read  # what's there can still be looked at
 
 
-def test_cut_off_while_moving_files_into_place(out):
+def test_cut_off_with_every_file_sent_but_none_moved(out):
     first = run_backup(FakeIPhone(), out)
     assert first.error is None
     _a_week_later(first)
@@ -196,9 +196,34 @@ def test_cut_off_while_moving_files_into_place(out):
     assert {"openextract_try", "snapshot", "status:moving"} <= set(info["unfinished_signs"])
 
 
+def test_cut_off_partway_through_the_moves(out):
+    # A real iPhone moves files out of Snapshot one at a time, 128 to a message, then
+    # Manifest.plist and Manifest.db. This one stops after the first message: some new files are
+    # in place, the rest are still in Snapshot, and the folder's Manifest.db is the older one.
+    first = run_backup(FakeIPhone(), out)
+    assert first.error is None
+    _a_week_later(first)
+    ops = _like_a_real_iphone(plans.synthetic_backup(file_count=300, large_files=()))
+    moves = [i for i, op in enumerate(ops) if op["op"] == "MoveItems"]
+    assert len(moves) >= 3
+    ops.insert(moves[1], {"op": "Drop"})
+    run = run_backup(FakeIPhone(ops), out)
+    assert run.error.startswith(TERMINATED)
+
+    moved = set(ops[moves[0]]["items"].values())
+    assert all((out / dst.replace("{udid}", run.phone.udid)).exists() for dst in moved)
+    assert any(name.startswith("Snapshot/") for name in run.files())
+    info = _the_one_listed(out)
+    assert info["unfinished"] is True and info["openable"] is True
+    assert set(info["unfinished_signs"]) == {"openextract_try", "snapshot", "empty_manifest_plist", "status:moving"}
+    opened, _ = _open_and_read_messages(run)
+    assert opened["status"] == "open" and opened["info"]["unfinished"] is True
+
+
 def test_iphone_hangs_up_before_removing_snapshot(out):
     # Every file and the new Manifest.db are in place, but the iPhone never finished: it would
-    # have removed Snapshot and written its last Status.plist next. Not a success.
+    # have removed Snapshot (now 256 empty folders) and written its last Status.plist next.
+    # Not a success.
     run = run_backup(FakeIPhone(_hang_up_before(_like_a_real_iphone(), "RemoveItems")), out)
     assert run.error.startswith(TERMINATED), run.error
 
