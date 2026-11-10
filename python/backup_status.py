@@ -100,6 +100,12 @@ def _file_facts(path: str) -> Optional[dict]:
     return {"size": st.st_size, "mtime": st.st_mtime}
 
 
+def _index_facts(backup_dir: str) -> Optional[dict]:
+    """Size and time of the backup's list of files: Manifest.db, or Manifest.mbdb from iOS 9 and earlier."""
+    return (_file_facts(os.path.join(backup_dir, _MANIFEST_DB))
+            or _file_facts(os.path.join(backup_dir, _MANIFEST_MBDB)))
+
+
 def read_marker(backup_dir: str) -> Optional[dict]:
     try:
         with open(os.path.join(backup_dir, MARKER_FILE), encoding="utf-8") as f:
@@ -134,15 +140,16 @@ def check(backup_dir: str) -> Completion:
     signs: list[str] = []
     manifest_db = os.path.join(backup_dir, _MANIFEST_DB)
     db = _file_facts(manifest_db)
-    has_index = db is not None or os.path.exists(os.path.join(backup_dir, _MANIFEST_MBDB))
+    index = _index_facts(backup_dir)
+    has_index = index is not None
     marker = read_marker(backup_dir)
 
     if marker and marker["state"] == "started":
         started_at = marker.get("started_at")
-        # A try that got as far as putting its own Manifest.db in place is judged on the other
-        # signs: it may have finished just before the engine stopped.
-        new_index = (db is not None and isinstance(started_at, (int, float))
-                     and db["mtime"] >= started_at - _MTIME_SLACK_S)
+        # A try that got as far as putting its own Manifest.db (or Manifest.mbdb) in place is
+        # judged on the other signs: it may have finished just before the engine stopped.
+        new_index = (index is not None and isinstance(started_at, (int, float))
+                     and index["mtime"] >= started_at - _MTIME_SLACK_S)
         if not new_index:
             signs.append("openextract_try")
     snapshot = os.path.isdir(os.path.join(backup_dir, SNAPSHOT_DIR))
@@ -164,7 +171,7 @@ def check(backup_dir: str) -> Completion:
     # keys. An encrypted Manifest.db can't be read without them.
     keys_lost = db is not None and empty_manifest_plist and not _is_plain_sqlite(manifest_db)
     confirmed = (not signs and marker is not None and marker["state"] == "finished"
-                 and _same_file(marker.get("manifest_db"), db))
+                 and _same_file(marker.get("manifest_db"), index))
     return Completion(
         finished=not signs,
         signs=signs,
@@ -183,8 +190,8 @@ def _same_file(recorded, now: Optional[dict]) -> bool:
 def finished_since(backup_dir: str, since: float) -> bool:
     """A backup that started at `since` put its own Manifest.db in place and shows no sign of
     stopping partway: for when the iPhone hangs up instead of reporting the result."""
-    db = _file_facts(os.path.join(backup_dir, _MANIFEST_DB))
-    return db is not None and db["mtime"] >= since - _MTIME_SLACK_S and check(backup_dir).finished
+    index = _index_facts(backup_dir)
+    return index is not None and index["mtime"] >= since - _MTIME_SLACK_S and check(backup_dir).finished
 
 
 # ── The marker ───────────────────────────────────────────────────────────────
@@ -202,7 +209,7 @@ def _write_marker(backup_dir: str, marker: dict) -> None:
     os.replace(tmp, path)
 
 
-_WATCHED = ("Info.plist", "Status.plist", "Manifest.plist", _MANIFEST_DB)
+_WATCHED = ("Info.plist", "Status.plist", "Manifest.plist", _MANIFEST_DB, _MANIFEST_MBDB)
 
 
 def _folder_state(backup_dir: str) -> tuple:
@@ -275,7 +282,8 @@ class BackupTry:
                 "started_at": self.started_at,
                 "finished": _iso(now),
                 "finished_at": now,
-                "manifest_db": _file_facts(os.path.join(self.backup_dir, _MANIFEST_DB)),
+                # Manifest.db, or Manifest.mbdb from iOS 9 and earlier.
+                "manifest_db": _index_facts(self.backup_dir),
             })
         except OSError as e:
             self._log(f"couldn't write {MARKER_FILE} in {self.backup_dir!r}: {e!r}")

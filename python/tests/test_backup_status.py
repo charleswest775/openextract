@@ -179,6 +179,23 @@ def test_marker_started_but_the_try_put_its_own_manifest_db_in_place(folder):
     assert backup_status.check(str(folder)).finished
 
 
+def test_marker_started_on_an_ios_9_backup(folder):
+    # iOS 9 and earlier list their files in Manifest.mbdb: a new one clears the marker's
+    # "started", an older one doesn't.
+    finished_backup(folder)
+    (folder / "Manifest.db").unlink()
+    (folder / "Manifest.mbdb").write_bytes(b"mbdb\x05\x00")
+    _old(folder / "Manifest.mbdb")
+    attempt = backup_status.BackupTry(str(folder)).start()
+    assert backup_status.check(str(folder)).signs == ["openextract_try"]
+    os.utime(folder / "Manifest.mbdb", (attempt.started_at + 5, attempt.started_at + 5))
+    assert backup_status.check(str(folder)).finished
+    assert backup_status.finished_since(str(folder), attempt.started_at)
+    attempt.finished()
+    marker = backup_status.read_marker(str(folder))
+    assert marker["manifest_db"]["size"] == 6 and backup_status.check(str(folder)).confirmed
+
+
 def test_marker_finished(folder):
     finished_backup(folder)
     attempt = backup_status.BackupTry(str(folder)).start()

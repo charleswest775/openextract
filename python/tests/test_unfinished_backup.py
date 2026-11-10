@@ -28,7 +28,8 @@ import device_backup  # noqa: E402
 pytestmark = pytest.mark.fake_iphone
 
 MiB = plans.MiB
-TERMINATED = "The connection to your iPhone was terminated unexpectedly."
+# What the app says when the connection drops after data has arrived (every scenario here).
+DROPPED = device_backup._CONNECTION_DROPPED.split("{copied}")[0]
 
 
 @pytest.fixture(autouse=True)
@@ -154,7 +155,7 @@ def test_cut_off_partway_into_an_empty_folder(out):
     # The first backup of this iPhone stops partway: the iPhone hasn't sent its Manifest.db yet,
     # so there's nothing to open, and the app says so instead of "No iPhone backups found".
     run = run_backup(FakeIPhone(_like_a_real_iphone(), drop_after_bytes=12 * MiB), out)
-    assert run.error.startswith(TERMINATED)
+    assert run.error.startswith(DROPPED)
 
     info = _the_one_listed(out)
     assert info["unfinished"] is True and info["openable"] is False
@@ -174,7 +175,7 @@ def test_cut_off_partway_over_an_older_backup(out):
     assert first.error is None
     _a_week_later(first)
     run = run_backup(FakeIPhone(_like_a_real_iphone(), drop_after_bytes=6 * MiB), out)
-    assert run.error.startswith(TERMINATED)
+    assert run.error.startswith(DROPPED)
 
     info = _the_one_listed(out)
     assert info["unfinished"] is True and info["openable"] is True
@@ -189,7 +190,7 @@ def test_cut_off_with_every_file_sent_but_none_moved(out):
     assert first.error is None
     _a_week_later(first)
     run = run_backup(FakeIPhone(_hang_up_before(_like_a_real_iphone(), "MoveItems")), out)
-    assert run.error.startswith(TERMINATED)
+    assert run.error.startswith(DROPPED)
 
     info = _the_one_listed(out)
     assert info["unfinished"] is True and info["openable"] is True
@@ -208,7 +209,7 @@ def test_cut_off_partway_through_the_moves(out):
     assert len(moves) >= 3
     ops.insert(moves[1], {"op": "Drop"})
     run = run_backup(FakeIPhone(ops), out)
-    assert run.error.startswith(TERMINATED)
+    assert run.error.startswith(DROPPED)
 
     moved = set(ops[moves[0]]["items"].values())
     assert all((out / dst.replace("{udid}", run.phone.udid)).exists() for dst in moved)
@@ -225,7 +226,7 @@ def test_iphone_hangs_up_before_removing_snapshot(out):
     # have removed Snapshot (now 256 empty folders) and written its last Status.plist next.
     # Not a success.
     run = run_backup(FakeIPhone(_hang_up_before(_like_a_real_iphone(), "RemoveItems")), out)
-    assert run.error.startswith(TERMINATED), run.error
+    assert run.error.startswith(DROPPED), run.error
 
     info = _the_one_listed(out)
     assert info["unfinished"] is True and info["openable"] is True
