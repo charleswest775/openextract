@@ -224,8 +224,8 @@ def test_connection_reset_partway(out):
 def test_slow_disk_keeps_reporting_bytes(out, monkeypatch):
     # While one big file trickles in, the device's percentage stands still; the bytes copied
     # must keep moving, both for the screen and for the app's time limit (PR #222).
-    plan = plans.synthetic_backup(file_count=20, large_files=(12 * MiB,))
-    slow_disk(monkeypatch, bytes_per_second=24 * MiB)
+    plan = plans.synthetic_backup(file_count=20, large_files=(6 * MiB,))
+    slow_disk(monkeypatch, bytes_per_second=12 * MiB)
     run = run_backup(FakeIPhone(plan), out)
 
     assert run.error is None

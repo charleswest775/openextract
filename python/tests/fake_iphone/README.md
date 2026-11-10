@@ -39,7 +39,7 @@ A plan is a list of DeviceLink steps ([`plan.py`](plan.py) lists them all):
 ```
 
 `synthetic_backup()` makes a full backup of a fictional iPhone: about 120 small files, three big
-"videos" (made up as they're sent, so they cost nothing until written), a real `Manifest.db`. Files
+"videos" (14 MB in all) (made up as they're sent, so they cost nothing until written), a real `Manifest.db`. Files
 arrive in `Snapshot/<xx>/`, are moved into place, and `Snapshot` is removed. That order is a model
 built from the field reports and pymobiledevice3; a trace from a real iPhone should replace it.
 

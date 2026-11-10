@@ -89,7 +89,7 @@ def _sample_files(count: int, large: Iterable[int]) -> list[dict]:
 
 def synthetic_backup(
     file_count: int = 120,
-    large_files: Iterable[int] = (8 * MiB, 8 * MiB, 12 * MiB),
+    large_files: Iterable[int] = (3 * MiB, 3 * MiB, 5 * MiB),
     batch_size: int = 40,
     snapshot: bool = True,
 ) -> list[dict]:
@@ -116,9 +116,9 @@ def synthetic_backup(
         ops.append({"op": "CreateDirectory", "path": f"{prefix}/{xx}"})
 
     # Small files go in batches, big ones in a batch of their own.
-    regular = [f for f in files if f["size"] < 4 * MiB]
+    regular = [f for f in files if f["size"] < 2 * MiB]
     batches = [regular[i:i + batch_size] for i in range(0, len(regular), batch_size)]
-    batches += [[f] for f in files if f["size"] >= 4 * MiB]
+    batches += [[f] for f in files if f["size"] >= 2 * MiB]
     for i, batch in enumerate(batches):
         ops.append({"op": "UploadFiles", "progress": round(1 + 97 * i / len(batches), 2), "files": batch})
 
