@@ -53,3 +53,13 @@ test('Windows paths match without case or a trailing backslash', () => {
 test('nothing found offers nothing', () => {
   assert.deepEqual(notYetOpened([], [session('A', '/x')]), []);
 });
+
+test('when looking for backups fails, the home screen says so in plain words', () => {
+  const { lookFailedMessage } = load('src/lib/foundBackups.ts');
+  assert.equal(lookFailedMessage('Sidecar call timed out: list_backups'),
+    "OpenExtract couldn't look for other backups on this computer.");
+  // A stopped engine stays stopped until the app is reopened, so say that (OE-27).
+  for (const error of ['Python sidecar is not running', 'Sidecar exited with code 1']) {
+    assert.match(lookFailedMessage(error), /engine stopped\. Quit and reopen OpenExtract to look again\.$/);
+  }
+});

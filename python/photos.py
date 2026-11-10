@@ -28,6 +28,7 @@ import os
 import shutil
 import sqlite3
 import sys
+import uuid
 import weakref
 from typing import Optional
 
@@ -288,9 +289,15 @@ class PhotoExtractor:
                 _col_or_null("ZLATITUDE"), _col_or_null("ZLONGITUDE"), "a.Z_PK",
             ])
 
+            # iOS 6 keeps ZUUID as the UUID's 16 raw bytes (a BLOB column there),
+            # which list_photos gives as the uppercase string; match either form.
+            try:
+                uuid_bytes = uuid.UUID(str(asset_uuid)).bytes
+            except ValueError:
+                uuid_bytes = None
             row = conn.execute(
-                f"SELECT {meta_cols} FROM {assets} a WHERE a.ZUUID = ?",
-                (asset_uuid,)
+                f"SELECT {meta_cols} FROM {assets} a WHERE a.ZUUID = ? OR a.ZUUID = ?",
+                (asset_uuid, uuid_bytes)
             ).fetchone()
 
             if not row:

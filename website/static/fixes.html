@@ -26,6 +26,15 @@
     "mainEntity": [
       {
         "@type": "Question",
+        "name": "Backups made by iOS 6 stop OpenExtract",
+        "url": "https://www.openextract.app/fixes#ios6-photos-stop-engine",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "OpenExtract 0.12.0 stops working a few moments after it opens a backup made by iOS 6, when it reads the backup's photos. After that, everything says \"Sidecar exited with code 1\" or \"Python sidecar is not running\". Reinstalling won't help. The next version fixes it: if openextract.app offers a version newer than 0.12.0, install it. Until then, OpenExtract can't show backups made by iOS 6."
+        }
+      },
+      {
+        "@type": "Question",
         "name": "Part of OpenExtract didn't start",
         "url": "https://www.openextract.app/fixes#engine-did-not-start",
         "acceptedAnswer": {
@@ -208,6 +217,11 @@
       </div>
 
       <h2 id="open">Opening a backup</h2>
+      <div class="fix" id="ios6-photos-stop-engine">
+        <h3>Backups made by iOS 6 stop OpenExtract</h3>
+        <p class="fix__seen">What you see: <code>Sidecar exited with code 1</code> or <code>Python sidecar is not running</code></p>
+        <p>OpenExtract 0.12.0 stops working a few moments after it opens a backup made by iOS 6, when it reads the backup's photos. After that, everything says &quot;Sidecar exited with code 1&quot; or &quot;Python sidecar is not running&quot;. Reinstalling won't help. The next version fixes it: if openextract.app offers a version newer than 0.12.0, install it. Until then, OpenExtract can't show backups made by iOS 6.</p>
+      </div>
       <div class="fix" id="backup-password">
         <h3>The password for an encrypted backup</h3>
         <p class="fix__seen">What you see: <code>Incorrect password. Please try again.</code></p>
@@ -305,6 +319,7 @@
         <li><a href="/vs-iexplorer">vs iExplorer</a></li>
         <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
         <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
       </ul>
     </div>
     <div>
