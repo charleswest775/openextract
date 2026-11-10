@@ -2,17 +2,26 @@
 Record what a real iPhone sends during a backup, as a trace the fake iPhone can replay.
 
 The trace holds each DeviceLink message's name, paths, sizes and progress, and the iPhone's
-final answer. It never holds file contents. The iPhone's own names for files (which show app
-names and photo file names) are replaced by a hash unless --keep-names is given, and the UDID
-by "{udid}". Backup paths are already hashes, apart from Manifest.db and the like.
+final answer. It never holds file contents, and by default it's scrubbed (scrub_ops()):
+
+- a file ID (SHA-1 of the file's domain and path, guessable with a dictionary of known paths)
+  keeps its first two characters, its <xx> folder, and gets a salted hash for the rest; the salt
+  is random and thrown away;
+- the iPhone's own file names become file-000001, file-000002, ...;
+- sizes are rounded to two significant figures;
+- the UDID becomes "{udid}".
+
+--raw keeps all of it, for looking at locally; don't commit a raw trace.
 
 On the computer with the iPhone plugged in, from the repository's root:
 
     python python/tests/fake_iphone/recorder.py --out D:\\trace-backup --trace D:\\backup-trace.jsonl
 
 That makes a real backup into --out (an empty folder) through OpenExtract's engine, as the app
-does, and writes the trace. Copy the trace into python/tests/fake_iphone/traces/ and
-test_replay_trace replays it on every test run.
+does, and writes the trace. A trace in python/tests/fake_iphone/traces/ is replayed by
+test_replay_trace on every test run. To scrub a trace recorded raw or by an older recorder:
+
+    python python/tests/fake_iphone/recorder.py scrub raw-trace.jsonl scrubbed-trace.jsonl
 """
 
 from __future__ import annotations
@@ -20,7 +29,8 @@ from __future__ import annotations
 import argparse
 import contextlib
 import hashlib
-import json
+import os
+import re
 import sys
 import threading
 import time
@@ -30,10 +40,10 @@ from typing import Any, Iterator, Optional, Union
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from fake_iphone.plan import UDID_PLACEHOLDER
+    from fake_iphone.plan import METADATA_FILES, UDID_PLACEHOLDER, load_trace, save_trace
     from fake_iphone.real_modules import module, real_pymobiledevice3
 else:
-    from .plan import UDID_PLACEHOLDER
+    from .plan import METADATA_FILES, UDID_PLACEHOLDER, load_trace, save_trace
     from .real_modules import module, real_pymobiledevice3
 
 _FILE_OPS = {
@@ -45,10 +55,57 @@ _FILE_OPS = {
 }
 
 
+_FILE_ID = re.compile(r"(?<![0-9a-fA-F])[0-9a-f]{40}(?![0-9a-fA-F])")
+_KEPT_NAMES = set(METADATA_FILES) | {"Manifest.mbdx", "Snapshot"}
+
+
+def _round(size: Any) -> Any:
+    """Two significant figures: 52133 -> 52000, 8137974512 -> 8100000000."""
+    if not isinstance(size, int) or isinstance(size, bool) or size < 100:
+        return size
+    digits = len(str(size)) - 2
+    return round(size, -digits)
+
+
+def scrub_ops(ops: list[dict], salt: Optional[bytes] = None) -> list[dict]:
+    """A copy of a trace that doesn't give away the iPhone's file names, IDs or exact sizes."""
+    salt = salt if salt is not None else os.urandom(16)
+    names: dict[str, str] = {}
+
+    def file_id(match: re.Match) -> str:
+        found = match.group(0)
+        return found[:2] + hashlib.sha1(salt + found.encode()).hexdigest()[2:]
+
+    def path(value: Any) -> Any:
+        return _FILE_ID.sub(file_id, value) if isinstance(value, str) else value
+
+    def name(value: str) -> str:
+        if value.rsplit("/", 1)[-1] in _KEPT_NAMES:
+            return value
+        return names.setdefault(value, f"file-{len(names) + 1:06d}")
+
+    scrubbed = []
+    for op in ops:
+        op = dict(op)
+        if "files" in op:
+            op["files"] = [dict(f, path=path(f["path"]), device_name=name(f.get("device_name", f["path"])),
+                                size=_round(f.get("size", 0))) for f in op["files"]]
+        if "items" in op:
+            op["items"] = {path(k): path(v) for k, v in op["items"].items()}
+        if "paths" in op:
+            op["paths"] = [path(p) for p in op["paths"]]
+        for key in ("path", "src", "dst"):
+            if key in op:
+                op[key] = path(op[key])
+        if isinstance(op.get("content"), dict) and "ErrorDescription" in op["content"]:
+            op["content"] = dict(op["content"], ErrorDescription=path(op["content"]["ErrorDescription"]))
+        scrubbed.append(op)
+    return scrubbed
+
+
 class _Trace:
-    def __init__(self, udid: Optional[str], keep_names: bool) -> None:
+    def __init__(self, udid: Optional[str]) -> None:
         self.udid = udid
-        self.keep_names = keep_names
         self.ops: list[dict] = []
         self.t0: Optional[float] = None
         self._lock = threading.Lock()
@@ -71,11 +128,6 @@ class _Trace:
         if isinstance(value, bytes):
             return f"<{len(value)} bytes>"
         return value if isinstance(value, (int, float, bool)) or value is None else repr(value)
-
-    def device_name(self, name: str) -> str:
-        if self.keep_names:
-            return name
-        return "sha1:" + hashlib.sha1(name.encode("utf-8", "surrogateescape")).hexdigest()[:16]
 
     def message(self, message: list) -> None:
         command = message[0]
@@ -114,12 +166,15 @@ def _number(message: list, index: int) -> Any:
 
 
 @contextlib.contextmanager
-def record_devicelink(trace_path: Union[str, Path], udid: Optional[str] = None, keep_names: bool = False) -> Iterator[list]:
-    """Record every DeviceLink session in this process while the block runs; write the trace after."""
+def record_devicelink(trace_path: Union[str, Path], udid: Optional[str] = None, raw: bool = False) -> Iterator[list]:
+    """
+    Record every DeviceLink session in this process while the block runs; write the trace after,
+    scrubbed unless raw=True.
+    """
     with real_pymobiledevice3():
         device_link = module("pymobiledevice3.services.device_link")
     DeviceLink = device_link.DeviceLink
-    trace = _Trace(udid, keep_names)
+    trace = _Trace(udid)
     original_receive = DeviceLink.receive_message
     original_upload = DeviceLink.upload_files
 
@@ -155,7 +210,7 @@ def record_devicelink(trace_path: Union[str, Path], udid: Optional[str] = None, 
             entries = []
             for file_name, device_name in files:
                 path = self.root_path / file_name
-                entry = {"path": file_name, "device_name": trace.device_name(device_name),
+                entry = {"path": file_name, "device_name": device_name,
                          "size": path.stat().st_size if path.is_file() else 0}
                 if file_name in failed:
                     entry["error"] = "the iPhone couldn't send this file"
@@ -169,17 +224,24 @@ def record_devicelink(trace_path: Union[str, Path], udid: Optional[str] = None, 
     finally:
         DeviceLink.receive_message = original_receive
         DeviceLink.upload_files = original_upload
-        with open(trace_path, "w", encoding="utf-8", newline="\n") as f:
-            for op in trace.ops:
-                f.write(json.dumps(op, sort_keys=True) + "\n")
+        save_trace(trace.ops if raw else scrub_ops(trace.ops), trace_path)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["scrub"]:
+        if len(argv) != 3:
+            print("usage: recorder.py scrub <trace.jsonl> <scrubbed.jsonl>", file=sys.stderr)
+            return 2
+        save_trace(scrub_ops(load_trace(argv[1])), argv[2])
+        print(f"Wrote {argv[2]}")
+        return 0
+
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", required=True, help="an empty folder for the backup")
     parser.add_argument("--trace", required=True, help="where to write the trace (.jsonl)")
     parser.add_argument("--udid", help="the iPhone to back up (default: the only one connected)")
-    parser.add_argument("--keep-names", action="store_true", help="keep the iPhone's own file names in the trace")
+    parser.add_argument("--raw", action="store_true", help="don't scrub the trace (for looking at locally only)")
     args = parser.parse_args(argv)
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -197,7 +259,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     def notify(phase, percent, files_done, files_total, bytes_done=0):
         print(f"\r{phase:<12} {percent:3d}%  {bytes_done / 1e9:7.2f} GB", end="", flush=True)
 
-    with record_devicelink(args.trace, udid=udid, keep_names=args.keep_names) as ops:
+    with record_devicelink(args.trace, udid=udid, raw=args.raw) as ops:
         try:
             result = manager.start_backup(udid, args.out, False, None, notify)
             print(f"\nBackup finished: {result}")

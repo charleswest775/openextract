@@ -45,6 +45,7 @@ class FakeIPhone:
     locked            the iPhone is locked: lockdown refuses to start services
     close_after_finish  the iPhone closes the connection right after its final answer
     pace              replay a recorded trace at its own pace, sped up this many times
+    size_cap          send at most this many bytes of each file, to replay a big trace quickly
 
     Hooks: phone.before("MoveItems", fn) calls fn(op) in the iPhone's thread just before the
     first MoveItems is sent, e.g. to lock a folder at the moment it matters.
@@ -70,6 +71,7 @@ class FakeIPhone:
         sync_lock_busy: int = 0,
         close_after_finish: bool = False,
         pace: Optional[float] = None,
+        size_cap: Optional[int] = None,
         disk_used: int = 40 * 10**9,
         disk_capacity: int = 128 * 10**9,
     ) -> None:
@@ -102,6 +104,7 @@ class FakeIPhone:
         self.sync_lock_busy = sync_lock_busy
         self.close_after_finish = close_after_finish
         self.pace = pace
+        self.size_cap = size_cap
 
         self.connected = True
         self.attempts = 0
@@ -151,6 +154,10 @@ class FakeIPhone:
 
     def log(self, event: str) -> None:
         self.events.append((round(time.monotonic() - self._t0, 3), event))
+
+    def size_of(self, f: dict) -> int:
+        """Bytes the iPhone sends for a file in the plan."""
+        return f["size"] if self.size_cap is None else min(f["size"], self.size_cap)
 
     # ── used by services ──
     def start_attempt(self) -> int:

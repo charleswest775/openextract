@@ -71,17 +71,18 @@ HANG_TIMEOUT_S = 60.0
 
 
 def run_backup(phone: FakeIPhone, output_dir: Path, *, encrypted: bool = False,
-               password: Optional[str] = None) -> BackupRun:
+               password: Optional[str] = None, hang_timeout: Optional[float] = None) -> BackupRun:
     run = BackupRun(phone=phone, output_dir=Path(output_dir))
     t0 = time.monotonic()
     hung = threading.Event()
 
     def give_up() -> None:
         hung.set()
-        phone.log(f"watchdog: no result after {HANG_TIMEOUT_S:.0f}s, unplugging")
+        phone.log(f"watchdog: no result after {limit:.0f}s, unplugging")
         phone.unplug()
 
-    watchdog = threading.Timer(HANG_TIMEOUT_S, give_up)
+    limit = hang_timeout or HANG_TIMEOUT_S
+    watchdog = threading.Timer(limit, give_up)
     watchdog.daemon = True
 
     # main.py's backup.start notify, recorded instead of written to stdout.
@@ -104,7 +105,7 @@ def run_backup(phone: FakeIPhone, output_dir: Path, *, encrypted: bool = False,
             watchdog.cancel()
     run.seconds = time.monotonic() - t0
     assert not hung.is_set(), (
-        f"the backup was still running after {HANG_TIMEOUT_S:.0f}s; the fake iPhone's last events: "
+        f"the backup was still running after {limit:.0f}s; the fake iPhone's last events: "
         f"{phone.events[-15:]}; the engine then reported: {run.error!r}")
     assert not phone.errors, "the fake iPhone itself failed:\n" + "\n".join(phone.errors)
     return run

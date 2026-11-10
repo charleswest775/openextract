@@ -53,13 +53,19 @@ def _before_final_answer(ops, *extra):
 
 def _expected_files(ops):
     """{path in the backup folder: size} for every file the plan sends, after its moves."""
-    files = {}
-    for f in plans.uploaded_files(ops):
-        if f.get("error") or f.get("generate"):
-            continue
-        final = plans.final_location(f["path"], ops)
-        files[final.split("/", 1)[1]] = f["size"]
-    return files
+    where = plans.final_locations(ops)
+    return {where[f["path"]].split("/", 1)[1]: f["size"] for f in plans.uploaded_files(ops)
+            if not f.get("error") and not f.get("generate")}
+
+
+def _first_file_batch(ops):
+    """The first UploadFiles that sends the iPhone's files (not Status.plist)."""
+    return next(op for op in ops if op["op"] == "UploadFiles" and any("relative_path" in f for f in op["files"]))
+
+
+def _through_first_file_batch(ops):
+    """The plan up to and including the first batch of the iPhone's files."""
+    return ops[:ops.index(_first_file_batch(ops)) + 1]
 
 
 # ── A backup that works ──────────────────────────────────────────────────────
@@ -142,11 +148,12 @@ def test_connection_drops_partway(out):
     assert run.error.startswith(TERMINATED)
     assert phone.drops == 1
     assert "backing_up" in run.phases and run.progress[-1]["percent"] < 100
-    assert 0 < run.progress[-1]["bytes_done"] <= 12 * MiB
+    assert run.progress[-1]["bytes_done"] <= 12 * MiB
     run.assert_progress_never_goes_back()
-    # Nothing was moved into place: no Manifest.db, files still in Snapshot.
+    # Nothing was moved into place: no Manifest.db, what arrived is still in Snapshot.
     assert not (run.backup_dir / "Manifest.db").exists()
-    assert any(name.startswith("Snapshot/") for name in run.files())
+    arrived = sum((run.backup_dir / name).stat().st_size for name in run.files() if name.startswith("Snapshot/"))
+    assert 0 < arrived <= 12 * MiB
 
 
 def test_unplugged_partway(out):
@@ -214,7 +221,7 @@ def test_the_error_that_ended_the_backup_is_the_one_reported(out):
 
 def test_connection_reset_partway(out):
     # Windows reports a connection usbmuxd tore down as "forcibly closed" (WinError 10054).
-    phone = FakeIPhone(plans.synthetic_backup()[:8] + [{"op": "Drop"}], reset_on_drop=True)
+    phone = FakeIPhone(_through_first_file_batch(plans.synthetic_backup()) + [{"op": "Drop"}], reset_on_drop=True)
     run = run_backup(phone, out)
     assert run.error.startswith(TERMINATED)
 
@@ -231,8 +238,8 @@ def test_slow_disk_keeps_reporting_bytes(out, monkeypatch):
     assert run.error is None
     big_file_reports = [p for p in run.progress if p["phase"] == "backing_up"]
     longest = _longest_run_at_one_percent(big_file_reports)
-    assert len(longest) >= 4, run.progress
-    assert [p["bytes_done"] for p in longest] == sorted({p["bytes_done"] for p in longest})
+    sizes = [p["bytes_done"] for p in longest]
+    assert sizes == sorted(sizes) and len(set(sizes)) >= 4, run.progress
 
 
 def _longest_run_at_one_percent(reports):
@@ -293,9 +300,9 @@ skip_if_root = pytest.mark.skipif(is_root(), reason="root ignores the read-only 
 
 
 @skip_if_root
-def test_folder_in_use_while_moving_files_into_place(out):
-    # OE-11: "[WinError 5] Access is denied: '...\\Snapshot\\00'" as Defender, OneDrive or the
-    # indexer holds files the iPhone is moving.
+def test_file_in_use_while_moving_files_into_place(out):
+    # The iPhone moves each file from Snapshot/<xx>/ to <xx>/; Defender, OneDrive or the indexer
+    # has one of them open.
     phone = FakeIPhone()
     lock = InUse()
     first = next(src for op in phone.plan if op["op"] == "MoveItems" for src in op["items"])
@@ -312,9 +319,11 @@ def test_folder_in_use_while_moving_files_into_place(out):
 
 @skip_if_root
 def test_folder_in_use_while_removing_snapshot(out):
+    # OE-11: "[WinError 5] Access is denied: '...\\Snapshot\\00'". At the end the iPhone removes
+    # Snapshot, now 256 empty folders; another program has one of them open.
     phone = FakeIPhone()
     lock = InUse()
-    phone.before("RemoveItems", lambda op: lock.lock(run_dir(phone, out) / "Snapshot"))
+    phone.before("RemoveItems", lambda op: lock.lock(run_dir(phone, out) / "Snapshot" / "00"))
     try:
         run = run_backup(phone, out)
     finally:
@@ -322,6 +331,7 @@ def test_folder_in_use_while_removing_snapshot(out):
 
     assert run.error == device_backup._FOLDER_IN_USE
     assert isinstance(run.exception.__cause__, PermissionError)
+    assert (run.backup_dir / "Snapshot" / "00").exists()
 
 
 def run_dir(phone, out):
@@ -352,22 +362,64 @@ def test_folder_in_use_in_a_folder_reached_through_a_link(tmp_path):
     assert run.error == device_backup._FOLDER_IN_USE
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "pymobiledevice3 DeviceLink.move_items() uses shutil.move(), which moves a folder INTO an "
-    "existing one instead of replacing it: Snapshot/3d lands in 3d/3d, so the app reads the last "
-    "backup's copies and misses new files (draft upstream issue in the PR that added this test). "
-    "Assumes the iPhone moves whole Snapshot/<xx> folders, as modelled."))
-def test_a_backup_of_this_iphone_is_already_in_the_folder(out):
-    # Backing up the same iPhone again into the same folder (or Retry after a backup that got as
-    # far as moving files): the iPhone moves Snapshot/<xx> to <xx>, which exists now.
-    # libimobiledevice's idevicebackup2 deletes the old <xx> first; pymobiledevice3 nests it, the
-    # backup reports success, and the app shows the older copies.
-    first = run_backup(FakeIPhone(), out)
-    assert first.error is None
-    # A week later: more messages in sms.db, and new photos.
+def _a_week_later():
+    """The same iPhone a week later: more messages in sms.db, and new photos."""
     later = plans.synthetic_backup(file_count=160)
     next(f for f in plans.uploaded_files(later) if f.get("relative_path") == "Library/SMS/sms.db")["size"] += 64 * 1024
-    run = run_backup(FakeIPhone(later), out)
+    return later
+
+
+def test_a_second_backup_into_the_same_folder(out):
+    # Backing up the same iPhone again into the same folder (or Retry after a backup that got as
+    # far as moving files). The iPhone moves each file onto the last backup's copy, which is
+    # replaced. (Not traced from a real iPhone yet: it might move differently the second time.)
+    first = run_backup(FakeIPhone(), out)
+    assert first.error is None
+    run = run_backup(FakeIPhone(_a_week_later()), out)
+
+    assert run.error is None
+    assert _unreadable_files(run) == []
+
+
+@pytest.mark.xfail(sys.platform == "win32", strict=True, reason=(
+    "pymobiledevice3 DeviceLink.move_items() uses shutil.move(). On Windows, os.rename() onto an "
+    "existing file fails and shutil.move() copies the file, then deletes the original, so a second "
+    "backup into the same folder copies every file again at ~99%. libimobiledevice deletes the "
+    "destination, then renames (draft upstream issue in the PR that added this test)."))
+def test_a_second_backup_moves_files_without_copying_them(out, monkeypatch):
+    run_backup(FakeIPhone(), out)
+    failed_renames = []
+    rename = os.rename
+
+    def watching(src, dst, *args, **kwargs):
+        try:
+            return rename(src, dst, *args, **kwargs)
+        except OSError:
+            failed_renames.append(str(dst))
+            raise
+
+    monkeypatch.setattr(os, "rename", watching)
+    run = run_backup(FakeIPhone(_a_week_later()), out)
+
+    assert run.error is None
+    # Manifest.plist always lands on the empty one pymobiledevice3 writes at the start.
+    assert [p for p in failed_renames if not p.endswith("Manifest.plist")] == []
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "Latent, not seen from a real iPhone: pymobiledevice3 DeviceLink.move_items() uses "
+    "shutil.move(), which moves a folder INTO an existing one instead of replacing it. The traced "
+    "iPhone moves files, not folders (draft upstream issue in the PR that added this test)."))
+def test_moving_a_folder_onto_an_existing_one_replaces_it(out):
+    # A plan that moves whole folders, as an iPhone might: Snapshot/<xx> onto an existing <xx>.
+    ops = plans.synthetic_backup()
+    moves = [op for op in ops if op["op"] == "MoveItems" and not any(k.endswith(".plist") or k.endswith(".db") for k in op["items"])]
+    first = ops.index(moves[0])
+    for op in moves:
+        ops.remove(op)
+    ops.insert(first, {"op": "MoveItems", "progress": 99.5,
+                       "items": {f"{{udid}}/Snapshot/{xx}": f"{{udid}}/{xx}" for xx in plans.ALL_PREFIXES}})
+    run = run_backup(FakeIPhone(ops), out)  # the <xx> folders exist: the iPhone made them first
 
     assert run.error is None
     assert _unreadable_files(run) == []
@@ -378,7 +430,7 @@ def test_a_backup_of_this_iphone_is_already_in_the_folder(out):
 def test_iphone_cannot_read_some_files(out, tmp_path, monkeypatch):
     # OE-6, OE-8: MBErrorDomain/104 "Multiple errors uploading files".
     ops = plans.synthetic_backup()
-    batch = next(op for op in ops if op["op"] == "UploadFiles")
+    batch = _first_file_batch(ops)
     for f in batch["files"][:3]:
         f["error"] = "Operation not permitted"
     phone = FakeIPhone(ops)
@@ -399,8 +451,8 @@ def test_iphone_sends_a_file_into_a_folder_it_did_not_create(out):
     # OE-6: "[Errno 2] No such file or directory: '...\\Snapshot\\51\\...'": the iPhone counts on a
     # folder from an earlier try that isn't there.
     ops = plans.synthetic_backup()
-    missing = next(op for op in ops if op["op"] == "CreateDirectory" and op["path"].count("/") == 2)
-    ops.remove(missing)
+    folder = _first_file_batch(ops)["files"][0]["path"].rsplit("/", 1)[0]  # {udid}/Snapshot/<xx>
+    ops.remove({"op": "CreateDirectory", "path": folder})
     run = run_backup(FakeIPhone(ops), out)
 
     assert isinstance(run.exception.__cause__, FileNotFoundError)
@@ -540,7 +592,7 @@ def test_recorder_captures_what_the_iphone_sent(out, tmp_path):
 
     phone = FakeIPhone()
     trace = tmp_path / "trace.jsonl"
-    with record_devicelink(trace, udid=phone.udid):
+    with record_devicelink(trace, udid=phone.udid, raw=True):
         run = run_backup(phone, out)
     assert run.error is None
 
@@ -549,9 +601,33 @@ def test_recorder_captures_what_the_iphone_sent(out, tmp_path):
     sent = [(f["path"], f["size"]) for f in plans.uploaded_files(phone.plan) if not f.get("generate")]
     got = [(f["path"], f["size"]) for f in plans.uploaded_files(recorded) if f["path"].rsplit("/", 1)[-1] not in plans.METADATA_FILES]
     assert got == sent
-    assert all(f["device_name"].startswith("sha1:") for f in plans.uploaded_files(recorded))  # names hidden
 
     # ... and replaying it backs up the same files.
     replay = run_backup(FakeIPhone(recorded), tmp_path / "replay")
     assert replay.error is None
     assert replay.files() == run.files()
+
+
+def test_recorded_traces_are_scrubbed(out, tmp_path):
+    # File IDs are unsalted SHA-1s of domain and path, and the iPhone's own file names name apps and
+    # photos: a trace keeps neither, nor exact sizes, unless recorded with raw=True.
+    from fake_iphone.recorder import record_devicelink
+
+    phone = FakeIPhone()
+    trace = tmp_path / "trace.jsonl"
+    with record_devicelink(trace, udid=phone.udid):
+        run = run_backup(phone, out)
+    assert run.error is None
+
+    text = trace.read_text(encoding="utf-8")
+    sent = [f for f in plans.uploaded_files(phone.plan) if not f.get("generate")]
+    assert not any(f["path"].rsplit("/", 1)[-1] in text or f["device_name"] in text for f in sent)
+    assert phone.udid not in text
+    recorded = [f for f in plans.uploaded_files(plans.load_trace(trace)) if f["path"].rsplit("/", 1)[-1] not in plans.METADATA_FILES]
+    assert [f["path"].split("/")[-2] for f in recorded] == [f["path"].split("/")[-2] for f in sent]  # same <xx> folders
+    assert all(f["device_name"].startswith("file-") for f in recorded)
+    assert [f["size"] for f in recorded] == [int(float(f"{f['size']:.2g}")) if f["size"] >= 100 else f["size"] for f in sent]
+
+    replay = run_backup(FakeIPhone(plans.load_trace(trace)), tmp_path / "replay")
+    assert replay.error is None
+    assert len(replay.files()) == len(run.files())

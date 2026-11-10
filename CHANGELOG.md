@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Backing up an iPhone: when Apple Devices, iTunes or Finder is syncing the iPhone, the app says so and asks you to wait or close it, instead of "Failed to lock itunes sync file" or "Could not lock the device's sync lock file"
 - Backing up an iPhone: when the iPhone asks for its passcode and nobody enters it in time, the app asks for the passcode instead of telling you to tap Trust and check the cable
 - Backing up an iPhone into a folder reached through a link, a mapped drive or a short (8.3) Windows name: when another program, such as OneDrive or antivirus software, is using the backup folder, the app says so instead of showing "Access is denied" or "Permission denied" with a file path
+- Backing up an iPhone on a Mac or Linux: when a permission problem stops the backup from tidying up its temporary Snapshot folder at the end, the app says it wasn't allowed to change the backup folder instead of "[Errno 13] Permission denied: '61'"
 - Turning on encryption for a backup into a folder where an earlier try didn't finish no longer fails with "The folder you chose has an unfinished backup of this iPhone" (OE-6)
 
 ## [0.12.0] - 2026-11-07

@@ -102,6 +102,14 @@ def _is_inside(path, folder: str) -> bool:
         return False
 
 
+def _is_relative(path) -> bool:
+    # pymobiledevice3 names files from the backup folder's absolute path. On macOS and Linux,
+    # shutil.rmtree (which removes Snapshot at the end of a backup) reports an item it couldn't
+    # delete by its own name only ("[Errno 13] Permission denied: '61'"), so a relative name
+    # is an item inside the backup folder.
+    return isinstance(path, (str, os.PathLike)) and not os.path.isabs(path)
+
+
 def _backup_error_message(exc: Exception, output_dir: str) -> Optional[str]:
     """What to tell the user about an error from the backup, or None to pass it on as it is."""
     match = _DEVICE_ERROR_CODE_RE.search(str(exc))
@@ -112,7 +120,7 @@ def _backup_error_message(exc: Exception, output_dir: str) -> Optional[str]:
         return _UNFINISHED_BACKUP
     if _SYNC_LOCK_RE.search(str(exc)):
         return _SYNC_IN_PROGRESS
-    if isinstance(exc, OSError) and _is_inside(exc.filename, output_dir):
+    if isinstance(exc, OSError) and (_is_inside(exc.filename, output_dir) or _is_relative(exc.filename)):
         if isinstance(exc, PermissionError):
             return _FOLDER_IN_USE
         if isinstance(exc, FileNotFoundError):

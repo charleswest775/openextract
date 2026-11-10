@@ -8,7 +8,7 @@ backup path runs in CI on Windows, macOS and Linux without a phone. The scenario
 pytest python/tests/test_fake_iphone_backup.py -v    # or: pytest python/tests -m fake_iphone
 ```
 
-Each scenario takes about a second; all of them, under 10 seconds.
+Each scenario takes about a second; all of them, about 13 seconds.
 
 ## What's real and what's fake
 
@@ -34,14 +34,22 @@ A plan is a list of DeviceLink steps ([`plan.py`](plan.py) lists them all):
 ```python
 {"op": "CreateDirectory", "path": "{udid}/Snapshot/3d"}
 {"op": "UploadFiles", "progress": 12.5, "files": [{"path": "{udid}/Snapshot/3d/3d0d...", "size": 52133}]}
-{"op": "MoveItems", "items": {"{udid}/Snapshot/3d": "{udid}/3d"}, "progress": 100}
+{"op": "MoveItems", "items": {"{udid}/Snapshot/3d/3d0d...": "{udid}/3d/3d0d..."}, "progress": 99}
 {"op": "ProcessMessage", "content": {"ErrorCode": 0}}
 ```
 
-`synthetic_backup()` makes a full backup of a fictional iPhone: about 120 small files, three big
-"videos" (14 MB in all) (made up as they're sent, so they cost nothing until written), a real `Manifest.db`. Files
-arrive in `Snapshot/<xx>/`, are moved into place, and `Snapshot` is removed. That order is a model
-built from the field reports and pymobiledevice3; a trace from a real iPhone should replace it.
+`synthetic_backup()` makes a first full backup of a fictional iPhone: about 120 small files and
+three big "videos" (14 MB in all, made up as they're sent), and a real `Manifest.db`. Its order
+follows a trace of a real one (an iPhone 17 on iOS 27.2, 47,277 files):
+1. The iPhone reads `Status.plist`, asks for free space, and creates `<xx>` and `Snapshot/<xx>`
+   for all 256 `<xx>`.
+2. It sends every file to `Snapshot/<xx>/<fileID>`, up to 128 files per message, then
+   `Manifest.plist` and `Manifest.db`.
+3. It moves the files one by one, 128 per message, to `<xx>/<fileID>`, then the two manifests.
+4. It removes `Snapshot`, reads the three metadata files back, and lists every folder.
+5. `Status.plist` is written in place four times along the way.
+
+A second backup into the same folder hasn't been traced.
 
 ## Adding a scenario
 
@@ -70,14 +78,20 @@ test: that's a bug in the fake, not the engine.
 ## Recording a real backup
 
 [`recorder.py`](recorder.py) records what a real iPhone sends during a backup, as a plan:
-message names, paths, sizes and progress, never file contents. The iPhone's own file names are
-replaced by a hash unless `--keep-names`, and its UDID by `{udid}`. With the iPhone plugged in:
+message names, paths, sizes and progress, never file contents. With the iPhone plugged in:
 
 ```bash
 python python/tests/fake_iphone/recorder.py --out <empty folder> --trace backup-trace.jsonl
 ```
 
-Put the trace in [`traces/`](traces) and `test_replay_trace` replays it on every run. Add
-`pace=1` to `FakeIPhone` to replay it at the speed it was recorded.
-`traces/synthetic-small-backup.jsonl` was recorded from the fake iPhone itself, so it shows the
-format; it isn't evidence of what a real iPhone does.
+Traces are scrubbed by default. File IDs are SHA-1s of the file's domain and path, so a
+dictionary of known paths could tell which apps an iPhone has; each keeps its `<xx>` folder and
+gets a salted hash for the rest. The iPhone's own file names become `file-000001`, `file-000002`,
+…, and sizes are rounded to two significant figures. `--raw` keeps everything, for looking at
+locally; never commit a raw trace. `recorder.py scrub raw.jsonl scrubbed.jsonl` scrubs one
+afterwards.
+
+A trace in [`traces/`](traces) is replayed by `test_replay_trace` on every run.
+`FakeIPhone(plan, pace=1)` replays one at its recorded speed. `FakeIPhone(plan, size_cap=1024)`
+sends at most 1 KiB of each file, so a 68 GB trace replays in seconds.
+`traces/synthetic-small-backup.jsonl` was recorded from the fake iPhone itself, to show the format.

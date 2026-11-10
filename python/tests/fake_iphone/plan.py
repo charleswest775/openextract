@@ -12,7 +12,7 @@ replayed here as it is. Each op is a dict with an "op" key:
         {"path": "{udid}/Snapshot/3d/3d0d7e5f...", "device_name": "/var/mobile/...", "size": 52133,
          "domain": "HomeDomain", "relative_path": "Library/SMS/sms.db",  # optional, for Manifest.db
          "error": "..."}]}                        # optional: the iPhone couldn't read this file
-    {"op": "MoveItems", "items": {"{udid}/Snapshot/3d": "{udid}/3d"}, "progress": 100}
+    {"op": "MoveItems", "items": {"{udid}/Snapshot/3d/3d0d7e5f...": "{udid}/3d/3d0d7e5f..."}, "progress": 99}
     {"op": "RemoveItems", "paths": ["{udid}/Snapshot"], "progress": 100}
     {"op": "CopyItem", "src": "...", "dst": "..."}
     {"op": "ContentsOfDirectory", "path": "{udid}"}
@@ -25,10 +25,13 @@ replayed here as it is. Each op is a dict with an "op" key:
 "{udid}" stands for the iPhone's UDID. A recorded op may also carry "t", the seconds since the
 backup started; replay ignores it unless asked to keep the pacing (FakeIPhone(pace=...)).
 
-The order of synthetic_backup() follows what the field reports and pymobiledevice3 show: files
-arrive in <udid>/Snapshot/<xx>/, then the iPhone moves them into place and removes Snapshot
-(OE-11 failed on "...\\Snapshot\\00", OE-6 on "...\\Snapshot\\51\\..."). It is a model until a
-trace from a real iPhone replaces or confirms it.
+synthetic_backup() follows a trace of a real first full backup (an iPhone 17 on iOS 27.2 into an
+empty folder, 2026-11-10; 47,277 files, 68 GB): it creates <udid>/<xx> and <udid>/Snapshot/<xx>
+for all 256 <xx>, sends every file to Snapshot/<xx>/<fileID> in batches of up to 128, moves
+them ONE FILE AT A TIME (128 per message) to <xx>/<fileID>, then Manifest.plist and Manifest.db,
+removes Snapshot, reads Status.plist, Manifest.plist and Manifest.db back, and lists every
+folder. Status.plist is written in place four times. A second backup into the same folder
+hasn't been traced.
 """
 
 from __future__ import annotations
@@ -87,53 +90,69 @@ def _sample_files(count: int, large: Iterable[int]) -> list[dict]:
     ]
 
 
+ALL_PREFIXES = [f"{i:02x}" for i in range(256)]
+MOVES_PER_MESSAGE = 128
+
+
+def _status_upload(progress: float) -> dict:
+    status = {"path": f"{UDID_PLACEHOLDER}/Status.plist", "device_name": "Status.plist", "size": 0,
+              "generate": "status_plist"}
+    return {"op": "UploadFiles", "progress": progress, "files": [status]}
+
+
 def synthetic_backup(
     file_count: int = 120,
     large_files: Iterable[int] = (3 * MiB, 3 * MiB, 5 * MiB),
-    batch_size: int = 40,
-    snapshot: bool = True,
+    batch_size: int = 128,
 ) -> list[dict]:
     """
-    A full backup of a fictional iPhone, in the order the iPhone sends it. Large files are
-    generated as they're sent, so a "video" costs nothing until the computer writes it.
+    A first full backup of a fictional iPhone, in the order a real one sends it (see the module's
+    docstring). Large files are generated as they're sent, so a "video" costs nothing until the
+    computer writes it.
     """
+    u, snapshot = UDID_PLACEHOLDER, f"{UDID_PLACEHOLDER}/Snapshot"
     files = _sample_files(file_count, large_files)
-    prefix = f"{UDID_PLACEHOLDER}/Snapshot" if snapshot else UDID_PLACEHOLDER
     for f in files:
         fid = file_id(f["domain"], f["relative_path"])
-        f["path"] = f"{prefix}/{fid[:2]}/{fid}"
+        f["path"] = f"{snapshot}/{fid[:2]}/{fid}"
 
     ops: list[dict] = [
-        # The iPhone asks for the last backup's Status.plist and Manifest.db to see what it can skip.
-        # pymobiledevice3 has just written Status.plist; Manifest.db is missing in a new folder.
-        {"op": "DownloadFiles", "paths": [f"{UDID_PLACEHOLDER}/Status.plist"], "progress": 0},
-        {"op": "DownloadFiles", "paths": [f"{UDID_PLACEHOLDER}/Manifest.db"], "progress": 0},
+        # The last backup's Status.plist (pymobiledevice3 has just written one), then a pause while
+        # the iPhone prepares (22 s in the trace).
+        {"op": "DownloadFiles", "paths": [f"{u}/Status.plist"], "progress": 0},
         {"op": "GetFreeDiskSpace"},
+        {"op": "CreateDirectory", "path": u},
+        *({"op": "CreateDirectory", "path": f"{u}/{xx}"} for xx in ALL_PREFIXES),
+        {"op": "CreateDirectory", "path": snapshot},
+        *({"op": "CreateDirectory", "path": f"{snapshot}/{xx}"} for xx in ALL_PREFIXES),
+        _status_upload(0.08),
     ]
-    if snapshot:
-        ops.append({"op": "CreateDirectory", "path": prefix})
-    for xx in sorted({f["path"].split("/")[-2] for f in files}):
-        ops.append({"op": "CreateDirectory", "path": f"{prefix}/{xx}"})
-
-    # Small files go in batches, big ones in a batch of their own.
-    regular = [f for f in files if f["size"] < 2 * MiB]
-    batches = [regular[i:i + batch_size] for i in range(0, len(regular), batch_size)]
-    batches += [[f] for f in files if f["size"] >= 2 * MiB]
+    batches = [files[i:i + batch_size] for i in range(0, len(files), batch_size)]
     for i, batch in enumerate(batches):
-        ops.append({"op": "UploadFiles", "progress": round(1 + 97 * i / len(batches), 2), "files": batch})
+        ops.append({"op": "UploadFiles", "progress": round(0.08 + 98.8 * (i + 1) / len(batches), 3), "files": batch})
+    for name, kind in (("Manifest.plist", "manifest_plist"), ("Manifest.db", "manifest_db")):
+        ops.append({"op": "UploadFiles", "progress": 98.9, "files": [
+            {"path": f"{snapshot}/{name}", "device_name": name, "size": 0, "generate": kind}]})
+    ops.append(_status_upload(98.9))
 
-    metadata = [
-        {"path": f"{prefix}/Manifest.db", "device_name": "Manifest.db", "size": 0, "generate": "manifest_db"},
-        {"path": f"{prefix}/Manifest.plist", "device_name": "Manifest.plist", "size": 0, "generate": "manifest_plist"},
-        {"path": f"{prefix}/Status.plist", "device_name": "Status.plist", "size": 0, "generate": "status_plist"},
+    moves = [(f["path"], f"{u}/{f['path'][len(snapshot) + 1:]}") for f in files]
+    chunks = [moves[i:i + MOVES_PER_MESSAGE] for i in range(0, len(moves), MOVES_PER_MESSAGE)]
+    for i, chunk in enumerate(chunks):
+        ops.append({"op": "MoveItems", "items": dict(chunk), "progress": round(98.9 + 1.09 * (i + 1) / len(chunks), 4)})
+    for name in ("Manifest.plist", "Manifest.db"):
+        ops.append({"op": "MoveItems", "items": {f"{snapshot}/{name}": f"{u}/{name}"}, "progress": 99.999})
+
+    ops += [
+        _status_upload(99.999),
+        {"op": "RemoveItems", "paths": [snapshot], "progress": 99.9996},
+        {"op": "RemoveItems", "paths": [f"{u}/Manifest.mbdx"], "progress": 99.9998},
+        _status_upload(100.0),
+        *({"op": "DownloadFiles", "paths": [f"{u}/{name}"], "progress": 100.0}
+          for name in ("Status.plist", "Manifest.plist", "Manifest.db")),
+        {"op": "ContentsOfDirectory", "path": u},
+        *({"op": "ContentsOfDirectory", "path": f"{u}/{xx}"} for xx in ALL_PREFIXES),
+        {"op": "ProcessMessage", "content": {"ErrorCode": 0, "MessageName": "Response"}},
     ]
-    ops.append({"op": "UploadFiles", "progress": 98.5, "files": metadata})
-    if snapshot:
-        moves = {f"{prefix}/{xx}": f"{UDID_PLACEHOLDER}/{xx}" for xx in sorted({f["path"].split("/")[-2] for f in files})}
-        moves.update({f"{prefix}/{name}": f"{UDID_PLACEHOLDER}/{name}" for name in ("Manifest.db", "Manifest.plist", "Status.plist")})
-        ops.append({"op": "MoveItems", "items": moves, "progress": 100})
-        ops.append({"op": "RemoveItems", "paths": [prefix], "progress": 100})
-    ops.append({"op": "ProcessMessage", "content": {"ErrorCode": 0, "ErrorDescription": ""}})
     return ops
 
 
@@ -147,17 +166,26 @@ def payload_bytes(ops: Iterable[dict]) -> int:
     return sum(f["size"] for f in uploaded_files(ops) if not f.get("generate") and not f.get("error"))
 
 
-def final_location(path: str, ops: Iterable[dict]) -> str:
-    """Where a file sent to `path` ends up once the plan's moves are done."""
+def final_locations(ops: Iterable[dict]) -> dict[str, str]:
+    """{path a file was sent to: where it is once the plan's moves are done}, for every file sent."""
+    ops = list(ops)
+    where = {f["path"]: f["path"] for f in uploaded_files(ops)}
+    sent_to = {path: path for path in where}  # current path -> path it was sent to
     for op in ops:
         if op["op"] != "MoveItems":
             continue
         for src, dst in op["items"].items():
-            if path == src:
-                path = dst
-            elif path.startswith(src + "/"):
-                path = dst + path[len(src):]
-    return path
+            if src in sent_to:
+                original = sent_to.pop(src)
+                where[original] = dst
+                sent_to[dst] = original
+                continue
+            inside = src + "/"  # a folder: everything in it moves with it
+            for current in [c for c in sent_to if c.startswith(inside)]:
+                original = sent_to.pop(current)
+                where[original] = dst + current[len(src):]
+                sent_to[where[original]] = original
+    return where
 
 
 def with_udid(value, udid: str):

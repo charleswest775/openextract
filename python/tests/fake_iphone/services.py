@@ -182,7 +182,7 @@ class MobileBackup2(Service):
         elif kind == "status_plist":
             data = plans.status_plist()
         else:
-            yield from plans.filler(f["path"], f["size"])
+            yield from plans.filler(f["path"], self.phone.size_of(f))
             return
         for i in range(0, len(data), plans.CHUNK):
             yield data[i:i + plans.CHUNK]
@@ -212,7 +212,9 @@ class MobileBackup2(Service):
         if "needs_more_than_reported" in op:
             required = reported + op["needs_more_than_reported"]
         else:
-            required = op.get("required", plans.payload_bytes(self.phone.plan) + HEADROOM)
+            payload = sum(self.phone.size_of(f) for f in plans.uploaded_files(self.phone.plan)
+                          if not f.get("generate") and not f.get("error"))
+            required = op.get("required", payload + HEADROOM)
         if reported > required:
             return None
         self.sock.send_plist(["DLMessagePurgeDiskSpace", required - reported + PURGE_REQUEST_OVERSHOOT, 4])
