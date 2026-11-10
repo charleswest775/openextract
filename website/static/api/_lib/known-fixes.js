@@ -138,6 +138,22 @@ const KNOWN_FIXES = [
     text: 'Another program may be using the backup folder: OneDrive and other cloud folders, and antivirus software, can hold on to files while they work. Choose a new, empty folder that isn\'t in OneDrive or another synced folder, close any window showing the old one, then try again.',
   },
   {
+    id: 'backup-connection-dropped',
+    title: 'The iPhone disconnected partway through a backup',
+    area: 'backup',
+    seen: [
+      'Your iPhone was disconnected before the backup finished',
+      'The connection to your iPhone dropped partway through the backup',
+      'Your computer went to sleep during the backup',
+      'The connection to your iPhone was terminated unexpectedly',
+    ],
+    // python/device_backup.py _DEVICE_DISCONNECTED and _CONNECTION_DROPPED, and electron/main.ts
+    // COMPUTER_SLEPT. Up to 0.12.0 a drop partway with the iPhone still listed said "terminated
+    // unexpectedly … tap 'Trust'" (OE-29, OE-31), and the app didn't keep the computer awake.
+    match: /disconnected before the backup finished|connection to your iPhone (?:dropped partway|was terminated unexpectedly)|computer went to sleep during the backup/,
+    text: 'A backup can take hours, and the iPhone drops off if the computer goes to sleep or the USB connection is interrupted, even while it stays plugged in. Keep the computer plugged in, keep a laptop\'s lid open, and don\'t let it sleep until the backup finishes. Plug the iPhone straight into the computer, not through a hub, dock or monitor, and try another USB port if it keeps happening. Then try the backup again.',
+  },
+  {
     id: 'windows-apple-devices',
     title: 'Windows needs Apple Devices to find an iPhone',
     area: 'backup',
