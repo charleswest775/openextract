@@ -80,7 +80,8 @@ test('no date says nothing', () => {
 });
 
 test('the message matches the engine', () => {
-  const engine = fs.readFileSync(path.join(root, 'python', 'backup_status.py'), 'utf-8');
+  // Windows checkouts can have CRLF line endings.
+  const engine = fs.readFileSync(path.join(root, 'python', 'backup_status.py'), 'utf-8').replace(/\r\n/g, '\n');
   const said = engine.match(/^UNFINISHED = \(\n((?:\s+"[^"]*"\n)+)\)/m)[1];
   assert.equal(said.split('\n').map(l => l.trim().replace(/^"|"$/g, '')).join(''), UNFINISHED_MESSAGE);
 });
