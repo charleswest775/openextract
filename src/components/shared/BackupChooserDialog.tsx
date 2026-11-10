@@ -1,6 +1,8 @@
 import type { BackupInfo } from '../../hooks/useBackup';
 import { formatDate } from '../../lib/dates';
+import { whenLine } from '../../lib/foundBackups';
 import { LockIcon } from './Icons';
+import UnfinishedLabel from './UnfinishedLabel';
 
 interface Props {
   folder: string;
@@ -31,9 +33,12 @@ export default function BackupChooserDialog({ folder, backups, onChoose, onCance
               className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-elevated transition-colors flex items-center gap-3"
             >
               <div className="flex-1 min-w-0">
-                <div className="text-sm text-text-primary truncate">{b.device_name || b.udid}</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-text-primary truncate">{b.device_name || b.udid}</span>
+                  {b.unfinished && <UnfinishedLabel />}
+                </div>
                 <div className="text-xs text-text-tertiary truncate">
-                  {[b.product_version && `iOS ${b.product_version}`, formatDate(b.last_backup)]
+                  {[b.product_version && `iOS ${b.product_version}`, b.unfinished ? whenLine(b, formatDate) : formatDate(b.last_backup)]
                     .filter(Boolean)
                     .join(' · ')}
                 </div>

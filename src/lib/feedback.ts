@@ -111,6 +111,7 @@ export function formatDiagnostics(d: FeedbackDiagnostics): string {
       b.iosVersion ? `iOS ${b.iosVersion}` : undefined,
       b.encrypted === undefined ? undefined : b.encrypted ? 'encrypted' : 'not encrypted',
       typeof b.sizeGB === 'number' ? `${b.sizeGB} GB` : undefined,
+      b.unfinished ? "didn't finish" : undefined,
     ].filter(Boolean);
     lines.push(`Backup: ${parts.join(' · ') || 'details unknown'}`);
   } else {

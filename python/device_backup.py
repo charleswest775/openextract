@@ -18,6 +18,8 @@ import time
 import warnings
 from typing import Callable, Optional
 
+import backup_status
+
 _LOG_PATH = os.environ.get('OPENEXTRACT_LOG_PATH') or os.path.join(tempfile.gettempdir(), 'python_log.txt')
 
 
@@ -701,6 +703,8 @@ class DeviceBackupManager:
         # Bytes in use on the iPhone, so a disk-full error can say how much room
         # the backup needs.  0 when the device didn't report it.
         phone_used_bytes = 0
+        # The latest try's marker (backup_status.BackupTry), once the backup request is sent.
+        backup_attempt: list = [None]
 
         def _tracked_notify(phase: str, pct: int, fd: int, ft: int) -> None:
             """Emit a progress notification, enforcing monotone progress."""
@@ -800,6 +804,10 @@ class DeviceBackupManager:
                 if not transferring:
                     _tracked_notify("passcode", last_pct[0], 0, 0)
 
+            # Marks the folder (pymobiledevice3 writes to <output_dir>/<udid>) as holding a
+            # backup that started, until the iPhone reports success (backup_status.py).
+            attempt = backup_attempt[0] = backup_status.BackupTry(
+                os.path.join(output_dir, lockdown.udid or udid), log=_dev_log).start()
             mb2_logger = logging.getLogger("pymobiledevice3.services.mobilebackup2")
             passcode_watcher = _BackupPasscodeWatcher(_on_passcode_prompt)
             mb2_logger.addHandler(passcode_watcher)
@@ -816,6 +824,11 @@ class DeviceBackupManager:
                             progress_callback=_progress_cb,
                             filter_callback=received.file_started,
                         )
+                    # Returning means the iPhone's final answer was success (ErrorCode 0).
+                    attempt.finished()
+                except BaseException:
+                    attempt.failed()
+                    raise
                 finally:
                     bytes_reporter.cancel()
                     mb2_logger.removeHandler(passcode_watcher)
@@ -866,15 +879,16 @@ class DeviceBackupManager:
             # Unplugging the iPhone ends here too, and is neither of the cases below.
             if not _device_connected(udid):
                 raise RuntimeError(_DEVICE_DISCONNECTED) from e
-            # iOS often closes the backup channel immediately after all data has been
-            # transferred — this is normal end-of-backup behaviour and does NOT mean
-            # the backup failed. The device sends Manifest.db at the end, so one written
-            # during this run means it finished. (pymobiledevice3 writes Info.plist
-            # first, and a folder used before has an older Manifest.db.)
+            # iOS may close the backup channel right after the last step instead of sending
+            # its final answer. The device sends Manifest.db near the end, so one written
+            # during this run, with Snapshot removed and nothing else left half done, means
+            # it finished. (pymobiledevice3 writes Info.plist first, and a folder used
+            # before has an older Manifest.db.)
             actual = self._resolve_backup_path(output_dir, udid)
-            manifest_path = os.path.join(actual, "Manifest.db")
             copied = received.update()
-            if os.path.exists(manifest_path) and os.path.getmtime(manifest_path) >= started_at:
+            if backup_status.finished_since(actual, started_at):
+                if backup_attempt[0] is not None:
+                    backup_attempt[0].finished()
                 _tracked_notify("finalizing", 100, 0, 0)
             elif transferring or copied > 0:
                 _dev_log(f"connection dropped partway: {copied} bytes received, last device "

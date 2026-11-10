@@ -102,7 +102,7 @@ export default function BackupHome({ ctx, onSearch }: { ctx: ExploreContext; onS
         <div>
           <h1 className="text-4xl text-text-primary">{overview?.device_name ?? ctx.session?.name}</h1>
           <p className="text-base text-text-secondary mt-2">
-            {[backedUp && `Backed up ${backedUp}`, overview?.ios_version && `iOS ${overview.ios_version}`, history && `history from ${history}`]
+            {[backedUp && (ctx.unfinished ? `Backup started ${backedUp} and didn't finish` : `Backed up ${backedUp}`), overview?.ios_version && `iOS ${overview.ios_version}`, history && `history from ${history}`]
               .filter(Boolean).join(' · ')}
           </p>
           <button

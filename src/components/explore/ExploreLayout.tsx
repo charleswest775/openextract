@@ -26,6 +26,7 @@ import { useFeedback } from '../shared/Feedback';
 import TitleBar from './TitleBar';
 import HomeCrumb from './HomeCrumb';
 import BackupHome from './BackupHome';
+import UnfinishedBanner from './UnfinishedBanner';
 import {
   availableData, missingKinds, sectionFor, SCOPED,
   type ExploreContext, type OpenOptions, type Tab,
@@ -35,6 +36,9 @@ interface Props {
   udid: string;
   session: RecentSession | null;
   onBack: () => void;
+  /** The backup stopped partway: say so above every screen, and offer a new backup. */
+  unfinished?: boolean;
+  onNewBackup?: () => void;
 }
 
 const FEEDBACK_AREAS = new Set<string>([
@@ -47,7 +51,7 @@ const FEEDBACK_AREAS = new Set<string>([
  * data, and one search box at the top. On a screen that has a list, the box
  * filters that list in place; elsewhere it searches the whole backup.
  */
-export default function ExploreLayout({ udid, session, onBack }: Props) {
+export default function ExploreLayout({ udid, session, onBack, unfinished = false, onNewBackup }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   // What the active screen opens on: a day, a conversation, the record a search found
   const [target, setTarget] = useState<OpenOptions>({});
@@ -152,6 +156,7 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
     openTab,
     onBack,
     openSettings: () => setSettingsOpen(true),
+    unfinished,
   };
 
   // A screen opened from a search result remounts on the new record
@@ -276,6 +281,7 @@ export default function ExploreLayout({ udid, session, onBack }: Props) {
         onHelp={() => openFeedback({ area: area as FeedbackArea })}
         onSettings={() => setSettingsOpen(true)}
       />
+      {unfinished && <UnfinishedBanner key={udid} onNewBackup={onNewBackup} />}
       {scope && query && (
         <div className="flex-shrink-0 px-6 py-2 border-b border-rule bg-accent-wash flex items-center gap-3 text-sm">
           <span className="text-text-secondary">

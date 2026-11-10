@@ -180,7 +180,7 @@ class MobileBackup2(Service):
         elif kind == "manifest_plist":
             data = plans.manifest_plist(self.phone.values)
         elif kind == "status_plist":
-            data = plans.status_plist()
+            data = plans.status_plist(f.get("state", "finished"))
         else:
             yield from plans.filler(f["path"], self.phone.size_of(f))
             return

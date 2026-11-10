@@ -24,7 +24,7 @@ function load(rel) {
   return require(file);
 }
 
-const { notYetOpened } = load('src/lib/foundBackups.ts');
+const { notYetOpened, whenLine, UNFINISHED_MESSAGE } = load('src/lib/foundBackups.ts');
 
 const backup = (udid, dir) => ({ udid, backup_dir: dir, device_name: udid });
 const session = (id, backupDir) => ({ id, backupDir, type: 'device', name: id, subtitle: '', exportCount: 0, lastOpened: '' });
@@ -62,4 +62,25 @@ test('when looking for backups fails, the home screen says so in plain words', (
   for (const error of ['Python sidecar is not running', 'Sidecar exited with code 1']) {
     assert.match(lookFailedMessage(error), /engine stopped\. Quit and reopen OpenExtract to look again\.$/);
   }
+});
+
+// A backup that stopped partway (OE-31). Its date is when the try started.
+const day = iso => iso.slice(0, 10);
+
+test('a finished backup says when it was made', () => {
+  assert.equal(whenLine({ last_backup: '2026-11-03T10:00:00+00:00' }, day), 'Backed up 2026-11-03');
+});
+
+test('a backup that stopped partway says when it was started', () => {
+  assert.equal(whenLine({ last_backup: '2026-11-03T10:00:00+00:00', unfinished: true }, day), 'Started 2026-11-03');
+});
+
+test('no date says nothing', () => {
+  assert.equal(whenLine({ last_backup: '', unfinished: true }, day), undefined);
+});
+
+test('the message matches the engine', () => {
+  const engine = fs.readFileSync(path.join(root, 'python', 'backup_status.py'), 'utf-8');
+  const said = engine.match(/^UNFINISHED = \(\n((?:\s+"[^"]*"\n)+)\)/m)[1];
+  assert.equal(said.split('\n').map(l => l.trim().replace(/^"|"$/g, '')).join(''), UNFINISHED_MESSAGE);
 });

@@ -166,6 +166,17 @@ test('FeedbackRecorder keeps backup facts but not names, and scrubs recorded err
   assert.doesNotMatch(JSON.stringify(d), /Kim Phone|MyBackups|abcd1234efgh/);
 });
 
+test('a backup that stopped partway is noted in the facts (OE-31)', () => {
+  const rec = new main.FeedbackRecorder(path.join(tmp, 'missing-log.txt'), '0.9.0');
+  rec.recordCall('open_backup', { udid: 'abcd1234efgh' }, {
+    ok: true,
+    result: { status: 'open', info: { udid: 'abcd1234efgh', device_name: 'Kim Phone', product_type: 'iPhone13,4', product_version: '18.4.1', encrypted: false, size_gb: null, backup_dir: '/b', unfinished: true } },
+  });
+  const d = rec.diagnostics();
+  assert.deepEqual(d.backup, { model: 'iPhone13,4', iosVersion: '18.4.1', encrypted: false, sizeGB: null, unfinished: true });
+  assert.match(lib.formatDiagnostics(d), /Backup: iPhone13,4 · iOS 18\.4\.1 · not encrypted · didn't finish/);
+});
+
 const diag = {
   appVersion: '0.9.0', os: 'macOS 14.3.0 (arm64)',
   backup: { model: 'iPhone14,2', iosVersion: '17.4', encrypted: false, sizeGB: 12.5 },

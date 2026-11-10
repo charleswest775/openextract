@@ -1,5 +1,7 @@
 import type { BackupInfo } from '../../hooks/useBackup';
 import { formatDate } from '../../lib/dates';
+import { whenLine } from '../../lib/foundBackups';
+import UnfinishedLabel from '../shared/UnfinishedLabel';
 import { ChevronRightIcon, LockIcon, PhoneIcon, SearchIcon } from '../shared/Icons';
 
 interface Props {
@@ -19,7 +21,7 @@ interface Props {
 function subtitle(b: BackupInfo): string {
   return [
     b.product_version && b.product_version !== 'Unknown' && `iOS ${b.product_version}`,
-    b.last_backup && `Backed up ${formatDate(b.last_backup)}`,
+    whenLine(b, formatDate),
     b.encrypted && 'Encrypted',
   ].filter(Boolean).join(' · ');
 }
@@ -46,8 +48,11 @@ export default function FoundBackupList({
               <PhoneIcon className="text-accent" size={24} />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-base font-medium text-text-primary truncate">
-                {b.device_name && b.device_name !== 'Unknown' ? b.device_name : 'iPhone backup'}
+              <div className="flex items-center gap-2">
+                <span className="text-base font-medium text-text-primary truncate">
+                  {b.device_name && b.device_name !== 'Unknown' ? b.device_name : 'iPhone backup'}
+                </span>
+                {b.unfinished && <UnfinishedLabel />}
               </div>
               <div className="text-sm text-text-secondary leading-snug">{subtitle(b)}</div>
             </div>
