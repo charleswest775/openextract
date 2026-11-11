@@ -415,16 +415,21 @@ const { KNOWN_FIXES } = require(path.join(root, 'website/static/api/_lib/known-f
 const MAC = 'macOS 15.1 (arm64)';
 const WINDOWS = 'Windows 10.0.26300 (x64)';
 let fixReports = 0;
+// Every report counts against the site's rate limit (60 per instance in 10 minutes), which the
+// rate-limit tests further down rely on having to themselves. So each known-fix report is sent
+// with a clock of its own, a 10-minute window apart and long ago.
+const RATE_WINDOW = 10 * 60 * 1000;
+const LONG_AGO = Date.now() - 100_000 * RATE_WINDOW;
 
 /** Known fixes the site answers with, for a report built the way the app builds one. */
-async function knownFixesFor({ kind = 'broken', area = 'open_backup', details = "Something isn't working", os = MAC, errors = [], log = '', reportedError } = {}) {
+async function knownFixesFor({ kind = 'broken', area = 'open_backup', details = "Something isn't working", os = MAC, errors = [], log = '', reportedError, version = '0.9.1' } = {}) {
   const logPath = path.join(tmp, `engine-log-${++fixReports}.txt`);
   fs.writeFileSync(logPath, log);
-  const rec = new main.FeedbackRecorder(logPath, '0.9.1');
+  const rec = new main.FeedbackRecorder(logPath, version);
   for (const [method, error] of errors) rec.recordCall(method, {}, { ok: false, error });
   const diagnostics = lib.formatDiagnostics({ ...rec.diagnostics(reportedError), os });
   const report = goodReport({ kind, area, details, diagnostics, token: fixReports.toString(16).padStart(48, '7') });
-  const out = await site.receiveReport(jsonReq(report), env, fakeGitHub().fetch);
+  const out = await site.receiveReport(jsonReq(report), env, fakeGitHub().fetch, LONG_AGO + fixReports * RATE_WINDOW);
   assert.equal(out.status, 200, JSON.stringify(out.body));
   return out.body.knownFixes.map(f => f.id);
 }
@@ -658,6 +663,15 @@ const REAL_ERRORS = [
     area: 'photos',
     errors: [['export_photos', 'Sidecar call timed out: export_photos'], ['get_photo_thumbnail', 'Sidecar call timed out: get_photo_thumbnail']],
   },
+  // electron/sidecar.ts call() giving up on a backup after 2 hours in all, still copying, in 0.12.0
+  // (OE-17, OE-18, OE-31).
+  {
+    fix: 'backup-stopped-after-2-hours',
+    os: WINDOWS,
+    area: 'create_backup',
+    version: '0.12.0',
+    errors: [['backup.start', 'Sidecar call timed out: backup.start']],
+  },
 ];
 
 test('each known fix shows for the app\'s real error, and only that fix', async () => {
@@ -678,6 +692,15 @@ test('reports about something else get no known fix', async () => {
   }
   // Full Disk Access is only a macOS setting.
   assert.deepEqual(await knownFixesFor({ ...REAL_ERRORS.find(c => c.fix === 'mac-full-disk-access'), os: WINDOWS }), []);
+  // From 0.13.0 a backup times out only after 2 hours with nothing from the iPhone, which "update to
+  // 0.13.0" doesn't help; 0.9.x and 0.1x.x versions still get it.
+  const twoHours = REAL_ERRORS.find(c => c.fix === 'backup-stopped-after-2-hours');
+  for (const version of ['0.13.0', '0.13.2', '1.0.0', '0.20.1']) {
+    assert.deepEqual(await knownFixesFor({ ...twoHours, version }), [], version);
+  }
+  for (const version of ['0.9.1', '0.10.2', '0.11.0', '0.12.0']) {
+    assert.deepEqual(await knownFixesFor({ ...twoHours, version }), ['backup-stopped-after-2-hours'], version);
+  }
   // A Mac without usbmuxd needs a restart, not Apple Devices.
   assert.deepEqual(await knownFixesFor({
     errors: [['backup.list_devices', "DEVICE_SERVICE_REQUIRED: OpenExtract can't reach the part of macOS that talks to iPhones (usbmuxd). Restart your Mac, then search again."]],
