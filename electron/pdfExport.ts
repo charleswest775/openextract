@@ -1,5 +1,5 @@
 /**
- * PDF export of message conversations (GitHub issue #91).
+ * PDF export of message conversations (GitHub issue #91) and WhatsApp chats.
  *
  * The Python sidecar writes a print-ready HTML file (the same layout as the
  * HTML export, with images converted to JPEG in an attachments/ folder) into
@@ -15,7 +15,9 @@ const { fileURLToPath } = require('url');
 
 type Sidecar = { call: (method: string, params: any, timeoutMs?: number) => Promise<any> };
 
-export type PdfExportMethod = 'export_conversation' | 'export_conversations';
+// Messages conversations and WhatsApp chats: the engine writes both as print-ready HTML
+// with their images in attachments/ (format: 'pdf_source').
+export type PdfExportMethod = 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats';
 
 export interface PdfExportResult {
   files: string[];
@@ -24,7 +26,9 @@ export interface PdfExportResult {
 
 const STAGING_PREFIX = 'openextract-pdf-';
 
-const ALLOWED_METHODS = new Set<PdfExportMethod>(['export_conversation', 'export_conversations']);
+const ALLOWED_METHODS = new Set<PdfExportMethod>([
+  'export_conversation', 'export_conversations', 'export_whatsapp_chat', 'export_whatsapp_chats',
+]);
 
 // Copying and converting every image in a long thread can take a while.
 const SIDECAR_TIMEOUT_MS = 60 * 60 * 1000;

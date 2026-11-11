@@ -7,7 +7,7 @@ import { check, launch, num, sleep, timed, timing } from '../harness.mjs';
 // fails if a tab is added there without being added here.
 export const SCREENS = {
   home: 'Backup home', dashboard: 'Backup details', people: 'People', timeline: 'Timeline', year: 'Year',
-  messages: 'Messages', photos: 'Photos', contacts: 'Address book', calls: 'Calls', notes: 'Notes',
+  messages: 'Messages', whatsapp: 'WhatsApp', photos: 'Photos', contacts: 'Address book', calls: 'Calls', notes: 'Notes',
   voicemail: 'Voicemail', browser_history: 'Web history', record_recovery: 'Recover deleted messages', export: 'Save to this computer',
 };
 
@@ -46,6 +46,24 @@ export default {
         const filtered = await app.eval(() => [...document.querySelectorAll('button')].filter(b => /messages$/.test(b.textContent.trim())).length);
         check('typing in it narrows the list', filtered >= 1 && filtered < key.conversations.length, filtered);
         await filterBox.fill('');
+      }
+
+      // ── WhatsApp ──
+      // Shown only when the backup has it (the engine's list decides which way to check).
+      // maren has none: most iPhones don't, so there's no tile and it isn't listed as missing.
+      const waList = await app.api('call', 'list_whatsapp_chats', { udid: key.udid });
+      const wa = waList.value?.data;
+      if (wa?.conversations?.length) {
+        check('WhatsApp opens', await timed('screen WhatsApp', () => app.open('WhatsApp', /\d+ chats?/)));
+        const waChats = num((await app.text()).match(/([\d,]+) chats?/)?.[1]);
+        check(`WhatsApp lists the engine's ${wa.conversations.length} chats`, waChats === wa.conversations.length, waChats);
+        check('WhatsApp opens on a chat', !!(await app.waitFor(() => document.querySelectorAll('[data-message-id]').length, null, 15_000)));
+        await shot('whatsapp');
+      } else {
+        check('the engine says calmly that WhatsApp isn\'t in this backup', waList.value?.success === true && wa?.empty_reason === 'not_in_backup' && !wa?.error && Array.isArray(wa?.conversations), wa ?? waList);
+        await app.home();
+        const listed = await app.eval(() => [...document.querySelectorAll('span')].some(s => s.textContent.trim() === 'WhatsApp'));
+        check('no WhatsApp tile, and not listed as missing', !('WhatsApp' in tiles) && !listed, { tiles });
       }
 
       // ── Photos ──

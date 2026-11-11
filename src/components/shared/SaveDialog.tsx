@@ -146,15 +146,17 @@ export default function SaveDialog<T extends string>({ title, formats, initial, 
 }
 
 /** For saving several conversations: one file each, or all in one. */
-export function ConversationModeChoice({ mode, onChange }: {
+export function ConversationModeChoice({ mode, onChange, noun = 'conversation' }: {
   mode: 'separate' | 'merged';
   onChange: (mode: 'separate' | 'merged') => void;
+  /** What one file holds: "conversation" for Messages, "chat" for WhatsApp. */
+  noun?: string;
 }) {
   return (
     <fieldset className="flex flex-col gap-1.5">
       <legend className="text-sm font-medium text-text-primary mb-1">Files</legend>
       {([
-        ['separate', 'One file per conversation'],
+        ['separate', `One file per ${noun}`],
         ['merged', 'Everything in one file'],
       ] as const).map(([id, label]) => (
         <label key={id} className="flex items-center gap-2.5 text-sm text-text-primary cursor-pointer">

@@ -3,15 +3,16 @@ import { saveFolder, sidecarCall } from '../../lib/ipc';
 import { photoExportSummary, photoSaveFailures, photoSaveProgress, PhotoExportResult } from '../../lib/photoCounts';
 import { percentDone } from '../../lib/exportProgress';
 import {
-  checkEngineResult, contactsToCsv, contactsToVcard, notesToText, plural, saveConversations, saveTextFile,
+  checkEngineResult, contactsToCsv, contactsToVcard, notesToText, plural, saveConversations, saveTextFile, saveWhatsAppChats,
   type ContactRecord, type ConversationFormat, type NoteRecord, type SaveResult,
 } from '../../lib/saveData';
+import type { WhatsAppChatsResult } from '../../types/whatsapp';
 import type { BackupStatsOverview } from '../../hooks/useBackupStats';
 import { useSaveAction } from '../../hooks/useSaveAction';
 import { useExportProgress } from '../../hooks/useExportProgress';
 import PageHeader from '../shared/PageHeader';
 import SaveDialog, { ConversationModeChoice, FORMATS, SaveButton, SaveProgress, type SaveFormat } from '../shared/SaveDialog';
-import { LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon, GlobeIcon, ContactIcon } from '../shared/Icons';
+import { LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon, GlobeIcon, ContactIcon, WhatsAppIcon } from '../shared/Icons';
 
 interface Props {
   udid: string;
@@ -20,7 +21,7 @@ interface Props {
   hasBrowserHistory: boolean;
 }
 
-type Kind = 'messages' | 'photos' | 'contacts' | 'calls' | 'voicemail' | 'notes' | 'browser_history';
+type Kind = 'messages' | 'whatsapp' | 'photos' | 'contacts' | 'calls' | 'voicemail' | 'notes' | 'browser_history';
 
 interface KindInfo {
   id: Kind;
@@ -30,6 +31,8 @@ interface KindInfo {
   /** What you get, with the count when it's known. */
   what: (n: number | null) => string;
   formats: SaveFormat[];
+  /** What the Save dialog calls it, when lower-casing the label won't do ("WhatsApp" is a name). */
+  title?: string;
 }
 
 const KINDS: KindInfo[] = [
@@ -37,6 +40,12 @@ const KINDS: KindInfo[] = [
     id: 'messages', label: 'Messages', icon: LinesIcon, count: o => o.total_messages,
     what: n => `${n != null ? `All ${plural(n, 'message')}` : 'Every conversation'}, with names and dates`,
     formats: [FORMATS.html, FORMATS.pdf, FORMATS.csv, FORMATS.txt],
+  },
+  {
+    id: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon, count: o => o.total_whatsapp_messages ?? 0,
+    what: n => `${n != null ? `All ${plural(n, 'WhatsApp message')}` : 'Every WhatsApp chat'}, with names, dates, photos and replies`,
+    formats: [FORMATS.html, FORMATS.pdf, FORMATS.csv, FORMATS.txt],
+    title: 'WhatsApp chats',
   },
   {
     id: 'photos', label: 'Photos & videos', icon: CameraIcon, count: o => o.photos_in_backup,
@@ -82,6 +91,7 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
   const [running, setRunning] = useState<Kind | null>(null);
   const actions = {
     messages: useSaveAction('messages'),
+    whatsapp: useSaveAction('whatsapp'),
     photos: useSaveAction('photos'),
     contacts: useSaveAction('contacts'),
     calls: useSaveAction('calls'),
@@ -116,6 +126,13 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
         );
         if (!conversations?.length) throw new Error('This backup has no conversations to save.');
         return saveConversations(udid, conversations, format as ConversationFormat, mode);
+      }
+      case 'whatsapp': {
+        // WhatsApp's own list and export: its chat ids are a different database's numbers
+        const result = await sidecarCall<WhatsAppChatsResult>('list_whatsapp_chats', { udid });
+        const chats = result?.conversations ?? [];
+        if (chats.length === 0) throw new Error(result?.error || 'This backup has no WhatsApp chats to save.');
+        return saveWhatsAppChats(udid, chats, format as ConversationFormat, mode);
       }
       case 'contacts': {
         const { contacts } = await sidecarCall<{ contacts: ContactRecord[] }>('list_contacts', { udid });
@@ -216,12 +233,14 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
       </div>
       {choosing && (
         <SaveDialog
-          title={`Save ${choosing.label.toLowerCase()}`}
+          title={`Save ${choosing.title ?? choosing.label.toLowerCase()}`}
           formats={choosing.formats}
           onSave={format => save(choosing.id, format)}
           onCancel={() => setChoosing(null)}
         >
-          {choosing.id === 'messages' && <ConversationModeChoice mode={mode} onChange={setMode} />}
+          {(choosing.id === 'messages' || choosing.id === 'whatsapp') && (
+            <ConversationModeChoice mode={mode} onChange={setMode} noun={choosing.id === 'whatsapp' ? 'chat' : 'conversation'} />
+          )}
         </SaveDialog>
       )}
     </div>

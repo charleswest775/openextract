@@ -8,12 +8,31 @@ import type { ContactOption } from '../types/timeline';
 export interface PersonRow {
   contactName: string | null;
   contactIdentifier: string | null;
+  /** What kind of record it is, when it's a Timeline entry: WhatsApp's names are matched differently. */
+  type?: string;
+}
+
+// WhatsApp names a chat from WhatsApp's own copy of the address book, or else from
+// the name the other person picked for themselves, which can be anyone's ("Alex").
+// So a WhatsApp row is someone's by its number, or their address-book card, never
+// by its name alone; texts, calls and voicemail are named by the address book.
+const isWhatsApp = (e: PersonRow) => e.type === 'whatsapp';
+
+// A WhatsApp chat's own address, e.g. "120363…@g.us" for a group: how People and
+// the Timeline tell a WhatsApp group, broadcast list or channel apart. It isn't a
+// number or an email, so it's never shown to anyone. (search.ts has the same test.)
+const WHATSAPP_ADDRESS = /@(?:s\.whatsapp\.net|g\.us|lid|broadcast|newsletter)$/i;
+export function isWhatsAppAddress(id: string | null | undefined): boolean {
+  return !!id && WHATSAPP_ADDRESS.test(id.trim());
 }
 
 // ── Phone-number normalizer ────────────────────────────────────────────────────
 // Strips all non-digits and returns the last 10 digits so that "+1 (555) 123-4567",
 // "15551234567", "+15551234567", and "5551234567" all compare equal.
+// A WhatsApp chat's address has none: "120363025246125486@g.us" ends in ten digits
+// that aren't anyone's phone number, and mustn't match one that happens to share them.
 export function normPhone(s: string): string {
+  if (isWhatsAppAddress(s)) return '';
   const d = s.replace(/\D/g, '');
   return d.length >= 10 ? d.slice(-10) : d;
 }
@@ -70,14 +89,19 @@ export function getContactGroup(id: string, idMap: IdentifierGroupMap): Set<stri
 
 // The picker's list. Keyed by normalised phone / raw identifier so the same person
 // isn't listed twice when calls use "+15551234567" and messages use "5551234567".
+// The first name seen is the one listed, except that the address book's name (on
+// texts, calls or voicemail) wins over WhatsApp's for the same number.
 export function buildContactOptions(rows: PersonRow[]): ContactOption[] {
   const seen = new Map<string, ContactOption>();
+  const fromWhatsApp = new Set<string>();
   for (const e of rows) {
     if (e.contactIdentifier && e.contactName) {
       const np = normPhone(e.contactIdentifier);
       const key = np.length >= 7 ? np : e.contactIdentifier.toLowerCase();
-      if (!seen.has(key)) {
+      if (!seen.has(key) || (fromWhatsApp.has(key) && !isWhatsApp(e))) {
         seen.set(key, { identifier: e.contactIdentifier, name: e.contactName });
+        if (isWhatsApp(e)) fromWhatsApp.add(key);
+        else fromWhatsApp.delete(key);
       }
     }
   }
@@ -90,26 +114,40 @@ export function buildContactOptions(rows: PersonRow[]): ContactOption[] {
 //  2. Address-book group (phone ↔ email for same person)
 //  3. Display-name match (bridges identifiers the address book doesn't link).
 //     A group chat is under a person only this way, when it carries their name.
+// `name` is the name that matched rows by (3), in lower case, or '' when none did.
+// Only texts, calls and voicemail match by name, and only by a name on one of the
+// person's own: a WhatsApp chat is theirs by its number or card, never its name.
+export function matchPerson<T extends PersonRow>(
+  contactIdentifier: string,
+  rows: T[],
+  options: ContactOption[],
+  idMap: IdentifierGroupMap,
+): { rows: T[]; name: string } {
+  const selectedContact = options.find(c => identifiersMatch(contactIdentifier, c.identifier));
+  const selectedName = selectedContact?.name?.toLowerCase() ?? '';
+  const abGroup = getContactGroup(contactIdentifier, idMap);
+
+  const isTheirs = (id: string) => identifiersMatch(contactIdentifier, id) || (abGroup != null && (
+    abGroup.has(id) || abGroup.has(id.toLowerCase()) || abGroup.has(normPhone(id))
+  ));
+  const named = (e: T) => !isWhatsApp(e) && e.contactName?.toLowerCase() === selectedName;
+  const name = selectedName !== '' && rows.some(e => e.contactIdentifier && isTheirs(e.contactIdentifier) && named(e))
+    ? selectedName
+    : '';
+
+  return {
+    rows: rows.filter(e => !!e.contactIdentifier && (isTheirs(e.contactIdentifier) || (name !== '' && named(e)))),
+    name,
+  };
+}
+
 export function rowsForPerson<T extends PersonRow>(
   contactIdentifier: string,
   rows: T[],
   options: ContactOption[],
   idMap: IdentifierGroupMap,
 ): T[] {
-  const selectedContact = options.find(c => identifiersMatch(contactIdentifier, c.identifier));
-  const selectedName = selectedContact?.name?.toLowerCase() ?? '';
-  const abGroup = getContactGroup(contactIdentifier, idMap);
-
-  return rows.filter(e => {
-    if (!e.contactIdentifier) return false;
-    if (identifiersMatch(contactIdentifier, e.contactIdentifier)) return true;
-    if (abGroup != null && (
-      abGroup.has(e.contactIdentifier)
-      || abGroup.has(e.contactIdentifier.toLowerCase())
-      || abGroup.has(normPhone(e.contactIdentifier))
-    )) return true;
-    return selectedName !== '' && e.contactName?.toLowerCase() === selectedName;
-  });
+  return matchPerson(contactIdentifier, rows, options, idMap).rows;
 }
 
 // Everything the engine needs to count one person: the identifiers on their rows,

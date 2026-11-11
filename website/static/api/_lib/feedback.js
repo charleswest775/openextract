@@ -35,6 +35,7 @@ const AREAS = {
   timeline: { label: 'Timeline', labels: ['ui'] },
   year: { label: 'Year', labels: ['ui'] },
   messages: { label: 'Messages', labels: ['messages'] },
+  whatsapp: { label: 'WhatsApp', labels: ['messages'] },
   photos: { label: 'Photos', labels: ['photos'] },
   contacts: { label: 'Address book', labels: ['python-engine'] },
   calls: { label: 'Calls', labels: ['python-engine'] },

@@ -9,6 +9,26 @@ import { exportMessagesPdf, PdfExportMethod, removeStaleStagingDirs } from './pd
 import { FeedbackRecorder } from './feedback';
 import { FeedbackReports } from './feedbackReports';
 
+// Extensions that start a program or script when opened, on Windows, macOS or Linux.
+// shell:openPath refuses these: it opens media and documents from a backup, and a
+// file someone sent over WhatsApp can be named anything.
+const CODE_EXTENSIONS = new Set([
+  '.exe', '.com', '.bat', '.cmd', '.scr', '.pif', '.msi', '.msp', '.mst', '.cpl', '.msc', '.jar',
+  '.ps1', '.psm1', '.ps1xml', '.vbs', '.vbe', '.js', '.jse', '.wsf', '.wsh', '.wsc', '.hta', '.chm',
+  '.lnk', '.url', '.reg', '.inf', '.scf', '.application', '.appref-ms', '.gadget', '.xbap',
+  '.settingcontent-ms', '.library-ms', '.diagcab', '.iso', '.img', '.vhd', '.vhdx',
+  '.py', '.pyw', '.pyc', '.pl', '.rb', '.php',
+  '.app', '.command', '.terminal', '.tool', '.pkg', '.mpkg', '.dmg', '.workflow', '.action',
+  '.scpt', '.scptd', '.applescript', '.webloc', '.inetloc', '.fileloc', '.definition',
+  '.sh', '.bash', '.zsh', '.csh', '.ksh', '.desktop', '.run', '.appimage', '.bin',
+]);
+
+/** Whether opening this path would run a program (Windows ignores trailing dots and spaces). */
+export function runsCode(filePath: unknown): boolean {
+  if (typeof filePath !== 'string' || !filePath) return true;
+  return CODE_EXTENSIONS.has(path.extname(filePath.replace(/[. ]+$/, '')).toLowerCase());
+}
+
 let mainWindow: any = null;
 let sidecar: any = null;
 
@@ -415,6 +435,9 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle('shell:openPath', (_event: any, filePath: string) => {
+    // A second guard behind the engine's (python/whatsapp.py marks such copies as
+    // not openable): a file someone sent, named "Invoice.pdf.exe", must never run.
+    if (runsCode(filePath)) return "OpenExtract doesn't open programs or scripts.";
     return shell.openPath(filePath);
   });
 

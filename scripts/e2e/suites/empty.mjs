@@ -1,5 +1,6 @@
 // A backup with only Messages and Contacts in it (einstein): every other screen must show a
 // clear empty state rather than a spinner that never stops, an error, or a blank page.
+import * as path from 'node:path';
 import { check, launch, num, sleep, timing } from '../harness.mjs';
 
 export default {
@@ -43,6 +44,15 @@ export default {
         check(`${s.name}: shows an empty state`, !!settled, (await app.text()).slice(0, 300));
         check(`${s.name}: no error`, !/Couldn't|Something went wrong|Error:/i.test(await app.text()));
       }
+
+      // WhatsApp: most iPhones don't have it, so a backup without it has no WhatsApp tile and
+      // doesn't list it as missing; the engine says so without an error.
+      await app.home();
+      const waShown = await app.eval(() => [...document.querySelectorAll('span')].some(s => s.textContent.trim() === 'WhatsApp'));
+      check('WhatsApp: no tile, and not listed as missing', !('WhatsApp' in (await app.tiles())) && !waShown);
+      const waList = await app.api('call', 'list_whatsapp_chats', { udid: key?.udid ?? path.basename(b.dir) });
+      const wa = waList.value?.data;
+      check('WhatsApp: the engine says calmly that it isn\'t in this backup', waList.value?.success === true && wa?.empty_reason === 'not_in_backup' && !wa?.error, wa ?? waList);
 
       // Timeline and Year still work with messages only.
       await app.open('Timeline', /[\d,]+ events/);

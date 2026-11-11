@@ -12,11 +12,14 @@ import {
   IdentifierGroupMap,
   buildIdentifierGroupMap,
   buildContactOptions,
-  rowsForPerson,
+  getContactGroup,
+  matchPerson,
+  normPhone,
 } from '../lib/people';
 import { matchesTerms, parseQuery, searchText } from '../lib/search';
 import type { Conversation, Message } from './useMessages';
 import type { PhotoAsset } from '../types';
+import type { WhatsAppChatsResult, WhatsAppConversation, WhatsAppMessage, WhatsAppMessagesResult } from '../types/whatsapp';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -29,7 +32,14 @@ function appDisplayName(bundleId: string): string {
 
 // Stops reading messages past this many, so a very large backup can't overwhelm the app.
 const MAX_MESSAGES = 200000;
+// WhatsApp has its own allowance on top, so a big WhatsApp history can't crowd out Messages (or the other way round).
+const MAX_WHATSAPP = 200000;
+// Messages per request while reading a whole chat into the index.
+const CHAT_PAGE = 500;
 const PAGE_SIZE = 100;
+
+// Every kind of record the index reads, each one "still loading" until its read ends, however it ends.
+const ALL_KINDS: TimelineEntryType[] = ['message', 'whatsapp', 'call', 'photo', 'voicemail', 'note', 'browser'];
 
 // ── Normalizers ────────────────────────────────────────────────────────────────
 
@@ -50,6 +60,51 @@ export function normalizeMessage(msg: Message, conv: Conversation): TimelineEntr
       service: conv.service,
       chatId: conv.chat_id,
       isGroup: conv.is_group,
+    },
+  };
+}
+
+/**
+ * A WhatsApp message as a Timeline entry, or null when WhatsApp kept no usable
+ * date for it (it can't be placed on the Timeline).
+ *
+ * Its id is "whatsapp:<id>", never "message:": WhatsApp's ids overlap sms.db's,
+ * so the same number is a different message in each.
+ *
+ * Who it's with: a one-to-one chat is the other person's number ("+digits"),
+ * so it joins their texts and calls; a group, broadcast list or channel is the
+ * chat itself, like a group text; a one-to-one chat with no number WhatsApp
+ * could tie it to is with no one (it isn't anyone's, so it's left out of People).
+ */
+export function normalizeWhatsApp(msg: WhatsAppMessage, conv: WhatsAppConversation): TimelineEntry | null {
+  if (!msg.date) return null;
+  const chatType = conv.chat_type ?? (conv.is_group ? 'group' : 'individual');
+  const name = conv.display_name || conv.handle || 'WhatsApp chat';
+  const contactIdentifier = chatType === 'individual'
+    ? conv.handle || null
+    : conv.chat_identifier || conv.chat_jid || null;
+  const call = msg.call
+    ? { outcome: msg.call.outcome, direction: msg.call.direction, isVideo: msg.call.is_video, duration: msg.call.duration }
+    : null;
+  return {
+    id: `whatsapp:${msg.message_id}`,
+    type: 'whatsapp',
+    timestamp: msg.date,
+    contactName: name,
+    contactIdentifier,
+    whatsapp: {
+      text: msg.text || null,
+      isFromMe: msg.is_from_me,
+      sender: msg.sender ?? '',
+      messageType: msg.message_type || 'unknown',
+      eventText: msg.event_text || null,
+      attachmentLabel: msg.attachments?.[0]?.transfer_name || null,
+      conversationName: name,
+      chatId: conv.chat_id,
+      chatType,
+      isGroup: chatType === 'group',
+      sort: msg.sort ?? null,
+      call,
     },
   };
 }
@@ -223,6 +278,11 @@ export interface BackupIndex {
   loadingTypes: Set<TimelineEntryType>;
   errors: Partial<Record<TimelineEntryType, string>>;
   messageCap: { loaded: number; total: number } | null;
+  /**
+   * Set when WhatsApp has more messages than the index reads: only the newest
+   * `loaded` of `total` are in the Timeline, search and People.
+   */
+  whatsappCap: { loaded: number; total: number } | null;
   loadAllMessages: () => Promise<void>;
   /** Reads one day's messages ahead of the rest, for opening the Timeline on a day. */
   loadDay: (day: string) => void;
@@ -248,11 +308,11 @@ function dedupe(entries: TimelineEntry[]): TimelineEntry[] {
  */
 export function useBackupIndex(udid: string): BackupIndex {
   const [rawEntries, setRawEntries] = useState<TimelineEntry[]>([]);
-  const [loadingTypes, setLoadingTypes] = useState<Set<TimelineEntryType>>(
-    new Set(['message', 'call', 'photo', 'voicemail', 'note', 'browser'])
-  );
+  const [loadingTypes, setLoadingTypes] = useState<Set<TimelineEntryType>>(() => new Set(ALL_KINDS));
   const [errors, setErrors] = useState<Partial<Record<TimelineEntryType, string>>>({});
   const [messageCap, setMessageCap] = useState<{ loaded: number; total: number } | null>(null);
+  // How many WhatsApp messages were read and how many there are, when there were too many to read every one
+  const [whatsappCap, setWhatsappCap] = useState<{ loaded: number; total: number } | null>(null);
   const [addressBook, setAddressBook] = useState<AddressCard[] | null>(null);
   const [identifierGroupMap, setIdentifierGroupMap] = useState<IdentifierGroupMap>(new Map());
   const loadEpochRef = useRef(0);
@@ -275,6 +335,12 @@ export function useBackupIndex(udid: string): BackupIndex {
   const putMessages = useCallback((loaded: TimelineEntry[]) => {
     const all = dedupe([...loaded, ...dayEntriesRef.current]);
     setRawEntries(prev => [...prev.filter(e => e.type !== 'message'), ...all]);
+  }, []);
+
+  // WhatsApp's own: replacing only WhatsApp entries, so it never touches sms.db's (and Messages' never touch these)
+  const putWhatsApp = useCallback((loaded: TimelineEntry[]) => {
+    const fresh = dedupe(loaded);
+    setRawEntries(prev => [...prev.filter(e => e.type !== 'whatsapp'), ...fresh]);
   }, []);
 
   const markError = useCallback((type: TimelineEntryType, msg: string) => {
@@ -405,6 +471,7 @@ export function useBackupIndex(udid: string): BackupIndex {
     try {
       // Check first — not every backup has browser history
       const hasRes = await sidecarCall<{ has_any: boolean }>('has_browser_history', { udid });
+      if (loadEpochRef.current !== epoch) return;
       if (!hasRes.has_any) {
         // No history — remove from loading set without adding entries
         addEntries([], 'browser');
@@ -420,6 +487,93 @@ export function useBackupIndex(udid: string): BackupIndex {
       markError('browser', e.message || 'Failed to load browser history');
     }
   }, [udid, addEntries, markError]);
+
+  // WhatsApp, read like Messages a chat at a time, newest chats first. A backup
+  // without it, with none in it, or from a WhatsApp version this app can't read
+  // yet is simply empty here (the WhatsApp screen explains which); only a store
+  // that's there but unreadable is an error.
+  const fetchWhatsApp = useCallback(async (epoch: number) => {
+    try {
+      const res = await sidecarCall<WhatsAppChatsResult>('list_whatsapp_chats', { udid });
+      if (loadEpochRef.current !== epoch) return;
+      if (res?.empty_reason) {
+        addEntries([], 'whatsapp');
+        return;
+      }
+      if (res?.error) {
+        markError('whatsapp', res.error);
+        return;
+      }
+
+      const sorted = [...(res?.conversations ?? [])].sort((a, b) =>
+        (b.last_message_date || '').localeCompare(a.last_message_date || '')
+      );
+      const total = sorted.reduce((s, c) => s + (c.message_count || 0), 0);
+      const entries: TimelineEntry[] = [];
+      let loaded = 0;
+      let capped = false;
+      let failure: string | null = null;
+      let flushedAt = Date.now();
+
+      for (const conv of sorted) {
+        if (loaded >= MAX_WHATSAPP) {
+          capped = true;
+          break;
+        }
+        try {
+          let offset = 0;
+          while (true) {
+            const page = await sidecarCall<WhatsAppMessagesResult>(
+              'get_whatsapp_messages',
+              { udid, chat_id: conv.chat_id, offset, limit: CHAT_PAGE }
+            );
+            if (loadEpochRef.current !== epoch) return;
+            // A chat that can't be read is skipped; the rest still load
+            if (page?.error) {
+              if (!page.empty_reason) failure ??= page.error;
+              break;
+            }
+            const messages = page?.messages ?? [];
+            for (const m of messages) {
+              const entry = normalizeWhatsApp(m, conv);
+              if (entry) entries.push(entry);
+            }
+            loaded += messages.length;
+            offset += CHAT_PAGE;
+            if (messages.length === 0 || offset >= (page?.total ?? 0)) break;
+            // One chat can be bigger than the allowance: keep its newest messages and stop
+            if (loaded >= MAX_WHATSAPP) {
+              capped = true;
+              break;
+            }
+          }
+        } catch (e: any) {
+          if (loadEpochRef.current !== epoch) return;
+          failure ??= e?.message || "Couldn't read a WhatsApp chat";
+        }
+        if (Date.now() - flushedAt > FLUSH_MS) {
+          putWhatsApp(entries);
+          flushedAt = Date.now();
+        }
+      }
+
+      putWhatsApp(entries);
+      setWhatsappCap(capped ? { loaded, total } : null);
+      // Every chat failed: say so. Some did: show what could be read.
+      if (entries.length === 0 && failure) {
+        markError('whatsapp', failure);
+        return;
+      }
+      setLoadingTypes(prev => {
+        const next = new Set(prev);
+        next.delete('whatsapp');
+        return next;
+      });
+    } catch (e: any) {
+      if (loadEpochRef.current !== epoch) return;
+      markError('whatsapp', e?.message || "Couldn't read WhatsApp");
+    }
+  }, [udid, addEntries, putWhatsApp, markError]);
 
   const fetchAddressBook = useCallback(async (epoch: number) => {
     try {
@@ -439,8 +593,9 @@ export function useBackupIndex(udid: string): BackupIndex {
     setRawEntries([]);
     setErrors({});
     setMessageCap(null);
+    setWhatsappCap(null);
     setAddressBook(null);
-    setLoadingTypes(new Set(['message', 'call', 'photo', 'voicemail', 'note', 'browser']));
+    setLoadingTypes(new Set(ALL_KINDS));
     conversationsRef.current = null;
     messagesDoneRef.current = false;
     dayEntriesRef.current = [];
@@ -448,13 +603,14 @@ export function useBackupIndex(udid: string): BackupIndex {
 
     // Fire all fetches in parallel; each one updates state independently
     fetchMessages(epoch);
+    fetchWhatsApp(epoch);
     fetchCalls(epoch);
     fetchPhotos(epoch);
     fetchVoicemail(epoch);
     fetchNotes(epoch);
     fetchBrowser(epoch);
     fetchAddressBook(epoch);
-  }, [fetchMessages, fetchCalls, fetchPhotos, fetchVoicemail, fetchNotes, fetchBrowser, fetchAddressBook]);
+  }, [fetchMessages, fetchWhatsApp, fetchCalls, fetchPhotos, fetchVoicemail, fetchNotes, fetchBrowser, fetchAddressBook]);
 
   useEffect(() => {
     load();
@@ -534,13 +690,14 @@ export function useBackupIndex(udid: string): BackupIndex {
 
   const counts = useMemo((): Record<TimelineEntryType, number> => {
     const c: Record<TimelineEntryType, number> = {
-      message: 0, call: 0, photo: 0, voicemail: 0, note: 0, browser: 0,
+      message: 0, whatsapp: 0, call: 0, photo: 0, voicemail: 0, note: 0, browser: 0,
     };
     for (const e of rawEntries) c[e.type]++;
     // When messages are capped, show the real total rather than the loaded subset
     if (messageCap) c.message = messageCap.total;
+    if (whatsappCap) c.whatsapp = whatsappCap.total;
     return c;
-  }, [rawEntries, messageCap]);
+  }, [rawEntries, messageCap, whatsappCap]);
 
   return useMemo(() => ({
     entries,
@@ -552,10 +709,11 @@ export function useBackupIndex(udid: string): BackupIndex {
     loadingTypes,
     errors,
     messageCap,
+    whatsappCap,
     loadAllMessages,
     loadDay,
     refresh: load,
-  }), [entries, contacts, addressBook, identifierGroupMap, counts, loadingTypes, errors, messageCap, loadAllMessages, loadDay, load]);
+  }), [entries, contacts, addressBook, identifierGroupMap, counts, loadingTypes, errors, messageCap, whatsappCap, loadAllMessages, loadDay, load]);
 }
 
 // ── One filtered view of it ───────────────────────────────────────────────────
@@ -572,6 +730,7 @@ export interface UseTimelineReturn {
   loadingTypes: Set<TimelineEntryType>;
   errors: Partial<Record<TimelineEntryType, string>>;
   messageCap: { loaded: number; total: number } | null;
+  whatsappCap: { loaded: number; total: number } | null;
   filters: TimelineFilters;
   setFilters: (patch: Partial<TimelineFilters>) => void;
   page: number;
@@ -608,14 +767,15 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
     // ── Contact matching ───────────────────────────────────────────────────
     // When a contact is selected we match entries three ways:
     //  1. Identifier match (exact, normalised phone, or address-book group)
-    //  2. Name match (same resolved display name)
+    //  2. Name match (same resolved display name), for texts, calls and voicemail
     //  3. Unattributed entries (photos, notes, browser) shown within the
     //     communication window of matched entries.
+    // A WhatsApp message is theirs by its number (or a number on their card)
+    // only, never by name: People counts it the same way (gather.ts).
     let matchesContact: ((e: TimelineEntry) => boolean) | null = null;
 
     if (contactIdentifier) {
-      const selectedContact = allContacts.find(c => identifiersMatch(contactIdentifier, c.identifier));
-      const selectedName = selectedContact?.name?.toLowerCase() ?? '';
+      const { rows: theirs, name: selectedName } = matchPerson(contactIdentifier, allEntries, allContacts, identifierGroupMap);
 
       // Collect every raw identifier seen in the entries that belongs to
       // this contact, plus track the communication-window timestamps.
@@ -623,7 +783,7 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
       let minTs = Infinity;
       let maxTs = -Infinity;
 
-      for (const e of rowsForPerson(contactIdentifier, allEntries, allContacts, identifierGroupMap)) {
+      for (const e of theirs) {
         contactIds.add(e.contactIdentifier!);
         if (e.timestamp) {
           const ts = new Date(e.timestamp).getTime();
@@ -631,6 +791,18 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
           if (ts > maxTs) maxTs = ts;
         }
       }
+
+      // Every number and address on the cards of the identifiers above, worked
+      // out the first time a WhatsApp message needs it: their WhatsApp number
+      // can be on their card without being on any of their texts or calls.
+      let cardIds: Set<string> | null = null;
+      const onTheirCards = (id: string): boolean => {
+        if (cardIds === null) {
+          cardIds = new Set();
+          for (const cid of contactIds) for (const x of getContactGroup(cid, identifierGroupMap) ?? []) cardIds.add(x);
+        }
+        return cardIds.has(id) || cardIds.has(id.toLowerCase()) || cardIds.has(normPhone(id));
+      };
 
       matchesContact = (e: TimelineEntry): boolean => {
         // Entries with an identifier: check against collected set
@@ -640,9 +812,12 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
           for (const cid of contactIds) {
             if (identifiersMatch(cid, e.contactIdentifier)) return true;
           }
+          if (e.type === 'whatsapp') return onTheirCards(e.contactIdentifier);
           if (selectedName && e.contactName?.toLowerCase() === selectedName) return true;
           return false;
         }
+        // A WhatsApp chat with no number WhatsApp could tie it to isn't anyone's
+        if (e.type === 'whatsapp') return false;
         // Entries with a name but no identifier
         if (e.contactName) {
           return selectedName ? e.contactName.toLowerCase() === selectedName : false;
@@ -694,6 +869,7 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
     loadingTypes: index.loadingTypes,
     errors: index.errors,
     messageCap: index.messageCap,
+    whatsappCap: index.whatsappCap,
     filters,
     setFilters,
     page,
