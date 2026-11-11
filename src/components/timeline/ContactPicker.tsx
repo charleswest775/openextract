@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { ContactOption } from '../../types/timeline';
-import { identifiersMatch } from '../../lib/people';
+import { identifiersMatch, isWhatsAppAddress } from '../../lib/people';
 
 interface Props {
   value: string;                       // empty string = all contacts
@@ -26,7 +26,7 @@ export default function ContactPicker({ value, options, onChange }: Props) {
 
   const filteredContacts = options.filter(c =>
     c.name.toLowerCase().includes(contactSearch.toLowerCase()) ||
-    c.identifier.includes(contactSearch)
+    (!isWhatsAppAddress(c.identifier) && c.identifier.includes(contactSearch))
   );
 
   const isSelected = (c: ContactOption) => value !== '' && identifiersMatch(value, c.identifier);
@@ -138,7 +138,8 @@ export default function ContactPicker({ value, options, onChange }: Props) {
                 }}
               >
                 <span>{c.name}</span>
-                {c.name !== c.identifier && (
+                {/* A WhatsApp group's address means nothing to anyone: just its name */}
+                {c.name !== c.identifier && !isWhatsAppAddress(c.identifier) && (
                   <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{c.identifier}</span>
                 )}
               </button>

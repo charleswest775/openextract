@@ -40,6 +40,8 @@ KINDS = {
     "browser_visit_absent",
     "photo",
     "album",
+    "whatsapp_message",
+    "whatsapp_message_absent",
 }
 _QUOTES = {
     ord("\u2018"): "'",
@@ -153,7 +155,7 @@ def load_facts(path: Path) -> FactSet:
             window = (_local(start, offset, where), _local(end, offset, where))
         if raw["kind"] == "browser_visit_absent" and window is None:
             raise FactsError(f"{where}: browser_visit_absent needs a window")
-        if raw["kind"] in ("message", "call", "browser_visit", "photo") and at is None:
+        if raw["kind"] in ("message", "call", "browser_visit", "photo", "whatsapp_message") and at is None:
             raise FactsError(f"{where}: {raw['kind']} needs 'at'")
         facts.append(
             Fact(
@@ -182,6 +184,7 @@ class ExtractedData:
     visits: list[dict] = field(default_factory=list)
     photos: list[dict] = field(default_factory=list)
     albums: list[dict] = field(default_factory=list)
+    whatsapp_messages: list[dict] = field(default_factory=list)  # each carries chat_id; ids are ChatStorage's
     errors: dict[str, str] = field(default_factory=dict)  # field name → why it couldn't be extracted
 
 
@@ -194,6 +197,8 @@ _SOURCE = {
     "browser_visit_absent": "visits",
     "photo": "photos",
     "album": "albums",
+    "whatsapp_message": "whatsapp_messages",
+    "whatsapp_message_absent": "whatsapp_messages",
 }
 
 
@@ -227,6 +232,26 @@ def _message_matches(message: dict, expect: dict) -> bool:
     if "attachment_mime_prefix" in expect:
         mimes = [(a.get("mime_type") or "") for a in message.get("attachments") or []]
         if not any(m.startswith(expect["attachment_mime_prefix"]) for m in mimes):
+            return False
+    return True
+
+
+def _whatsapp_matches(message: dict, expect: dict) -> bool:
+    """Messages' checks, plus what WhatsApp keeps on a message: a quote, reactions, a call's details."""
+    if not _message_matches(message, expect):
+        return False
+    if "has_quote" in expect and bool(message.get("quoted")) != expect["has_quote"]:
+        return False
+    if "has_reaction" in expect and bool(message.get("reactions")) != expect["has_reaction"]:
+        return False
+    call = message.get("call") or {}
+    if "call_is_video" in expect and call.get("is_video") is not expect["call_is_video"]:
+        return False
+    if "call_direction" in expect and call.get("direction") != expect["call_direction"]:
+        return False
+    if "call_duration_s" in expect:
+        tolerance = expect.get("duration_tolerance_s", 15)
+        if call.get("duration") is None or abs(float(call["duration"]) - expect["call_duration_s"]) > tolerance:
             return False
     return True
 
@@ -288,6 +313,19 @@ def evaluate(fact: Fact, data: ExtractedData) -> tuple[bool, str]:
         if not hits:
             return True, "absent as expected"
         return False, f"expected no message with this text, found {len(hits)} (dates: {[m.get('date') for m in hits]})"
+
+    if fact.kind == "whatsapp_message":
+        window = [m for m in data.whatsapp_messages if _near(parse_iso(m.get("date")), fact.at, fact.tolerance)]
+        if any(_whatsapp_matches(m, expect) for m in window):
+            return True, "found"
+        return False, (f"no WhatsApp message matching {expect} within ±{fact.tolerance} of {fact.at.isoformat()}\n"
+                       + _describe_messages(window, fact.at))
+
+    if fact.kind == "whatsapp_message_absent":
+        hits = [m for m in data.whatsapp_messages if text_sha256(m.get("text") or "") == expect["text_sha256"]]
+        if not hits:
+            return True, "absent as expected"
+        return False, f"expected no WhatsApp message with this text, found {len(hits)} (ids: {[m.get('message_id') for m in hits]})"
 
     if fact.kind == "call":
         window = [c for c in data.calls if _near(parse_iso(c.get("date")), fact.at, fact.tolerance)]

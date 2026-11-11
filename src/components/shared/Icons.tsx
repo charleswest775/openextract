@@ -1,6 +1,6 @@
 import {
   ArchiveRestore, ArrowLeft, BookUser, Briefcase, CalendarDays, ChevronRight, Clock, Download, FolderOpen,
-  Globe, House, Image, LayoutGrid, LifeBuoy, Lock, MessageCircle, NotebookPen, Phone, Play, Plus, Search,
+  Globe, House, Image, LayoutGrid, LifeBuoy, Lock, MessageCircle, MessagesSquare, NotebookPen, Phone, Play, Plus, Search,
   Settings, Smartphone, Users, Voicemail,
   type LucideIcon,
 } from 'lucide-react';
@@ -22,6 +22,8 @@ function icon(Glyph: LucideIcon) {
 // Places and data
 export const ChartIcon = icon(LayoutGrid); // Backup details
 export const LinesIcon = icon(MessageCircle); // Messages
+// Lucide has no brand icons, and WhatsApp's mark isn't ours to use: two speech bubbles, unlike Messages' one
+export const WhatsAppIcon = icon(MessagesSquare);
 export const CameraIcon = icon(Image); // Photos
 export const ContactIcon = icon(BookUser); // Address book
 export const PeopleIcon = icon(Users); // who you were in touch with

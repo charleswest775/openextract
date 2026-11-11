@@ -5,8 +5,8 @@ contextBridge.exposeInMainWorld('openextract', {
   call: (method: string, params?: any) =>
     ipcRenderer.invoke('sidecar:call', method, params || {}),
 
-  // Export conversations as PDF (rendered by the main process)
-  exportPdf: (method: 'export_conversation' | 'export_conversations', params: any) =>
+  // Export conversations or WhatsApp chats as PDF (rendered by the main process)
+  exportPdf: (method: 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats', params: any) =>
     ipcRenderer.invoke('export:pdf', method, params),
 
   // Native dialogs

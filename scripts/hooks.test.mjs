@@ -4,9 +4,10 @@
 //    including private ones, exposed by load-ts;
 //  - useTimeline's filtering, which is pure within one render: a stand-in for
 //    React runs the hook once with useMemo/useCallback called straight through;
+//  - useBackupIndex reading WhatsApp, against a fake engine: a stand-in for
+//    React that keeps state between renders runs the load and reads the state;
 //  - latestYear (useYearCounts.ts) and releaseNotesUrl (useUpdates.ts).
-//  - useBackupIndex's loads against a fake engine, with a stand-in for React
-//    that keeps state between renders.
+//  - useBackupIndex's other loads (calls) against a fake engine, the same way.
 // Other hook state over time (paging, retries) is left to the end-to-end UI tests.
 // Run with: node --test scripts/hooks.test.mjs (also re-runs itself in other time zones)
 import { test } from 'node:test';
@@ -29,11 +30,12 @@ const timeline = loadTs('src/hooks/useTimeline.ts', {
   stubs: { react: oneRender },
   expose: ['appDisplayName', 'normalizePhoto', 'normalizeNote', 'normalizeBrowserVisit', 'dedupe'],
 });
-const { normalizeMessage, normalizeCall, normalizeVoicemail, normalizePhoto, normalizeNote,
+const { normalizeMessage, normalizeWhatsApp, normalizeCall, normalizeVoicemail, normalizePhoto, normalizeNote,
   normalizeBrowserVisit, dedupe, appDisplayName, useTimeline } = timeline;
 const { latestYear } = loadTs('src/hooks/useYearCounts.ts', { stubs: { react: oneRender }, expose: ['latestYear'] });
 const { releaseNotesUrl } = loadTs('src/hooks/useUpdates.ts', { stubs: { react: oneRender } });
 const { buildContactOptions, buildIdentifierGroupMap } = loadTs('src/lib/people.ts');
+const { gatherPeople } = loadTs('src/components/people/gather.ts');
 
 const local = (y, mo, d, h = 0, mi = 0, s = 0, ms = 0) => new Date(y, mo - 1, d, h, mi, s, ms);
 const engine = date => date.toISOString().replace('Z', '+00:00');
@@ -70,6 +72,99 @@ test('normalizeMessage: a message in its conversation', () => {
   const unnamed = normalizeMessage(msg(1, local(2024, 1, 1), null), { ...MOM_CHAT, display_name: '' });
   assert.equal(unnamed.contactName, '+15035550123');
   assert.equal(unnamed.message.conversationName, '+15035550123');
+});
+
+// ── WhatsApp, as the engine sends it (fictional people, 555 numbers) ────────────
+const WA_RILEY = {
+  chat_id: 12, chat_identifier: '15035550142@s.whatsapp.net', display_name: 'Riley Okafor', service: 'WhatsApp',
+  message_count: 3, last_message_date: '2024-03-10T09:59:59+00:00', last_message_preview: 'ok', is_group: false,
+  chat_jid: '15035550142@s.whatsapp.net', handle: '+15035550142', chat_type: 'individual', archived: false,
+};
+const WA_FAMILY = {
+  ...WA_RILEY, chat_id: 30, chat_identifier: '120363000000000001@g.us', chat_jid: '120363000000000001@g.us',
+  display_name: 'Family', handle: '', chat_type: 'group', is_group: true,
+};
+const waMsg = (id, date, text, over = {}) => ({
+  message_id: id, text, message_type: 'text', event_text: null, link_preview: null,
+  date: date === null ? null : engine(date), is_from_me: false, sender: 'Riley Okafor', sender_handle: '+15035550142',
+  has_attachments: false, attachments: [], is_reaction: false, sort: id * 10, sender_jid: '15035550142@s.whatsapp.net',
+  quoted: null, reactions: [], call: null, location: null, received_date: null, event_code: null, starred: false, vcard: null,
+  ...over,
+});
+
+test('normalizeWhatsApp: a message in a one-to-one chat is with that number', () => {
+  const e = normalizeWhatsApp(waMsg(1, local(2024, 3, 10, 8, 15), 'Running late 🚗'), WA_RILEY);
+  assert.equal(e.id, 'whatsapp:1');
+  assert.equal(e.type, 'whatsapp');
+  assert.equal(e.contactName, 'Riley Okafor');
+  // The number, so the chat joins Riley's texts and calls; never the chat's WhatsApp address
+  assert.equal(e.contactIdentifier, '+15035550142');
+  assert.deepEqual(e.whatsapp, {
+    text: 'Running late 🚗', isFromMe: false, sender: 'Riley Okafor', messageType: 'text', eventText: null,
+    attachmentLabel: null, conversationName: 'Riley Okafor', chatId: 12, chatType: 'individual', isGroup: false,
+    sort: 10, call: null,
+  });
+  // No message field: nothing that reads sms.db ids would pick it up
+  assert.equal(e.message, undefined);
+});
+
+test("normalizeWhatsApp: who a chat is with, by kind of chat", () => {
+  const at = local(2024, 3, 10, 12);
+  // A group, broadcast list or channel is the chat itself, like a group text
+  const group = normalizeWhatsApp(waMsg(2, at, 'hi all', { sender: 'Ana' }), WA_FAMILY);
+  assert.equal(group.contactIdentifier, '120363000000000001@g.us');
+  assert.equal(group.contactName, 'Family');
+  assert.deepEqual([group.whatsapp.isGroup, group.whatsapp.chatType, group.whatsapp.sender], [true, 'group', 'Ana']);
+  const list = normalizeWhatsApp(waMsg(3, at, 'Party Saturday'),
+    { ...WA_FAMILY, chat_identifier: '1700000000@broadcast', chat_jid: '1700000000@broadcast', chat_type: 'broadcast', is_group: false, display_name: 'Party list' });
+  assert.equal(list.contactIdentifier, '1700000000@broadcast');
+  assert.deepEqual([list.whatsapp.isGroup, list.whatsapp.chatType], [false, 'broadcast']);
+  const channel = normalizeWhatsApp(waMsg(4, at, 'News'),
+    { ...WA_FAMILY, chat_identifier: '120363000000000002@newsletter', chat_jid: '120363000000000002@newsletter', chat_type: 'channel', is_group: false, display_name: 'Garden club' });
+  assert.equal(channel.contactIdentifier, '120363000000000002@newsletter');
+  // A one-to-one chat WhatsApp couldn't tie to a number is with no one: it isn't anyone's in People
+  const lid = normalizeWhatsApp(waMsg(5, at, 'hello'),
+    { ...WA_RILEY, chat_identifier: '99000000000001@lid', chat_jid: '99000000000001@lid', handle: '', display_name: 'Unknown contact' });
+  assert.equal(lid.contactIdentifier, null);
+  assert.equal(lid.contactName, 'Unknown contact');
+  // An engine without handles yet: still no WhatsApp address as a person
+  const { handle, ...older } = WA_RILEY;
+  assert.equal(normalizeWhatsApp(waMsg(6, at, 'x'), older).contactIdentifier, null);
+  // A chat without a name goes by its number, never its address
+  assert.equal(normalizeWhatsApp(waMsg(7, at, 'x'), { ...WA_RILEY, display_name: '' }).contactName, '+15035550142');
+  assert.equal(normalizeWhatsApp(waMsg(8, at, 'x'), { ...WA_RILEY, display_name: '', handle: '' }).contactName, 'WhatsApp chat');
+});
+
+test('normalizeWhatsApp: messages with no usable date are left off the Timeline', () => {
+  assert.equal(normalizeWhatsApp(waMsg(1, null, 'lost in time'), WA_RILEY), null);
+  assert.equal(normalizeWhatsApp({ ...waMsg(1, null, 'x'), date: '' }, WA_RILEY), null);
+  assert.ok(normalizeWhatsApp(waMsg(1, local(2024, 1, 1), 'x'), WA_RILEY));
+});
+
+test('normalizeWhatsApp keeps what a message without words was', () => {
+  const at = local(2024, 3, 10, 12);
+  const photo = normalizeWhatsApp(waMsg(1, at, '', {
+    message_type: 'image', has_attachments: true,
+    attachments: [{ attachment_id: 4, filename: '', mime_type: 'image/jpeg', transfer_name: 'Photo', total_bytes: null, thumbnail_path: null, width: null, height: null, duration: null, available: false }],
+  }), WA_RILEY);
+  assert.deepEqual([photo.whatsapp.text, photo.whatsapp.messageType, photo.whatsapp.attachmentLabel], [null, 'image', 'Photo']);
+  const call = normalizeWhatsApp(waMsg(2, at, '', {
+    message_type: 'call', event_text: 'Missed voice call',
+    call: { is_video: false, duration: null, outcome: 'missed', direction: 'incoming' },
+  }), WA_RILEY);
+  assert.equal(call.whatsapp.eventText, 'Missed voice call');
+  assert.deepEqual(call.whatsapp.call, { outcome: 'missed', direction: 'incoming', isVideo: false, duration: null });
+  // A notice belongs to no one in the chat
+  const notice = normalizeWhatsApp(waMsg(3, at, '', { message_type: 'system', sender: '', event_text: 'Riley joined' }), WA_FAMILY);
+  assert.deepEqual([notice.whatsapp.sender, notice.whatsapp.eventText, notice.whatsapp.isFromMe], ['', 'Riley joined', false]);
+  // A message with no sort keeps null rather than a made-up order
+  assert.equal(normalizeWhatsApp(waMsg(4, at, 'x', { sort: null }), WA_RILEY).whatsapp.sort, null);
+});
+
+test('a WhatsApp message and an sms.db message with the same number both stay', () => {
+  const sms = normalizeMessage(msg(1, local(2024, 1, 1), 'from Messages'), MOM_CHAT);
+  const wa = normalizeWhatsApp(waMsg(1, local(2024, 1, 1), 'from WhatsApp'), WA_RILEY);
+  assert.deepEqual(dedupe([sms, wa]).map(e => e.id), ['message:1', 'whatsapp:1']);
 });
 
 test('normalizeCall: names, numbers, and app calls with UUID addresses', () => {
@@ -163,12 +258,12 @@ function indexOf(entries, contacts = []) {
       contacts: buildContactOptions(sorted),
       addressBook: [],
       identifierGroupMap: buildIdentifierGroupMap(contacts),
-      counts: {}, loading: false, loadingTypes: new Set(), errors: {}, messageCap: null,
+      counts: {}, loading: false, loadingTypes: new Set(), errors: {}, messageCap: null, whatsappCap: null,
       loadAllMessages: async () => {}, loadDay: day => days.push(day), refresh: () => {},
     },
   };
 }
-const ALL_TYPES = new Set(['message', 'call', 'photo', 'voicemail', 'note', 'browser']);
+const ALL_TYPES = new Set(['message', 'whatsapp', 'call', 'photo', 'voicemail', 'note', 'browser']);
 const filtered = (index, filters) => useTimeline(index, { types: ALL_TYPES, ...filters }).filteredEntries.map(e => e.id);
 
 const DAYS = [[2024, 3, 10], [2024, 3, 31], [2024, 4, 7], [2024, 10, 6], [2024, 11, 3], [2024, 2, 29], [2024, 12, 31]];
@@ -237,6 +332,93 @@ test('picking a person shows their records, and undated-by-person ones from whil
     ['voicemail:3', 'call:2', 'photo:inside', 'message:1']);
 });
 
+test('WhatsApp messages are in the Timeline by default, filtered and searched like the rest', () => {
+  const { DEFAULT_FILTERS } = loadTs('src/types/timeline.ts');
+  assert.ok(DEFAULT_FILTERS.types.has('whatsapp'));
+  const entries = [
+    normalizeMessage(msg(1, local(2024, 3, 10, 12), 'See you at the market'), MOM_CHAT),
+    normalizeWhatsApp(waMsg(1, local(2024, 3, 10, 13), 'Bring the blue tent'), WA_RILEY),
+    normalizeWhatsApp(waMsg(2, local(2024, 3, 10, 14), 'Ana is driving', { sender: 'Ana' }), WA_FAMILY),
+  ];
+  const { index } = indexOf(entries);
+  assert.deepEqual(useTimeline(index).filteredEntries.map(e => e.id), ['whatsapp:2', 'whatsapp:1', 'message:1']);
+  assert.deepEqual(filtered(index, { types: new Set(['whatsapp']) }), ['whatsapp:2', 'whatsapp:1']);
+  assert.deepEqual(filtered(index, { types: new Set(['message']) }), ['message:1']);
+  assert.deepEqual(filtered(index, { searchQuery: 'tent' }), ['whatsapp:1']);
+  // Picking Riley by the number on their texts finds their WhatsApp chat too
+  assert.deepEqual(filtered(index, { contactIdentifier: '(503) 555-0142' }), ['whatsapp:1']);
+});
+
+test("picking someone never brings in another WhatsApp chat just because WhatsApp gave it the same name", () => {
+  // Two strangers who both call themselves Alex on WhatsApp
+  const usAlex = { ...WA_RILEY, chat_id: 3, chat_identifier: '15035550101@s.whatsapp.net', chat_jid: '15035550101@s.whatsapp.net', display_name: 'Alex', handle: '+15035550101' };
+  const ukAlex = { ...usAlex, chat_id: 4, chat_identifier: '447700900123@s.whatsapp.net', chat_jid: '447700900123@s.whatsapp.net', handle: '+447700900123' };
+  const entries = [
+    normalizeWhatsApp(waMsg(1, local(2024, 3, 10, 12), 'from the US'), usAlex),
+    normalizeWhatsApp(waMsg(2, local(2024, 3, 10, 13), 'from the UK'), ukAlex),
+  ];
+  const { index } = indexOf(entries);
+  assert.deepEqual(filtered(index, { contactIdentifier: '+447700900123' }), ['whatsapp:2']);
+  assert.deepEqual(filtered(index, { contactIdentifier: '+15035550101' }), ['whatsapp:1']);
+  // Nor someone from Messages with that name, whichever one is picked
+  const smsAlex = normalizeMessage(msg(3, local(2024, 3, 10, 14), 'from Messages'), { ...MOM_CHAT, chat_id: 9, chat_identifier: '+15035550177', display_name: 'Alex' });
+  const { index: mixed } = indexOf([entries[1], smsAlex]);
+  assert.deepEqual(filtered(mixed, { contactIdentifier: '+447700900123' }), ['whatsapp:2']);
+  assert.deepEqual(filtered(mixed, { contactIdentifier: '+15035550177' }), ['message:3']);
+});
+
+test("a WhatsApp chat with no number isn't anyone's, even with their name on it", () => {
+  const RILEY_SMS = { ...MOM_CHAT, chat_id: 7, chat_identifier: '+15035550142', display_name: 'Riley' };
+  // A one-to-one chat WhatsApp couldn't tie to a number, under the name WhatsApp has for it
+  const unmapped = { ...WA_RILEY, chat_id: 40, chat_identifier: '86123456789012@lid', chat_jid: '86123456789012@lid', display_name: 'Riley', handle: '' };
+  const entries = [
+    normalizeMessage(msg(1, local(2024, 3, 10, 12), 'hi'), RILEY_SMS),
+    normalizeWhatsApp(waMsg(1, local(2024, 3, 10, 13), 'hello'), unmapped),
+  ];
+  assert.equal(entries[1].contactIdentifier, null);
+  const { index } = indexOf(entries);
+  assert.deepEqual(filtered(index, { contactIdentifier: '+15035550142' }), ['message:1']);
+  // People agrees: Riley has one message and no WhatsApp
+  const [riley] = gatherPeople(index.entries);
+  assert.deepEqual([riley.total, riley.counts.whatsapp], [1, 0]);
+});
+
+test("someone's stream has the WhatsApp chats People counts for them, through their card", () => {
+  // Mom texts from her email; her calls come from her number, which shares a card
+  // with the number she uses WhatsApp on. People puts all three together.
+  const momEmail = { ...MOM_CHAT, chat_id: 14, chat_identifier: 'mom@icloud.com', display_name: 'Mom' };
+  const momWhatsApp = { ...WA_RILEY, chat_id: 21, chat_identifier: '447700900999@s.whatsapp.net', chat_jid: '447700900999@s.whatsapp.net', display_name: 'Mum', handle: '+447700900999' };
+  const entries = [
+    normalizeMessage(msg(1, local(2024, 3, 10, 12), 'from iCloud'), momEmail),
+    normalizeCall({ call_id: 2, address: '+15035550123', contact_name: 'Mom', date: engine(local(2024, 3, 9, 9)), duration: 60, direction: 'incoming', status: 'answered', app: '' }),
+    normalizeWhatsApp(waMsg(3, local(2024, 3, 8, 9), 'from WhatsApp'), momWhatsApp),
+  ];
+  const card = { id: 1, display_name: 'Mom', phones: ['+1 503 555 0123', '+44 7700 900999'], emails: [] };
+  const { index } = indexOf(entries, [card]);
+  const people = gatherPeople(index.entries, [card]);
+  assert.equal(people.length, 1);
+  const [mom] = people;
+  assert.equal(mom.identifier, 'mom@icloud.com');
+  const stream = useTimeline(index, { types: new Set(['message', 'whatsapp', 'call', 'voicemail']), contactIdentifier: mom.identifier }).filteredEntries;
+  assert.deepEqual(stream.map(e => e.id), ['message:1', 'call:2', 'whatsapp:3']);
+  assert.equal(stream.length, mom.total);
+  // Without the card, the WhatsApp number is no one else's
+  const { index: noCard } = indexOf(entries);
+  assert.deepEqual(filtered(noCard, { contactIdentifier: 'mom@icloud.com' }), ['message:1', 'call:2']);
+});
+
+test("picking a phone number never brings in a WhatsApp group whose address ends in its digits", () => {
+  const club = { ...WA_FAMILY, chat_id: 31, chat_identifier: '120363025246125486@g.us', chat_jid: '120363025246125486@g.us', display_name: 'Book club' };
+  const pat = { ...MOM_CHAT, chat_id: 8, chat_identifier: '+15246125486', display_name: 'Pat' };
+  const entries = [
+    normalizeWhatsApp(waMsg(1, local(2024, 3, 10, 12), 'chapter 3', { sender: 'Ana' }), club),
+    normalizeMessage(msg(2, local(2024, 3, 10, 13), 'hi'), pat),
+  ];
+  const { index } = indexOf(entries);
+  assert.deepEqual(filtered(index, { contactIdentifier: '+15246125486' }), ['message:2']);
+  assert.deepEqual(filtered(index, { contactIdentifier: '120363025246125486@g.us' }), ['whatsapp:1']);
+});
+
 test('the list is shown 100 at a time', () => {
   const entries = Array.from({ length: 250 }, (_, i) => normalizeMessage(msg(i, new Date(Date.UTC(2024, 0, 1) + i * 60_000), `m${i}`), MOM_CHAT));
   const { index } = indexOf(entries);
@@ -261,6 +443,235 @@ test("opening the Timeline on one day reads that day's messages first", () => {
   run({ dateFrom: '2024-03-10', dateTo: '2024-03-10', types: new Set(['photo']) });
   run({});
   assert.deepEqual(days, ['2024-03-10']);
+});
+
+// ── useBackupIndex reading WhatsApp ──────────────────────────────────────────
+// A stand-in for React that keeps each useState slot between renders, so the
+// load's setState calls can be read back. Slots are in the hook's order:
+// 0 the entries, 1 the kinds still loading, 2 the errors.
+const RAW = 0, LOADING = 1, ERRORS = 2;
+
+function fakeIndex(engine) {
+  const slots = [];
+  let at = 0;
+  const runEffects = [];
+  const react = {
+    useState: init => {
+      const k = at++;
+      if (!(k in slots)) slots[k] = typeof init === 'function' ? init() : init;
+      return [slots[k], v => { slots[k] = typeof v === 'function' ? v(slots[k]) : v; }];
+    },
+    useMemo: fn => fn(),
+    useCallback: fn => fn,
+    useRef: current => ({ current }),
+    useEffect: fn => { runEffects.push(fn); },
+  };
+  const calls = [];
+  const ipc = {
+    sidecarCall: async (method, params) => {
+      calls.push([method, params]);
+      return engine(method, params);
+    },
+  };
+  const { useBackupIndex } = loadTs('src/hooks/useTimeline.ts', { stubs: { react, '../lib/ipc': ipc } });
+  const render = () => { at = 0; runEffects.length = 0; return useBackupIndex('UDID-1'); };
+  return {
+    calls,
+    slots,
+    /** Renders once, starts the load, and waits for the fake engine's answers to land. */
+    async load() {
+      const index = render();
+      for (const effect of [...runEffects]) effect();
+      await settle();
+      return index;
+    },
+    render,
+  };
+}
+
+const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r)); };
+
+// Everything but WhatsApp: an empty backup
+function emptyBackup(method) {
+  switch (method) {
+    case 'list_conversations': return { conversations: [] };
+    case 'list_calls': return { calls: [] };
+    case 'list_photos': return { photos: [], total: 0 };
+    case 'list_voicemails': return { voicemails: [] };
+    case 'list_notes': return { notes: [] };
+    case 'has_browser_history': return { has_any: false };
+    case 'list_contacts': return { contacts: [] };
+    default: throw new Error(`the fake engine has no ${method}`);
+  }
+}
+
+const withWhatsApp = chats => (method, params) =>
+  method === 'list_whatsapp_chats' || method === 'get_whatsapp_messages' ? chats(method, params) : emptyBackup(method);
+
+test('a backup without WhatsApp, or with none in it, finishes loading calmly', async () => {
+  for (const reason of ['not_in_backup', 'no_records']) {
+    const fake = fakeIndex(withWhatsApp(() => ({ conversations: [], empty_reason: reason })));
+    await fake.load();
+    assert.ok(!fake.slots[LOADING].has('whatsapp'), reason);
+    assert.equal(fake.slots[LOADING].size, 0, reason);
+    assert.deepEqual(fake.slots[ERRORS], {}, reason);
+    assert.deepEqual(fake.slots[RAW], [], reason);
+    assert.ok(!fake.calls.some(([m]) => m === 'get_whatsapp_messages'), reason);
+  }
+});
+
+test("a WhatsApp version the app can't read yet is empty here, not a Timeline error", async () => {
+  const fake = fakeIndex(withWhatsApp(() => ({
+    conversations: [], error: "This WhatsApp version isn't supported yet", empty_reason: 'unsupported_format',
+  })));
+  await fake.load();
+  assert.ok(!fake.slots[LOADING].has('whatsapp'));
+  assert.deepEqual(fake.slots[ERRORS], {});
+});
+
+test("WhatsApp that's there but can't be read says so, and stops loading", async () => {
+  const unreadable = fakeIndex(withWhatsApp(() => ({ conversations: [], error: "WhatsApp's chats couldn't be read" })));
+  await unreadable.load();
+  assert.ok(!unreadable.slots[LOADING].has('whatsapp'));
+  assert.deepEqual(unreadable.slots[ERRORS], { whatsapp: "WhatsApp's chats couldn't be read" });
+
+  // The engine call itself failing
+  const failed = fakeIndex(withWhatsApp(() => { throw new Error('The engine stopped'); }));
+  await failed.load();
+  assert.ok(!failed.slots[LOADING].has('whatsapp'));
+  assert.deepEqual(failed.slots[ERRORS], { whatsapp: 'The engine stopped' });
+});
+
+test('WhatsApp chats are read a page at a time, newest chat first, apart from Messages', async () => {
+  // 600 messages with Riley (two pages), one undated; one notice in the family group
+  const riley = Array.from({ length: 600 }, (_, i) => waMsg(i + 1, new Date(Date.UTC(2024, 0, 1) + i * 60_000), `r${i + 1}`));
+  riley[0] = { ...riley[0], date: null };
+  const family = [waMsg(700, new Date(Date.UTC(2024, 5, 1)), '', { message_type: 'system', sender: '', event_text: 'Ana joined' })];
+  const sms = { ...MOM_CHAT, message_count: 1 };
+  const fake = fakeIndex((method, params) => {
+    switch (method) {
+      case 'list_whatsapp_chats':
+        return { conversations: [
+          { ...WA_RILEY, message_count: 600, last_message_date: '2024-01-01T09:59:00+00:00' },
+          { ...WA_FAMILY, message_count: 1, last_message_date: '2024-06-01T00:00:00+00:00' },
+        ] };
+      case 'get_whatsapp_messages': {
+        const all = params.chat_id === WA_RILEY.chat_id ? riley : family;
+        // offset counts back from the newest; each page comes oldest first
+        const end = all.length - params.offset;
+        const page = all.slice(Math.max(0, end - params.limit), Math.max(0, end));
+        return { messages: page, total: all.length, offset: params.offset, limit: params.limit, next_offset: params.offset + page.length };
+      }
+      // Messages has its own message 1: it mustn't be lost to WhatsApp's, or the other way round
+      case 'list_conversations': return { conversations: [sms] };
+      case 'get_messages': return { messages: [msg(1, local(2024, 2, 1), 'from Messages')], total: 1, next_offset: 1 };
+      default: return emptyBackup(method);
+    }
+  });
+  await fake.load();
+
+  const pages = fake.calls.filter(([m]) => m === 'get_whatsapp_messages').map(([, p]) => [p.chat_id, p.offset, p.limit, p.udid]);
+  assert.deepEqual(pages, [[30, 0, 500, 'UDID-1'], [12, 0, 500, 'UDID-1'], [12, 500, 500, 'UDID-1']]);
+  // No WhatsApp id ever went to a Messages call
+  assert.deepEqual(fake.calls.filter(([m]) => m === 'get_messages').map(([, p]) => p.chat_id), [MOM_CHAT.chat_id]);
+
+  const raw = fake.slots[RAW];
+  const wa = raw.filter(e => e.type === 'whatsapp');
+  assert.equal(wa.length, 600, 'every dated message, the undated one left out');
+  assert.ok(!wa.some(e => e.id === 'whatsapp:1'));
+  assert.ok(wa.some(e => e.id === 'whatsapp:700' && e.whatsapp.eventText === 'Ana joined'));
+  assert.deepEqual(raw.filter(e => e.type === 'message').map(e => e.id), ['message:1']);
+  assert.equal(fake.slots[LOADING].size, 0);
+  assert.deepEqual(fake.slots[ERRORS], {});
+
+  // The next render counts them
+  const index = fake.render();
+  assert.equal(index.counts.whatsapp, 600);
+  assert.equal(index.whatsappCap, null, 'every message was read');
+  assert.equal(index.counts.message, 1);
+  assert.equal(index.entries[0].id, 'whatsapp:700'); // newest first, across both
+});
+
+test("one WhatsApp chat that can't be read is skipped; all of them failing is an error", async () => {
+  const chats = { conversations: [WA_RILEY, WA_FAMILY] };
+  const someFail = fakeIndex(withWhatsApp((method, params) => {
+    if (method === 'list_whatsapp_chats') return chats;
+    if (params.chat_id === WA_FAMILY.chat_id) return { messages: [], total: 0, error: "That chat couldn't be read" };
+    return { messages: [waMsg(5, local(2024, 3, 1), 'hi')], total: 1 };
+  }));
+  await someFail.load();
+  assert.deepEqual(someFail.slots[RAW].map(e => e.id), ['whatsapp:5']);
+  assert.deepEqual(someFail.slots[ERRORS], {});
+  assert.ok(!someFail.slots[LOADING].has('whatsapp'));
+
+  const allFail = fakeIndex(withWhatsApp((method) => {
+    if (method === 'list_whatsapp_chats') return chats;
+    throw new Error("That chat couldn't be read");
+  }));
+  await allFail.load();
+  assert.deepEqual(allFail.slots[RAW], []);
+  assert.deepEqual(allFail.slots[ERRORS], { whatsapp: "That chat couldn't be read" });
+  assert.ok(!allFail.slots[LOADING].has('whatsapp'));
+
+  // A chat that's simply empty (the engine says why) isn't a failure
+  const quiet = fakeIndex(withWhatsApp((method) => method === 'list_whatsapp_chats'
+    ? chats
+    : { messages: [], total: 0, error: 'Not in this backup', empty_reason: 'not_in_backup' }));
+  await quiet.load();
+  assert.deepEqual(quiet.slots[ERRORS], {});
+  assert.ok(!quiet.slots[LOADING].has('whatsapp'));
+});
+
+test('past its allowance, WhatsApp says how much was read, and the oldest chats are left out', async () => {
+  // 150,000 + 100,000 + 10 messages, newest chat first; only 200,000 are read.
+  // The fake's messages have no date (so nothing is kept): only the counting matters here.
+  const chats = [
+    { ...WA_RILEY, chat_id: 1, message_count: 150_000, last_message_date: '2024-03-03T00:00:00+00:00' },
+    { ...WA_RILEY, chat_id: 2, message_count: 100_000, last_message_date: '2024-03-02T00:00:00+00:00' },
+    { ...WA_FAMILY, chat_id: 3, message_count: 10, last_message_date: '2024-03-01T00:00:00+00:00' },
+  ];
+  const fake = fakeIndex(withWhatsApp((method, params) => {
+    if (method === 'list_whatsapp_chats') return { conversations: chats };
+    const total = chats.find(c => c.chat_id === params.chat_id).message_count;
+    const n = Math.max(0, Math.min(params.limit, total - params.offset));
+    const messages = Array.from({ length: n }, (_, i) => ({ message_id: params.chat_id * 1e6 + params.offset + i, date: null }));
+    return { messages, total, offset: params.offset, limit: params.limit, next_offset: params.offset + n };
+  }));
+  await fake.load();
+  assert.ok(!fake.calls.some(([m, p]) => m === 'get_whatsapp_messages' && p.chat_id === 3), 'the oldest chat is never read');
+  assert.ok(!fake.slots[LOADING].has('whatsapp'));
+  assert.deepEqual(fake.slots[ERRORS], {});
+  const index = fake.render();
+  assert.deepEqual(index.whatsappCap, { loaded: 200_000, total: 250_010 });
+  assert.equal(index.counts.whatsapp, 250_010, 'the chip counts every message');
+  assert.equal(index.messageCap, null, "Messages' own cap is apart");
+  // The Timeline hands it on
+  assert.deepEqual(useTimeline(index).whatsappCap, { loaded: 200_000, total: 250_010 });
+  // Reading the backup again starts over
+  index.refresh();
+  assert.equal(fake.render().whatsappCap, null);
+  await settle();
+});
+
+test('a WhatsApp read that a newer load replaced writes nothing', async () => {
+  let release;
+  const first = new Promise(r => { release = r; });
+  let asked = 0;
+  const fake = fakeIndex(withWhatsApp((method, params) => {
+    if (method === 'list_whatsapp_chats') {
+      asked++;
+      // The first load's answer comes late, after the backup was read again
+      return asked === 1 ? first : { conversations: [WA_FAMILY] };
+    }
+    return { messages: [waMsg(params.chat_id === WA_FAMILY.chat_id ? 9 : 8, local(2024, 3, 1), 'x')], total: 1 };
+  }));
+  const index = await fake.load();
+  index.refresh();
+  await settle();
+  release({ conversations: [WA_RILEY] });
+  await settle();
+  assert.deepEqual(fake.slots[RAW].map(e => e.id), ['whatsapp:9']);
+  assert.ok(!fake.calls.some(([m, p]) => m === 'get_whatsapp_messages' && p.chat_id === WA_RILEY.chat_id));
 });
 
 // ── useBackupIndex against a fake engine ─────────────────────────────────────
@@ -328,6 +739,7 @@ const QUIET_ENGINE = {
   list_notes: { notes: [] },
   has_browser_history: { has_any: false },
   list_contacts: { contacts: [] },
+  list_whatsapp_chats: { conversations: [], empty_reason: 'not_in_backup' },
 };
 
 test('an unencrypted backup has no call history, and the Timeline says nothing is wrong', async () => {

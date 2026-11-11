@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTimeline } from '../../hooks/useTimeline';
-import type { TimelineEntryType } from '../../types/timeline';
+import type { TimelineEntry, TimelineEntryType } from '../../types/timeline';
 import { formatPhone } from '../../lib/people';
 import { matches } from '../../lib/search';
 import { formatDate } from '../../lib/dates';
@@ -12,7 +12,7 @@ import Highlight from '../shared/Highlight';
 import EmptyState from '../shared/EmptyState';
 import OrganicLoader from '../shared/OrganicLoader';
 import SaveDialog, { FORMATS, SaveButton } from '../shared/SaveDialog';
-import { CallIcon, ChevronRightIcon, ContactIcon, PeopleIcon, LinesIcon, VoicemailIcon } from '../shared/Icons';
+import { CallIcon, ChevronRightIcon, ContactIcon, PeopleIcon, LinesIcon, VoicemailIcon, WhatsAppIcon } from '../shared/Icons';
 import TimelineEntryCard from '../timeline/TimelineEntryCard';
 import { groupByDay } from '../timeline/TimelineView';
 import type { ExploreContext } from '../explore/sections';
@@ -20,9 +20,17 @@ import { gatherPeople, idKey, initials, linkCards, PERSON_KINDS, type Person, ty
 
 const KIND_LABEL: Record<PersonKind, [string, string]> = {
   message: ['message', 'messages'],
+  whatsapp: ['WhatsApp message', 'WhatsApp messages'],
   call: ['call', 'calls'],
   voicemail: ['voicemail', 'voicemails'],
 };
+
+// What a group-like row is, under its name
+function groupLine(p: Person): string {
+  if (p.waChatType === 'broadcast') return 'WhatsApp broadcast list';
+  if (p.waChatType === 'channel') return 'WhatsApp channel';
+  return 'Group conversation';
+}
 
 function summary(p: Person): string {
   return PERSON_KINDS.filter(k => p.counts[k] > 0)
@@ -40,12 +48,13 @@ interface Props {
 
 /**
  * Who you were in touch with, most first, and one page per person with their
- * messages, calls and voicemail in one stream. Saved cards are in the address book.
+ * messages, WhatsApp, calls and voicemail in one stream. Saved cards are in the address book.
  */
 export default function PeopleView({ ctx, query, person }: Props) {
   const timeline = useTimeline(ctx.index);
-  const people = useMemo(() => gatherPeople(timeline.allEntries), [timeline.allEntries]);
-  const { cardOf } = useMemo(() => linkCards(people, ctx.index.addressBook ?? []), [people, ctx.index.addressBook]);
+  const cards = ctx.index.addressBook;
+  const people = useMemo(() => gatherPeople(timeline.allEntries, cards ?? []), [timeline.allEntries, cards]);
+  const { cardOf } = useMemo(() => linkCards(people, cards ?? []), [people, cards]);
   const asked = person ? people.find(p => p.ids.has(idKey(person))) : undefined;
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [kinds, setKinds] = useState<PersonKind | 'all'>('all');
@@ -107,6 +116,8 @@ export default function PeopleView({ ctx, query, person }: Props) {
   };
 
   const groupsOfDays = groupByDay(timeline.entries);
+  // A WhatsApp message opens in its chat, at that message
+  const openWhatsApp = (entry: TimelineEntry) => ctx.openTab('whatsapp', { select: entry });
   const totalPages = Math.ceil(timeline.totalFiltered / timeline.pageSize);
 
   return (
@@ -118,7 +129,7 @@ export default function PeopleView({ ctx, query, person }: Props) {
             <h1 className="text-2xl text-text-primary">People</h1>
             <span className="text-xs text-text-tertiary">Most in touch first</span>
           </div>
-          <p className="text-xs text-text-secondary">Everyone you messaged, called or got voicemail from. Saved cards are in the address book.</p>
+          <p className="text-xs text-text-secondary">Everyone you were in touch with by Messages, WhatsApp, calls or voicemail. Saved cards are in the address book.</p>
         </div>
         <div className="flex-1 overflow-y-auto">
           {timeline.loading && people.length === 0 && (
@@ -136,7 +147,7 @@ export default function PeopleView({ ctx, query, person }: Props) {
           )}
           {!timeline.loading && shown.length === 0 && (
             <div className="px-4 py-6 text-sm text-text-secondary text-center">
-              {query ? `No one matches "${query}"` : 'No messages, calls or voicemail in this backup'}
+              {query ? `No one matches "${query}"` : 'No messages, WhatsApp chats, calls or voicemail in this backup'}
             </div>
           )}
         </div>
@@ -158,7 +169,7 @@ export default function PeopleView({ ctx, query, person }: Props) {
                 <div className="flex-1 min-w-0">
                   <h2 className="text-3xl text-text-primary truncate">{formatPhone(selected.name)}</h2>
                   <div className="text-sm text-text-secondary truncate">
-                    {selected.isGroup ? 'Group conversation' : formatPhone(selected.identifier)}
+                    {selected.isGroup ? groupLine(selected) : formatPhone(selected.identifier)}
                     {selected.last && ` · last in touch ${formatDate(selected.last)}`}
                   </div>
                   {card && (
@@ -178,6 +189,12 @@ export default function PeopleView({ ctx, query, person }: Props) {
                     Open conversation
                   </button>
                 )}
+                {selected.waChatId != null && selected.counts.whatsapp > 0 && (
+                  <button onClick={() => ctx.openTab('whatsapp', { waChatId: selected.waChatId })} className="hearth-ghost-btn">
+                    <WhatsAppIcon size={18} />
+                    Open WhatsApp chat
+                  </button>
+                )}
                 <SaveButton primary onClick={() => setChoosing(true)} busy={busy} disabled={timeline.loading} label="Save everything" />
               </div>
               <div role="radiogroup" aria-label="Show" className="flex flex-wrap gap-2">
@@ -185,7 +202,7 @@ export default function PeopleView({ ctx, query, person }: Props) {
                   const on = kinds === k;
                   const n = k === 'all' ? selected.total : selected.counts[k];
                   if (k !== 'all' && n === 0) return null;
-                  const Icon = k === 'message' ? LinesIcon : k === 'call' ? CallIcon : k === 'voicemail' ? VoicemailIcon : null;
+                  const Icon = k === 'message' ? LinesIcon : k === 'whatsapp' ? WhatsAppIcon : k === 'call' ? CallIcon : k === 'voicemail' ? VoicemailIcon : null;
                   return (
                     <button
                       key={k}
@@ -212,7 +229,7 @@ export default function PeopleView({ ctx, query, person }: Props) {
                 <div key={group.date}>
                   <div className="sticky top-0 bg-base z-10 pt-4 pb-2 text-sm font-semibold text-text-primary">{group.date}</div>
                   <div className="flex flex-col gap-1.5">
-                    {group.entries.map(entry => <TimelineEntryCard key={entry.id} entry={entry} udid={ctx.udid} />)}
+                    {group.entries.map(entry => <TimelineEntryCard key={entry.id} entry={entry} udid={ctx.udid} onOpenWhatsApp={openWhatsApp} />)}
                   </div>
                 </div>
               ))}

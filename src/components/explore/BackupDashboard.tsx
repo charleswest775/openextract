@@ -5,7 +5,7 @@ import OrganicLoader from '../shared/OrganicLoader';
 import { allOnlyInIcloud, moreOnlyInIcloud } from '../../lib/photoCounts';
 import { Info } from 'lucide-react';
 import {
-  LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon, VoicemailIcon, LockIcon,
+  LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon, VoicemailIcon, LockIcon, WhatsAppIcon,
 } from '../shared/Icons';
 import { ReportProblemButton } from '../shared/Feedback';
 
@@ -204,8 +204,11 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
     return `${formatDate(from)} — ${formatDate(to)}`;
   };
 
+  const whatsappMessages = overview.total_whatsapp_messages ?? 0;
+  const whatsappUnreadable = overview.whatsapp_status === 'error' || overview.whatsapp_status === 'unsupported_format';
   const tiles = [
     { tab: 'messages', icon: LinesIcon, value: overview.total_messages, label: 'Messages' },
+    { tab: 'whatsapp', icon: WhatsAppIcon, value: whatsappMessages, label: 'WhatsApp' },
     { tab: 'photos', icon: CameraIcon, value: overview.photos_in_backup, label: 'Photos & Videos' },
     { tab: 'contacts', icon: ContactIcon, value: overview.total_contacts, label: 'Address book' },
     { tab: 'calls', icon: CallIcon, value: overview.total_calls, label: 'Calls' },
@@ -213,8 +216,9 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
     { tab: 'voicemail', icon: VoicemailIcon, value: overview.total_voicemails, label: 'Voicemails' },
   ];
   const present = tiles.filter(t => t.value > 0);
+  // WhatsApp isn't listed as missing: most iPhones don't have it
   const missing = [
-    ...tiles.filter(t => t.value === 0).map(t => t.label === 'Photos & Videos' ? 'photos' : t.label.toLowerCase()),
+    ...tiles.filter(t => t.value === 0 && t.tab !== 'whatsapp').map(t => t.label === 'Photos & Videos' ? 'photos' : t.label.toLowerCase()),
     ...(hasBrowserHistory ? [] : ['web history']),
   ];
 
@@ -310,6 +314,24 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
                   )}
                 </div>
               </div>
+            </InsightCard>
+          )}
+
+          {/* WhatsApp: how much there is, or that it's there but couldn't be read */}
+          {(whatsappMessages > 0 || whatsappUnreadable) && (
+            <InsightCard title="WhatsApp" icon={WhatsAppIcon} onViewAll={() => onNavigate('whatsapp')}>
+              {whatsappUnreadable ? (
+                <p className="text-sm text-text-secondary">
+                  {overview.whatsapp_status === 'unsupported_format'
+                    ? "WhatsApp is in this backup, but this version of it can't be read yet."
+                    : "WhatsApp is in this backup, but its chats couldn't be read."}
+                </p>
+              ) : (
+                <div className="space-y-0.5">
+                  <MiniStat label="Chats" value={(overview.total_whatsapp_chats ?? 0).toLocaleString()} />
+                  <MiniStat label="Messages" value={whatsappMessages.toLocaleString()} />
+                </div>
+              )}
             </InsightCard>
           )}
 
