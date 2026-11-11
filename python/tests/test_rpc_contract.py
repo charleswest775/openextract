@@ -225,7 +225,7 @@ def case_open_backup(ctx):
 
     # An empty folder and a UDID no backup has: an error the UI can show
     err = ctx.plain.error("open_backup", {"udid": FAKE_UDID, "backup_dir": str(ctx.folder("not-a-backup"))})
-    assert "Backup not found" in err.message or err.message.startswith("FULL_DISK_ACCESS_REQUIRED:"), err.message
+    assert err.message.startswith(("BACKUP_MISSING:", "FULL_DISK_ACCESS_REQUIRED:")), err.message
 
 
 @contract("validate_password")

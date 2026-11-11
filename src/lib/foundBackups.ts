@@ -42,6 +42,20 @@ export function lookFailedMessage(error: string): string {
   return "OpenExtract couldn't look for other backups on this computer.";
 }
 
+/** How the engine's error starts when a backup isn't where the app said it was (python/backup.py). */
+export const BACKUP_MISSING_PREFIX = 'BACKUP_MISSING:';
+
+/**
+ * The words to show when opening a backup failed because it isn't where it was (moved,
+ * renamed, deleted, or on a drive that isn't plugged in), under the title "Can't find
+ * this backup" and next to a Find it button. The engine's first sentence says what the
+ * title does, so it's left out. null for any other error. In-app report OE-40.
+ */
+export function backupMissingMessage(error: string | null | undefined): string | null {
+  if (!error?.startsWith(BACKUP_MISSING_PREFIX)) return null;
+  return error.slice(BACKUP_MISSING_PREFIX.length).trim().replace(/^OpenExtract can't find this backup\.\s*/, '');
+}
+
 /**
  * Shown on a backup that stopped partway, once it's open (the engine's
  * backup_status.UNFINISHED says the same).
