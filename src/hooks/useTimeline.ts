@@ -346,14 +346,16 @@ export function useBackupIndex(udid: string): BackupIndex {
 
   const fetchCalls = useCallback(async (epoch: number) => {
     try {
-      const res = await sidecarCall<{ calls: RawCall[] }>(
+      const res = await sidecarCall<{ calls: RawCall[]; error?: string; empty_reason?: string }>(
         'list_calls',
         { udid, limit: 999999 }
       );
       if (loadEpochRef.current !== epoch) return;
-      // Calls may return an error field instead of crashing (e.g. unencrypted backup)
-      if ((res as any).error) throw new Error((res as any).error);
-      addEntries(res.calls.map(normalizeCall), 'call');
+      // No calls with an empty_reason is a normal state, even with an error
+      // explaining it (call history is only in encrypted backups). Only an
+      // error on its own, like a database that couldn't be read, is a failure.
+      if (res.error && !res.empty_reason) throw new Error(res.error);
+      addEntries((res.calls ?? []).map(normalizeCall), 'call');
     } catch (e: any) {
       markError('call', e.message || 'Failed to load calls');
     }
