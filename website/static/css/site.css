@@ -462,6 +462,16 @@ img { max-width: 100%; display: block; }
 .testimonials--usecases .testimonial__name { font-size: 17px; margin-bottom: 12px; }
 .testimonials--usecases .testimonial__quote { font-family: inherit; font-style: normal; font-size: 16px; line-height: 1.5; }
 .testimonials--usecases .testimonial__loc a { color: inherit; }
+/* Real quotes from the app's Say thanks form, filled in by js/thanks.js. */
+[data-thanks][hidden] { display: none; }
+.testimonials--quotes .testimonial__quote { white-space: pre-line; font-size: 20px; }
+.testimonials__note { margin: 24px 0 0; font-size: 14px; line-height: 1.5; color: var(--ink-dim); max-width: 680px; }
+.testimonials__note a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.testimonials__count, .testimonials__status { margin: 0 0 24px; font-size: 16px; color: var(--ink-dim); max-width: 680px; }
+.testimonials__status:empty { display: none; }
+.testimonials--page { padding-top: 16px; }
+.testimonials--page .testimonials__grid { display: block; columns: 3 280px; column-gap: 20px; }
+.testimonials--page .testimonial { break-inside: avoid; margin-bottom: 20px; }
 
 /* ── Privacy band ───────────────────────────────────── */
 .privacy { padding: 48px 56px 56px; }
