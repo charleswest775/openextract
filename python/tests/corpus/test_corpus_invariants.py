@@ -66,6 +66,8 @@ def test_backup_is_listed(ctx):
     if ctx.item.product_type:
         assert info.get("product_type") == ctx.item.product_type
     assert bool(info.get("encrypted")) == ctx.item.encrypted
+    # Every corpus backup is complete, so none may be marked "Didn't finish" (OE-31).
+    assert info.get("unfinished") is False, f"complete backup marked unfinished: {info.get('unfinished_signs')}"
 
 
 def test_password_handling(ctx):
