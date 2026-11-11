@@ -107,6 +107,8 @@ pytest python/tests/corpus -m corpus -v
 
 *(Update these if scripts differ in package.json)*
 
+**Releasing:** follow [RELEASING.md](RELEASING.md) — the steps before and after the Release workflow, and every store and download site that needs updating for a new version.
+
 ---
 
 ## Project Goal (Keep in Mind)
