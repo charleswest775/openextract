@@ -113,6 +113,14 @@
       },
       {
         "@type": "Question",
+        "name": "Welche WhatsApp-Versionen liest OpenExtract?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Geprüft ist es mit echten, öffentlichen Test-Backups von WhatsApp 2.20 bis 2.24, erstellt unter iOS 13 bis 17. Enthält ein Backup eine Version, die OpenExtract noch nicht lesen kann, sagt der WhatsApp-Bereich das und bietet an, es zu melden."
+        }
+      },
+      {
+        "@type": "Question",
         "name": "Wie öffne ich die CSV-Datei in Excel?",
         "acceptedAnswer": {
           "@type": "Answer",
@@ -124,7 +132,7 @@
         "name": "Gibt es OpenExtract auf Deutsch?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Diese Seite ja, die App nicht: Die Oberfläche von OpenExtract ist auf Englisch. Umlaute, ß und Emojis in Chats und Namen zeigt und speichert die App richtig. In gespeicherten Chats stehen Datum und Uhrzeit allerdings im englischen Format, etwa „Jul 5, 2024, 9:10 AM“."
+          "text": "Diese Seite ja, die App nicht: Die Oberfläche von OpenExtract ist auf Englisch. Umlaute, ß und Emojis in Chats und Namen zeigt und speichert die App richtig. Auf der Webseite, im PDF und in der Textdatei stehen Datum und Uhrzeit allerdings im englischen Format, etwa „Jul 5, 2024, 9:10 AM“; die CSV-Datei schreibt sie als „2024-07-05T09:10:09+02:00“."
         }
       },
       {
@@ -132,7 +140,7 @@
         "name": "Wird dabei etwas hochgeladen?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Nein. OpenExtract liest das Backup auf deinem Computer und schickt es nirgendwohin. Ins Internet geht die App nur, um nach einer neuen Version zu sehen, und auch das erst, wenn du zustimmst. In den Einstellungen kannst du es abschalten."
+          "text": "Nein. OpenExtract liest das Backup auf deinem Computer und schickt es nirgendwohin. Ins Internet geht die App nur für zwei Dinge: um nach Updates zu sehen, wenn du zustimmst (in den Einstellungen kannst du das abschalten), und um einen Fehlerbericht zu senden, den du selbst abschickst."
         }
       },
       {
@@ -178,7 +186,7 @@
 
   <section class="prose">
     <div class="prose__inner">
-      <p>WhatsApp kann einen Chat selbst exportieren, aber nur einzeln und als reine Textdatei. Das Chat-Backup von WhatsApp landet in iCloud, und dort kann es nur WhatsApp wiederherstellen; öffnen kannst du es nicht. Wenn du deine Chats lesbar auf dem eigenen Computer haben willst, zum Aufbewahren, Ausdrucken oder Durchsuchen, hilft dir beides wenig.</p>
+      <p>WhatsApp kann einen Chat selbst exportieren, aber nur einzeln: als Textdatei, mit den Fotos und Sprachnachrichten als lose Dateien daneben in einer ZIP-Datei. So wie im Chat lesen kannst du das nicht. Das Chat-Backup von WhatsApp landet in iCloud, und dort kann es nur WhatsApp wiederherstellen; öffnen kannst du es nicht. Wenn du deine Chats lesbar auf dem eigenen Computer haben willst, zum Aufbewahren, Ausdrucken oder Durchsuchen, hilft dir beides wenig.</p>
       <p>Es gibt einen anderen Weg. Wenn du dein iPhone auf einem Computer sicherst, landen die WhatsApp-Chats mit im Backup, zusammen mit deinen Nachrichten und Fotos. OpenExtract liest sie dort aus, zeigt sie in einem eigenen WhatsApp-Bereich und speichert sie als Dateien, die sich überall öffnen lassen. Kostenlos, ohne Probeversion und ohne Limit.</p>
       <figure class="screen">
         <a class="screen__frame" href="/img/screens/whatsapp-2000.webp">
@@ -192,7 +200,7 @@
         <li><strong>Etwas festhalten.</strong> Einen Chat, den du aufbewahren musst, für dich, für die Arbeit oder für einen Streitfall, als PDF oder Webseite mit Datum und Absender jeder Nachricht.</li>
         <li><strong>Chats von einem iPhone, das weg ist.</strong> Ist das iPhone kaputt, verloren, verkauft oder für immer gesperrt, kann ein Backup auf einem Computer die WhatsApp-Chats noch enthalten. Auch Chats mit jemandem, der gestorben ist.</li>
         <li><strong>Eine Kopie, bevor du weiterziehst.</strong> Du verlässt WhatsApp, wechselst das Handy oder räumst alte Chats auf und willst vorher eine lesbare Kopie.</li>
-        <li><strong>Jahre von Chats durchsuchen.</strong> Ein einziges Suchfeld findet WhatsApp-Nachrichten zusammen mit SMS, iMessages, Notizen und Anrufen.</li>
+        <li><strong>Chats aus vielen Jahren durchsuchen.</strong> Ein einziges Suchfeld findet WhatsApp-Nachrichten zusammen mit SMS, iMessages, Notizen und Anrufen.</li>
       </ul>
     </div>
   </section>
@@ -246,7 +254,7 @@
         <li><strong>Tabelle (CSV):</strong> für Excel, Numbers oder Google Tabellen, eine Zeile pro Nachricht mit Datum, Absender, Text, der beantworteten Nachricht und den Reaktionen.</li>
         <li><strong>Text:</strong> eine schlichte Liste der Nachrichten mit Datum und Absender, die sich überall öffnen lässt.</li>
       </ul>
-      <p>Datum und Uhrzeit stehen in der Zeitzone deines Computers, allerdings im englischen Format. Hinweise wie gelöschte Nachrichten und Anrufe bleiben in der Datei, an der Stelle, an der sie ankamen.</p>
+      <p>Datum und Uhrzeit stehen in der Zeitzone deines Computers. Auf der Webseite, im PDF und in der Textdatei sind sie im englischen Format geschrieben, etwa „Jul 5, 2024, 9:10 AM“, in der CSV-Datei als „2024-07-05T09:10:09+02:00“ (das „+02:00“ am Ende ist der Abstand zur Weltzeit). Hinweise wie gelöschte Nachrichten und Anrufe bleiben in der Datei, an der Stelle, an der sie ankamen.</p>
       <p>WhatsApp taucht auch an anderen Stellen in OpenExtract auf: in der Timeline, die alles im Backup nach Datum auflistet, im Suchfeld oben auf der Startseite des Backups, das SMS, iMessages, WhatsApp-Nachrichten, Notizen, Anrufe und mehr auf einmal durchsucht, und bei jeder Person unter „<span lang="en">People</span>“, über die Telefonnummer ihren SMS und Anrufen zugeordnet.</p>
 
       <h2>Was OpenExtract nicht kann</h2>
@@ -255,7 +263,7 @@
         <li><strong>Nicht das Chat-Backup von WhatsApp in iCloud.</strong> Die Sicherung, die WhatsApp in seinen Einstellungen nach iCloud schreibt, kann OpenExtract nicht öffnen, ebenso wenig wie alles andere in iCloud. Es arbeitet mit einem Backup auf deinem Computer.</li>
         <li><strong>Nicht WhatsApp Business und nicht Android.</strong> OpenExtract liest die normale WhatsApp-App aus einem iPhone-Backup.</li>
         <li><strong>Ältere Anrufe.</strong> Anrufe stehen ab WhatsApp 2.24 (2024) im Chat. Anrufe, die ältere Versionen gespeichert haben, zeigt OpenExtract noch nicht. WhatsApp-Anrufe können aber auch in der Anrufliste des iPhones stehen, die OpenExtract aus verschlüsselten Backups liest.</li>
-        <li><strong>Ein paar Dinge fehlen noch.</strong> Status-Meldungen werden nicht angezeigt, und die Jahresansicht („<span lang="en">Year</span>“) zählt WhatsApp-Nachrichten noch nicht mit.</li>
+        <li><strong>Ein paar Dinge fehlen noch.</strong> Status-Updates werden nicht angezeigt, und die Jahresansicht („<span lang="en">Year</span>“) zählt WhatsApp-Nachrichten noch nicht mit.</li>
         <li><strong>Keine anderen Messenger.</strong> WeChat, Line, Viber, Kik, Telegram und Signal liest OpenExtract nicht.</li>
         <li><strong>Kein Weg zurück.</strong> OpenExtract bringt Chats nicht zurück aufs Handy oder in WhatsApp. Die Dateien sind eine Kopie für deinen Computer, kein beglaubigtes Dokument.</li>
       </ul>
@@ -286,16 +294,20 @@
       <p>Nein. OpenExtract liest nur Backups von iPhones.</p>
     </details>
     <details class="qa">
+      <summary>Welche WhatsApp-Versionen liest OpenExtract?</summary>
+      <p>Geprüft ist es mit echten, öffentlichen Test-Backups von WhatsApp 2.20 bis 2.24, erstellt unter iOS 13 bis 17. Enthält ein Backup eine Version, die OpenExtract noch nicht lesen kann, sagt der WhatsApp-Bereich das und bietet an, es zu melden.</p>
+    </details>
+    <details class="qa">
       <summary>Wie öffne ich die CSV-Datei in Excel?</summary>
       <p>OpenExtract speichert die Tabelle als CSV mit Kommas als Trennzeichen. Ein deutsches Excel erwartet beim Doppelklick oft Semikolons und schreibt dann alles in eine Spalte. Importiere die Datei stattdessen über „Daten“ › „Aus Text/CSV“ und wähle unter „Trennzeichen“ das Komma. Umlaute kommen dabei richtig an.</p>
     </details>
     <details class="qa">
       <summary>Gibt es OpenExtract auf Deutsch?</summary>
-      <p>Diese Seite ja, die App nicht: Die Oberfläche von OpenExtract ist auf Englisch. Umlaute, ß und Emojis in Chats und Namen zeigt und speichert die App richtig. In gespeicherten Chats stehen Datum und Uhrzeit allerdings im englischen Format, etwa „Jul 5, 2024, 9:10 AM“.</p>
+      <p>Diese Seite ja, die App nicht: Die Oberfläche von OpenExtract ist auf Englisch. Umlaute, ß und Emojis in Chats und Namen zeigt und speichert die App richtig. Auf der Webseite, im PDF und in der Textdatei stehen Datum und Uhrzeit allerdings im englischen Format, etwa „Jul 5, 2024, 9:10 AM“; die CSV-Datei schreibt sie als „2024-07-05T09:10:09+02:00“.</p>
     </details>
     <details class="qa">
       <summary>Wird dabei etwas hochgeladen?</summary>
-      <p>Nein. OpenExtract liest das Backup auf deinem Computer und schickt es nirgendwohin. Ins Internet geht die App nur, um nach einer neuen Version zu sehen, und auch das erst, wenn du zustimmst. In den Einstellungen kannst du es abschalten.</p>
+      <p>Nein. OpenExtract liest das Backup auf deinem Computer und schickt es nirgendwohin. Ins Internet geht die App nur für zwei Dinge: um nach Updates zu sehen, wenn du zustimmst (in den Einstellungen kannst du das abschalten), und um einen Fehlerbericht zu senden, den du selbst abschickst.</p>
     </details>
     <details class="qa">
       <summary>Ist OpenExtract wirklich kostenlos?</summary>
