@@ -11,6 +11,9 @@ Nothing here is published by itself.
 
 ## Each release
 
+The whole release plan, including the stores and download sites outside this repo, is in
+[`RELEASING.md`](../RELEASING.md). For the packages here:
+
 1. Add `winget/<new version>/` (copy the last folder) and change the version,
    URL, `InstallerSha256` and `ReleaseDate`. The checksum is on the release
    page next to the `.exe`.
