@@ -87,7 +87,7 @@ Order to merge: ios-backup-core#28 (with the `handle` commit) first. CI clones l
 ### Still to do
 - Year view counts. It needs a library `day_counts` and person matching by `+digits`.
 - Calls before WhatsApp 2.24, from WhatsApp's own CallHistory.sqlite, with dedupe against the phone's call log.
-- A backupgen WhatsApp writer and persona data, so Maren shows WhatsApp in e2e runs and README screenshots.
+- README screenshots of WhatsApp from Maren's backup. backupgen now writes WhatsApp (ios-backup-core branch claude/maren-whatsapp): Maren has six chats plus status updates, her answer key has a "whatsapp" section, and the corpus answer-key tests and the screens, exports, search and empty e2e suites check against it.
 - People: merge one person across different names for the same number beyond what the address book links.
 - After the release, the website pages that say OpenExtract doesn't read WhatsApp (llms.txt, vs-ibackup-viewer, vs-reincubate, imazing-alternatives, the Windows use case, the German page).
 - Messages' CSV export has the same formula-cell gap that WhatsApp's now guards against.

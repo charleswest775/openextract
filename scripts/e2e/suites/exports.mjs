@@ -53,8 +53,13 @@ export default {
         await app.eval(() => [...document.querySelectorAll('button')].filter(b => /^(Not now|Close|Dismiss|No thanks|×)$/.test(b.textContent.trim()) && b.closest('.fixed')).forEach(b => b.click()));
       };
 
-      // WhatsApp chats in this backup, as the engine lists them (maren has none)
-      const waChats = (await app.api('call', 'list_whatsapp_chats', { udid: key.udid })).value?.data?.conversations?.length ?? 0;
+      // WhatsApp chats in this backup: the answer key's when it has a "whatsapp" section, which the
+      // engine must agree with; without one (an older backupgen), whatever the engine lists.
+      const waKey = key.whatsapp ?? null;
+      const engineChats = (await app.api('call', 'list_whatsapp_chats', { udid: key.udid })).value?.data?.conversations?.length ?? 0;
+      const waChats = waKey ? waKey.chats.length : engineChats;
+      if (waKey) check(`the engine lists the answer key's ${waChats} WhatsApp chats`, engineChats === waChats, engineChats);
+      const waTotal = waKey ? waKey.chats.reduce((n, c) => n + c.message_count, 0) : null;
 
       // ── Save to this computer: every kind × every format ──
       for (const [kind, formats] of Object.entries(PANEL_EXPORTS)) {
@@ -80,7 +85,26 @@ export default {
           const ext = f => path.extname(f).slice(1).toLowerCase();
           let pass = true, detail = {};
           if (kind === 'messages') { pass = files.filter(f => ext(f) === format).length === key.conversations.length; detail = { want: key.conversations.length }; }
-          if (kind === 'whatsapp') { pass = files.filter(f => ext(f) === format && !f.includes('/')).length === waChats; detail = { want: waChats }; }
+          if (kind === 'whatsapp') {
+            const pages = files.filter(f => ext(f) === format && !f.includes('/'));
+            pass = pages.length === waChats; detail = { pages: pages.length, want: waChats };
+            if (waKey && format === 'csv') {
+              // One row per message, notices included
+              const rows = pages.reduce((n, f) => n + csvRows(path.join(dir, f)), 0);
+              pass = pass && rows === waTotal; detail.rows = rows; detail.wantRows = waTotal;
+            }
+            if (waKey && format === 'txt') {
+              const text = pages.map(f => fs.readFileSync(path.join(dir, f), 'utf-8')).join('\n');
+              const lost = waKey.messages.filter(m => m.kind === 'text' && !text.includes(m.text));
+              pass = pass && lost.length === 0; detail.lost = lost.slice(0, 3).map(m => `${m.chat} #${m.sort}`);
+            }
+            if (waKey && format === 'html') {
+              // The photos, voice messages, documents and map previews that are in the backup, copied beside the pages
+              const copied = files.filter(f => f.includes('/')).length;
+              const want = waKey.messages.filter(m => m.attachment?.available || m.location).length;
+              pass = pass && copied >= want; detail.copied = copied; detail.wantMedia = want;
+            }
+          }
           if (kind === 'photos') { const media = files.filter(f => /\.(jpe?g|heic|png|mov|mp4|gif)$/i.test(f)); pass = media.length === key.photos.length; detail = { media: media.length, want: key.photos.length }; }
           if (kind === 'contacts' && format === 'vcf') { const cards = files.map(f => (fs.readFileSync(path.join(dir, f), 'utf-8').match(/BEGIN:VCARD/g) || []).length).reduce((a, n) => a + n, 0); pass = cards === key.contacts.length; detail = { cards }; }
           if (kind === 'contacts' && format === 'csv') { const rows = csvRows(path.join(dir, files.find(f => ext(f) === 'csv'))); pass = rows === key.contacts.length; detail = { rows }; }
