@@ -134,10 +134,10 @@ function fakeAutoUpdater() {
  * `real`, the real updater, pdfExport and feedback modules are used (only the
  * engine is faked).
  */
-async function loadMain({ userData = freshDir('main-userdata'), state, isPackaged = true, real = false } = {}) {
+async function loadMain({ userData = freshDir('main-userdata'), state, isPackaged = true, real = false, paths = {} } = {}) {
   const stateFile = path.join(userData, 'openextract-state.json');
   if (state !== undefined) fs.writeFileSync(stateFile, typeof state === 'string' ? state : JSON.stringify(state));
-  const env = createElectron({ paths: { userData, temp: freshDir('main-temp') }, isPackaged });
+  const env = createElectron({ paths: { userData, temp: freshDir('main-temp'), ...paths }, isPackaged });
   const fakes = fakeModules();
   const stubs = { electron: env.electron, 'electron-updater': { autoUpdater: fakeAutoUpdater() } };
   Object.assign(stubs, real ? { './sidecar': fakes.stubs['./sidecar'] } : fakes.stubs);
@@ -429,6 +429,155 @@ describe('small handlers', () => {
     assert.deepEqual(fs.readFileSync(file), Buffer.from(content, 'utf-8'));
     await m.invoke('fs:writeFile', file, 'shorter');
     assert.equal(fs.readFileSync(file, 'utf-8'), 'shorter');
+  });
+});
+
+// ── Never saving inside the program folder ──────────────────────────────────
+// Every update deletes the install folder and whatever is in it (electron/installFolder.ts).
+
+describe('saving inside the program folder', () => {
+  /**
+   * A fake install shaped like this platform's: OpenExtract.exe in Programs\openextract
+   * on Windows, OpenExtract.app/Contents/MacOS/OpenExtract on macOS. Returns the
+   * folder an update replaces, the exe, and a Documents folder outside it.
+   */
+  function fakeInstall() {
+    const base = freshDir('install');
+    let installDir, exe;
+    if (process.platform === 'darwin') {
+      installDir = path.join(base, 'Applications', 'OpenExtract.app');
+      exe = path.join(installDir, 'Contents', 'MacOS', 'OpenExtract');
+    } else {
+      installDir = path.join(base, 'Programs', 'openextract');
+      exe = path.join(installDir, process.platform === 'win32' ? 'OpenExtract.exe' : 'openextract');
+    }
+    fs.mkdirSync(path.dirname(exe), { recursive: true });
+    fs.writeFileSync(exe, '');
+    fs.mkdirSync(path.join(installDir, 'resources', 'Backups'), { recursive: true });
+    const documents = path.join(base, 'Documents');
+    fs.mkdirSync(documents);
+    return { installDir, exe, documents, base };
+  }
+
+  async function loadInstalled(options = {}) {
+    const install = fakeInstall();
+    const m = await loadMain({ ...options, paths: { exe: install.exe, documents: install.documents } });
+    return { m, ...install };
+  }
+
+  const picked = folder => ({ canceled: false, filePaths: [folder] });
+  const cancelled = { canceled: true, filePaths: [] };
+
+  test('a folder inside it is refused with a plain explanation, then the picker opens again in Documents', async () => {
+    const { m, installDir, documents } = await loadInstalled();
+    const elsewhere = path.join(documents, 'iPhone backup');
+    m.env.dialogResults.open = [picked(path.join(installDir, 'Backups')), picked(elsewhere), cancelled];
+    assert.equal(await m.invoke('dialog:saveFolder'), elsewhere);
+
+    const opens = m.env.callsTo('dialog.showOpenDialog');
+    assert.equal(opens.length, 2);
+    assert.equal(opens[0][1].defaultPath, undefined);
+    assert.equal(opens[1][1].defaultPath, documents);
+    assert.deepEqual(opens[1][1].properties, ['openDirectory', 'createDirectory']);
+
+    const boxes = m.env.callsTo('dialog.showMessageBox');
+    assert.equal(boxes.length, 1);
+    const [win, box] = boxes[0];
+    assert.equal(win, m.window, 'message not attached to the window');
+    assert.equal(box.type, 'warning');
+    assert.match(box.message, /replaced every time OpenExtract updates\.$/);
+    assert.equal(box.detail, 'Anything saved there would be deleted. Choose another folder.');
+    assert.deepEqual(box.buttons, ['Choose another folder', 'Cancel']);
+    assert.equal(box.defaultId, 0);
+    assert.equal(box.cancelId, 1);
+  });
+
+  test('the folder itself, deeper folders, another case and a trailing separator are all refused', async () => {
+    const { m, installDir } = await loadInstalled();
+    const variants = [installDir, installDir + path.sep, path.join(installDir, 'resources', 'Backups'), path.join(installDir, 'New folder', 'x')];
+    if (process.platform === 'win32' || process.platform === 'darwin') {
+      variants.push(path.join(path.dirname(installDir), path.basename(installDir).toUpperCase(), 'Backups'));
+      variants.push(installDir.toLowerCase() + path.sep);
+    }
+    for (const [i, variant] of variants.entries()) {
+      m.env.dialogResults.open = [picked(variant), cancelled];
+      assert.equal(await m.invoke('dialog:saveFolder'), null, `accepted ${variant}`);
+      assert.equal(m.env.callsTo('dialog.showMessageBox').length, i + 1, `no explanation for ${variant}`);
+    }
+  });
+
+  test('a link that leads into it is refused (paths are resolved before comparing)', async () => {
+    const { m, installDir, base } = await loadInstalled();
+    const link = path.join(base, 'Shortcut to backups');
+    fs.symlinkSync(path.join(installDir, 'resources'), link, process.platform === 'win32' ? 'junction' : 'dir');
+    m.env.dialogResults.open = [picked(path.join(link, 'Backups')), cancelled];
+    assert.equal(await m.invoke('dialog:saveFolder'), null);
+    assert.equal(m.env.callsTo('dialog.showMessageBox').length, 1);
+  });
+
+  test('folders next to it are fine, including one whose name starts the same way', async () => {
+    const { m, installDir, documents } = await loadInstalled();
+    const sibling = installDir + '2';
+    fs.mkdirSync(sibling);
+    for (const folder of [sibling, path.dirname(installDir), documents]) {
+      m.env.dialogResults.open = [picked(folder), cancelled]; // a wrongly refused folder then ends in null
+      assert.equal(await m.invoke('dialog:saveFolder'), folder);
+    }
+    assert.equal(m.env.callsTo('dialog.showMessageBox').length, 0);
+  });
+
+  test('saving a file inside it asks again in Documents, keeping the name they typed', async () => {
+    const { m, installDir, documents } = await loadInstalled();
+    const filters = [{ name: 'vCard', extensions: ['vcf'] }];
+    const keep = path.join(documents, 'Mom.vcf');
+    m.env.dialogResults.save = [
+      { canceled: false, filePath: path.join(installDir, 'Mom.vcf') },
+      { canceled: false, filePath: keep },
+      { canceled: true, filePath: '' },
+    ];
+    assert.equal(await m.invoke('dialog:saveFile', { title: 'Save contacts', defaultPath: 'contacts.vcf', filters }), keep);
+
+    const saves = m.env.callsTo('dialog.showSaveDialog');
+    assert.equal(saves.length, 2);
+    assert.deepEqual(saves[0][1], { title: 'Save contacts', defaultPath: 'contacts.vcf', filters });
+    assert.deepEqual(saves[1][1], { title: 'Save contacts', defaultPath: path.join(documents, 'Mom.vcf'), filters });
+    assert.equal(m.env.callsTo('dialog.showMessageBox').length, 1);
+  });
+
+  test('Cancel on the explanation cancels the save without opening the picker again', async () => {
+    const { m, installDir } = await loadInstalled();
+    m.env.dialogResults.messageBox = { response: 1 };
+    m.env.dialogResults.open = picked(path.join(installDir, 'Backups'));
+    m.env.dialogResults.save = { canceled: false, filePath: path.join(installDir, 'notes.txt') };
+    assert.equal(await m.invoke('dialog:saveFolder'), null);
+    assert.equal(await m.invoke('dialog:saveFile', { title: 'Save notes' }), null);
+    assert.equal(m.env.callsTo('dialog.showOpenDialog').length, 1);
+    assert.equal(m.env.callsTo('dialog.showSaveDialog').length, 1);
+    assert.equal(m.env.callsTo('dialog.showMessageBox').length, 2);
+  });
+
+  test('Open a backup folder still opens one inside it, so a backup already there can be rescued', async () => {
+    const { m, installDir } = await loadInstalled();
+    const there = path.join(installDir, 'resources', 'Backups');
+    m.env.dialogResults.open = picked(there);
+    assert.equal(await m.invoke('dialog:selectFolder'), there);
+    assert.equal(m.env.callsTo('dialog.showMessageBox').length, 0);
+  });
+
+  test('development builds are not checked', async () => {
+    const { m, installDir } = await loadInstalled({ isPackaged: false });
+    const there = path.join(installDir, 'Backups');
+    m.env.dialogResults.open = [picked(there), cancelled];
+    assert.equal(await m.invoke('dialog:saveFolder'), there);
+    assert.equal(m.env.callsTo('dialog.showMessageBox').length, 0);
+  });
+
+  test('if the install folder cannot be told, the save goes ahead', async () => {
+    const m = await loadMain(); // the stub app.getPath('exe') throws
+    const anywhere = path.join(m.userData, 'Backups');
+    m.env.dialogResults.open = [picked(anywhere), cancelled];
+    assert.equal(await m.invoke('dialog:saveFolder'), anywhere);
+    assert.equal(m.env.callsTo('dialog.showMessageBox').length, 0);
   });
 });
 
