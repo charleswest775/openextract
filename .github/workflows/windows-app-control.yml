@@ -32,6 +32,10 @@ on:
         description: Or, an artifact of the calling run that holds a signed installer
         type: string
         default: ''
+      ios_backup_core_ref:
+        description: ios-backup-core branch, tag or full commit SHA to make the test backup with (blank = master). release.yml passes the commit it built.
+        type: string
+        default: ''
   workflow_dispatch:
     inputs:
       tag:
@@ -71,6 +75,11 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Check out ios-backup-core
+        uses: ./.github/actions/ios-backup-core
+        with:
+          ref: ${{ inputs.ios_backup_core_ref || 'master' }}
+
       # Before the policy is on: this Python and its packages aren't ours, so it blocks them.
       - name: Generate the encrypted Maren backup
         id: backup
@@ -78,7 +87,6 @@ jobs:
         env:
           OPENEXTRACT_CORPUS_CACHE: ${{ runner.temp }}/corpus
         run: |
-          git clone --depth=1 https://github.com/charleswest775/ios-backup-core.git "$GITHUB_WORKSPACE/../ios-backup-core"
           pip install "$GITHUB_WORKSPACE/../ios-backup-core" pillow tzdata  # Windows has no time zone database of its own
           python - <<'EOF'
           import os
