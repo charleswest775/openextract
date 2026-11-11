@@ -6,7 +6,7 @@
   <meta name="msvalidate.01" content="30F718C34B6BBA41A92CCFA6881CB5EE" />
   <meta name="theme-color" content="#faf6f1" />
   <title>OpenExtract — Free, open-source iPhone backup extractor</title>
-  <meta name="description" content="Free, open-source iPhone backup extractor for Windows, Mac and Linux. Save texts, photos, voicemails and contacts from any backup. Nothing is uploaded." />
+  <meta name="description" content="Free, open-source iPhone backup extractor for Windows, Mac and Linux. Save texts, WhatsApp chats, photos, voicemails and contacts. Nothing is uploaded." />
   <link rel="canonical" href="https://www.openextract.app/" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="author" content="OpenExtract" />
@@ -15,7 +15,7 @@
   <meta property="og:site_name" content="OpenExtract" />
   <meta property="og:url" content="https://www.openextract.app/" />
   <meta property="og:title" content="OpenExtract — Free, open-source iPhone backup extractor" />
-  <meta property="og:description" content="Free, open-source iPhone backup extractor. Recover messages, photos, voicemails, and contacts from any backup — encrypted or not. 100% local." />
+  <meta property="og:description" content="Free, open-source iPhone backup extractor. Recover messages, WhatsApp chats, photos, voicemails, and contacts from any backup — encrypted or not. 100% local." />
   <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -24,7 +24,7 @@
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="OpenExtract — Free, open-source iPhone backup extractor" />
-  <meta name="twitter:description" content="Recover messages, photos, contacts from iPhone backups — encrypted or not. Free, MIT-licensed, 100% local." />
+  <meta name="twitter:description" content="Recover messages, WhatsApp chats, photos, contacts from iPhone backups — encrypted or not. Free, MIT-licensed, 100% local." />
   <meta name="twitter:image" content="https://www.openextract.app/img/og-image.png" />
   <meta name="twitter:image:alt" content="OpenExtract, free iPhone backup extractor: read and save the messages, photos and voicemails in any iPhone backup. Windows, Mac and Linux. Open source, MIT." />
 
@@ -37,7 +37,7 @@
     "@type": "SoftwareApplication",
     "name": "OpenExtract",
     "alternateName": "openextract",
-    "description": "Free, open-source desktop application that reads iPhone backups made by iTunes or Finder, encrypted or not, and saves the messages, photos and videos, contacts, call history, notes, voicemails and Safari and Firefox history in them. Runs 100% locally.",
+    "description": "Free, open-source desktop application that reads iPhone backups made by iTunes or Finder, encrypted or not, and saves the messages, WhatsApp chats, photos and videos, contacts, call history, notes, voicemails and Safari and Firefox history in them. Runs 100% locally.",
     "applicationCategory": "UtilityApplication",
     "applicationSubCategory": "DataExtraction",
     "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
@@ -50,6 +50,7 @@
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "featureList": [
       "SMS and iMessage extraction",
+      "WhatsApp chat extraction, with photos, voice messages and calls",
       "Photo and video recovery with EXIF preserved",
       "Encrypted backup support",
       "Call history export",
@@ -58,6 +59,7 @@
       "Voicemail extraction",
       "Safari and Firefox history",
       "Export to PDF, CSV, HTML",
+      "Timeline and whole-backup search",
       "100% local processing, no cloud upload"
     ],
     "author": { "@type": "Organization", "name": "OpenExtract", "url": "https://www.openextract.app/" },
@@ -151,15 +153,19 @@
             <span class="recovered__num">4,218</span>
           </div>
           <div class="recovered__row">
-            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--sage);"></span><span class="recovered__label">Photos &amp; Videos</span></div>
+            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--sage);"></span><span class="recovered__label">WhatsApp</span></div>
+            <span class="recovered__num">2,906</span>
+          </div>
+          <div class="recovered__row">
+            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--butter);"></span><span class="recovered__label">Photos &amp; Videos</span></div>
             <span class="recovered__num">8,472</span>
           </div>
           <div class="recovered__row">
-            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--butter);"></span><span class="recovered__label">Voicemails</span></div>
+            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--plum);"></span><span class="recovered__label">Voicemails</span></div>
             <span class="recovered__num">23</span>
           </div>
           <div class="recovered__row">
-            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--plum);"></span><span class="recovered__label">Contacts</span></div>
+            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--coral);"></span><span class="recovered__label">Contacts</span></div>
             <span class="recovered__num">341</span>
           </div>
         </div>
@@ -193,7 +199,15 @@
         <div class="feature-card__ex">34,118 messages · 127 conversations</div>
       </article>
       <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--sage-22);">📷</div>
+        <div class="feature-card__icon" style="background: var(--sage-22);">🗨️</div>
+        <div>
+          <div class="feature-card__title">WhatsApp chats</div>
+          <p class="feature-card__desc">Chats and groups with their photos, voice messages, replies and calls, in the order they arrived. Save one chat or all of them as a PDF or a web page.</p>
+        </div>
+        <div class="feature-card__ex">6,530 messages · 41 chats</div>
+      </article>
+      <article class="feature-card">
+        <div class="feature-card__icon" style="background: var(--butter-22);">📷</div>
         <div>
           <div class="feature-card__title">Photos &amp; videos</div>
           <p class="feature-card__desc">All your camera roll, with original quality and the date, time, and place they were taken.</p>
@@ -201,7 +215,7 @@
         <div class="feature-card__ex">8,472 photos · 412 videos</div>
       </article>
       <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--butter-22);">🎙️</div>
+        <div class="feature-card__icon" style="background: var(--plum-22);">🎙️</div>
         <div>
           <div class="feature-card__title">Voicemails</div>
           <p class="feature-card__desc">Listen to voicemails you thought you'd lost — including from people who aren't around to leave new ones.</p>
@@ -209,7 +223,7 @@
         <div class="feature-card__ex">23 voicemails recovered</div>
       </article>
       <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--plum-22);">👤</div>
+        <div class="feature-card__icon" style="background: var(--coral-22);">👤</div>
         <div>
           <div class="feature-card__title">Contacts</div>
           <p class="feature-card__desc">The address book: names, phone numbers, email addresses and notes. Save it as a vCard to import somewhere else.</p>
@@ -217,7 +231,7 @@
         <div class="feature-card__ex">341 contacts · vCard ready</div>
       </article>
       <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--coral-22);">📝</div>
+        <div class="feature-card__icon" style="background: var(--sage-22);">📝</div>
         <div>
           <div class="feature-card__title">Notes</div>
           <p class="feature-card__desc">Everything in Apple Notes, from shopping lists to recipes to that novel you started.</p>
@@ -225,12 +239,28 @@
         <div class="feature-card__ex">218 notes · text or PDF</div>
       </article>
       <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--sage-22);">📞</div>
+        <div class="feature-card__icon" style="background: var(--butter-22);">📞</div>
         <div>
           <div class="feature-card__title">Call history</div>
           <p class="feature-card__desc">Who you called, when, and for how long. Simple spreadsheet you can search.</p>
         </div>
         <div class="feature-card__ex">2,841 calls logged</div>
+      </article>
+      <article class="feature-card">
+        <div class="feature-card__icon" style="background: var(--plum-22);">🌐</div>
+        <div>
+          <div class="feature-card__title">Web history</div>
+          <p class="feature-card__desc">The pages visited in Safari and Firefox, and the sites you went back to most. Safari's history is in encrypted backups.</p>
+        </div>
+        <div class="feature-card__ex">5,906 visits · 312 sites</div>
+      </article>
+      <article class="feature-card">
+        <div class="feature-card__icon" style="background: var(--coral-22);">🔎</div>
+        <div>
+          <div class="feature-card__title">Timeline &amp; search</div>
+          <p class="feature-card__desc">Everything in the backup in one list by date, and one box that searches texts, WhatsApp, notes, calls and more at once.</p>
+        </div>
+        <div class="feature-card__ex">Filter by person, type or date</div>
       </article>
     </div>
   </section>
@@ -253,7 +283,7 @@
         <a class="screen__frame" href="/img/screens/search-2000.webp">
           <img src="/img/screens/search-1000.webp" srcset="/img/screens/search-1000.webp 1000w, /img/screens/search-2000.webp 2000w" sizes="(max-width: 1024px) calc(100vw - 112px), 33vw" width="1000" height="625" loading="lazy" decoding="async" alt="Search results for &ldquo;bread&rdquo; across the whole backup: notes, messages and web pages, with the first note previewed and every match highlighted." />
         </a>
-        <figcaption><strong>Search</strong>One box searches messages, notes, calls, voicemail and more.</figcaption>
+        <figcaption><strong>Search</strong>One box searches messages, WhatsApp, notes, calls, voicemail and more.</figcaption>
       </figure>
       <figure class="screen">
         <a class="screen__frame" href="/img/screens/messages-2000.webp">
@@ -293,7 +323,7 @@
       <div>
         <div class="how__num" style="color: var(--sage);">03</div>
         <div class="how__step-title">Browse what's in there</div>
-        <p class="how__step-desc">Messages, photos, contacts, calls, notes and voicemail on one page. Search all of it from one box. Nothing you click changes the backup.</p>
+        <p class="how__step-desc">Messages, WhatsApp, photos, contacts, calls, notes and voicemail on one page. Search all of it from one box. Nothing you click changes the backup.</p>
       </div>
       <div>
         <div class="how__num" style="color: var(--plum);">04</div>
@@ -396,7 +426,7 @@
       </details>
       <details class="qa">
         <summary>What formats can I export to?</summary>
-        <p>Messages as PDF, HTML, CSV, or plain text. Photos as originals (HEIC, JPEG, MOV). Contacts as vCard or CSV. Each time you save, you choose where the files go.</p>
+        <p>Messages and WhatsApp chats as PDF, HTML, CSV, or plain text (here&rsquo;s <a href="/use-cases/export-whatsapp-chats-from-iphone-backup">how to export WhatsApp chats</a>). Photos as originals (HEIC, JPEG, MOV). Contacts as vCard or CSV. Each time you save, you choose where the files go.</p>
       </details>
       <details class="qa">
         <summary>Will Apple know I'm using this?</summary>
