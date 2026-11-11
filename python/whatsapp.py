@@ -252,12 +252,36 @@ def _heif_as_jpeg(raw: bytes) -> Optional[bytes]:
         return None
 
 
+# The file types WhatsApp sends, both ways. Python's mimetypes reads the system's
+# own table, which on Windows lacks some of these (.webp, .opus), so look here first.
+_MIME_BY_EXTENSION = {
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".thumb": "image/jpeg", ".png": "image/png",
+    ".gif": "image/gif", ".webp": "image/webp", ".heic": "image/heic", ".heif": "image/heif",
+    ".mp4": "video/mp4", ".mov": "video/quicktime", ".m4v": "video/x-m4v", ".3gp": "video/3gpp",
+    ".opus": "audio/ogg", ".ogg": "audio/ogg", ".m4a": "audio/mp4", ".mp3": "audio/mpeg",
+    ".aac": "audio/aac", ".amr": "audio/amr", ".caf": "audio/x-caf", ".wav": "audio/wav",
+    ".pdf": "application/pdf", ".txt": "text/plain", ".vcf": "text/vcard",
+}
+_EXTENSION_BY_MIME = {
+    "image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp",
+    "image/heic": ".heic", "image/heif": ".heif", "video/mp4": ".mp4", "video/quicktime": ".mov",
+    "video/x-m4v": ".m4v", "video/3gpp": ".3gp", "audio/ogg": ".ogg", "audio/opus": ".opus",
+    "audio/mp4": ".m4a", "audio/mpeg": ".mp3", "audio/aac": ".aac", "audio/amr": ".amr",
+    "audio/x-caf": ".caf", "audio/wav": ".wav", "application/pdf": ".pdf", "text/plain": ".txt",
+}
+
+
+def _mime_for(name: str) -> str | None:
+    """The MIME type a file name says, the same on every system."""
+    ext = os.path.splitext(name or "")[1].lower()
+    return _MIME_BY_EXTENSION.get(ext) or mimetypes.guess_type(name or "")[0]
+
+
 def _extension_for(mime: str) -> str:
     mime = (mime or "").split(";")[0].strip().lower()
     if not mime:
         return ""
-    known = {"image/jpeg": ".jpg", "audio/ogg": ".ogg", "audio/mpeg": ".mp3", "video/quicktime": ".mov"}
-    return known.get(mime) or mimetypes.guess_extension(mime) or ""
+    return _EXTENSION_BY_MIME.get(mime) or mimetypes.guess_extension(mime) or ""
 
 
 def _openable_extension(ext: str) -> bool:
@@ -379,7 +403,7 @@ class WhatsAppExtractor:
         # Without parameters ("audio/ogg; codecs=opus" is stored for voice notes):
         # the app puts it in a data: URL, where a space doesn't belong.
         mime = (found.get("mime_type") or "").split(";")[0].strip().lower()
-        mime = mime or mimetypes.guess_type(name)[0] or "application/octet-stream"
+        mime = mime or _mime_for(name) or "application/octet-stream"
         try:
             size = os.path.getsize(path)
         except (OSError, TypeError):

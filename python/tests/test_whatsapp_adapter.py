@@ -94,6 +94,19 @@ class TestInline(AdapterCase):
         self.answer({(5, False): {"path": self.file("y", b"?"), "mime_type": None, "filename": "noext"}})
         self.assertEqual(self.wa.get_attachment(self.backup, 5)["mime_type"], "application/octet-stream")
 
+    def test_types_dont_depend_on_the_systems_own_table(self):
+        # Windows' table lacks .webp and .opus (CI's windows-latest): WhatsApp's types
+        # must come out the same with no help from mimetypes at all.
+        from unittest import mock
+        with mock.patch("mimetypes.guess_type", return_value=(None, None)), \
+                mock.patch("mimetypes.guess_extension", return_value=None):
+            for name, mime in (("s.webp", "image/webp"), ("v.opus", "audio/ogg"), ("d.pdf", "application/pdf"),
+                               ("m.mp4", "video/mp4"), ("p.JPG", "image/jpeg")):
+                self.answer({(5, False): {"path": self.file("z" + name, b"x"), "mime_type": None, "filename": name}})
+                self.assertEqual(self.wa.get_attachment(self.backup, 5)["mime_type"], mime, name)
+            self.assertEqual(whatsapp._extension_for("image/webp"), ".webp")
+            self.assertEqual(whatsapp._extension_for("audio/ogg; codecs=opus"), ".ogg")
+
     def test_too_large_sends_no_data(self):
         whatsapp.MAX_INLINE_BYTES, saved = 100, whatsapp.MAX_INLINE_BYTES
         self.addCleanup(setattr, whatsapp, "MAX_INLINE_BYTES", saved)
