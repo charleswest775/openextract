@@ -5,7 +5,9 @@
 //  - useTimeline's filtering, which is pure within one render: a stand-in for
 //    React runs the hook once with useMemo/useCallback called straight through;
 //  - latestYear (useYearCounts.ts) and releaseNotesUrl (useUpdates.ts).
-// Hook state over time (loading, paging, retries) is left to the end-to-end UI tests.
+//  - useBackupIndex's loads against a fake engine, with a stand-in for React
+//    that keeps state between renders.
+// Other hook state over time (paging, retries) is left to the end-to-end UI tests.
 // Run with: node --test scripts/hooks.test.mjs (also re-runs itself in other time zones)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -259,6 +261,106 @@ test("opening the Timeline on one day reads that day's messages first", () => {
   run({ dateFrom: '2024-03-10', dateTo: '2024-03-10', types: new Set(['photo']) });
   run({});
   assert.deepEqual(days, ['2024-03-10']);
+});
+
+// ── useBackupIndex against a fake engine ─────────────────────────────────────
+// React that keeps state between renders: each hook call gets the slot it had
+// last render, setters write to it, and render() runs the hook again.
+function stateful() {
+  const slots = [];
+  let slot = 0;
+  let effects = [];
+  const react = {
+    useState: init => {
+      const i = slot++;
+      if (!(i in slots)) slots[i] = typeof init === 'function' ? init() : init;
+      return [slots[i], next => { slots[i] = typeof next === 'function' ? next(slots[i]) : next; }];
+    },
+    useRef: current => {
+      const i = slot++;
+      if (!(i in slots)) slots[i] = { current };
+      return slots[i];
+    },
+    useMemo: fn => fn(),
+    useCallback: fn => fn,
+    useEffect: fn => { effects.push(fn); },
+  };
+  return {
+    react,
+    render(hook) {
+      slot = 0;
+      effects = [];
+      const out = hook();
+      return { out, runEffects: () => effects.forEach(fn => fn()) };
+    },
+  };
+}
+
+// Runs useBackupIndex once with the engine answering from `results` (method →
+// data), lets every load finish, and returns what the hook hands over then.
+async function loadIndex(results) {
+  const react = stateful();
+  const asked = [];
+  globalThis.window = {
+    openextract: {
+      call: async (method, params) => {
+        asked.push(method);
+        return method in results
+          ? { success: true, data: results[method] }
+          : { success: false, error: `${method} isn't in this fake engine` };
+      },
+    },
+  };
+  try {
+    const { useBackupIndex } = loadTs('src/hooks/useTimeline.ts', { stubs: { react: react.react } });
+    react.render(() => useBackupIndex('fake-udid')).runEffects();
+    for (let i = 0; i < 20; i++) await new Promise(resolve => setImmediate(resolve));
+    return { index: react.render(() => useBackupIndex('fake-udid')).out, asked };
+  } finally {
+    delete globalThis.window;
+  }
+}
+
+const QUIET_ENGINE = {
+  list_conversations: { conversations: [] },
+  list_photos: { photos: [], total: 0 },
+  list_voicemails: { voicemails: [], empty_reason: 'not_in_backup' },
+  list_notes: { notes: [] },
+  has_browser_history: { has_any: false },
+  list_contacts: { contacts: [] },
+};
+
+test('an unencrypted backup has no call history, and the Timeline says nothing is wrong', async () => {
+  const { index, asked } = await loadIndex({
+    ...QUIET_ENGINE,
+    // What the engine sends for every unencrypted backup
+    list_calls: {
+      calls: [], total: 0, offset: 0, limit: 999999,
+      empty_reason: 'requires_encryption',
+      error: "Call history not found. Apple requires backups to be encrypted to include call logs. Please enable 'Encrypt local backup' in iTunes/Finder.",
+    },
+  });
+  assert.ok(asked.includes('list_calls'));
+  assert.equal(index.loadingTypes.has('call'), false);
+  assert.equal(index.errors.call, undefined);
+  assert.deepEqual(index.errors, {});
+  assert.equal(index.loading, false);
+  assert.equal(index.counts.call, 0);
+
+  // The other calm empties end quietly too
+  for (const empty_reason of ['not_in_backup', 'no_records']) {
+    const { index: other } = await loadIndex({ ...QUIET_ENGINE, list_calls: { calls: [], total: 0, empty_reason } });
+    assert.equal(other.loadingTypes.has('call'), false, empty_reason);
+    assert.deepEqual(other.errors, {}, empty_reason);
+  }
+});
+
+test("call history the engine couldn't read is still an error", async () => {
+  const error = 'Call history is in this backup but could not be read. The backup may be incomplete or damaged.';
+  const { index } = await loadIndex({ ...QUIET_ENGINE, list_calls: { calls: [], total: 0, error } });
+  assert.equal(index.loadingTypes.has('call'), false);
+  assert.equal(index.errors.call, error);
+  assert.deepEqual(Object.keys(index.errors), ['call']);
 });
 
 // ── useYearCounts, useUpdates ────────────────────────────────────────────────
