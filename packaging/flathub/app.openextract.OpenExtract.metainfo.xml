@@ -63,6 +63,12 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.13.0" date="2026-11-10">
+      <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.13.0</url>
+      <description>
+        <p>Big backups no longer stop after 2 hours while they're still copying, and the computer stays awake while a backup runs. A backup that stopped partway is marked "Didn't finish" instead of opening as if it were complete, and backups made by iOS 6 open without stopping OpenExtract. When a backup can't go on, the message says why: a full drive, another app syncing the iPhone, the passcode, or the connection dropping.</p>
+      </description>
+    </release>
     <release version="0.12.0" date="2026-11-07">
       <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.12.0</url>
       <description>
