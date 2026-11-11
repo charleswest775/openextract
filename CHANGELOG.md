@@ -7,8 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-10
+
 ### Added
-- A Chip in button in Settings, and on the screen after you send a thank-you, opens openextract.app/support in your browser. There you can pay any amount, once, through Stripe, toward code signing and development. OpenExtract stays free for everyone, nothing unlocks, and the app sends nothing when you click it
+- A Chip in button in Settings, and on the screen after you send a thank-you, opens openextract.app/support in your browser. There you can pay what you like, from $3, once, through Stripe, toward code signing and development. OpenExtract stays free for everyone, nothing unlocks, and the app sends nothing when you click it
 
 ### Fixed
 - Backing up an iPhone: when the computer's drive fills up partway, the app says there isn't enough free space instead of "[Errno 28] No space left on device"
@@ -19,10 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Turning on encryption for a backup into a folder where an earlier try didn't finish no longer fails with "The folder you chose has an unfinished backup of this iPhone" (OE-6)
 - Backups keep the computer awake while they run. A computer that went to sleep disconnected the iPhone partway through a big backup, often after a few GB, even with the iPhone still plugged in. On Windows the screen now stays on during a backup, because that is what keeps a laptop from sleeping. Closing a laptop's lid still puts it to sleep, and the app then says that's what stopped the backup
 - When the connection drops partway through a backup, the message says how much had been copied and points to sleep or the USB connection. It used to ask you to tap Trust, or on an encrypted backup to enter your passcode, which can't be the problem once data is flowing
-- Back up my iPhone: a big backup that takes more than 2 hours no longer stops partway with "Sidecar call timed out: backup.start" while it's still copying. The app now gives up only after 2 hours with no progress at all
+- Back up my iPhone: when the iPhone hangs up before it has finished tidying the backup away, the app says the connection dropped partway, instead of saying the backup finished and opening it as if it were complete
+- Back up my iPhone: a big backup that takes more than 2 hours no longer stops partway with "Sidecar call timed out: backup.start" while it's still copying. The app now gives up only after 2 hours with no progress at all. Saving to this computer works the same way: a big save that's still making progress no longer stops after 6 hours
 - Backups made by iOS 6 no longer stop OpenExtract a few moments after they open. Reading their photos used to end the part of OpenExtract that reads backups, so Messages, Contacts, Notes, Photos and everything after failed with "Sidecar exited with code 1", then "Python sidecar is not running", until you quit. Their photos show now, and anything else the engine can't send is reported as an error on that screen instead of stopping it
 - If OpenExtract can't look for the backups on this computer, the first screen says so and has a Look again button. The "Also on this computer" list used to just disappear
-- A backup that stopped partway, made by OpenExtract or another app, is marked "Didn't finish" in your backup lists, and opening it says so above every screen, instead of opening as if it were complete and then failing one section at a time (Calls showed "file is not a database"). What arrived can still be looked at. One that stopped before there was anything to open says so, instead of "No iPhone backups found". OpenExtract's own backups now record when they finish, so this doesn't rely on guesswork (OE-31)
+- A backup that stopped partway, made by OpenExtract or another app, is marked "Didn't finish" in the list of backups found on this computer (and in Recent once you've opened it), and opening it says so above every screen, instead of opening as if it were complete and then failing one section at a time (Calls showed "file is not a database"). What arrived can still be looked at. One that stopped before there was anything to open says so, instead of "No iPhone backups found". OpenExtract's own backups now record when they finish, so this doesn't rely on guesswork (OE-31)
 
 ## [0.12.0] - 2026-11-07
 
