@@ -9,7 +9,7 @@ A free, open-source iPhone backup extractor for Windows, Mac and Linux: read and
 
 **No cloud. No subscriptions. Your data stays on your computer.**
 
-[![The home page of a sample iPhone backup in OpenExtract: tiles with counts of messages, photos, people, address book cards, calls, notes and voicemails, plus web history, timeline and year, under a search box for the whole backup.](website/static/img/screens/home-1000.webp)](website/static/img/screens/home-2000.webp)
+[![The home page of a sample iPhone backup in OpenExtract: tiles with counts of messages, WhatsApp messages, photos, people, address book cards, calls, notes and voicemails, plus web history, timeline and year, under a search box for the whole backup.](website/static/img/screens/home-1000.webp)](website/static/img/screens/home-2000.webp)
 
 ## Features
 
@@ -43,7 +43,7 @@ These use a made-up test backup, so none of the people or messages are real. Cli
   <tr>
     <td width="50%" valign="top">
       <a href="website/static/img/screens/search-2000.webp"><img src="website/static/img/screens/search-1000.webp" width="100%" alt="Search results for a word across the whole backup: notes, messages and web pages, with the first note previewed and every match highlighted."></a>
-      <br><b>Search</b>: one box searches messages, notes, calls, voicemail, people and web history.
+      <br><b>Search</b>: one box searches messages, WhatsApp, notes, calls, voicemail, people and web history.
     </td>
     <td width="50%" valign="top">
       <a href="website/static/img/screens/search-match-2000.webp"><img src="website/static/img/screens/search-match-1000.webp" width="100%" alt="A conversation opened from a search result at the matching message, with the word highlighted and arrows to step through the other matches."></a>
@@ -68,6 +68,16 @@ These use a made-up test backup, so none of the people or messages are real. Cli
     <td width="50%" valign="top">
       <a href="website/static/img/screens/group-chat-2000.webp"><img src="website/static/img/screens/group-chat-1000.webp" width="100%" alt="A group chat with other people's messages labeled by who sent them and a mountain photo in the thread."></a>
       <br><b>Group chats</b>: group threads show who said what.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="website/static/img/screens/whatsapp-2000.webp"><img src="website/static/img/screens/whatsapp-1000.webp" width="100%" alt="A WhatsApp group chat beside the list of chats: a reply that quotes an earlier message, emoji reactions under messages and a photo of a lake."></a>
+      <br><b>WhatsApp</b>: chats, groups and broadcast lists, with replies, reactions and photos.
+    </td>
+    <td width="50%" valign="top">
+      <a href="website/static/img/screens/whatsapp-chat-2000.webp"><img src="website/static/img/screens/whatsapp-chat-1000.webp" width="100%" alt="A WhatsApp chat in Spanish: two photos of a rose garden, a missed call, a voice message playing in the app and a 22-minute call."></a>
+      <br><b>Voice messages and calls</b>: play voice messages in the app; calls show missed or with their length.
     </td>
   </tr>
   <tr>
