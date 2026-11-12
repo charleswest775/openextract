@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-12
+
 ### Added
 - Podcasts: a Podcasts section with the shows you follow in Apple Podcasts and your listening history: the episodes you played, newest first, with how many times you played each one and where you stopped. Shows you don't follow are listed apart. Save your subscriptions as an OPML file, which most podcast apps can import, or every show and episode as CSV. An iPhone backup never includes podcast audio, so each episode has a Get audio button that opens it in your browser, from where the podcast publishes it; OpenExtract itself still connects to nothing. Reading podcasts was contributed by gbaudic (ios-backup-core#25)
 
