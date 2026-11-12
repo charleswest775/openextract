@@ -246,10 +246,14 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends desktop-file-utils xvfb
 
+      # On the Intel runner, the Intel engine's constraints: without them pip compiles the
+      # newest cryptography from source (it has no Intel Mac wheels), which can take the runner down.
       - name: Generate the test backups
+        env:
+          CONSTRAINTS: ${{ runner.os == 'macOS' && runner.arch == 'X64' && '-c constraints-intel-mac.txt' || '' }}
         run: |
           git clone --depth=1 https://github.com/charleswest775/ios-backup-core.git "$GITHUB_WORKSPACE/../ios-backup-core"
-          (cd python && pip install -r requirements.txt)
+          (cd python && pip install $CONSTRAINTS -r requirements.txt)
           python scripts/e2e/backups.py e2e-backups.json
 
       - name: Install and test

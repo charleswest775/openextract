@@ -1,5 +1,6 @@
 # pip constraints for the Intel Mac (x86_64) engine only; .github/actions/intel-mac-engine
-# applies them. Every other engine installs python/requirements.txt as it is.
+# applies them, and so do the installs on Intel runners (installers.yml's test job and the
+# pre-release check's Intel row). Every other engine installs python/requirements.txt as it is.
 #
 # cryptography (needed by pymobiledevice3) stopped publishing Intel Mac wheels at 49.0.0
 # (June 2026): its macOS wheels since then are arm64 only, so an x86_64 install would have to

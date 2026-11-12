@@ -85,9 +85,13 @@ jobs:
             https://github.com/charleswest775/ios-backup-core.git \
             "$GITHUB_WORKSPACE/../ios-backup-core"
 
+      # The Intel row installs what the Intel engine ships with (python/constraints-intel-mac.txt):
+      # without it pip compiles the newest cryptography from source, as it has no Intel Mac wheels.
       - name: Install Python dependencies and PyInstaller
         working-directory: python
-        run: pip install pytest pyinstaller -r requirements.txt
+        env:
+          CONSTRAINTS: ${{ runner.os == 'macOS' && runner.arch == 'X64' && '-c constraints-intel-mac.txt' || '' }}
+        run: pip install $CONSTRAINTS pytest pyinstaller -r requirements.txt
 
       - name: Build Python sidecar
         run: npm run python:bundle
