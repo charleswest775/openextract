@@ -17,16 +17,21 @@ runs:
         architecture: x64
         update-environment: false
 
-    # setup-python's macOS "x64" Python is a universal2 build, which on Apple Silicon runs as
-    # arm64 unless it's started with `arch -x86_64`. This wrapper does that; the processes it
-    # starts (pip, PyInstaller's helpers) stay x86_64 too.
-    - name: Run that Python as x86_64
+    # setup-python's macOS "x64" Python is the same universal2 python.org install as its arm64
+    # one (/Library/Frameworks/Python.framework), so the two share site-packages: pip would
+    # find the job's arm64 wheels already there and skip installing x86_64 ones. A venv gets
+    # its own. And a universal2 Python runs as arm64 on Apple Silicon unless it's started with
+    # `arch -x86_64`, so the wrapper does that; the processes it starts (pip, PyInstaller's
+    # helpers) stay x86_64 too.
+    - name: Make an x86_64 venv for the Intel engine
       shell: bash
       env:
         PY: ${{ steps.python.outputs.python-path }}
       run: |
+        VENV="$RUNNER_TEMP/venv-x64"
+        arch -x86_64 "$PY" -m venv "$VENV"
         WRAPPER="$RUNNER_TEMP/python-x64"
-        printf '#!/bin/sh\nexec arch -x86_64 "%s" "$@"\n' "$PY" > "$WRAPPER"
+        printf '#!/bin/sh\nexec arch -x86_64 "%s" "$@"\n' "$VENV/bin/python" > "$WRAPPER"
         chmod +x "$WRAPPER"
         echo "INTEL_PYTHON=$WRAPPER" >> "$GITHUB_ENV"
 
@@ -34,13 +39,14 @@ runs:
       shell: bash
       working-directory: python
       run: |
-        machine=$("$INTEL_PYTHON" -c 'import platform; print(platform.machine())')
-        echo "The Intel engine's Python runs as $machine"
-        if [ "$machine" != x86_64 ]; then
-          echo "::error::Expected an x86_64 Python for the Intel engine, got $machine"
+        read -r machine venv prefix < <("$INTEL_PYTHON" -c 'import platform, sys; print(platform.machine(), sys.prefix != sys.base_prefix, sys.prefix)')
+        echo "The Intel engine's Python runs as $machine from $prefix"
+        if [ "$machine" != x86_64 ] || [ "$venv" != True ]; then
+          echo "::error::Expected an x86_64 Python in its own venv for the Intel engine, got $machine from $prefix"
           exit 1
         fi
-        "$INTEL_PYTHON" -m pip install pyinstaller -r requirements.txt
+        # constraints-intel-mac.txt holds back what has stopped publishing x86_64 Mac wheels.
+        "$INTEL_PYTHON" -m pip install -c constraints-intel-mac.txt pyinstaller -r requirements.txt
 
     - name: Build the engine (x64)
       shell: bash

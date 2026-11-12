@@ -1,0 +1,10 @@
+# pip constraints for the Intel Mac (x86_64) engine only; .github/actions/intel-mac-engine
+# applies them. Every other engine installs python/requirements.txt as it is.
+#
+# cryptography (needed by pymobiledevice3) stopped publishing Intel Mac wheels at 49.0.0
+# (June 2026): its macOS wheels since then are arm64 only, so an x86_64 install would have to
+# compile it from source with Rust and OpenSSL. 48.0.1 is the last release with a universal2
+# wheel. The Intel engine stays on it, and won't get cryptography's later fixes, until there's
+# an x86_64 wheel again or the Intel build compiles it. If pymobiledevice3 ever needs a newer
+# cryptography, pip fails here and the Intel build stops rather than shipping something broken.
+cryptography<49

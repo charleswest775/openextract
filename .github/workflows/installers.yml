@@ -32,6 +32,7 @@ on:
       - 'build/**'
       - 'electron/main.ts'
       - 'python/requirements.txt'
+      - 'python/constraints-intel-mac.txt'
       - 'scripts/bundle-engine.mjs'
       - 'scripts/installers/**'
       - 'scripts/update-feed.mjs'
