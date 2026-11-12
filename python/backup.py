@@ -68,6 +68,11 @@ def _save_size_cache(cache: dict) -> None:
 
 _LOG_PATH = os.environ.get('OPENEXTRACT_LOG_PATH') or os.path.join(tempfile.gettempdir(), 'python_log.txt')
 
+# How open_backup's error starts when the backup isn't where the app said it was, so the
+# app can offer to find it (src/lib/foundBackups.ts). It used to say only "Backup not
+# found: <udid>", which reads as if the backup were gone (in-app report OE-40).
+BACKUP_MISSING = "BACKUP_MISSING:"
+
 
 def _tlog(msg: str) -> None:
     try:
@@ -195,6 +200,32 @@ class BackupManager:
             f"OpenExtract doesn't have permission to read {path}. "
             "Check the folder's permissions and try again."
         )
+
+    @staticmethod
+    def _missing_error(backup_dir: Optional[str]) -> ValueError:
+        """User-facing error for a backup that isn't where the app said it was.
+
+        The app keeps the folder of each backup in its recent list, so this is mostly a
+        backup moved, renamed or deleted since, or one on a drive that isn't plugged in.
+        The folder is named so the user knows which one (the feedback form hides it).
+        """
+        if backup_dir and not os.path.isdir(backup_dir):
+            where = (
+                f"It was in {backup_dir}, and that folder isn't there now. "
+                "If it's on an external drive, plug the drive in and try again. "
+                "If the folder was moved or renamed, click Find it and choose where it is now."
+            )
+        elif backup_dir:
+            where = (
+                f"There's no iPhone backup in {backup_dir} now. "
+                "If the backup was moved, click Find it and choose where it is now."
+            )
+        else:
+            where = (
+                "It isn't in the usual backup folders on this computer. "
+                "If it's saved somewhere else, click Find it and choose its folder."
+            )
+        return ValueError(f"{BACKUP_MISSING} OpenExtract can't find this backup. {where}")
 
     def _ensure_readable(self, path: str) -> None:
         """Raise a clear error if *path* exists but can't be listed.
@@ -431,7 +462,7 @@ class BackupManager:
             if blocked:
                 # Most likely it's in a folder we weren't allowed to read.
                 raise self._permission_error(blocked[0])
-            raise ValueError(f"Backup not found: {udid}")
+            raise self._missing_error(backup_dir)
 
         # Ensure udid is always present — _read_backup_info falls back to the
         # directory name when Info.plist is absent, but guard here as well.
