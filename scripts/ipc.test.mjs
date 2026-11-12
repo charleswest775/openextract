@@ -70,6 +70,10 @@ test('exportMessagesPdf returns the files written, or throws', async t => {
   await assert.rejects(ipc.exportMessagesPdf('export_conversation', { chat_id: 2 }), { message: 'No printer-ready page' });
   await assert.rejects(ipc.exportMessagesPdf('export_conversation', { chat_id: 3 }), { message: 'PDF export failed' });
   await assert.rejects(ipc.exportMessagesPdf('export_conversations', { chat_id: 4 }), { message: 'PDF export failed' });
+  // WhatsApp chats go through the same bridge under their own method names
+  assert.deepEqual(await ipc.exportMessagesPdf('export_whatsapp_chat', { chat_id: 1 }), done);
+  assert.deepEqual(calls.at(-1), ['exportPdf', 'export_whatsapp_chat', { chat_id: 1 }]);
+  await assert.rejects(ipc.exportMessagesPdf('export_whatsapp_chats', { chat_id: 2 }), { message: 'No printer-ready page' });
 });
 
 test('folder pickers pass the chosen folder through, or null when cancelled', async t => {

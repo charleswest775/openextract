@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#faf6f1" />
   <title>Privacy policy — OpenExtract</title>
-  <meta name="description" content="OpenExtract reads iPhone backups on your own computer. It has no server and no account, and it never uploads your data." />
+  <meta name="description" content="OpenExtract reads iPhone backups on your own computer. It has no account, and it never uploads your backup." />
   <link rel="canonical" href="https://www.openextract.app/privacy" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://www.openextract.app/privacy" />
   <meta property="og:title" content="OpenExtract privacy policy" />
-  <meta property="og:description" content="OpenExtract has no server and no account, and it never uploads your data." />
+  <meta property="og:description" content="OpenExtract has no account, and it never uploads your backup." />
   <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -43,7 +43,7 @@
   <header class="page-head">
     <div class="page-head__eyebrow">Privacy</div>
     <h1>Privacy policy</h1>
-    <p class="page-head__lede">OpenExtract is a desktop app that reads iPhone and iPad backups stored on your own computer. It is made by Charles West. Last updated November 8, 2026.</p>
+    <p class="page-head__lede">OpenExtract is a desktop app that reads iPhone and iPad backups stored on your own computer. It is made by Charles West. Last updated November 11, 2026.</p>
   </header>
 
   <section class="prose">
@@ -55,15 +55,18 @@
       <p>Nowhere. All reading and decryption happens on your computer. OpenExtract has no account, and it doesn't upload, sell or share your data with anyone. It doesn't save your backup password. While a backup is open, the app may keep temporary copies of the databases it reads on your computer. Files you export are saved only where you choose. The one thing that can leave your computer is a feedback report you choose to send, described below.</p>
 
       <h2>Network use</h2>
-      <p>The app makes two kinds of network request, and only with your say-so. The first is an optional check for updates. The app asks you once before turning it on, and you can turn it off in Settings. A check downloads a small version file from GitHub, where OpenExtract's releases are published. It sends no information about you or your backups. GitHub sees the request, as it would any download. Updates download only when you choose to update.</p>
+      <p>The app makes network requests only with your say-so, of three kinds. The first is an optional check for updates. The app asks you once before turning it on, and you can turn it off in Settings. A check downloads a small version file from GitHub, where OpenExtract's releases are published. It sends no information about you or your backups. GitHub sees the request, as it would any download. Updates download only when you choose to update.</p>
 
       <p>The second is a feedback report, sent only when you click Send in the app's feedback form. See the next section.</p>
+
+      <p>The third is on Windows only. Backing up an iPhone needs Apple's free Apple Devices app. If it isn't installed, OpenExtract offers to install it, and when you click Install, Windows' own installer (winget) downloads it from Microsoft. Nothing about you or your backups is sent.</p>
 
       <h2 id="feedback">Feedback reports</h2>
       <p>The feedback form shows you everything it will send before you send it: the type of problem, the part of the app, what you wrote, and a details section with the app and system versions, your phone's model and iOS version, and recent error messages. Folder names, your device's name, email addresses and phone numbers are replaced with placeholders, and nothing from inside your backup is included. You can edit or delete any of it. An email address is included only if you type one in, and it's used only to write to you about that report.</p>
       <p>When you click Send, the report goes to openextract.app, which files it in a private list that only OpenExtract's developer can read. It isn't posted publicly. The app also sends a random code it makes for that report. The site keeps only a scrambled form of the code, so only your computer can ask about the report later.</p>
       <p>While a report is open, the app asks openextract.app about it at most every few days, for up to six months, so it can tell you when it's fixed. Each check sends only the report's number and its code. The report number, its code, the email you typed and when you sent it are remembered on your computer.</p>
-      <p>The same form can send a thank-you instead. A thank-you holds only what you wrote, the part of the app you'd been using, and an email address if you type one in. It includes no details about your computer or your backup, and the app never asks about it afterwards. It only remembers, on your computer, that you sent one, so it stops asking. If you tick "OK to quote", your words may appear on openextract.app without your name.</p>
+      <p>The same form can send a thank-you instead. A thank-you holds only what you wrote, the part of the app you'd been using, and an email address if you type one in. It includes no details about your computer or your backup, and the app never asks about it afterwards. It only remembers, on your computer, that you sent one, so it stops asking. If you tick "OK to quote", your words may appear on openextract.app without your name, word for word, on the <a href="/what-people-say">What people say</a> page and a few others.</p>
+      <p>Before a quote appears, it is checked automatically. Only the words you wrote and the part of the app are sent to Claude, an AI model made by Anthropic, which reads them for names, contact details and private matters; your email address is never sent. If the check finds anything like that, or isn't sure, the quote stays off the site until OpenExtract's developer has read it. Anthropic doesn't use what it receives this way to train its models. If you'd like a quote of yours taken down, send another thank-you or a report from the app saying so.</p>
 
       <h2 id="support">Chipping in</h2>
       <p>The app's "Chip in" buttons only open <a href="/support">openextract.app/support</a> in your browser; the app sends nothing. If you pay there, Stripe handles the payment on its own page. OpenExtract never sees your card details. Stripe shares the amount, your email address and the name on your card with OpenExtract's developer, who uses them only to send receipts and refunds. See <a href="https://stripe.com/privacy">Stripe's privacy policy</a> for what Stripe keeps.</p>
@@ -137,6 +140,7 @@
       <ul class="footer__list">
         <li><a href="/about">About</a></li>
         <li><a href="/support">Support OpenExtract</a></li>
+        <li><a href="/what-people-say">What people say</a></li>
         <li><a href="/blog">Blog</a></li>
         <li><a href="/privacy">Privacy</a></li>
         <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>

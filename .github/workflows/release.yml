@@ -413,6 +413,21 @@ jobs:
             exit 1
           }
 
+      # The updater fetches whatever latest.yml names. Point it at OpenExtract-Update-<v>.exe, a
+      # copy of the signed installer, so the release's download counts tell updates apart from
+      # new installs (the website, winget and Chocolatey give OpenExtract-Setup-<v>.exe).
+      # scripts/update-feed.mjs says more, including the one full download it costs.
+      - name: Give updates their own copy of the installer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          node scripts/update-feed.mjs release "$VERSION"
+          cd release
+          gh release upload "v$VERSION" --repo "$GITHUB_REPOSITORY" --clobber \
+            "OpenExtract-Update-$VERSION.exe" "OpenExtract-Update-$VERSION.exe.blockmap" latest.yml
+
   # Installs the draft's Windows installer on a fresh runner and runs it under an enforced
   # App Control policy that allows only Microsoft's code and ours, the way Smart App
   # Control would (#169). Publishing waits for it.

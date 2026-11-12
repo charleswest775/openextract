@@ -34,6 +34,7 @@ on:
       - 'python/requirements.txt'
       - 'scripts/bundle-engine.mjs'
       - 'scripts/installers/**'
+      - 'scripts/update-feed.mjs'
       - '.github/workflows/installers.yml'
 
 concurrency:
@@ -125,6 +126,13 @@ jobs:
       - name: Package (no publish)
         run: npx electron-builder --publish never
 
+      # As release.yml does: updates get their own copy of the installer, which latest.yml names.
+      # The Windows test checks latest.yml against the file it names.
+      - name: Give updates their own copy of the installer
+        if: runner.os == 'Windows'
+        shell: bash
+        run: node scripts/update-feed.mjs release "$(node -p "require('./package.json').version")"
+
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
@@ -155,7 +163,7 @@ jobs:
         run: |
           get() { d=$1; shift; mkdir -p "$d"; args=(); for p in "$@"; do args+=(--pattern "$p"); done; gh release download "$TAG" --repo "$GITHUB_REPOSITORY" "${args[@]}" --dir "$d"; }
           get packages/macOS '*-mac.zip' '*.dmg' 'latest-mac.yml'
-          get packages/Windows 'OpenExtract-Setup-*.exe' 'latest.yml'
+          get packages/Windows 'OpenExtract-Setup-*.exe' 'OpenExtract-Update-*.exe' 'latest.yml'
           get packages/Linux '*.deb' '*.AppImage' 'latest-linux.yml'
           ls -laR packages
 

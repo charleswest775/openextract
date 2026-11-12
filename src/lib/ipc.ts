@@ -18,9 +18,12 @@ export async function sidecarCall<T = any>(method: string, params: any = {}): Pr
   return result.data as T;
 }
 
-/** Export one or more conversations as PDF. Resolves to the PDF paths written. */
+/** The engine exports that can be printed to PDF: Messages conversations and WhatsApp chats. */
+export type PdfExportMethod = 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats';
+
+/** Export one or more conversations (or WhatsApp chats) as PDF. Resolves to the PDF paths written. */
 export async function exportMessagesPdf(
-  method: 'export_conversation' | 'export_conversations',
+  method: PdfExportMethod,
   params: any,
 ): Promise<{ files: string[]; message_count: number }> {
   if (!isElectron) {

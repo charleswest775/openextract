@@ -6,9 +6,9 @@ declare global {
   interface Window {
     openextract: {
       call: (method: string, params?: any) => Promise<{ success: boolean; data?: any; error?: string }>;
-      /** Export conversations as PDF; same params as export_conversation(s) minus format. */
+      /** Export conversations or WhatsApp chats as PDF; same params as export_conversation(s) / export_whatsapp_chat(s) minus format. */
       exportPdf: (
-        method: 'export_conversation' | 'export_conversations',
+        method: 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats',
         params: any,
       ) => Promise<{ success: boolean; data?: { files: string[]; message_count: number }; error?: string }>;
       selectFolder: () => Promise<string | null>;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { sidecarCall } from '../lib/ipc';
+import type { WhatsAppStatus } from '../types/whatsapp';
 
 export interface TopConversation {
   display_name: string;
@@ -29,6 +30,12 @@ export interface BackupStatsOverview {
   total_calls: number;
   total_notes: number;
   total_voicemails: number;
+  // WhatsApp (python/stats.py): messages in its listable chats, system rows
+  // included, and the chats. Kept apart from total_messages, which is sms.db.
+  total_whatsapp_messages: number;
+  total_whatsapp_chats: number;
+  /** Whether WhatsApp could be read: the section shows on 'error' and 'unsupported_format' too, to say so. */
+  whatsapp_status: WhatsAppStatus;
 }
 
 export interface MessageStats {

@@ -307,6 +307,82 @@ test('searchText says what kind of record it is', () => {
   assert.ok(matchesTerms(searchText(shot), parseQuery('screenshot')));
 });
 
+// A WhatsApp message as normalizeWhatsApp makes it (fictional people, 555 numbers)
+const wa = (over = {}, entry = {}) => ({
+  id: 'whatsapp:1', type: 'whatsapp', timestamp: '', contactName: 'Riley Okafor', contactIdentifier: '+15035550142',
+  whatsapp: {
+    text: null, isFromMe: false, sender: 'Riley Okafor', messageType: 'text', eventText: null, attachmentLabel: null,
+    conversationName: 'Riley Okafor', chatId: 12, chatType: 'individual', isGroup: false, sort: 1, call: null, ...over,
+  },
+  ...entry,
+});
+const found = (entry, query) => matchesTerms(searchText(entry), parseQuery(query));
+
+test('global search finds WhatsApp messages by their words, what happened and what they were', () => {
+  assert.ok(found(wa({ text: 'Bring the blue tent' }), 'tent'));
+  assert.ok(found(wa({ text: 'Café at noon?' }), 'cafe noon'));
+  // By the chat and, in a group, by who said it
+  const family = { conversationName: 'Family', chatType: 'group', isGroup: true, sender: 'Ana Lindqvist' };
+  const group = { contactName: 'Family', contactIdentifier: '120363000000000001@g.us' };
+  assert.ok(found(wa({ text: 'Running late', ...family }, group), 'family running'));
+  assert.ok(found(wa({ text: 'Running late', ...family }, group), 'lindqvist'));
+  // "me" isn't how anyone searches for their own messages
+  assert.ok(!found(wa({ text: 'Running late', isFromMe: true, sender: 'me' }), 'me'));
+  // Calls, locations and notices, by the engine's words for them
+  assert.ok(found(wa({ messageType: 'call', eventText: 'Outgoing video call · 2:05' }), 'outgoing video'));
+  assert.ok(found(wa({ messageType: 'system', sender: '', eventText: 'Riley joined' }), 'joined'));
+  assert.ok(found(wa({ messageType: 'shared_location', eventText: 'Location' }), 'location riley'));
+  // A document by its name, a caption by its words
+  assert.ok(found(wa({ messageType: 'document', attachmentLabel: 'Packing list.pdf' }), 'packing'));
+  assert.ok(found(wa({ messageType: 'image', text: 'At the lake', attachmentLabel: 'Photo' }), 'lake'));
+});
+
+test('searchText says a WhatsApp message is one, and what kind', () => {
+  assert.ok(found(wa({ text: 'hi' }), 'whatsapp'));
+  assert.ok(found(wa({ text: 'hi' }), 'whatsapp riley'));
+  assert.ok(found(wa({ messageType: 'image', attachmentLabel: '3f2a9c.jpg' }), 'whatsapp photo'));
+  assert.ok(found(wa({ messageType: 'audio', attachmentLabel: 'Audio' }), 'audio'));
+  // Calls: "whatsapp call", and "missed" for the ones that were
+  const missed = wa({ messageType: 'call', eventText: 'Missed voice call', call: { outcome: 'missed', direction: 'incoming', isVideo: false, duration: null } });
+  for (const q of ['whatsapp call', 'missed whatsapp call', 'missed', 'voice call']) assert.ok(found(missed, q), q);
+  const answered = wa({ messageType: 'call', eventText: 'Incoming video call · 0:42', call: { outcome: 'answered', direction: 'incoming', isVideo: true, duration: 42 } });
+  assert.ok(found(answered, 'incoming whatsapp call'));
+  assert.ok(!found(answered, 'missed'));
+  // A call the record says little about is still a WhatsApp call
+  assert.ok(found(wa({ messageType: 'call', eventText: 'WhatsApp call' }), 'whatsapp call'));
+  // Messages from Messages aren't WhatsApp
+  const sms = { id: 'message:1', type: 'message', timestamp: '', contactName: 'Riley', contactIdentifier: '+15035550142',
+    message: { text: 'hi', conversationName: 'Riley' } };
+  assert.ok(!found(sms, 'whatsapp'));
+});
+
+test('a WhatsApp chat is found by its number, never by the digits of its WhatsApp address', () => {
+  // One-to-one: the number, however it's typed
+  for (const q of ['(503) 555-0142', '+1 503 555 0142', '5035550142']) assert.ok(found(wa({ text: 'hi' }), q), q);
+  // A group's address isn't a phone number
+  const group = wa({ text: 'hi', conversationName: 'Family', chatType: 'group', isGroup: true, sender: 'Ana' },
+    { contactName: 'Family', contactIdentifier: '120363000000000001@g.us' });
+  for (const q of ['120363', '0000000001', '120363000000000001']) assert.ok(!found(group, q), q);
+  // A chat no number was found for has nothing to match by number
+  assert.ok(!found(wa({ text: 'hi' }, { contactIdentifier: null, contactName: 'Unknown contact' }), '5035550142'));
+});
+
+test("matches never searches a WhatsApp chat's address, so part of a phone number doesn't find a group", () => {
+  // People, the chat list and the global search hand their fields to matches: a group's address is among them
+  const group = ['Book club', '120363025246125486@g.us'];
+  for (const q of ['612', '5246125486', '120363025246125486', 'g.us', '@broadcast']) assert.ok(!matches(q, ...group), q);
+  assert.ok(matches('book', ...group));
+  // Broadcast lists, channels and the rest are addresses too
+  for (const id of ['1700000000612@broadcast', '120363000000612000@newsletter', '86123456789012@lid', '15035550612@s.whatsapp.net']) {
+    assert.ok(!matches('612', 'Party list', id), id);
+  }
+  // A real number in the same list still matches, however it's typed
+  assert.ok(matches('612', 'Riley Okafor', '+15035550612', '15035550612@s.whatsapp.net'));
+  assert.ok(matches('(503) 555-0612', 'Riley Okafor', '+15035550612'));
+  // An email that merely ends like one isn't left out
+  assert.ok(matches('broadcast', 'news@broadcast.example.com'));
+});
+
 test('highlightRanges marks every match, merged and in order', () => {
   assert.deepEqual(highlightRanges('Bread and more bread', parseQuery('bread')), [[0, 5], [15, 20]]);
   assert.deepEqual(highlightRanges('breadcrumbs', parseQuery('bread crumb')), [[0, 10]]);

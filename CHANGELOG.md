@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Windows: the app's updater now downloads a copy of the installer named `OpenExtract-Update-X.Y.Z.exe` instead of `OpenExtract-Setup-X.Y.Z.exe`. It's the same signed file. The only difference is that GitHub's download counts for each release now show updates and new installs apart; the app still sends nothing. The first update to this version may download the whole installer rather than only the parts that changed
+
+## [0.14.0] - 2026-11-11
+
+### Added
+- WhatsApp: a WhatsApp section with your chats, groups and broadcast lists, in the order they arrived on the iPhone. Replies show the message they answer, reactions sit under the message they react to, and calls, locations, photos, videos, voice messages and documents show in the chat. Photos and files that WhatsApp didn't keep on the iPhone say so instead of failing. Save a chat, or all of them, as a web page, PDF, CSV or text file. WhatsApp messages also show in the Timeline, in search and under each person in People. The Year view doesn't count them yet, and calls made before WhatsApp 2.24 aren't shown, because older versions keep them somewhere else. If WhatsApp's end-to-end encrypted backup is turned on in WhatsApp's settings, WhatsApp leaves its chats out of the iPhone's backup, so there's nothing to show
+
+### Fixed
+- The Timeline no longer shows a red "Calls: Call history not found" error with a Report this problem button on every unencrypted backup. Apple only puts call history in encrypted backups, so that's normal, and the home page already says so calmly. A call history the app couldn't read is still shown as an error
+
 ## [0.13.0] - 2026-11-10
 
 ### Added

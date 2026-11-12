@@ -307,3 +307,95 @@ test('saveConversations reports an engine failure, and stops if cancelled', asyn
   folder = null;
   assert.equal(await save.saveConversations('u', [MOM], 'csv', 'merged'), null);
 });
+
+// ── WhatsApp chats: the same flow through WhatsApp's own engine methods ──
+
+const RILEY = { chat_id: 42, display_name: 'Riley Chen', handle: '+15035550101' };
+
+test('saveWhatsAppChat exports through export_whatsapp_chat, never the Messages method', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => '/Users/jane/Desktop',
+    call: async (method, params) => ({ success: true, data: { file: `${params.output_dir}/Riley Chen.${params.format}`, message_count: 7 } }),
+  });
+  const result = await save.saveWhatsAppChat('00008030-001A', RILEY, 'html');
+  assert.deepEqual(result, { title: 'Saved your WhatsApp chat with Riley Chen', detail: '7 messages', path: '/Users/jane/Desktop/Riley Chen.html' });
+  assert.deepEqual(calls[1], ['call', 'export_whatsapp_chat', {
+    udid: '00008030-001A', chat_id: 42, output_dir: '/Users/jane/Desktop', display_name: 'Riley Chen', format: 'html',
+  }]);
+  assert.ok(!calls.some(c => c[1] === 'export_conversation'), 'the same chat id in sms.db is somebody else');
+});
+
+test('saveWhatsAppChat names a chat by its number when it has no name, and never by its address', async t => {
+  const { lib: save } = loadWith(t, {
+    saveFolder: async () => 'D:\\Exports',
+    call: async () => ({ success: true, data: { file: 'D:\\Exports\\whatsapp_chat_9.txt', message_count: 1 } }),
+  });
+  const numbered = await save.saveWhatsAppChat('u', { chat_id: 9, display_name: '', handle: '+15035550102' }, 'txt');
+  assert.equal(numbered.title, 'Saved your WhatsApp chat with +15035550102');
+  assert.equal(numbered.detail, '1 message');
+  const nameless = await save.saveWhatsAppChat('u', { chat_id: 9, display_name: '', handle: '' }, 'txt');
+  assert.equal(nameless.title, 'Saved your WhatsApp chat with WhatsApp chat');
+});
+
+test('saveWhatsAppChat as PDF goes through the PDF exporter with the WhatsApp method', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => '/tmp/out',
+    exportPdf: async () => ({ success: true, data: { files: ['/tmp/out/Riley Chen.pdf'], message_count: 12 } }),
+    call: async () => assert.fail('PDF goes through exportPdf'),
+  });
+  const result = await save.saveWhatsAppChat('u', RILEY, 'pdf');
+  assert.deepEqual(result, { title: 'Saved your WhatsApp chat with Riley Chen', detail: '12 messages', path: '/tmp/out/Riley Chen.pdf' });
+  assert.deepEqual(calls[1], ['exportPdf', 'export_whatsapp_chat', { udid: 'u', chat_id: 42, output_dir: '/tmp/out', display_name: 'Riley Chen' }]);
+});
+
+test('saveWhatsAppChat: cancelled does nothing, an engine failure is an error', async t => {
+  let folder = null;
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => folder,
+    call: async () => ({ success: true, data: { error: "WhatsApp's chats couldn't be read." } }),
+  });
+  assert.equal(await save.saveWhatsAppChat('u', RILEY, 'csv'), null);
+  assert.deepEqual(calls.map(c => c[0]), ['saveFolder']);
+  folder = '/tmp/out';
+  await assert.rejects(save.saveWhatsAppChat('u', RILEY, 'csv'), { message: "WhatsApp's chats couldn't be read." });
+});
+
+test('saveWhatsAppChats: merged or one file each, through export_whatsapp_chats', async t => {
+  const chats = [RILEY, { chat_id: 7, display_name: 'Hiking crew', handle: '' }, { chat_id: 9, display_name: '', handle: '+15035550102' }];
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => '/Users/jane/Desktop',
+    call: async (_m, p) => ({
+      success: true,
+      data: p.mode === 'merged'
+        ? { files: ['/Users/jane/Desktop/WhatsApp chats.html'], message_count: 1532 }
+        : { files: p.chat_ids.map(id => `/Users/jane/Desktop/${id}.html`), message_count: 2 },
+    }),
+  });
+  const merged = await save.saveWhatsAppChats('u', chats, 'html', 'merged');
+  assert.deepEqual(calls[1], ['call', 'export_whatsapp_chats', {
+    udid: 'u', chat_ids: [42, 7, 9], conversation_names: { 42: 'Riley Chen', 7: 'Hiking crew', 9: '+15035550102' },
+    output_dir: '/Users/jane/Desktop', mode: 'merged', format: 'html',
+  }]);
+  assert.deepEqual(merged, {
+    title: `Saved ${(1532).toLocaleString()} WhatsApp messages`,
+    detail: '3 chats in 1 file',
+    path: '/Users/jane/Desktop/WhatsApp chats.html',
+  });
+  const separate = await save.saveWhatsAppChats('u', chats, 'html', 'separate');
+  assert.deepEqual(separate, { title: 'Saved 2 WhatsApp messages', detail: '3 chats in 3 files', path: '/Users/jane/Desktop' });
+});
+
+test('saveWhatsAppChats as PDF, and its failures', async t => {
+  let folder = '/tmp/out';
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => folder,
+    exportPdf: async () => ({ success: false, error: 'PDF export is not available for export_whatsapp_chats' }),
+    call: async () => ({ success: true, data: { error: 'Unsupported format: xml' } }),
+  });
+  await assert.rejects(save.saveWhatsAppChats('u', [RILEY], 'pdf', 'merged'), { message: 'PDF export is not available for export_whatsapp_chats' });
+  assert.equal(calls[1][0], 'exportPdf');
+  assert.equal(calls[1][1], 'export_whatsapp_chats');
+  await assert.rejects(save.saveWhatsAppChats('u', [RILEY], 'csv', 'separate'), { message: 'Unsupported format: xml' });
+  folder = null;
+  assert.equal(await save.saveWhatsAppChats('u', [RILEY], 'csv', 'merged'), null);
+});

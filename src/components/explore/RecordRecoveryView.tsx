@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { sidecarCall, saveFolder } from '../../lib/ipc';
-import { formatRelative, formatDate } from '../../lib/dates';
+import { formatRelative } from '../../lib/dates';
+import { groupByDay, isOffDay } from '../../lib/dayGroups';
 import { RecoverIcon } from '../shared/Icons';
 import ChatBubble from './ChatBubble';
 import { ReportProblemButton } from '../shared/Feedback';
@@ -115,20 +116,8 @@ export default function RecordRecoveryView({ udid, query }: Props) {
     ? result?.messages_by_conversation[activeRecoveryId] ?? []
     : [];
 
-  const groupedMessages = useMemo(() => {
-    const groups: { date: string; messages: RecoveredMessage[] }[] = [];
-    let currentDate = '';
-    for (const msg of activeMessages) {
-      const d = formatDate(msg.date);
-      if (d !== currentDate) {
-        currentDate = d;
-        groups.push({ date: d, messages: [msg] });
-      } else {
-        groups[groups.length - 1].messages.push(msg);
-      }
-    }
-    return groups;
-  }, [activeMessages]);
+  // Days in order, each once (src/lib/dayGroups.ts)
+  const groupedMessages = useMemo(() => groupByDay(activeMessages), [activeMessages]);
 
   // ── Pre-scan / scanning / error states ────────────────────────────────────
 
@@ -260,10 +249,10 @@ export default function RecordRecoveryView({ udid, query }: Props) {
 
               <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4">
                 {groupedMessages.map((group) => (
-                  <div key={group.date}>
+                  <div key={group.key}>
                     <div className="text-center my-3">
                       <span className="text-xs text-text-secondary bg-sand px-3 py-0.5 rounded-full">
-                        {group.date}
+                        {group.label}
                       </span>
                     </div>
                     {group.messages.map((msg) => (
@@ -272,6 +261,7 @@ export default function RecordRecoveryView({ udid, query }: Props) {
                         message={msg}
                         showSender={activeConvo.is_group}
                         udid={udid}
+                        showDate={isOffDay(msg.date, group)}
                       />
                     ))}
                   </div>

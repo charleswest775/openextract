@@ -22,7 +22,7 @@ body:
     id: area
     attributes:
       label: Part of the app
-      placeholder: Messages, Photos, Calls, Exporting, Opening a backup…
+      placeholder: Messages, WhatsApp, Photos, Calls, Exporting, Opening a backup…
     validations:
       required: true
 

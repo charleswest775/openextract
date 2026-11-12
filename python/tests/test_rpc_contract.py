@@ -11,7 +11,10 @@ method with no case here, and says what to add.
 Backups: Maren (every data type filled; encrypted copy, password "test") and
 Einstein (Messages and Contacts only, so every other method must come back
 cleanly empty), written by ios-backup-core's backupgen (corpus/synthetic.py)
-into the corpus cache. Without backupgen, or without network the first time
+into the corpus cache. WhatsApp, which backupgen doesn't write, comes from
+whatsapp_backup.py: a copy of Einstein's backup with WhatsApp added (so
+sms.db's ids and WhatsApp's collide) and an encrypted backup holding only
+WhatsApp. Without backupgen, or without network the first time
 Maren's photos are needed, these tests skip, unless OPENEXTRACT_REQUIRE_GENERATED=1
 (set in CI) makes that a failure.
 
@@ -66,6 +69,7 @@ from rpc_contract_support import (  # noqa: E402
     read_csv,
     same_path,
 )
+import whatsapp_backup as wb  # noqa: E402
 
 # ── Performance budgets ──────────────────────────────────────────────────────
 # Seconds of wall-clock time for one cold call on a freshly started engine with
@@ -127,6 +131,16 @@ class Ctx:
     @property
     def einstein(self) -> BackupEngine:
         return self.runtime.backup(EINSTEIN)
+
+    @property
+    def whatsapp(self) -> BackupEngine:
+        """Einstein's backup with WhatsApp added; ``.plan.scenario`` says what's in it."""
+        return self.runtime.whatsapp()
+
+    @property
+    def whatsapp_enc(self) -> BackupEngine:
+        """An encrypted backup holding only WhatsApp (password "test")."""
+        return self.runtime.whatsapp(encrypted=True)
 
     @property
     def plain(self) -> Engine:
@@ -259,7 +273,9 @@ def case_get_backup_size(ctx):
 @contract("list_conversations")
 def case_list_conversations(ctx):
     m = ctx.maren
-    conversations = m.rpc("list_conversations")["conversations"]
+    result = m.rpc("list_conversations")
+    assert "error" not in result and "empty_reason" not in result, result
+    conversations = result["conversations"]
     expected = {c["chat_identifier"]: c for c in m.expected["conversations"]}
     assert sorted(c["chat_identifier"] for c in conversations) == sorted(expected)
     assert sum(c["message_count"] for c in conversations) == len(m.expected["messages"])
@@ -714,6 +730,259 @@ def case_export_browser_history(ctx):
     assert result["success"] is False and result["error"]
 
 
+# ── WhatsApp ─────────────────────────────────────────────────────────────────
+# Its ids are ChatStorage's and overlap with sms.db's in the copy of Einstein's
+# backup, so each case also checks that the same number reads different rows
+# through Messages' method and WhatsApp's. Pages are in arrival order (sort),
+# never message_id order.
+
+def _looks_like_base64_protobuf(text: str) -> bool:
+    """WhatsApp 2.23+ stores push names and last-message text as base64 protobuf; never shown."""
+    return bool(re.fullmatch(r"[A-Za-z0-9+/]{8,}={0,2}", text or "")) and (text or "").startswith("C")
+
+
+@contract("list_whatsapp_chats")
+def case_list_whatsapp_chats(ctx):
+    wa = ctx.whatsapp
+    s = wa.plan.scenario
+    result = wa.rpc("list_whatsapp_chats")
+    assert "error" not in result and "empty_reason" not in result, result
+    chats = result["conversations"]
+    assert {c["chat_id"]: (c["display_name"], c["chat_type"], c["handle"], c["archived"]) for c in chats} == s.chats
+    assert {c["chat_id"]: c["message_count"] for c in chats} == s.counts  # status updates aren't chats
+    dates = [c["last_message_date"] for c in chats]
+    assert dates == sorted(dates, reverse=True)  # newest first
+    for c in chats:
+        assert c["service"] == "WhatsApp" and c["chat_identifier"] == c["chat_jid"] and c["chat_jid"]
+        assert c["is_group"] is (c["chat_type"] == "group")
+        local_day(c["last_message_date"])
+        assert c["last_message_preview"] and not _looks_like_base64_protobuf(c["last_message_preview"])
+    by_id = {c["chat_id"]: c for c in chats}
+    assert by_id[wb.CHAT_RILEY]["last_message_preview"] == "A message type from the future"  # last by arrival
+    # The same chat ids as Messages' conversations, but other chats
+    sms = {c["chat_id"]: c for c in wa.rpc("list_conversations")["conversations"]}
+    shared = set(sms) & set(by_id)
+    assert shared, "the test copy should have chat ids in both sms.db and ChatStorage"
+    assert all(sms[i]["chat_identifier"] != by_id[i]["chat_identifier"] for i in shared)
+    # The encrypted backup reads the same
+    enc = ctx.whatsapp_enc
+    assert [(c["chat_id"], c["display_name"], c["message_count"], c["last_message_date"]) for c in enc.whatsapp_chats] == \
+        [(c["chat_id"], c["display_name"], c["message_count"], c["last_message_date"]) for c in chats]
+
+
+@contract("get_whatsapp_messages")
+def case_get_whatsapp_messages(ctx):
+    wa = ctx.whatsapp
+    s = wa.plan.scenario
+    total = s.counts[wb.CHAT_RILEY]
+    page = wa.rpc("get_whatsapp_messages", chat_id=wb.CHAT_RILEY, offset=0, limit=5)
+    assert (page["total"], page["offset"], page["limit"], page["next_offset"]) == (total, 0, 5, 5)
+    sorts = [m["sort"] for m in page["messages"]]
+    ids = [m["message_id"] for m in page["messages"]]
+    assert sorts == sorted(sorts) and len(set(sorts)) == 5  # arrival order within the page...
+    assert ids != sorted(ids)                               # ...which isn't row-id order
+    keys = {"message_id", "text", "message_type", "event_text", "date", "is_from_me", "sender", "sender_handle",
+            "has_attachments", "attachments", "is_reaction", "sort", "sender_jid", "quoted", "reactions", "call",
+            "location", "received_date", "event_code", "starred", "vcard", "link_preview"}
+    for m in page["messages"]:
+        assert keys <= set(m), sorted(keys - set(m))
+    older = wa.rpc("get_whatsapp_messages", chat_id=wb.CHAT_RILEY, offset=5, limit=5)["messages"]
+    assert len(older) == 5 and max(m["sort"] for m in older) < min(sorts)
+    last = wa.rpc("get_whatsapp_messages", chat_id=wb.CHAT_RILEY, offset=total - 2, limit=5)
+    assert len(last["messages"]) == 2 and last["next_offset"] == total
+
+    messages = {m["message_id"]: m for m in wa.whatsapp_messages_of(wb.CHAT_RILEY)}
+    assert len(messages) == total
+    assert [m["sort"] for m in wa.whatsapp_messages_of(wb.CHAT_RILEY)] == \
+        sorted(m["sort"] for m in messages.values())
+    assert all(m["is_reaction"] is False for m in messages.values())  # reactions sit on their message
+    notice = messages[wb.MSG_NOTICE]
+    assert (notice["message_type"], notice["sender"], notice["is_from_me"]) == ("system", "", False)
+    assert notice["event_text"]
+    assert messages[wb.MSG_HELLO]["reactions"][0]["emoji"] == "❤️" and messages[wb.MSG_HELLO]["reactions"][0]["is_from_me"]
+    reply = messages[wb.MSG_REPLY]
+    assert reply["quoted"]["message_id"] == wb.MSG_HELLO and reply["quoted"]["text"] == wb.HELLO_TEXT
+    assert [r["sender"] for r in reply["reactions"]] == [wb.RILEY_NAME]
+    assert messages[wb.MSG_MISSED_CALL]["call"]["outcome"] == "missed"
+    assert messages[wb.MSG_MISSED_CALL]["event_text"] == "Missed voice call"
+    location = messages[wb.MSG_LOCATION]["location"]
+    assert (location["latitude"], location["longitude"], location["place_name"]) == (45.52, -122.68, wb.PLACE_NAME)
+    assert location["attachment_id"] == wb.ATT_LOCATION and location["thumbnail_path"]
+    image = messages[wb.MSG_IMAGE]["attachments"][0]
+    assert (image["attachment_id"], image["available"], image["filename"]) == (wb.ATT_IMAGE, True, "Message/" + wb.IMAGE_PATH)
+    missing = messages[wb.MSG_MISSING_IMAGE]["attachments"][0]
+    assert (missing["attachment_id"], missing["available"]) == (wb.ATT_MISSING_IMAGE, False)
+    assert messages[wb.MSG_LAST]["starred"] is True
+    # Arrived last though the sender's clock put it earlier
+    assert messages[wb.MSG_LAST]["sort"] > messages[wb.MSG_DOCUMENT]["sort"]
+    assert messages[wb.MSG_LAST]["date"] < messages[wb.MSG_DOCUMENT]["date"]
+
+    group = wa.whatsapp_messages_of(wb.CHAT_GROUP)
+    assert [m["sender"] for m in group if m["message_type"] == "text" and not m["is_from_me"]] == ["Casey", "Drew"]
+    # A date range with nothing in it, a chat that isn't there, status updates
+    empty = wa.rpc("get_whatsapp_messages", chat_id=wb.CHAT_RILEY, offset=0, limit=50,
+                   date_from="1990-01-01T00:00:00Z", date_to="1990-12-31T23:59:59Z")
+    assert empty["messages"] == [] and empty["total"] == 0
+    for chat_id in (10 ** 6, wb.CHAT_STATUS):
+        nothing = wa.rpc("get_whatsapp_messages", chat_id=chat_id, offset=0, limit=50)
+        assert (nothing["messages"], nothing["total"]) == ([], 0) and "error" not in nothing
+    # The same chat id through Messages: a different conversation
+    sms_texts = {m["text"] for m in wa.messages_of(wb.CHAT_RILEY)}
+    assert wb.HELLO_TEXT not in sms_texts and not sms_texts & {m["text"] for m in messages.values() if m["text"]}
+    # Encrypted: the same messages
+    enc = ctx.whatsapp_enc
+    assert [(m["message_id"], m["sort"], m["text"]) for m in enc.whatsapp_messages_of(wb.CHAT_RILEY)] == \
+        [(m["message_id"], m["sort"], m["text"]) for m in wa.whatsapp_messages_of(wb.CHAT_RILEY)]
+
+
+@contract("get_whatsapp_message_offset")
+def case_get_whatsapp_message_offset(ctx):
+    wa = ctx.whatsapp
+    messages = wa.whatsapp_messages_of(wb.CHAT_RILEY)
+    for i in (len(messages) - 1, len(messages) // 2, 3, 0):
+        target = messages[i]
+        result = wa.rpc("get_whatsapp_message_offset", chat_id=wb.CHAT_RILEY, message_id=target["message_id"])
+        assert result == {"offset": len(messages) - 1 - i, "found": True}  # newer by arrival, not by id
+        page = wa.rpc("get_whatsapp_messages", chat_id=wb.CHAT_RILEY, offset=result["offset"], limit=1)
+        assert page["messages"][0]["message_id"] == target["message_id"]
+    assert wa.rpc("get_whatsapp_message_offset", chat_id=wb.CHAT_GROUP,
+                  message_id=messages[0]["message_id"]) == {"offset": 0, "found": False}
+
+
+@contract("search_whatsapp_messages")
+def case_search_whatsapp_messages(ctx):
+    wa = ctx.whatsapp
+
+    def ids(**params):
+        result = wa.rpc("search_whatsapp_messages", **params)
+        assert "error" not in result and result["query"] == params["query"], result
+        for r in result["results"]:
+            assert {"message_id", "text", "date", "is_from_me", "sender", "chat_id", "chat_name"} <= set(r)
+        return [r["message_id"] for r in result["results"]]
+
+    assert ids(query="100%") == [wb.MSG_LAST]           # % and _ are literal
+    assert ids(query=wb.HELLO_TEXT[6:]) == [wb.MSG_HELLO]
+    assert ids(query="caption") == [wb.MSG_IMAGE]       # captions, any case
+    assert ids(query="Quarterly") == [wb.MSG_DOCUMENT]  # document names
+    in_group = wa.rpc("search_whatsapp_messages", query="o", chat_id=wb.CHAT_GROUP)["results"]
+    assert in_group and {r["chat_id"] for r in in_group} == {wb.CHAT_GROUP}
+    assert ids(query=wb.STATUS_TEXT) == []              # status updates are never searched
+    assert ids(query=wb.LAST_TEXT, date_to="2000-01-01T00:00:00Z") == []
+    assert len(ids(query="o", limit=2)) == 2
+    assert ids(query="zq-no-message-says-this-7f3a") == []
+    # Messages' search doesn't see WhatsApp, nor WhatsApp's Messages
+    assert wa.rpc("search_messages", query=wb.HELLO_TEXT)["results"] == []
+    sms_text = next(m["text"] for m in wa.messages_of(wa.biggest_conversation["chat_id"]) if len(m["text"] or "") > 20)
+    assert ids(query=sms_text) == []
+
+
+@contract("get_whatsapp_attachment")
+def case_get_whatsapp_attachment(ctx):
+    for engine in (ctx.whatsapp, ctx.whatsapp_enc):
+        s = engine.plan.scenario
+        image = engine.rpc("get_whatsapp_attachment", attachment_id=wb.ATT_IMAGE)
+        assert decoded(image, "image") == s.image_bytes
+        assert (image["mime_type"], image["filename"], image["size"]) == ("image/jpeg", "abcd-image.jpg", len(s.image_bytes))
+        thumb = engine.rpc("get_whatsapp_attachment", attachment_id=wb.ATT_IMAGE, thumbnail=True)
+        assert decoded(thumb, "thumbnail") == s.thumb_bytes and thumb["mime_type"] == "image/jpeg"
+        map_preview = engine.rpc("get_whatsapp_attachment", attachment_id=wb.ATT_LOCATION, thumbnail=True)
+        assert decoded(map_preview, "map") == s.map_bytes
+        voice = engine.rpc("get_whatsapp_attachment", attachment_id=wb.ATT_VOICE_NOTE)
+        assert decoded(voice, "voice note") == wb.VOICE_BYTES and voice["mime_type"] == "audio/ogg"
+        doc = engine.rpc("get_whatsapp_attachment", attachment_id=wb.ATT_DOCUMENT, as_file=True)
+        path = Path(doc["path"])
+        assert path.name == wb.DOCUMENT_TITLE and path.read_bytes() == wb.PDF_BYTES
+        assert doc["openable"] is True  # a PDF; a program would be False (test_whatsapp_adapter.py)
+        assert not path.resolve().is_relative_to(engine.backup_dir.resolve())  # a copy, never the backup's file
+        assert engine.rpc("get_whatsapp_attachment", attachment_id=wb.ATT_MISSING_IMAGE) == \
+            {"error": "This file isn't in the backup", "empty_reason": "not_in_backup"}
+        assert engine.rpc("get_whatsapp_attachment", attachment_id=10 ** 6) == {"error": "Attachment not found"}
+    # The same number through Messages' method: not this photo
+    wa = ctx.whatsapp
+    sms = wa.rpc("get_attachment", attachment_id=wb.ATT_IMAGE)
+    assert sms.get("data") != wa.rpc("get_whatsapp_attachment", attachment_id=wb.ATT_IMAGE)["data"]
+
+
+@contract("export_whatsapp_chat")
+def case_export_whatsapp_chat(ctx):
+    wa = ctx.whatsapp
+    s = wa.plan.scenario
+    count = s.counts[wb.CHAT_RILEY]
+    for fmt, suffix in (("txt", ".txt"), ("csv", ".csv"), ("html", ".html"), ("pdf_source", ".html")):
+        out = ctx.folder(f"whatsapp-{fmt}")
+        result = wa.rpc("export_whatsapp_chat", chat_id=wb.CHAT_RILEY, format=fmt, output_dir=str(out),
+                        display_name=wb.RILEY_NAME)
+        path = Path(result["file"])
+        assert same_path(path.parent, out) and path.suffix == suffix and path.name.startswith(wb.RILEY_NAME)
+        assert result["message_count"] == count
+        if fmt == "txt":
+            text = path.read_text(encoding="utf-8-sig")
+            lines = text.splitlines()
+            assert len(lines) == count
+            assert "Messages and calls are end-to-end encrypted." in lines[0] and ": " not in lines[0].split("] ", 1)[1]
+            assert f"me: [Replying to {wb.RILEY_NAME}: {wb.HELLO_TEXT}] {wb.REPLY_TEXT}" in text
+            assert text.index(wb.DOCUMENT_TITLE) < text.index(wb.LAST_TEXT)  # arrival order, not dates
+        elif fmt == "csv":
+            rows = read_csv(path)
+            assert rows[0] == ["Date", "Sender", "Text", "Is From Me", "Has Attachments", "Type", "Replying To", "Reactions"]
+            assert len(rows) - 1 == count
+            assert [row[5] for row in rows[1:]].count("Call") == 3
+        else:
+            page = path.read_text(encoding="utf-8")
+            assert page.startswith("<!DOCTYPE html>") and f"<title>WhatsApp chat: {wb.RILEY_NAME}</title>" in page
+            assert '<div class="system">' in page and html.escape(wb.LAST_TEXT) in page
+            assert "Photo not in this backup" in page
+        if fmt == "html":
+            folder = out / f"{path.stem}_attachments"
+            assert (folder / f"wa{wb.ATT_IMAGE}-abcd-image.jpg").read_bytes() == s.image_bytes
+            assert (folder / f"wa{wb.ATT_VOICE_NOTE}-voice.opus").read_bytes() == wb.VOICE_BYTES
+            assert re.search(r'<audio controls[^>]*voice\.opus', page)
+        if fmt == "pdf_source":
+            images = set(re.findall(r'<img[^>]* src="(attachments/[^"]+)"', page))
+            assert images == {f"attachments/wa{wb.ATT_IMAGE}.jpg", f"attachments/wamap{wb.ATT_LOCATION}.jpg"}
+            for rel in images:
+                assert (out / rel).read_bytes()[:3] == JPEG_MAGIC
+    # Only the messages a search matches
+    matches = wa.rpc("search_whatsapp_messages", query="o", chat_id=wb.CHAT_RILEY)["results"]
+    result = wa.rpc("export_whatsapp_chat", chat_id=wb.CHAT_RILEY, format="txt",
+                    output_dir=str(ctx.folder("whatsapp-query")), query="o")
+    assert result["message_count"] == len(matches) > 0
+    # Media from an encrypted backup (decrypted on the way)
+    enc = ctx.whatsapp_enc
+    out = ctx.folder("whatsapp-encrypted-html")
+    result = enc.rpc("export_whatsapp_chat", chat_id=wb.CHAT_RILEY, format="html", output_dir=str(out),
+                     display_name=wb.RILEY_NAME)
+    folder = out / f"{Path(result['file']).stem}_attachments"
+    assert (folder / f"wa{wb.ATT_IMAGE}-abcd-image.jpg").read_bytes() == s.image_bytes
+    assert_error_dict(wa.rpc("export_whatsapp_chat", chat_id=wb.CHAT_RILEY, format="docx",
+                             output_dir=str(ctx.folder("whatsapp-docx"))), "Unsupported format")
+
+
+@contract("export_whatsapp_chats")
+def case_export_whatsapp_chats(ctx):
+    wa = ctx.whatsapp
+    s = wa.plan.scenario
+    chat_ids = [wb.CHAT_RILEY, wb.CHAT_GROUP]
+    names = {str(wb.CHAT_RILEY): wb.RILEY_NAME, str(wb.CHAT_GROUP): wb.GROUP_NAME}
+    total = s.counts[wb.CHAT_RILEY] + s.counts[wb.CHAT_GROUP]
+    out = ctx.folder("whatsapp-separate")
+    result = wa.rpc("export_whatsapp_chats", chat_ids=chat_ids, conversation_names=names, format="csv",
+                    output_dir=str(out), mode="separate")
+    assert result["message_count"] == total and len(result["files"]) == 2
+    assert sorted(len(read_csv(Path(f))) - 1 for f in result["files"]) == sorted(s.counts[c] for c in chat_ids)
+    assert len(files_under(out)) == 2
+    out = ctx.folder("whatsapp-merged")
+    result = wa.rpc("export_whatsapp_chats", chat_ids=chat_ids, conversation_names=names, format="txt",
+                    output_dir=str(out), mode="merged")
+    assert result["message_count"] == total and len(result["files"]) == 1
+    text = Path(result["files"][0]).read_text(encoding="utf-8-sig")
+    assert f"(from {wb.GROUP_NAME}) Casey: Hi all" in text and f"(in {wb.RILEY_NAME})" in text
+    out = ctx.folder("whatsapp-merged-pdf")
+    result = wa.rpc("export_whatsapp_chats", chat_ids=chat_ids, conversation_names=names, format="pdf_source",
+                    output_dir=str(out), mode="merged")
+    assert [Path(f).suffix for f in result["files"]] == [".html"] and result["message_count"] == total
+
+
 @contract("recover_messages")
 def case_recover_messages(ctx):
     rec = ctx.runtime.recovery()
@@ -834,6 +1103,18 @@ def case_get_backup_stats(ctx):
         assert messages["sent"] + messages["received"] == len(exp["messages"])
         assert messages["group_conversations"] + messages["one_on_one_conversations"] == len(exp["conversations"])
     assert ctx.maren_enc.rpc("get_backup_stats")["overview"]["total_calls"] == len(ctx.maren_enc.expected["calls"])
+    o = ctx.maren.rpc("get_backup_stats")["overview"]
+    assert (o["total_whatsapp_messages"], o["total_whatsapp_chats"], o["whatsapp_status"]) == (0, 0, "not_in_backup")
+    # WhatsApp: its own totals, apart from Messages'
+    einstein_messages = len(ctx.einstein.expected["messages"])
+    for engine in (ctx.whatsapp, ctx.whatsapp_enc):
+        s = engine.plan.scenario
+        stats = engine.rpc("get_backup_stats")
+        assert stats["errors"] == []
+        o = stats["overview"]
+        assert (o["total_whatsapp_messages"], o["total_whatsapp_chats"], o["whatsapp_status"]) == \
+            (s.total_messages, len(s.counts), "ok")
+        assert o["total_messages"] == (0 if engine.encrypted else einstein_messages)
 
 
 @contract("get_year_counts")
@@ -1108,14 +1389,61 @@ def empty_export_recovered_messages(e, out):
     assert len(read_csv(Path(result["file"]))) == 1  # the header and nothing else
 
 
+@empty_state("list_whatsapp_chats")
+def empty_list_whatsapp_chats(e, out):
+    assert e.rpc("list_whatsapp_chats") == {"conversations": [], "empty_reason": "not_in_backup"}
+
+
+@empty_state("get_whatsapp_messages")
+def empty_get_whatsapp_messages(e, out):
+    # chat 1 is a Messages conversation in this backup: never read through here
+    assert e.rpc("get_whatsapp_messages", chat_id=1, offset=0, limit=50) == {
+        "messages": [], "total": 0, "next_offset": 0, "offset": 0, "limit": 50, "empty_reason": "not_in_backup"}
+
+
+@empty_state("get_whatsapp_message_offset")
+def empty_get_whatsapp_message_offset(e, out):
+    assert e.rpc("get_whatsapp_message_offset", chat_id=1, message_id=1) == {"offset": 0, "found": False}
+
+
+@empty_state("search_whatsapp_messages")
+def empty_search_whatsapp_messages(e, out):
+    assert e.rpc("search_whatsapp_messages", query="the") == {"results": [], "query": "the", "empty_reason": "not_in_backup"}
+
+
+@empty_state("get_whatsapp_attachment")
+def empty_get_whatsapp_attachment(e, out):
+    not_here = {"error": "WhatsApp is not in this backup", "empty_reason": "not_in_backup"}
+    assert e.rpc("get_whatsapp_attachment", attachment_id=1) == not_here
+    assert e.rpc("get_whatsapp_attachment", attachment_id=1, as_file=True) == not_here
+
+
+@empty_state("export_whatsapp_chat")
+def empty_export_whatsapp_chat(e, out):
+    result = e.rpc("export_whatsapp_chat", chat_id=1, format="txt", output_dir=str(out))
+    assert result == {"error": "WhatsApp is not in this backup", "empty_reason": "not_in_backup"}
+    assert files_under(out) == []
+
+
+@empty_state("export_whatsapp_chats")
+def empty_export_whatsapp_chats(e, out):
+    for mode in ("separate", "merged"):
+        result = e.rpc("export_whatsapp_chats", chat_ids=[1], conversation_names={"1": "X"}, format="html",
+                       output_dir=str(out), mode=mode)
+        assert result == {"error": "WhatsApp is not in this backup", "empty_reason": "not_in_backup"}
+    assert files_under(out) == []
+
+
 @empty_state("get_backup_stats")
 def empty_get_backup_stats(e, out):
     stats = e.rpc("get_backup_stats")
     assert stats["errors"] == []
     o = stats["overview"]
     assert o["total_messages"] == len(e.expected["messages"]) and o["total_contacts"] == len(e.expected["contacts"])
-    for key in ("total_photos", "total_videos", "photos_in_backup", "total_calls", "total_notes", "total_voicemails"):
+    for key in ("total_photos", "total_videos", "photos_in_backup", "total_calls", "total_notes", "total_voicemails",
+                "total_whatsapp_messages", "total_whatsapp_chats"):
         assert o[key] == 0, key
+    assert o["whatsapp_status"] == "not_in_backup"
 
 
 @empty_state("get_year_counts")
@@ -1161,6 +1489,8 @@ def test_unknown_method_gets_method_not_found(runtime):
 @pytest.mark.parametrize("method, params, missing", [
     ("open_backup", {}, "udid"),
     ("get_messages", {"udid": FAKE_UDID}, "chat_id"),
+    ("get_whatsapp_messages", {"udid": FAKE_UDID}, "chat_id"),
+    ("get_whatsapp_attachment", {"udid": FAKE_UDID}, "attachment_id"),
     ("write_file", {"path": "never-written.txt"}, "content"),
     ("get_backup_size", {}, "backup_dir"),
     ("backup.pair_device", {}, "udid"),
@@ -1262,6 +1592,25 @@ def test_raw_utf8_request_like_electron(runtime, tmp_path, monkeypatch):
     assert reply.get("result") == {"status": "ok", "path": str(target)}, reply
     assert target.read_text(encoding="utf-8") == content
     engine.assert_alive()
+
+
+def test_whatsapp_reads_send_no_raw_bytes(runtime):
+    """Every WhatsApp read, over the whole test backup, leaves no "[RPC ERROR]" in the engine's log.
+
+    The engine turns raw bytes in a result into text and only logs it, so a
+    ZMETADATA or ZRECEIPTINFO blob leaking out would pass every shape check.
+    """
+    wa = runtime.whatsapp()
+    for chat in wa.rpc("list_whatsapp_chats")["conversations"]:
+        page = wa.rpc("get_whatsapp_messages", chat_id=chat["chat_id"], offset=0, limit=500)
+        for m in page["messages"]:
+            for a in m["attachments"]:
+                wa.rpc("get_whatsapp_attachment", attachment_id=a["attachment_id"], thumbnail=bool(a["thumbnail_path"]))
+        wa.rpc("search_whatsapp_messages", query="e", chat_id=chat["chat_id"])
+    wa.rpc("get_backup_stats")
+    log = Path(wa.client._tmp.name) / "python_log.txt"
+    errors = [line for line in log.read_text(encoding="utf-8").splitlines() if "[RPC ERROR]" in line] if log.exists() else []
+    assert not errors, errors[:5]
 
 
 # ── Speed ────────────────────────────────────────────────────────────────────
