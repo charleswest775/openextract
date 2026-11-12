@@ -86,7 +86,7 @@
         "name": "Does it show my listening history?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes. Listening history lists every episode played on the iPhone, most recent first, with its show and the date it was played. An episode counts as listened to when the iPhone recorded a play: a play count, a last-played date, or a place part way through."
+          "text": "Yes. Listening history lists every episode played on the iPhone, most recent first, with its show and, where the iPhone recorded it, when it was last played. An episode counts as listened to when the iPhone recorded a play: a play count, a last-played date, or a place part way through."
         }
       },
       {
@@ -126,7 +126,7 @@
         "name": "Which versions of iOS does it read?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "It's checked on backups from iOS 13 to iOS 26. If a backup holds a version of Podcasts it can't read yet, the Podcasts screen says so and has a button to report it."
+          "text": "It's been checked on backups from iOS 13, 16, 17 and 26, and versions in between should read the same way. If OpenExtract can't read the Podcasts library in a backup, the Podcasts screen says so and has a button to report the problem."
         }
       },
       {
@@ -181,8 +181,8 @@
 
   <section class="prose">
     <div class="prose__inner">
-      <p>Apple Podcasts has no button for taking your shows with you. If you want to move to another podcast app, keep a list of what you followed, or remember an episode you heard last year, there's nowhere in the app to get that out, and if the phone is gone, the app is gone with it.</p>
-      <p>There's another way in. When you back up an iPhone to a computer, the Podcasts app's library goes into that backup: the shows you follow, the ones you played without following, and a record of what you listened to. OpenExtract reads it from there, in its own Podcasts section, and saves it as files you keep. It's free, with no trial and no limit on how much you save.</p>
+      <p>Apple Podcasts on the iPhone has no way to save the shows you follow as a file. If you want to move to another podcast app, keep a list of what you followed, or find an episode you heard last year, there's nowhere on the phone to get that out. And if you didn't have iCloud sync turned on, or the phone is gone, a backup may be the only place your library and listening history are still kept.</p>
+      <p>There's another way in. When you back up an iPhone to a computer, the Podcasts app's library goes into that backup: the shows you follow, the ones you played without following or stopped following, and a record of what you listened to. OpenExtract reads it from there, in its own Podcasts section, and saves it as files you keep. It's free, with no trial and no limit on how much you save.</p>
       <figure class="screen">
         <a class="screen__frame" href="/img/screens/podcasts-2000.webp">
           <img src="/img/screens/podcasts-1000.webp" srcset="/img/screens/podcasts-1000.webp 1000w, /img/screens/podcasts-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 720px" width="1000" height="625" loading="lazy" decoding="async" alt="The Podcasts section in OpenExtract, opened on a made-up sample backup: a show called Small Kitchen Science, followed since September 2023, with 52 episodes and 6 listened to, its feed address, and episodes marked In progress, Saved, Downloaded on the iPhone and Played 2 times, each with Get audio and Episode page buttons. Listening history and the followed shows are listed down the side." />
@@ -194,7 +194,7 @@
       <ul>
         <li><strong>Moving to another podcast app.</strong> Take the shows you follow to Overcast, Pocket Casts or most other podcast apps in one file, instead of searching for each one again.</li>
         <li><strong>Podcasts from a phone that's gone.</strong> If the iPhone is broken, lost, sold or locked for good, a backup on a computer can still hold its podcast library.</li>
-        <li><strong>Finding an episode you heard.</strong> The listening history goes back as far as the iPhone kept it, newest first, with each episode's show and the date you played it.</li>
+        <li><strong>Finding an episode you heard.</strong> The listening history goes back as far as the iPhone kept it, newest first, with each episode's show and when you last played it.</li>
         <li><strong>A record of what you listened to.</strong> A spreadsheet of every show and every episode, with play counts and dates, to keep or sort however you like.</li>
       </ul>
     </div>
@@ -220,14 +220,14 @@
       <div class="uc-step__num" style="color: var(--sage);">03</div>
       <div>
         <h2>Open Podcasts</h2>
-        <p>Open the backup (type its password if it's encrypted) and click <strong>Podcasts</strong> on its home page. Its tile says how many shows there are. If the Podcasts app wasn't used on the iPhone, there's no Podcasts tile. Down the side are <strong>Listening history</strong>, then the shows under <strong>Following</strong>, then any you played without following under <strong>Not followed</strong>.</p>
+        <p>Open the backup (type its password if it's encrypted) and click <strong>Podcasts</strong> on its home page. Its tile says how many shows there are. If the Podcasts app wasn't used on the iPhone, there's no Podcasts tile. Down the side are <strong>Listening history</strong>, then the shows under <strong>Following</strong>, then any others in the library, ones you played without following or stopped following, under <strong>Not followed</strong>.</p>
       </div>
     </div>
     <div class="uc-step">
       <div class="uc-step__num" style="color: var(--plum);">04</div>
       <div>
         <h2>Look through your shows and history</h2>
-        <p><strong>Listening history</strong> lists every episode played on the iPhone, most recent first. Click a show to see who makes it, whether you follow it, when you added it, how many episodes it has and how many you listened to, and its feed address, which you can copy. <strong>Website</strong> opens the show's site in your browser. Under that are its episodes: <strong>Listened</strong> shows the ones you played, and <strong>All episodes</strong> shows the rest.</p>
+        <p><strong>Listening history</strong> lists every episode played on the iPhone, most recent first. Click a show to see who makes it, whether you follow it, when you added it, how many episodes it has and how many you listened to, and its feed address, which you can copy. <strong>Website</strong> opens the show's site in your browser. Under that are its episodes: <strong>Listened</strong> shows the ones you played, and <strong>All episodes</strong> shows every episode of the show, played or not.</p>
         <p>Each episode has its date and length, and notes such as "Played once", "Played 2 times", "In progress, 16:00 in", "Saved" or "Downloaded on the iPhone". <strong>Get audio</strong> opens the episode in your browser, from where the podcast publishes it, and <strong>Episode page</strong> opens its page on the web.</p>
       </div>
     </div>
@@ -246,12 +246,12 @@
       <h2>What you get</h2>
       <ul>
         <li><strong>Podcast subscriptions (OPML)</strong> is one file, <code>Podcasts.opml</code>, listing the shows you follow that have a feed address. Most podcast apps can import it, Overcast and Pocket Casts among them: look for an import or OPML option in the app's settings.</li>
-        <li><strong>Spreadsheet (CSV)</strong> is two files that open in Excel, Numbers or Google Sheets: <code>Podcasts.csv</code>, with every show, followed or not, and <code>Podcast episodes.csv</code>, with every episode, its played dates, play counts and how far in you got, and links to its audio and its web page.</li>
+        <li><strong>Spreadsheet (CSV)</strong> is two files that open in Excel, Numbers or Google Sheets: <code>Podcasts.csv</code>, with every show, followed or not, and <code>Podcast episodes.csv</code>, with every episode, when it was last played, how many times it was played and how far in you got, and links to its audio and its web page.</li>
       </ul>
       <p>"Listened" means the iPhone recorded a play: a play count, a last-played date, or a place part way through. When you follow a show, Apple Podcasts marks its whole back catalogue as played, including episodes you never heard. OpenExtract doesn't count those, so the history is what you actually listened to.</p>
       <figure class="screen">
         <a class="screen__frame" href="/img/screens/podcasts-history-2000.webp">
-          <img src="/img/screens/podcasts-history-1000.webp" srcset="/img/screens/podcasts-history-1000.webp 1000w, /img/screens/podcasts-history-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 720px" width="1000" height="625" loading="lazy" decoding="async" alt="Listening history in OpenExtract, opened on a made-up sample backup: 29 episodes played on this iPhone, newest first, each with its show, the date it was played and its length." />
+          <img src="/img/screens/podcasts-history-1000.webp" srcset="/img/screens/podcasts-history-1000.webp 1000w, /img/screens/podcasts-history-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 720px" width="1000" height="625" loading="lazy" decoding="async" alt="Listening history in OpenExtract, opened on a made-up sample backup: 29 episodes played on this iPhone, newest first, each with its show, when it was played and its length." />
         </a>
         <figcaption><strong>Listening history</strong>Every episode played on the iPhone, newest first.</figcaption>
       </figure>
@@ -270,12 +270,12 @@
       <h2>Common questions</h2>
       <p><strong>Can I move my podcast subscriptions to another app?</strong> Yes. Click Save on the Podcasts screen and choose Podcast subscriptions (OPML). That saves the shows you follow as one file, which most podcast apps can import, Overcast and Pocket Casts among them. Look for an import or OPML option in the other app&#x27;s settings. Only shows with a feed address can go in the file.</p>
       <p><strong>Can I get the episodes I downloaded on my iPhone?</strong> Not from the backup. Apple leaves the Podcasts app&#x27;s downloads out of iPhone backups, so no backup has any episode audio, even for episodes that were downloaded on the phone. Each episode in OpenExtract has a Get audio button instead: it opens the episode in your browser, from where the podcast publishes it, so you can play it or save it from there.</p>
-      <p><strong>Does it show my listening history?</strong> Yes. Listening history lists every episode played on the iPhone, most recent first, with its show and the date it was played. An episode counts as listened to when the iPhone recorded a play: a play count, a last-played date, or a place part way through.</p>
+      <p><strong>Does it show my listening history?</strong> Yes. Listening history lists every episode played on the iPhone, most recent first, with its show and, where the iPhone recorded it, when it was last played. An episode counts as listened to when the iPhone recorded a play: a play count, a last-played date, or a place part way through.</p>
       <p><strong>Why doesn&#x27;t it count every episode Apple Podcasts marks as played?</strong> When you follow a show, Apple Podcasts marks its whole back catalogue as played, including episodes you never heard. OpenExtract leaves those out, so the history shows what you actually listened to. Choose All episodes on a show to see the rest.</p>
       <p><strong>Do I need an encrypted backup?</strong> No. The Podcasts library is in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it, and the password stays on your computer.</p>
       <p><strong>Does it read Spotify, Overcast or Pocket Casts?</strong> No. It reads Apple&#x27;s Podcasts app only. Shows you follow in other podcast apps aren&#x27;t read.</p>
       <p><strong>Does it read my podcasts from iCloud?</strong> No. It reads what was on the iPhone when the backup was made, not what Apple Podcasts syncs through iCloud. Make a new backup if you want today&#x27;s library.</p>
-      <p><strong>Which versions of iOS does it read?</strong> It&#x27;s checked on backups from iOS 13 to iOS 26. If a backup holds a version of Podcasts it can&#x27;t read yet, the Podcasts screen says so and has a button to report it.</p>
+      <p><strong>Which versions of iOS does it read?</strong> It&#x27;s been checked on backups from iOS 13, 16, 17 and 26, and versions in between should read the same way. If OpenExtract can&#x27;t read the Podcasts library in a backup, the Podcasts screen says so and has a button to report the problem.</p>
       <p><strong>Does anything get uploaded?</strong> No. OpenExtract reads the backup on your own computer and doesn&#x27;t send it anywhere. It goes online only when you let it: to check for a new version, if you allow it (you can turn that off in Settings); to send a problem report or a thank-you, when you click Send; and on Windows, to install Apple's free Apple Devices app from Microsoft, if you ask it to, for backing up an iPhone. Nothing from inside your backup goes with any of them. The Get audio, Episode page and Website buttons open your own browser; the app itself fetches nothing, which is also why show artwork isn&#x27;t shown.</p>
       <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
     </div>
