@@ -1,10 +1,10 @@
 name: Intel Mac engine
 description: >
-  Builds the engine for Intel Macs into python/dist/x64 on an Apple Silicon runner, with an
-  x64 Python that runs under Rosetta. PyInstaller builds for the chip of the Python running
-  it, and pip picks x86_64 wheels for an x64 Python. Run it after ios-backup-core is cloned
-  next to the checkout. It leaves PATH alone, so the job's own (arm64) Python stays the one
-  every other step uses.
+  Builds the engine for Intel Macs into python/dist/x64 on an Apple Silicon runner, with a
+  Python run as x86_64 under Rosetta. PyInstaller builds for the chip the Python runs as,
+  thinning universal2 libraries to it, and pip picks x86_64 (or universal2) wheels. Run it
+  after ios-backup-core is cloned next to the checkout. It leaves PATH alone, so the job's
+  own (arm64) Python stays the one every other step uses.
 
 runs:
   using: composite
@@ -17,22 +17,31 @@ runs:
         architecture: x64
         update-environment: false
 
-    - name: Install the engine's dependencies and PyInstaller (x64)
+    # setup-python's macOS "x64" Python is a universal2 build, which on Apple Silicon runs as
+    # arm64 unless it's started with `arch -x86_64`. This wrapper does that; the processes it
+    # starts (pip, PyInstaller's helpers) stay x86_64 too.
+    - name: Run that Python as x86_64
       shell: bash
-      working-directory: python
       env:
         PY: ${{ steps.python.outputs.python-path }}
       run: |
-        machine=$("$PY" -c 'import platform; print(platform.machine())')
-        echo "$PY is a $machine Python"
+        WRAPPER="$RUNNER_TEMP/python-x64"
+        printf '#!/bin/sh\nexec arch -x86_64 "%s" "$@"\n' "$PY" > "$WRAPPER"
+        chmod +x "$WRAPPER"
+        echo "INTEL_PYTHON=$WRAPPER" >> "$GITHUB_ENV"
+
+    - name: Install the engine's dependencies and PyInstaller (x64)
+      shell: bash
+      working-directory: python
+      run: |
+        machine=$("$INTEL_PYTHON" -c 'import platform; print(platform.machine())')
+        echo "The Intel engine's Python runs as $machine"
         if [ "$machine" != x86_64 ]; then
           echo "::error::Expected an x86_64 Python for the Intel engine, got $machine"
           exit 1
         fi
-        "$PY" -m pip install pyinstaller -r requirements.txt
+        "$INTEL_PYTHON" -m pip install pyinstaller -r requirements.txt
 
     - name: Build the engine (x64)
       shell: bash
-      env:
-        PY: ${{ steps.python.outputs.python-path }}
-      run: node scripts/bundle-engine.mjs --python "$PY"
+      run: node scripts/bundle-engine.mjs --python "$INTEL_PYTHON"
