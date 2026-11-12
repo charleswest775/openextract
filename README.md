@@ -252,7 +252,7 @@ Output will be in the `release/` directory.
 
 ## Privacy
 
-OpenExtract runs 100% locally. Your backup data never leaves your computer. The source code is fully auditable — that's the point of being open source.
+OpenExtract reads your backup entirely on your computer, and your backup data never leaves it. The app goes online only to check for updates, if you allow it, and to send a problem report when you click Send (and on Windows, to install Apple Devices if you ask it to). The source code is fully auditable — that's the point of being open source.
 
 The only network request the app makes is an update check: it asks GitHub for the latest release's version file. It asks you once before checking automatically, you can turn it off in Settings, and it never sends anything about you or your backups. Updates download only when you click Update.
 
