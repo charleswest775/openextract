@@ -82,12 +82,15 @@ Tests:
 - `python/tests/whatsapp_backup.py` builds a fictional WhatsApp backup: Einstein plus ChatStorage, so ids collide with sms.db, and an encrypted one through backupgen's `BackupWriter`. Its CLI writes a demo backup for screenshots: `python python/tests/whatsapp_backup.py --out DIR`.
 - Contract cases and empty states cover every method. Corpus invariants check the RPCs against raw ChatStorage SQL on the five Hickman items. Hashed spot facts come from the 15.3.1 activity log. Its four call facts are strict xfails, because WhatsApp 2.23 keeps calls in its own CallHistory.sqlite.
 
-Order to merge: ios-backup-core#28 (with the `handle` commit) first. CI clones library master, and the WhatsApp tests fail under `OPENEXTRACT_REQUIRE_GENERATED=1` until it has the extractor. The site's feedback API has to ship the `whatsapp` area before an app release sends it, which happens when the PR merges, since the site deploys from main.
+Order to merge:
+- The extractor (#237) went in after ios-backup-core#28 (with the `handle` commit): CI clones library master, and the WhatsApp tests failed under `OPENEXTRACT_REQUIRE_GENERATED=1` until it had the extractor. The site's feedback API had to ship the `whatsapp` area before an app release sends it, which happened when #237 merged, since the site deploys from main.
+- backupgen's WhatsApp writer goes the other way round: merge this repo's follow-up (the tests that check Maren's WhatsApp against her answer key) first, then the ios-backup-core PR that adds the writer, then re-run CI on main, because a library merge starts no CI run here. Before the follow-up, main's tests expect Maren to have no WhatsApp and the Timeline check doesn't count WhatsApp, so merging the library first turns every CI run red on every OS. The follow-up passes with or without the writer.
+- The follow-up's own PR CI clones library master, so its new WhatsApp checks all skip there. Before merging the library, run prerelease-check.yml (Run workflow) on the follow-up branch, or on main once it's merged, with `ios_backup_core_ref` set to the library branch: it runs the generated corpus and the end-to-end suites, search included, on Linux, macOS and Windows.
 
 ### Still to do
 - Year view counts. It needs a library `day_counts` and person matching by `+digits`.
 - Calls before WhatsApp 2.24, from WhatsApp's own CallHistory.sqlite, with dedupe against the phone's call log.
-- README screenshots of WhatsApp from Maren's backup. backupgen now writes WhatsApp (ios-backup-core branch claude/maren-whatsapp): Maren has six chats plus status updates, her answer key has a "whatsapp" section, and the corpus answer-key tests and the screens, exports, search and empty e2e suites check against it.
+- README screenshots of WhatsApp from Maren's backup. Once backupgen's WhatsApp writer is in ios-backup-core (see Order to merge), Maren has six chats plus status updates, her answer key has a "whatsapp" section, and the corpus answer-key tests and the screens, exports, search and empty e2e suites check against it.
 - People: merge one person across different names for the same number beyond what the address book links.
 - After the release, the website pages that say OpenExtract doesn't read WhatsApp (llms.txt, vs-ibackup-viewer, vs-reincubate, imazing-alternatives, the Windows use case, the German page).
 - Messages' CSV export has the same formula-cell gap that WhatsApp's now guards against.
