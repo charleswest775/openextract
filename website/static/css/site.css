@@ -330,7 +330,7 @@ img { max-width: 100%; display: block; }
 }
 
 .recovered {
-  position: absolute; right: 0; top: 60px;
+  position: absolute; right: 0; top: 28px;
   width: 330px;
   background: white;
   border-radius: 20px;
