@@ -8,7 +8,8 @@ about a new version if someone tells them. This file lists all of it in order.
 
 - [ ] Run **Pre-release check** (Actions tab) on `main` and wait for it to pass. `release.yml`
       always tags and publishes, so this is the only dry run: it builds the engine and app on
-      Linux, macOS and Windows, runs the backup corpus and every end-to-end suite.
+      Linux, macOS (Apple Silicon and Intel) and Windows, runs the backup corpus and every
+      end-to-end suite.
 - [ ] Move the changes under `## [Unreleased]` in `CHANGELOG.md` into release notes you're happy
       to publish (the workflow never edits the changelog).
 - [ ] Credentials that have broken releases before:
@@ -19,12 +20,16 @@ about a new version if someone tells them. This file lists all of it in order.
 
 ## 2. The release
 
-- [ ] Run **Release** (Actions tab) with the new version, for example `0.13.0`. It takes about
-      25 to 30 minutes. On its own it:
+- [ ] Run **Release** (Actions tab) with the new version, for example `0.13.0`. It took 25 to
+      30 minutes while the Mac job built one app; it now builds and notarizes two (Apple
+      Silicon and Intel), so expect longer. On its own it:
   - creates `release/vX.Y.Z` with the version in `package.json`, the version pill and file names
     in `website/static/index.html`, and the `/download/*` redirects in
     `website/static/vercel.json`;
-  - tags it, builds, signs (Windows), notarizes (macOS) and uploads every file;
+  - tags it, builds, signs (Windows), notarizes (both Mac apps) and uploads every file. The
+    Mac files are `OpenExtract-X.Y.Z-arm64.dmg` and `-arm64-mac.zip` (Apple Silicon) and
+    `OpenExtract-X.Y.Z-x64.dmg` and `-mac.zip` (Intel); one `latest-mac.yml` lists both zips,
+    and the app's updater picks the one for its Mac;
   - gives Windows updates their own copy of the installer, `OpenExtract-Update-X.Y.Z.exe`,
     which `latest.yml` names, so download counts tell updates from new installs
     (`scripts/update-feed.mjs`);
@@ -65,8 +70,8 @@ links instead of a versioned GitHub file wherever the form takes a link, and add
 |---|---|
 | winget (`OpenExtract.OpenExtract`) | Add `packaging/winget/<version>/` and open an `Update: OpenExtract.OpenExtract version <version>` PR to microsoft/winget-pkgs. Steps in `packaging/README.md`. |
 | Chocolatey (`openextract`) | Bump `packaging/chocolatey/`, then run **Windows stores** with "Push to Chocolatey" ticked. Moderation takes a few days. Steps in `packaging/README.md`. |
-| Uptodown (two apps: Windows and Mac) | In the Uptodown developer console, open each app → Files → **+ Add new version**, tick "Use url" and paste the release's GitHub link to the `.exe` (Windows app) or `.dmg` (Mac app), with the version. Add a line under "New features", then Submit for review. Uptodown's editors may also add versions themselves. |
-| Softonic (once listed) | In the Softonic Publishing Center, upload the new `.exe` and `.dmg` (both must be signed, which they are). |
+| Uptodown (two apps: Windows and Mac) | In the Uptodown developer console, open each app → Files → **+ Add new version**, tick "Use url" and paste the release's GitHub link to the `.exe` (Windows app) or `-arm64.dmg` (Mac app), with the version. Add a line under "New features", then Submit for review. Uptodown's editors may also add versions themselves. |
+| Softonic (once listed) | In the Softonic Publishing Center, upload the new `.exe` and `-arm64.dmg` (both must be signed, which they are). |
 | MacUpdate (once listed) | Submit the new version number and a one-line "What's new" (the download link is the stable one, so it doesn't change). |
 
 ### Updates itself (check now and then)

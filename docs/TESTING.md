@@ -20,7 +20,7 @@ backup, and never put one in a screenshot, issue or log.
 | Engine contract | every JSON-RPC method over stdin/stdout on generated backups, empty states, malformed requests, speed limits | `python/tests/test_rpc_contract.py` | every PR, 3 OSes |
 | Corpus | generated backups against their answer keys; real public backups weekly | `python/tests/corpus` | every PR (generated), weekly (public) |
 | End to end | the real app window: every screen, every export and format, the IPC bridge, recents, passwords, empty states, performance budgets, no network traffic | `scripts/e2e` | every PR on a development build, 3 OSes; before a release on the packaged app |
-| Installers | dmg and zip, NSIS installer, deb and AppImage: install, layout, signatures, launch, upgrade, uninstall, update metadata, old Linux distros | `scripts/installers` | weekly, on PRs that touch packaging, and on every release's draft before it's published |
+| Installers | dmg and zip (Apple Silicon and Intel, each on its own kind of Mac), NSIS installer, deb and AppImage: install, layout, signatures, each binary's chip and minimum macOS, launch, upgrade, uninstall, update metadata, old Linux distros | `scripts/installers` | weekly, on PRs that touch packaging, and on every release's draft before it's published |
 
 The workflows: `ci.yml` (every PR), `installers.yml` (weekly, packaging PRs, and called by
 `release.yml`), `prerelease-check.yml` (by hand before a release), `corpus-weekly.yml`,

@@ -131,7 +131,7 @@ jobs:
       # Touches two files:
       #   - website/static/index.html: nav version pill + installer filename refs.
       #     Nav copy may be `v0.4` (no patch) or `v0.4.0`; both should bump cleanly.
-      #   - website/static/vercel.json: /download/{mac,windows,linux,linux-appimage}/file
+      #   - website/static/vercel.json: /download/{mac,mac-intel,windows,linux,linux-appimage}/file
       #     redirects (behind the /download/* landing pages) point at the GitHub
       #     release asset for this version. If we don't update vercel.json, the
       #     website keeps serving the previous version's binaries.
@@ -146,6 +146,7 @@ jobs:
             sed -i "s/v[0-9]\+\.[0-9]\+\(\.[0-9]\+\)\?/v${VERSION}/g" "$INDEX"
             sed -i "s/OpenExtract-Setup-[0-9]\+\.[0-9]\+\.[0-9]\+/OpenExtract-Setup-${VERSION}/g" "$INDEX"
             sed -i "s/OpenExtract-[0-9]\+\.[0-9]\+\.[0-9]\+-arm64/OpenExtract-${VERSION}-arm64/g" "$INDEX"
+            sed -i "s/OpenExtract-[0-9]\+\.[0-9]\+\.[0-9]\+-x64/OpenExtract-${VERSION}-x64/g" "$INDEX"
             sed -i "s/OpenExtract-[0-9]\+\.[0-9]\+\.[0-9]\+\.AppImage/OpenExtract-${VERSION}.AppImage/g" "$INDEX"
             sed -i "s/openextract_[0-9]\+\.[0-9]\+\.[0-9]\+_amd64/openextract_${VERSION}_amd64/g" "$INDEX"
             if ! git diff --quiet "$INDEX"; then
@@ -163,6 +164,7 @@ jobs:
             # version numbers, so a new or renamed asset (e.g. /download/linux moving
             # from the AppImage to the .deb) takes effect on release. The names must
             # match what electron-builder uploads; finalize checks them before publishing.
+            # Optional redirects are updated only if the site already has them.
             node - "$VERCEL" "$VERSION" <<'EOF'
           const fs = require('fs');
           const [file, version] = process.argv.slice(2);
@@ -173,9 +175,16 @@ jobs:
             '/download/linux/file': `openextract_${version}_amd64.deb`,
             '/download/linux-appimage/file': `OpenExtract-${version}.AppImage`,
           };
+          const optional = {
+            '/download/mac-intel/file': `OpenExtract-${version}-x64.dmg`,
+          };
           const config = JSON.parse(fs.readFileSync(file, 'utf8'));
-          for (const [source, asset] of Object.entries(assets)) {
+          for (const [source, asset] of Object.entries({ ...assets, ...optional })) {
             const redirect = config.redirects.find((r) => r.source === source);
+            if (!redirect && source in optional) {
+              console.log(`${file} has no ${source} redirect yet; skipping it`);
+              continue;
+            }
             if (!redirect) throw new Error(`${file} has no ${source} redirect`);
             redirect.destination = `${base}/${asset}`;
           }
@@ -226,11 +235,17 @@ jobs:
             "${NOTES_FROM[@]}" \
             --title "v$VERSION"
 
+  # Builds both Mac versions, Apple Silicon (arm64) and Intel (x64), in one electron-builder
+  # run so it writes one latest-mac.yml listing both: separate jobs would each upload their
+  # own and the last one would win, sending one kind of Mac the other's update.
+  # electron-updater picks the zip with "arm64" in its name on Apple Silicon and the other
+  # one on Intel.
   build-macos:
     needs: preflight
     runs-on: macos-latest
-    # build/notarize.js waits up to 45 minutes for Apple's verdict before the dmg is built.
-    timeout-minutes: 90
+    # build/notarize.js waits up to 45 minutes for Apple's verdict on each of the two apps
+    # before their dmgs are built; it usually takes a few.
+    timeout-minutes: 150
     permissions:
       contents: write
     steps:
@@ -265,8 +280,13 @@ jobs:
         working-directory: python
         run: pip install pyinstaller -r requirements.txt
 
+      # Into python/dist/arm64 (scripts/bundle-engine.mjs).
       - name: Build Python sidecar
         run: npm run python:bundle
+
+      # Into python/dist/x64, with an x64 Python under Rosetta.
+      - name: Build Python sidecar for Intel Macs
+        uses: ./.github/actions/intel-mac-engine
 
       - name: Build Electron app
         run: npm run build
@@ -316,12 +336,13 @@ jobs:
           fi
           echo "CSC_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
 
-      # Signs every binary in the app with the Developer ID (the engine's .so and .dylib
-      # files included), then build/notarize.js (afterSign) notarizes the app, waits for
-      # Apple to accept it and staples the ticket, before the dmg and zip are built. A
-      # rejection fails this step and the release stays a draft; the notary log is printed.
+      # For each of the two apps: signs every binary in it with the Developer ID (the
+      # engine's .so and .dylib files included), then build/notarize.js (afterSign)
+      # notarizes the app, waits for Apple to accept it and staples the ticket, before its
+      # dmg and zip are built. A rejection fails this step and the release stays a draft;
+      # the notary log is printed.
       - name: Package and publish
-        run: npx electron-builder --publish always
+        run: npx electron-builder --arm64 --x64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_ID: ${{ secrets.APPLE_ID }}

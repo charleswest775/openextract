@@ -91,7 +91,8 @@ npm install
 # Run in development
 npm run dev
 
-# Build Python sidecar (a PyInstaller folder in python/dist/openextract-engine)
+# Build Python sidecar (a PyInstaller folder in python/dist/openextract-engine;
+# on macOS python/dist/<arm64|x64>/openextract-engine, for the chip of the Python running it)
 npm run python:bundle
 
 # Build Electron app

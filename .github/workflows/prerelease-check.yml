@@ -3,8 +3,8 @@ name: Pre-release check
 # Run this by hand from the Actions tab before cutting a release: release.yml always tags
 # and publishes, so it can't be used as a dry run.
 #
-# On Linux, macOS and Windows it builds the engine and the app the way release.yml does,
-# but unsigned and unpublished, then
+# On Linux, macOS (Apple Silicon and Intel) and Windows it builds the engine and the app the
+# way release.yml does, but unsigned and unpublished, then
 #   - runs the backup corpus (public items plus every generated one) against the engine
 #     inside the packaged app, and
 #   - drives the packaged app through every end-to-end suite in scripts/e2e (docs/TESTING.md).
@@ -41,6 +41,11 @@ jobs:
           - os: macos-latest
             app: mac-arm64/OpenExtract.app/Contents/MacOS/OpenExtract
             engine: mac-arm64/OpenExtract.app/Contents/Resources/python/openextract-engine
+          # The Intel app, built natively here (electron-builder builds for the runner's chip;
+          # release.yml builds it on Apple Silicon under Rosetta, which installers.yml tests).
+          - os: macos-15-intel
+            app: mac/OpenExtract.app/Contents/MacOS/OpenExtract
+            engine: mac/OpenExtract.app/Contents/Resources/python/openextract-engine
           - os: windows-latest
             app: win-unpacked/OpenExtract.exe
             engine: win-unpacked/resources/python/openextract-engine.exe
@@ -146,6 +151,6 @@ jobs:
         if: ${{ !cancelled() && (steps.e2e.outcome == 'success' || steps.e2e.outcome == 'failure') }}
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-${{ runner.os }}
+          name: e2e-${{ runner.os }}${{ runner.os == 'macOS' && format('-{0}', runner.arch) || '' }}
           path: e2e-out
           retention-days: 5

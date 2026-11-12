@@ -6,9 +6,12 @@
 //
 //   node scripts/installers/test-installers.mjs --dir <packages> --backups <backups.json>
 //        [--previous <dir with the previous release's packages>] [--signed] [--out <dir>]
+//        [--arch arm64|x64]
 //
-//   macOS    OpenExtract-<v>-arm64.dmg and -mac.zip: copy out, signature (Gatekeeper when
-//            --signed), launch, delete
+//   macOS    the dmg and zip for this Mac's chip (--arch, default the one Node runs on):
+//            OpenExtract-<v>-arm64.dmg and -arm64-mac.zip on Apple Silicon,
+//            OpenExtract-<v>-x64.dmg and -mac.zip on Intel. Copy out, chip and minimum
+//            macOS of every binary, signature (Gatekeeper when --signed), launch, delete
 //   Windows  OpenExtract-Setup-<v>.exe: silent per-user install, Start menu and uninstall
 //            entries, launch, upgrade, silent uninstall
 //   Linux    openextract_<v>_amd64.deb with apt (dependencies resolve), desktop entry, launch,
@@ -34,10 +37,11 @@ const { values: opts } = parseArgs({
     previous: { type: 'string' },
     signed: { type: 'boolean', default: false },
     out: { type: 'string', default: path.join(ROOT, 'installer-out') },
+    arch: { type: 'string', default: process.arch },
   },
 });
 if (!opts.dir || !opts.backups) {
-  console.error('usage: node scripts/installers/test-installers.mjs --dir <packages> --backups <backups.json> [--previous <dir>] [--signed] [--out <dir>]');
+  console.error('usage: node scripts/installers/test-installers.mjs --dir <packages> --backups <backups.json> [--previous <dir>] [--signed] [--out <dir>] [--arch arm64|x64]');
   process.exit(2);
 }
 const DIR = path.resolve(opts.dir);
@@ -108,6 +112,54 @@ function engineFolder(label, dir, exe) {
     fs.existsSync(path.join(dir, exe)) && fs.existsSync(internal) && fs.statSync(internal).isDirectory(), files(dir));
 }
 
+/** Every executable and library (Mach-O, thin or universal) in the app's engine folder. */
+function engineMachO(app) {
+  const dir = path.join(app, 'Contents/Resources/python');
+  const MACH_O = [0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe, 0xcafebabe];
+  return fs.readdirSync(dir, { recursive: true }).map(f => path.join(dir, f)).filter(f => {
+    if (!fs.lstatSync(f).isFile()) return false;
+    const head = Buffer.alloc(4);
+    const fd = fs.openSync(f, 'r');
+    try { return fs.readSync(fd, head, 0, 4, 0) === 4 && MACH_O.includes(head.readUInt32BE(0)); } finally { fs.closeSync(fd); }
+  });
+}
+
+const versionGreater = (a, b) => {
+  const [x, y] = [a, b].map(v => v.split('.').map(Number));
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
+  return false;
+};
+
+/**
+ * Each Mac app is built for one chip (release.yml packages an arm64 and an x64 one), so the
+ * app and every binary in its engine must have that chip's code: a single arm64 library in
+ * the Intel engine fails the moment it's imported. And none may need a newer macOS than the
+ * app says it runs on (LSMinimumSystemVersion): pip on a new runner can pick a wheel built
+ * for a newer macOS, and many Intel Macs are stuck on macOS 11, 12 or 13. Apple Silicon Macs
+ * all run 11 or later, which is what arm64 binaries ask for.
+ */
+function machOArchAndMacOS(label, app, arch) {
+  const want = { arm64: 'arm64', x64: 'x86_64' }[arch];
+  const archs = f => run('lipo', ['-archs', f]).stdout.trim().split(/\s+/);
+  const exe = path.join(app, 'Contents/MacOS/OpenExtract');
+  const machO = engineMachO(app);
+  const wrongChip = [exe, ...machO].filter(f => !archs(f).includes(want)).map(f => `${path.relative(app, f)}: ${archs(f).join(' ')}`);
+  check(`${label}: the app and every binary in its engine are built for ${want}`, machO.length > 0 && wrongChip.length === 0,
+    { binaries: machO.length + 1, wrong: wrongChip.slice(0, 10) });
+
+  const plist = run('/usr/libexec/PlistBuddy', ['-c', 'Print :LSMinimumSystemVersion', path.join(app, 'Contents/Info.plist')]).stdout.trim();
+  const floor = arch === 'arm64' && versionGreater('11.0', plist) ? '11.0' : plist;
+  const minos = f => {
+    const out = run('vtool', ['-arch', want, '-show-build', f]).stdout;
+    return out.match(/\bminos (\d+(?:\.\d+)*)/)?.[1] ?? out.match(/LC_VERSION_MIN_MACOSX[\s\S]*?\bversion (\d+(?:\.\d+)*)/)?.[1] ?? null;
+  };
+  const needs = machO.map(f => [path.relative(app, f), minos(f)]);
+  const newest = needs.map(([, v]) => v).filter(Boolean).reduce((a, v) => (versionGreater(v, a) ? v : a), '0');
+  const tooNew = needs.filter(([, v]) => v && versionGreater(v, floor)).map(([f, v]) => `${f}: macOS ${v}`);
+  check(`${label}: no engine binary needs a newer macOS than ${floor} (the app's minimum is ${plist})`, /^\d/.test(plist) && tooNew.length === 0,
+    { newest, unknown: needs.filter(([, v]) => !v).length, tooNew: tooNew.slice(0, 10) });
+}
+
 /**
  * Notarization rejects an app if any executable or library in it lacks its own signature
  * with the hardened runtime, and when --signed, our Developer ID and a secure timestamp.
@@ -115,13 +167,7 @@ function engineFolder(label, dir, exe) {
  */
 function engineSignatures(label, app) {
   const dir = path.join(app, 'Contents/Resources/python');
-  const MACH_O = [0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe, 0xcafebabe];
-  const machO = fs.readdirSync(dir, { recursive: true }).map(f => path.join(dir, f)).filter(f => {
-    if (!fs.lstatSync(f).isFile()) return false;
-    const head = Buffer.alloc(4);
-    const fd = fs.openSync(f, 'r');
-    try { return fs.readSync(fd, head, 0, 4, 0) === 4 && MACH_O.includes(head.readUInt32BE(0)); } finally { fs.closeSync(fd); }
-  });
+  const machO = engineMachO(app);
   const bad = [];
   for (const f of machO) {
     const info = run('codesign', ['-dv', '--verbose=2', f]).stderr;
@@ -156,10 +202,18 @@ function updateMetadata(name) {
 
 async function mac() {
   setSuite('macos');
+  const arch = opts.arch;
+  if (!['arm64', 'x64'].includes(arch)) throw new Error(`--arch must be arm64 or x64, not ${arch}`);
   updateMetadata('latest-mac.yml');
-  const dmg = find(DIR, /\.dmg$/);
-  const zip = find(DIR, /-mac\.zip$/);
-  check('a .dmg and a -mac.zip were built', dmg && zip, files(DIR));
+  // electron-updater gives Apple Silicon the zip with "arm64" in its name and Intel Macs the
+  // other one, so both must be listed or one kind of Mac gets no update (or the wrong one).
+  const yml = path.join(DIR, 'latest-mac.yml');
+  const zips = fs.existsSync(yml) ? [...fs.readFileSync(yml, 'utf-8').matchAll(/- url: (\S+-mac\.zip)$/gm)].map(m => m[1]) : [];
+  check('latest-mac.yml lists a zip for Apple Silicon and one for Intel', zips.some(z => z.includes('arm64')) && zips.some(z => !z.includes('arm64')), zips);
+
+  const dmg = find(DIR, arch === 'arm64' ? /-arm64\.dmg$/ : /-x64\.dmg$/);
+  const zip = find(DIR, arch === 'arm64' ? /-arm64-mac\.zip$/ : /^(?!.*arm64).*-mac\.zip$/);
+  check(`a .dmg and a -mac.zip were built for ${arch}`, dmg && zip, files(DIR));
   const apps = [];
   if (dmg) {
     const mnt = path.join(work, 'dmg');
@@ -185,6 +239,7 @@ async function mac() {
     const eng = path.join(app, 'Contents/Resources/python/openextract-engine');
     check(`${label}: the engine is bundled and executable`, fs.existsSync(eng) && (fs.statSync(eng).mode & 0o111) !== 0);
     engineFolder(label, path.dirname(eng), 'openextract-engine');
+    machOArchAndMacOS(label, app, arch);
     // Unsigned test builds are signed ad hoc by electron-builder (installers.yml), the same
     // way a release is signed, minus the Developer ID: Apple silicon won't launch without it.
     const v = run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', app]);

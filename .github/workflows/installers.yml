@@ -35,6 +35,7 @@ on:
       - 'scripts/bundle-engine.mjs'
       - 'scripts/installers/**'
       - 'scripts/update-feed.mjs'
+      - '.github/actions/intel-mac-engine/**'
       - '.github/workflows/installers.yml'
 
 concurrency:
@@ -107,6 +108,11 @@ jobs:
       - name: Build Python sidecar
         run: npm run python:bundle
 
+      # As release.yml does: the Intel engine too, so both Mac apps are built.
+      - name: Build Python sidecar for Intel Macs
+        if: runner.os == 'macOS'
+        uses: ./.github/actions/intel-mac-engine
+
       - name: Build Electron app
         run: npm run build
 
@@ -123,8 +129,9 @@ jobs:
             p.build.mac.identity = "-";
             fs.writeFileSync("package.json", JSON.stringify(p, null, 2));'
 
+      # On macOS both apps in one run, as release.yml does, so latest-mac.yml lists both.
       - name: Package (no publish)
-        run: npx electron-builder --publish never
+        run: npx electron-builder --publish never ${{ runner.os == 'macOS' && '--arm64 --x64' || '' }}
 
       # As release.yml does: updates get their own copy of the installer, which latest.yml names.
       # The Windows test checks latest.yml against the file it names.
@@ -181,7 +188,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        # macos-latest tests the Apple Silicon app, macos-15-intel the Intel one: each takes
+        # the dmg and zip for its own chip from the same macOS packages. macos-15-intel is
+        # GitHub's last Intel image (retired in 2027).
+        os: [macos-latest, macos-15-intel, windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     defaults:
@@ -255,7 +265,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: installers-${{ runner.os }}${{ inputs.tag && format('-{0}', inputs.tag) || '' }}
+          name: installers-${{ runner.os }}${{ runner.os == 'macOS' && format('-{0}', runner.arch) || '' }}${{ inputs.tag && format('-{0}', inputs.tag) || '' }}
           path: installer-out
           retention-days: 14
           if-no-files-found: ignore

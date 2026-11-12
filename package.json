@@ -57,12 +57,6 @@
       "dist/**/*",
       "dist-electron/**/*.js"
     ],
-    "extraResources": [
-      {
-        "from": "python/dist/openextract-engine",
-        "to": "python"
-      }
-    ],
     "publish": {
       "provider": "github",
       "owner": "charleswest775",
@@ -80,9 +74,24 @@
         "dmg",
         "zip"
       ],
+      "extraResources": [
+        {
+          "from": "python/dist/${arch}/openextract-engine",
+          "to": "python"
+        }
+      ],
       "category": "public.app-category.utilities"
     },
+    "dmg": {
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
     "win": {
+      "extraResources": [
+        {
+          "from": "python/dist/openextract-engine",
+          "to": "python"
+        }
+      ],
       "target": "nsis",
       "signExts": [
         ".dll",
@@ -96,6 +105,12 @@
       }
     },
     "linux": {
+      "extraResources": [
+        {
+          "from": "python/dist/openextract-engine",
+          "to": "python"
+        }
+      ],
       "target": [
         "deb",
         "AppImage"
