@@ -161,6 +161,21 @@ class ItemContext:
     def whatsapp_messages(self) -> list[dict]:
         return [m for page in self.whatsapp_pages.values() for m in page["messages"]]
 
+    # Podcasts: the shows in MTLibrary.sqlite and every episode row, unpaged
+    # (the engine returns them in one answer, newest published first).
+
+    @cached_property
+    def podcasts_result(self) -> dict:
+        return self.rpc("list_podcasts")
+
+    @cached_property
+    def podcasts(self) -> list[dict]:
+        return self.podcasts_result.get("podcasts", [])
+
+    @cached_property
+    def podcast_episodes_result(self) -> dict:
+        return self.rpc("list_podcast_episodes")
+
     def _paged(self, method: str, key: str, **params) -> dict:
         items, offset = [], 0
         while True:

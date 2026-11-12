@@ -17,6 +17,7 @@ export const FORMATS = {
   vcf: { id: 'vcf', label: 'Contact cards', detail: 'vCard, imports into Contacts, Outlook or Google' },
   originals: { id: 'originals', label: 'Original files', detail: 'Copied as they are in the backup' },
   audio: { id: 'audio', label: 'Audio files', detail: 'One file per voicemail, plays in any music app' },
+  opml: { id: 'opml', label: 'Podcast subscriptions', detail: 'OPML, imports into most podcast apps' },
 } as const;
 
 /** The Save button every screen uses. */

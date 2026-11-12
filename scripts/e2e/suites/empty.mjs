@@ -1,5 +1,7 @@
 // A backup with only Messages and Contacts in it (einstein): every other screen must show a
 // clear empty state rather than a spinner that never stops, an error, or a blank page.
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { check, launch, num, sleep, timing } from '../harness.mjs';
 
@@ -55,6 +57,28 @@ export default {
       const waList = await app.api('call', 'list_whatsapp_chats', { udid: key?.udid ?? path.basename(b.dir) });
       const wa = waList.value?.data;
       check('WhatsApp: the engine says calmly that it isn\'t in this backup', waList.value?.success === true && wa?.empty_reason === 'not_in_backup' && !wa?.error, wa ?? waList);
+
+      // Podcasts, the same: many iPhones never use the Podcasts app, so no tile, not listed as
+      // missing, and the engine's list, episodes and save all say so calmly, writing nothing.
+      const udid = key?.udid ?? path.basename(b.dir);
+      const podShown = await app.eval(() => [...document.querySelectorAll('span')].some(s => s.textContent.trim() === 'Podcasts'));
+      check('Podcasts: no tile, and not listed as missing', !('Podcasts' in (await app.tiles())) && !podShown);
+      const podList = await app.api('call', 'list_podcasts', { udid });
+      const pods = podList.value?.data;
+      check('Podcasts: the engine says calmly that they aren\'t in this backup',
+        podList.value?.success === true && pods?.empty_reason === 'not_in_backup' && !pods?.error && Array.isArray(pods?.podcasts) && pods.podcasts.length === 0, pods ?? podList);
+      const epList = await app.api('call', 'list_podcast_episodes', { udid, listened_only: true });
+      const eps = epList.value?.data;
+      check('Podcasts: no listening history, calmly', epList.value?.success === true && eps?.empty_reason === 'not_in_backup' && !eps?.error, eps ?? epList);
+      const podOut = fs.mkdtempSync(path.join(os.tmpdir(), 'oe-e2e-podcasts-'));
+      try {
+        const saved = await app.api('call', 'export_podcasts', { udid, output_dir: podOut, format: 'csv' });
+        const s = saved.value?.data;
+        check('Podcasts: saving says there\'s nothing to save, and writes nothing',
+          saved.value?.success === true && !!s?.error && s?.empty_reason === 'not_in_backup' && fs.readdirSync(podOut).length === 0, s ?? saved);
+      } finally {
+        fs.rmSync(podOut, { recursive: true, force: true });
+      }
 
       // Timeline and Year still work with messages only.
       await app.open('Timeline', /[\d,]+ events/);

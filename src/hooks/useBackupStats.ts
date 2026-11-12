@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { sidecarCall } from '../lib/ipc';
 import type { WhatsAppStatus } from '../types/whatsapp';
+import type { PodcastsStatus } from '../types/podcasts';
 
 export interface TopConversation {
   display_name: string;
@@ -36,6 +37,14 @@ export interface BackupStatsOverview {
   total_whatsapp_chats: number;
   /** Whether WhatsApp could be read: the section shows on 'error' and 'unsupported_format' too, to say so. */
   whatsapp_status: WhatsAppStatus;
+  // Podcasts (python/stats.py, MTLibrary.sqlite): every show in the library,
+  // the ones followed, and episodes with signs of listening. An older engine
+  // sends none of these, so read them with ?? 0.
+  total_podcasts: number;
+  total_podcasts_followed: number;
+  total_podcast_episodes_listened: number;
+  /** Whether Podcasts could be read: the section shows on 'error' and 'unsupported_format' too, to say so. */
+  podcasts_status: PodcastsStatus;
 }
 
 export interface MessageStats {

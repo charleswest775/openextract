@@ -52,13 +52,15 @@ def _apple_ts_to_iso(ts) -> Optional[str]:
 class StatsComputer:
     """Computes comprehensive backup statistics in a single call."""
 
-    def __init__(self, photo_extractor=None, whatsapp_extractor=None):
+    def __init__(self, photo_extractor=None, whatsapp_extractor=None, podcast_extractor=None):
         # The Photos screen's extractor, so the Overview counts photos the same
         # way and from the same per-backup cache.
         self._photo_extractor = photo_extractor
         # The WhatsApp screen's, for the same reason (its names and file list
         # are cached per backup).
         self._whatsapp_extractor = whatsapp_extractor
+        # The Podcasts screen's, so the tile counts what that screen lists.
+        self._podcast_extractor = podcast_extractor
 
     def compute(self, backup, contacts: dict) -> dict:
         """Return all stats for a backup. Each section is independent — failures are isolated."""
@@ -144,6 +146,19 @@ class StatsComputer:
         overview["total_whatsapp_messages"] = wa_stats["messages"]
         overview["total_whatsapp_chats"] = wa_stats["chats"]
         overview["whatsapp_status"] = wa_stats["status"]
+
+        # Podcasts
+        try:
+            pod_stats = self._podcast_stats(backup)
+        except Exception as e:
+            pod_stats = {"podcasts": 0, "followed": 0, "listened": 0, "status": "error"}
+            errors.append(f"podcasts: {e}")
+        if pod_stats.get("error"):
+            errors.append(f"podcasts: {pod_stats['error']}")
+        overview["total_podcasts"] = pod_stats["podcasts"]
+        overview["total_podcasts_followed"] = pod_stats["followed"]
+        overview["total_podcast_episodes_listened"] = pod_stats["listened"]
+        overview["podcasts_status"] = pod_stats["status"]
 
         # Remove internal keys from sub-dicts
         msg_stats.pop("total", None)
@@ -541,6 +556,39 @@ class StatsComputer:
         if not probe.get("has_whatsapp") or not messages:
             return {"chats": 0, "messages": 0, "status": "no_records"}
         return {"chats": chats, "messages": messages, "status": "ok"}
+
+    # ── Podcasts ──────────────────────────────────────────────────────────────
+
+    def _podcast_stats(self, backup) -> dict:
+        """Shows and listened episodes the Podcasts screen lists, and whether the library could be read.
+
+        podcasts counts every show (followed or only played), followed the
+        ones the user chose to follow, listened the episodes in the listening
+        history (the screen's "Listening history" list). status is "ok", or
+        why there is nothing: "not_in_backup", "no_records", or "error" (in
+        the backup but unreadable; only that one also comes back as
+        ``error``, for the overview's list of errors).
+        """
+        extractor = self._podcast_extractor
+        if extractor is None:
+            from podcasts import PodcastExtractor
+            extractor = PodcastExtractor()
+        none = {"podcasts": 0, "followed": 0, "listened": 0}
+        listed = extractor.list_podcasts(backup)
+        if listed.get("error"):
+            return {**none, "status": "error", "error": listed["error"]}
+        podcasts = listed.get("podcasts") or []
+        if not podcasts:
+            return {**none, "status": listed.get("empty_reason") or "no_records"}
+        history = extractor.list_episodes(backup, listened_only=True)
+        if history.get("error"):
+            return {**none, "status": "error", "error": history["error"]}
+        return {
+            "podcasts": len(podcasts),
+            "followed": sum(1 for p in podcasts if p.get("followed")),
+            "listened": len(history.get("episodes") or []),
+            "status": "ok",
+        }
 
     # ── Voicemails ────────────────────────────────────────────────────────────
 

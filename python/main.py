@@ -137,6 +137,7 @@ from calls import CallExtractor  # noqa: E402
 from notes import NoteExtractor  # noqa: E402
 from browser_history import BrowserHistoryExtractor  # noqa: E402
 from whatsapp import WhatsAppExtractor  # noqa: E402
+from podcasts import PodcastExtractor  # noqa: E402
 from message_recovery import MessageRecoveryExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
 from stats import StatsComputer  # noqa: E402
@@ -154,9 +155,10 @@ class SidecarServer:
         self.note_extractor = NoteExtractor()
         self.browser_history_extractor = BrowserHistoryExtractor()
         self.whatsapp_extractor = WhatsAppExtractor()
+        self.podcast_extractor = PodcastExtractor()
         self.message_recovery_extractor = MessageRecoveryExtractor()
         self.device_backup_manager = DeviceBackupManager()
-        self.stats_computer = StatsComputer(self.photo_extractor, self.whatsapp_extractor)
+        self.stats_computer = StatsComputer(self.photo_extractor, self.whatsapp_extractor, self.podcast_extractor)
         self.year_counter = YearCounter(
             self.message_extractor, self.photo_extractor, self.call_extractor,
             self.note_extractor, self.browser_history_extractor,
@@ -203,6 +205,10 @@ class SidecarServer:
             "get_whatsapp_attachment": self.get_whatsapp_attachment,
             "export_whatsapp_chat": self.export_whatsapp_chat,
             "export_whatsapp_chats": self.export_whatsapp_chats,
+            # Podcasts
+            "list_podcasts": self.list_podcasts,
+            "list_podcast_episodes": self.list_podcast_episodes,
+            "export_podcasts": self.export_podcasts,
             # Record recovery
             "recover_messages": self.recover_messages,
             "export_recovered_messages": self.export_recovered_messages,
@@ -591,6 +597,35 @@ class SidecarServer:
             backup, chat_ids, names, contacts, fmt, output_dir,
             mode=mode, date_from=date_from, date_to=date_to, query=query
         )
+
+    # ── Podcasts ─────────────────────────────────────────────────────────────
+    # The Apple Podcasts library (MTLibrary.sqlite). Episode audio is never in
+    # a backup, so nothing here reads any: only shows, listening history and
+    # the feed addresses.
+
+    def list_podcasts(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.podcast_extractor.list_podcasts(backup)
+
+    def list_podcast_episodes(self, params):
+        """Episodes, newest published first: one show's (podcast_id), or every
+        show's; only those listened to with listened_only."""
+        udid = params["udid"]
+        podcast_id = params.get("podcast_id")
+        if podcast_id is not None:
+            podcast_id = int(podcast_id)
+        listened_only = bool(params.get("listened_only", False))
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.podcast_extractor.list_episodes(backup, podcast_id=podcast_id, listened_only=listened_only)
+
+    def export_podcasts(self, params):
+        """Save as OPML (the followed shows, for another podcast app) or CSV (every show and episode)."""
+        udid = params["udid"]
+        output_dir = params["output_dir"]
+        fmt = params.get("format", "opml")
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.podcast_extractor.export_podcasts(backup, output_dir, fmt)
 
     # ── Record recovery ──────────────────────────────────────────────────────
 
