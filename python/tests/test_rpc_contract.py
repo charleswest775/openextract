@@ -1103,8 +1103,11 @@ def case_get_backup_stats(ctx):
         assert messages["sent"] + messages["received"] == len(exp["messages"])
         assert messages["group_conversations"] + messages["one_on_one_conversations"] == len(exp["conversations"])
     assert ctx.maren_enc.rpc("get_backup_stats")["overview"]["total_calls"] == len(ctx.maren_enc.expected["calls"])
-    o = ctx.maren.rpc("get_backup_stats")["overview"]
-    assert (o["total_whatsapp_messages"], o["total_whatsapp_chats"], o["whatsapp_status"]) == (0, 0, "not_in_backup")
+    # Maren's WhatsApp, as her answer key has it (none from a library whose backupgen predates it)
+    for engine in (ctx.maren, ctx.maren_enc):
+        o, wa = engine.rpc("get_backup_stats")["overview"], engine.expected.get("whatsapp")
+        want = (sum(c["message_count"] for c in wa["chats"]), len(wa["chats"]), "ok") if wa else (0, 0, "not_in_backup")
+        assert (o["total_whatsapp_messages"], o["total_whatsapp_chats"], o["whatsapp_status"]) == want
     # WhatsApp: its own totals, apart from Messages'
     einstein_messages = len(ctx.einstein.expected["messages"])
     for engine in (ctx.whatsapp, ctx.whatsapp_enc):
