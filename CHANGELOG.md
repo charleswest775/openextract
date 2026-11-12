@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Windows: the app's updater now downloads a copy of the installer named `OpenExtract-Update-X.Y.Z.exe` instead of `OpenExtract-Setup-X.Y.Z.exe`. It's the same signed file. The only difference is that GitHub's download counts for each release now show updates and new installs apart; the app still sends nothing. The first update to this version may download the whole installer rather than only the parts that changed
+
 ## [0.14.0] - 2026-11-11
 
 ### Added

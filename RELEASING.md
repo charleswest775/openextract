@@ -25,6 +25,9 @@ about a new version if someone tells them. This file lists all of it in order.
     in `website/static/index.html`, and the `/download/*` redirects in
     `website/static/vercel.json`;
   - tags it, builds, signs (Windows), notarizes (macOS) and uploads every file;
+  - gives Windows updates their own copy of the installer, `OpenExtract-Update-X.Y.Z.exe`,
+    which `latest.yml` names, so download counts tell updates from new installs
+    (`scripts/update-feed.mjs`);
   - runs the Windows App Control check on the draft (see `packaging/README.md`);
   - checks the `/download/*` redirects match the release's files, publishes, and opens the
     sync PR `chore: release vX.Y.Z`.
