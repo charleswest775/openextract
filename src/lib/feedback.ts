@@ -19,6 +19,8 @@ export const PRIVACY_URL = 'https://www.openextract.app/privacy#feedback';
 export const FIXES_URL = 'https://www.openextract.app/fixes';
 /** The link people copy to tell a friend. */
 export const SITE_URL = 'https://www.openextract.app';
+/** Where people can chip in. The site page holds the payment link, so the service can change without a release. */
+export const SUPPORT_URL = 'https://www.openextract.app/support';
 
 /** Random code the site keeps a hash of, so only this computer can look the report up later. */
 export function newReportToken(): string {
@@ -40,8 +42,8 @@ export const FEEDBACK_KINDS: { id: FeedbackKind; label: string; hint: string }[]
 
 export type FeedbackArea =
   | 'general' | 'open_backup' | 'create_backup' | 'search' | 'dashboard' | 'people' | 'timeline' | 'year'
-  | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'record_recovery'
-  | 'export';
+  | 'messages' | 'whatsapp' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history'
+  | 'record_recovery' | 'export';
 
 export const FEEDBACK_AREAS: { id: FeedbackArea; label: string }[] = [
   { id: 'general', label: 'The app in general' },
@@ -53,6 +55,7 @@ export const FEEDBACK_AREAS: { id: FeedbackArea; label: string }[] = [
   { id: 'timeline', label: 'Timeline' },
   { id: 'year', label: 'Year' },
   { id: 'messages', label: 'Messages' },
+  { id: 'whatsapp', label: 'WhatsApp' },
   { id: 'photos', label: 'Photos' },
   { id: 'contacts', label: 'Address book' },
   { id: 'calls', label: 'Calls' },
@@ -109,6 +112,7 @@ export function formatDiagnostics(d: FeedbackDiagnostics): string {
       b.iosVersion ? `iOS ${b.iosVersion}` : undefined,
       b.encrypted === undefined ? undefined : b.encrypted ? 'encrypted' : 'not encrypted',
       typeof b.sizeGB === 'number' ? `${b.sizeGB} GB` : undefined,
+      b.unfinished ? "didn't finish" : undefined,
     ].filter(Boolean);
     lines.push(`Backup: ${parts.join(' · ') || 'details unknown'}`);
   } else {

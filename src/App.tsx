@@ -148,6 +148,12 @@ export default function App() {
             setCurrentSession(null);
             setScreen('home');
           }}
+          unfinished={!!backup.activeBackup.unfinished}
+          onNewBackup={() => {
+            backup.setActiveBackup(null);
+            setCurrentSession(null);
+            setScreen('create-backup');
+          }}
         />
       )}
 

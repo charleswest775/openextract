@@ -5,19 +5,23 @@ import { formatDate, formatDuration } from '../../lib/dates';
 import { formatPhone } from '../../lib/people';
 import { plural } from '../../lib/saveData';
 import { matches } from '../../lib/search';
+import { whatsAppSender, whatsAppText } from '../../lib/timelineExport';
 import EmptyState from '../shared/EmptyState';
 import Highlight from '../shared/Highlight';
 import OrganicLoader from '../shared/OrganicLoader';
-import { ChevronRightIcon, ContactIcon, PeopleIcon, SearchIcon } from '../shared/Icons';
+import { ChevronRightIcon, ContactIcon, LinesIcon, PeopleIcon, SearchIcon } from '../shared/Icons';
 import TimelineEntryCard from '../timeline/TimelineEntryCard';
 import { TYPE_COLORS } from '../timeline/TimelineTypeChips';
 import { gatherPeople, linkCards } from '../people/gather';
 import { DATA_SECTIONS, type ExploreContext, type Icon, type Tab } from '../explore/sections';
 
-const ORDER: TimelineEntryType[] = ['note', 'message', 'voicemail', 'call', 'photo', 'browser'];
-const KIND: Record<TimelineEntryType, { one: string; many: string; tab: Tab }> = {
+// A kind missing here would be left out of the results while still counted under "All"
+const ORDER: TimelineEntryType[] = ['note', 'message', 'whatsapp', 'voicemail', 'call', 'photo', 'browser'];
+// `items` is how "Show all …" counts them, when lower case would get it wrong
+const KIND: Record<TimelineEntryType, { one: string; many: string; tab: Tab; items?: [string, string] }> = {
   note: { one: 'Note', many: 'Notes', tab: 'notes' },
   message: { one: 'Message', many: 'Messages', tab: 'messages' },
+  whatsapp: { one: 'WhatsApp message', many: 'WhatsApp', tab: 'whatsapp', items: ['WhatsApp message', 'WhatsApp messages'] },
   voicemail: { one: 'Voicemail', many: 'Voicemail', tab: 'voicemail' },
   call: { one: 'Call', many: 'Calls', tab: 'calls' },
   photo: { one: 'Photo', many: 'Photos', tab: 'photos' },
@@ -26,18 +30,27 @@ const KIND: Record<TimelineEntryType, { one: string; many: string; tab: Tab }> =
 const PER_GROUP = 5;
 const PEOPLE_SHOWN = 4;
 
+// Each kind wears its section's icon and name. A kind whose section isn't
+// registered (yet) falls back to Messages' icon and its own name, rather than
+// taking the whole results page down.
 function iconFor(type: TimelineEntryType): Icon {
-  return DATA_SECTIONS.find(s => s.id === KIND[type].tab)!.icon;
+  return DATA_SECTIONS.find(s => s.id === KIND[type].tab)?.icon ?? LinesIcon;
 }
 
 function labelFor(type: TimelineEntryType): string {
-  return DATA_SECTIONS.find(s => s.id === KIND[type].tab)!.label;
+  return DATA_SECTIONS.find(s => s.id === KIND[type].tab)?.label ?? KIND[type].many;
 }
 
 /** A title and the line that matched, for one result. */
 function describe(e: TimelineEntry): { title: string; text: string } {
   switch (e.type) {
     case 'message': return { title: e.message!.conversationName, text: e.message!.text ?? '' };
+    case 'whatsapp': {
+      const w = e.whatsapp!;
+      // In a group, who said it
+      const by = whatsAppSender(w);
+      return { title: w.conversationName, text: by ? `${by}: ${whatsAppText(w)}` : whatsAppText(w) };
+    }
     case 'note': return { title: e.note!.title || 'Untitled', text: e.note!.body || e.note!.bodyPreview };
     case 'voicemail': return { title: e.contactName ?? formatPhone(e.voicemail!.phoneNumber), text: e.voicemail!.transcript || `Voicemail · ${formatDuration(e.voicemail!.duration)}` };
     case 'call': return { title: e.contactName ?? '', text: `${e.call!.status === 'missed' ? 'Missed' : e.call!.direction === 'outgoing' ? 'Outgoing' : 'Incoming'} call · ${formatDuration(e.call!.duration)}` };
@@ -77,8 +90,8 @@ export default function SearchResults({ ctx, timeline, query, keyRef }: Props) {
   }, []);
 
   // People you were in touch with, then saved cards that aren't one of them
-  const allPeople = useMemo(() => gatherPeople(ctx.index.entries), [ctx.index.entries]);
   const cards = ctx.index.addressBook;
+  const allPeople = useMemo(() => gatherPeople(ctx.index.entries, cards ?? []), [ctx.index.entries, cards]);
   const { personOf } = useMemo(() => linkCards(allPeople, cards ?? []), [allPeople, cards]);
   const { openTab } = ctx;
   const people = useMemo((): PersonHit[] => {
@@ -97,7 +110,7 @@ export default function SearchResults({ ctx, timeline, query, keyRef }: Props) {
     }
     const hits: PersonHit[] = allPeople.filter(p => found.has(p)).map(p => ({
       key: `p:${p.key}`, name: formatPhone(p.name), saved: false,
-      line: `${plural(p.total, 'event')} · messages, calls and voicemail`,
+      line: `${plural(p.total, 'event')} · messages, WhatsApp, calls and voicemail`,
       open: () => openTab('people', { person: p.identifier }),
     }));
     return [...hits, ...saved];
@@ -227,7 +240,7 @@ export default function SearchResults({ ctx, timeline, query, keyRef }: Props) {
                   })}
                   {!only && g.entries.length > PER_GROUP && (
                     <button onClick={() => setOnly(g.type)} className="pl-[68px] pr-5 py-1.5 text-sm text-accent font-medium hover:underline">
-                      Show all {plural(g.entries.length, KIND[g.type].one.toLowerCase(), KIND[g.type].many.toLowerCase())}
+                      Show all {plural(g.entries.length, ...(KIND[g.type].items ?? [KIND[g.type].one.toLowerCase(), KIND[g.type].many.toLowerCase()]))}
                     </button>
                   )}
                 </section>
@@ -257,12 +270,12 @@ export default function SearchResults({ ctx, timeline, query, keyRef }: Props) {
                         <ChevronRightIcon size={18} className="text-white" />
                       </button>
                     </div>
-                    {(selected.type === 'note' || selected.type === 'message') && d.text && (
+                    {(selected.type === 'note' || selected.type === 'message' || selected.type === 'whatsapp') && d.text && (
                       <div className="hearth-card p-5 text-[17px] leading-relaxed whitespace-pre-wrap text-text-primary">
                         <Highlight text={d.text} query={query} />
                       </div>
                     )}
-                    <TimelineEntryCard entry={selected} udid={ctx.udid} />
+                    <TimelineEntryCard entry={selected} udid={ctx.udid} onOpenWhatsApp={open} />
                     <p className="text-xs text-text-tertiary">↑ ↓ to move through results · Enter to open</p>
                   </div>
                 );

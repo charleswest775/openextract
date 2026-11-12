@@ -166,6 +166,17 @@ test('FeedbackRecorder keeps backup facts but not names, and scrubs recorded err
   assert.doesNotMatch(JSON.stringify(d), /Kim Phone|MyBackups|abcd1234efgh/);
 });
 
+test('a backup that stopped partway is noted in the facts (OE-31)', () => {
+  const rec = new main.FeedbackRecorder(path.join(tmp, 'missing-log.txt'), '0.9.0');
+  rec.recordCall('open_backup', { udid: 'abcd1234efgh' }, {
+    ok: true,
+    result: { status: 'open', info: { udid: 'abcd1234efgh', device_name: 'Kim Phone', product_type: 'iPhone13,4', product_version: '18.4.1', encrypted: false, size_gb: null, backup_dir: '/b', unfinished: true } },
+  });
+  const d = rec.diagnostics();
+  assert.deepEqual(d.backup, { model: 'iPhone13,4', iosVersion: '18.4.1', encrypted: false, sizeGB: null, unfinished: true });
+  assert.match(lib.formatDiagnostics(d), /Backup: iPhone13,4 · iOS 18\.4\.1 · not encrypted · didn't finish/);
+});
+
 const diag = {
   appVersion: '0.9.0', os: 'macOS 14.3.0 (arm64)',
   backup: { model: 'iPhone14,2', iosVersion: '17.4', encrypted: false, sizeGB: 12.5 },
@@ -386,6 +397,16 @@ test('known fixes match on the error text and, where given, the system', () => {
   assert.deepEqual(site.matchKnownFixes(site.validateReport(goodReport({ details: 'Photos look fine', diagnostics: '' })).report), []);
 });
 
+test('a known fix can hide a vaguer one whose advice would be wrong', () => {
+  const report = site.validateReport(goodReport({ details: 'it broke', diagnostics: 'Python sidecar is not running' })).report;
+  const fix = (id, extra = {}) => ({ id, title: id, text: id, match: /sidecar/, ...extra });
+  const ids = fixes => site.matchKnownFixes(report, fixes).map(f => f.id);
+  assert.deepEqual(ids([fix('vague'), fix('other')]), ['vague', 'other']);
+  assert.deepEqual(ids([fix('specific', { hides: ['vague'] }), fix('vague'), fix('other')]), ['specific', 'other']);
+  // Only a fix that matched hides anything.
+  assert.deepEqual(ids([fix('specific', { match: /nope/, hides: ['vague'] }), fix('vague')]), ['vague']);
+});
+
 // Known fixes against what the app really says. Each error below is copied from the
 // code that produces it, so a fix whose pattern drifts from the real wording fails
 // here instead of quietly never showing.
@@ -394,16 +415,21 @@ const { KNOWN_FIXES } = require(path.join(root, 'website/static/api/_lib/known-f
 const MAC = 'macOS 15.1 (arm64)';
 const WINDOWS = 'Windows 10.0.26300 (x64)';
 let fixReports = 0;
+// Every report counts against the site's rate limit (60 per instance in 10 minutes), which the
+// rate-limit tests further down rely on having to themselves. So each known-fix report is sent
+// with a clock of its own, a 10-minute window apart and long ago.
+const RATE_WINDOW = 10 * 60 * 1000;
+const LONG_AGO = Date.now() - 100_000 * RATE_WINDOW;
 
 /** Known fixes the site answers with, for a report built the way the app builds one. */
-async function knownFixesFor({ kind = 'broken', area = 'open_backup', details = "Something isn't working", os = MAC, errors = [], log = '', reportedError } = {}) {
+async function knownFixesFor({ kind = 'broken', area = 'open_backup', details = "Something isn't working", os = MAC, errors = [], log = '', reportedError, version = '0.9.1' } = {}) {
   const logPath = path.join(tmp, `engine-log-${++fixReports}.txt`);
   fs.writeFileSync(logPath, log);
-  const rec = new main.FeedbackRecorder(logPath, '0.9.1');
+  const rec = new main.FeedbackRecorder(logPath, version);
   for (const [method, error] of errors) rec.recordCall(method, {}, { ok: false, error });
   const diagnostics = lib.formatDiagnostics({ ...rec.diagnostics(reportedError), os });
   const report = goodReport({ kind, area, details, diagnostics, token: fixReports.toString(16).padStart(48, '7') });
-  const out = await site.receiveReport(jsonReq(report), env, fakeGitHub().fetch);
+  const out = await site.receiveReport(jsonReq(report), env, fakeGitHub().fetch, LONG_AGO + fixReports * RATE_WINDOW);
   assert.equal(out.status, 200, JSON.stringify(out.body));
   return out.body.knownFixes.map(f => f.id);
 }
@@ -473,6 +499,23 @@ const OLD_NO_DEVICE_SERVICE = 'Cannot connect to Apple Mobile Device Service. On
 
 // One real error per known fix; the last test checks that every fix has one.
 const REAL_ERRORS = [
+  // python/main.py in 0.12.0, exiting on list_photos' raw bytes from an iOS 6 backup (OE-26 to
+  // OE-28): the engine log's traceback, then every call after it. Reinstalling (engine-did-not-start)
+  // wouldn't help, so that fix is hidden.
+  {
+    fix: 'ios6-photos-stop-engine',
+    errors: [['list_photos', 'Sidecar exited with code 1'], ['get_messages', 'Python sidecar is not running']],
+    log: [
+      '[STDERR] Traceback (most recent call last):',
+      '  File "main.py", line 618, in <module>',
+      '[STDERR] File "main.py", line 602, in run',
+      '  File "json/__init__.py", line 231, in dumps',
+      '  File "json/encoder.py", line 180, in default',
+      'TypeError: Object of type bytes is not JSON serializable',
+      "[PYI-53468:ERROR] Failed to execute script 'main' due to unhandled exception!",
+      '[EXIT] code 1',
+    ].join('\n'),
+  },
   // electron/sidecar.ts call(), once the engine has stopped (#169).
   { fix: 'engine-did-not-start', os: WINDOWS, errors: [['list_backups', 'Python sidecar is not running']] },
   // electron/sidecar.ts start(): the launch failed, written to the engine log.
@@ -568,6 +611,40 @@ const REAL_ERRORS = [
     area: 'create_backup',
     errors: [['backup.start', "OpenExtract wasn't allowed to change a file in the backup folder. This can happen when another program, such as OneDrive or antivirus software, is using it. Choose a new, empty folder outside OneDrive or other synced folders, then try again."]],
   },
+  // The connection dropping partway: as 0.12.0 worded it with the iPhone still listed (OE-29)
+  // and with it gone (OE-31), then python/device_backup.py _CONNECTION_DROPPED and
+  // electron/main.ts COMPUTER_SLEPT from the version after 0.12.0.
+  {
+    fix: 'backup-connection-dropped',
+    os: MAC,
+    area: 'create_backup',
+    details: 'it keeps disconnecting partway through, and I never touch the cable',
+    errors: [['backup.start', "The connection to your iPhone was terminated unexpectedly. Make sure you have tapped 'Trust' on the device when prompted, and that the cable is securely connected. Then try again."]],
+  },
+  {
+    fix: 'backup-connection-dropped',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', 'DEVICE_DISCONNECTED: Your iPhone was disconnected before the backup finished. Plug it back in, unlock it, then click Retry.']],
+  },
+  {
+    fix: 'backup-connection-dropped',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', 'DEVICE_DISCONNECTED: Your iPhone was disconnected before the backup finished. If it stayed plugged in, the computer may have gone to sleep or the USB connection dropped. Keep the computer plugged in and awake, plug the iPhone straight into it rather than into a hub, unlock it, then click Retry.']],
+  },
+  {
+    fix: 'backup-connection-dropped',
+    os: WINDOWS,
+    area: 'create_backup',
+    errors: [['backup.start', 'The connection to your iPhone dropped partway through the backup, after 3.2 GB. This usually means the computer went to sleep or the USB connection was interrupted. Keep the computer plugged in and awake, plug the iPhone straight into it rather than into a hub, then try again.']],
+  },
+  {
+    fix: 'backup-connection-dropped',
+    os: MAC,
+    area: 'create_backup',
+    errors: [['backup.start', 'DEVICE_DISCONNECTED: Your computer went to sleep during the backup, which disconnects the iPhone. Keep the computer plugged in with its lid open until the backup finishes, then click Retry.']],
+  },
   // python/device_backup.py _device_service_error() on Windows without Apple Devices or iTunes.
   { fix: 'windows-apple-devices', os: WINDOWS, errors: [['backup.list_devices', WINDOWS_NO_DEVICE_SERVICE]] },
   // The same in 0.10.0, pasted into the report by hand (OE-4).
@@ -585,6 +662,15 @@ const REAL_ERRORS = [
     os: WINDOWS,
     area: 'photos',
     errors: [['export_photos', 'Sidecar call timed out: export_photos'], ['get_photo_thumbnail', 'Sidecar call timed out: get_photo_thumbnail']],
+  },
+  // electron/sidecar.ts call() giving up on a backup after 2 hours in all, still copying, in 0.12.0
+  // (OE-17, OE-18, OE-31).
+  {
+    fix: 'backup-stopped-after-2-hours',
+    os: WINDOWS,
+    area: 'create_backup',
+    version: '0.12.0',
+    errors: [['backup.start', 'Sidecar call timed out: backup.start']],
   },
 ];
 
@@ -605,7 +691,16 @@ test('reports about something else get no known fix', async () => {
     }), []);
   }
   // Full Disk Access is only a macOS setting.
-  assert.deepEqual(await knownFixesFor({ ...REAL_ERRORS[2], os: WINDOWS }), []);
+  assert.deepEqual(await knownFixesFor({ ...REAL_ERRORS.find(c => c.fix === 'mac-full-disk-access'), os: WINDOWS }), []);
+  // From 0.13.0 a backup times out only after 2 hours with nothing from the iPhone, which "update to
+  // 0.13.0" doesn't help; 0.9.x and 0.1x.x versions still get it.
+  const twoHours = REAL_ERRORS.find(c => c.fix === 'backup-stopped-after-2-hours');
+  for (const version of ['0.13.0', '0.13.2', '1.0.0', '0.20.1']) {
+    assert.deepEqual(await knownFixesFor({ ...twoHours, version }), [], version);
+  }
+  for (const version of ['0.9.1', '0.10.2', '0.11.0', '0.12.0']) {
+    assert.deepEqual(await knownFixesFor({ ...twoHours, version }), ['backup-stopped-after-2-hours'], version);
+  }
   // A Mac without usbmuxd needs a restart, not Apple Devices.
   assert.deepEqual(await knownFixesFor({
     errors: [['backup.list_devices', "DEVICE_SERVICE_REQUIRED: OpenExtract can't reach the part of macOS that talks to iPhones (usbmuxd). Restart your Mac, then search again."]],

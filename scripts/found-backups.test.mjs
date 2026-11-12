@@ -24,7 +24,7 @@ function load(rel) {
   return require(file);
 }
 
-const { notYetOpened } = load('src/lib/foundBackups.ts');
+const { notYetOpened, whenLine, UNFINISHED_MESSAGE } = load('src/lib/foundBackups.ts');
 
 const backup = (udid, dir) => ({ udid, backup_dir: dir, device_name: udid });
 const session = (id, backupDir) => ({ id, backupDir, type: 'device', name: id, subtitle: '', exportCount: 0, lastOpened: '' });
@@ -52,4 +52,36 @@ test('Windows paths match without case or a trailing backslash', () => {
 
 test('nothing found offers nothing', () => {
   assert.deepEqual(notYetOpened([], [session('A', '/x')]), []);
+});
+
+test('when looking for backups fails, the home screen says so in plain words', () => {
+  const { lookFailedMessage } = load('src/lib/foundBackups.ts');
+  assert.equal(lookFailedMessage('Sidecar call timed out: list_backups'),
+    "OpenExtract couldn't look for other backups on this computer.");
+  // A stopped engine stays stopped until the app is reopened, so say that (OE-27).
+  for (const error of ['Python sidecar is not running', 'Sidecar exited with code 1']) {
+    assert.match(lookFailedMessage(error), /engine stopped\. Quit and reopen OpenExtract to look again\.$/);
+  }
+});
+
+// A backup that stopped partway (OE-31). Its date is when the try started.
+const day = iso => iso.slice(0, 10);
+
+test('a finished backup says when it was made', () => {
+  assert.equal(whenLine({ last_backup: '2026-11-03T10:00:00+00:00' }, day), 'Backed up 2026-11-03');
+});
+
+test('a backup that stopped partway says when it was started', () => {
+  assert.equal(whenLine({ last_backup: '2026-11-03T10:00:00+00:00', unfinished: true }, day), 'Started 2026-11-03');
+});
+
+test('no date says nothing', () => {
+  assert.equal(whenLine({ last_backup: '', unfinished: true }, day), undefined);
+});
+
+test('the message matches the engine', () => {
+  // Windows checkouts can have CRLF line endings.
+  const engine = fs.readFileSync(path.join(root, 'python', 'backup_status.py'), 'utf-8').replace(/\r\n/g, '\n');
+  const said = engine.match(/^UNFINISHED = \(\n((?:\s+"[^"]*"\n)+)\)/m)[1];
+  assert.equal(said.split('\n').map(l => l.trim().replace(/^"|"$/g, '')).join(''), UNFINISHED_MESSAGE);
 });

@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="msvalidate.01" content="30F718C34B6BBA41A92CCFA6881CB5EE" />
   <meta name="theme-color" content="#faf6f1" />
   <title>OpenExtract — Free, open-source iPhone backup extractor</title>
-  <meta name="description" content="Free, open-source iPhone backup extractor for Windows, Mac and Linux. Save texts, photos, voicemails and contacts from any backup. Nothing is uploaded." />
+  <meta name="description" content="Free, open-source iPhone backup extractor for Windows, Mac and Linux. Save texts, WhatsApp chats, photos, voicemails and contacts. Nothing is uploaded." />
   <link rel="canonical" href="https://www.openextract.app/" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="author" content="OpenExtract" />
@@ -14,7 +15,7 @@
   <meta property="og:site_name" content="OpenExtract" />
   <meta property="og:url" content="https://www.openextract.app/" />
   <meta property="og:title" content="OpenExtract — Free, open-source iPhone backup extractor" />
-  <meta property="og:description" content="Free, open-source iPhone backup extractor. Recover messages, photos, voicemails, and contacts from any backup — encrypted or not. 100% local." />
+  <meta property="og:description" content="Free, open-source iPhone backup extractor. Recover messages, WhatsApp chats, photos, voicemails, and contacts from any backup — encrypted or not. 100% local." />
   <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -23,7 +24,7 @@
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="OpenExtract — Free, open-source iPhone backup extractor" />
-  <meta name="twitter:description" content="Recover messages, photos, contacts from iPhone backups — encrypted or not. Free, MIT-licensed, 100% local." />
+  <meta name="twitter:description" content="Recover messages, WhatsApp chats, photos, contacts from iPhone backups — encrypted or not. Free, MIT-licensed, 100% local." />
   <meta name="twitter:image" content="https://www.openextract.app/img/og-image.png" />
   <meta name="twitter:image:alt" content="OpenExtract, free iPhone backup extractor: read and save the messages, photos and voicemails in any iPhone backup. Windows, Mac and Linux. Open source, MIT." />
 
@@ -36,7 +37,7 @@
     "@type": "SoftwareApplication",
     "name": "OpenExtract",
     "alternateName": "openextract",
-    "description": "Free, open-source desktop application for extracting messages, photos, contacts, call history, voicemails, and app data from iPhone and iPad backups — including encrypted backups. Runs 100% locally.",
+    "description": "Free, open-source desktop application that reads iPhone backups made by iTunes or Finder, encrypted or not, and saves the messages, WhatsApp chats, photos and videos, contacts, call history, notes, voicemails and Safari and Firefox history in them. Runs 100% locally.",
     "applicationCategory": "UtilityApplication",
     "applicationSubCategory": "DataExtraction",
     "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
@@ -49,12 +50,16 @@
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "featureList": [
       "SMS and iMessage extraction",
+      "WhatsApp chat extraction, with photos, voice messages and calls",
       "Photo and video recovery with EXIF preserved",
       "Encrypted backup support",
       "Call history export",
       "Contacts export",
+      "Notes export",
       "Voicemail extraction",
+      "Safari and Firefox history",
       "Export to PDF, CSV, HTML",
+      "Timeline and whole-backup search",
       "100% local processing, no cloud upload"
     ],
     "author": { "@type": "Organization", "name": "OpenExtract", "url": "https://www.openextract.app/" },
@@ -80,7 +85,7 @@
     <a href="/" class="nav__brand">
       <div class="nav__logo" aria-hidden="true">o</div>
       <span class="nav__wordmark">OpenExtract</span>
-      <span class="nav__version">v0.12.0</span>
+      <span class="nav__version">v0.14.0</span>
     </a>
     <div class="nav__links">
       <a href="/how-it-works">How it works</a>
@@ -96,11 +101,12 @@
 
   <section class="hero">
     <div>
-      <span class="pill"><span class="pill__dot"></span>Free iPhone backup extractor · No cloud</span>
+      <span class="pill"><span class="pill__dot"></span>Open source · Windows, Mac &amp; Linux · No cloud</span>
       <h1>
-        Your memories<br />
-        <span class="it it--coral">are still in there.</span>
+        Free iPhone<br />
+        backup <span class="it it--coral">extractor.</span>
       </h1>
+      <p class="hero__voice">Your memories are still in there.</p>
       <p class="hero__sub">Pull the messages, photos, and voicemails out of any old iPhone backup — right on your own laptop. Nothing uploaded, nothing paid, nothing to sign up for.</p>
       <div class="hero__ctas">
         <a class="btn btn--primary" href="/download/mac">Download for Mac<span>· 146 MB</span></a>
@@ -113,7 +119,7 @@
           <div class="hero__avatar" style="background: var(--butter);"></div>
           <div class="hero__avatar" style="background: var(--plum);"></div>
         </div>
-        <span>9,000+ downloads and counting</span>
+        <span>10,000+ downloads and counting</span>
       </div>
     </div>
 
@@ -147,15 +153,19 @@
             <span class="recovered__num">4,218</span>
           </div>
           <div class="recovered__row">
-            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--sage);"></span><span class="recovered__label">Photos &amp; Videos</span></div>
+            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--sage);"></span><span class="recovered__label">WhatsApp</span></div>
+            <span class="recovered__num">2,906</span>
+          </div>
+          <div class="recovered__row">
+            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--butter);"></span><span class="recovered__label">Photos &amp; Videos</span></div>
             <span class="recovered__num">8,472</span>
           </div>
           <div class="recovered__row">
-            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--butter);"></span><span class="recovered__label">Voicemails</span></div>
+            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--plum);"></span><span class="recovered__label">Voicemails</span></div>
             <span class="recovered__num">23</span>
           </div>
           <div class="recovered__row">
-            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--plum);"></span><span class="recovered__label">Contacts</span></div>
+            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--coral);"></span><span class="recovered__label">Contacts</span></div>
             <span class="recovered__num">341</span>
           </div>
         </div>
@@ -189,7 +199,15 @@
         <div class="feature-card__ex">34,118 messages · 127 conversations</div>
       </article>
       <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--sage-22);">📷</div>
+        <div class="feature-card__icon" style="background: var(--sage-22);">🗨️</div>
+        <div>
+          <div class="feature-card__title">WhatsApp chats</div>
+          <p class="feature-card__desc">Chats and groups with their photos, voice messages, replies and calls, in the order they arrived. Save one chat or all of them as a PDF or a web page.</p>
+        </div>
+        <div class="feature-card__ex">6,530 messages · 41 chats</div>
+      </article>
+      <article class="feature-card">
+        <div class="feature-card__icon" style="background: var(--butter-22);">📷</div>
         <div>
           <div class="feature-card__title">Photos &amp; videos</div>
           <p class="feature-card__desc">All your camera roll, with original quality and the date, time, and place they were taken.</p>
@@ -197,7 +215,7 @@
         <div class="feature-card__ex">8,472 photos · 412 videos</div>
       </article>
       <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--butter-22);">🎙️</div>
+        <div class="feature-card__icon" style="background: var(--plum-22);">🎙️</div>
         <div>
           <div class="feature-card__title">Voicemails</div>
           <p class="feature-card__desc">Listen to voicemails you thought you'd lost — including from people who aren't around to leave new ones.</p>
@@ -205,7 +223,7 @@
         <div class="feature-card__ex">23 voicemails recovered</div>
       </article>
       <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--plum-22);">👤</div>
+        <div class="feature-card__icon" style="background: var(--coral-22);">👤</div>
         <div>
           <div class="feature-card__title">Contacts</div>
           <p class="feature-card__desc">The address book: names, phone numbers, email addresses and notes. Save it as a vCard to import somewhere else.</p>
@@ -213,7 +231,7 @@
         <div class="feature-card__ex">341 contacts · vCard ready</div>
       </article>
       <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--coral-22);">📝</div>
+        <div class="feature-card__icon" style="background: var(--sage-22);">📝</div>
         <div>
           <div class="feature-card__title">Notes</div>
           <p class="feature-card__desc">Everything in Apple Notes, from shopping lists to recipes to that novel you started.</p>
@@ -221,12 +239,28 @@
         <div class="feature-card__ex">218 notes · text or PDF</div>
       </article>
       <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--sage-22);">📞</div>
+        <div class="feature-card__icon" style="background: var(--butter-22);">📞</div>
         <div>
           <div class="feature-card__title">Call history</div>
           <p class="feature-card__desc">Who you called, when, and for how long. Simple spreadsheet you can search.</p>
         </div>
         <div class="feature-card__ex">2,841 calls logged</div>
+      </article>
+      <article class="feature-card">
+        <div class="feature-card__icon" style="background: var(--plum-22);">🌐</div>
+        <div>
+          <div class="feature-card__title">Web history</div>
+          <p class="feature-card__desc">The pages visited in Safari and Firefox, and the sites you went back to most. Safari's history is in encrypted backups.</p>
+        </div>
+        <div class="feature-card__ex">5,906 visits · 312 sites</div>
+      </article>
+      <article class="feature-card">
+        <div class="feature-card__icon" style="background: var(--coral-22);">🔎</div>
+        <div>
+          <div class="feature-card__title">Timeline &amp; search</div>
+          <p class="feature-card__desc">Everything in the backup in one list by date, and one box that searches texts, WhatsApp, notes, calls and more at once.</p>
+        </div>
+        <div class="feature-card__ex">Filter by person, type or date</div>
       </article>
     </div>
   </section>
@@ -241,7 +275,7 @@
     </div>
     <figure class="screen">
       <a class="screen__frame" href="/img/screens/home-2000.webp">
-        <img src="/img/screens/home-1000.webp" srcset="/img/screens/home-1000.webp 1000w, /img/screens/home-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), calc(100vw - 112px)" width="1000" height="625" loading="lazy" decoding="async" alt="The home page for Maren's iPhone: tiles for 1,410 messages, 170 photos, 52 people, 45 address book cards, 166 calls, 25 notes and 9 voicemails, plus Web history, Timeline and Year, under a search box that runs across the top." />
+        <img src="/img/screens/home-1000.webp" srcset="/img/screens/home-1000.webp 1000w, /img/screens/home-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), calc(100vw - 112px)" width="1000" height="625" loading="lazy" decoding="async" alt="The home page for Maren's iPhone: tiles for 1,410 messages, 88 WhatsApp messages in 6 chats, 170 photos, 53 people, 45 address book cards, 166 calls, 25 notes and 9 voicemails, plus Web history, Timeline and Year, under a search box that runs across the top." />
       </a>
     </figure>
     <div class="screens__grid">
@@ -249,7 +283,7 @@
         <a class="screen__frame" href="/img/screens/search-2000.webp">
           <img src="/img/screens/search-1000.webp" srcset="/img/screens/search-1000.webp 1000w, /img/screens/search-2000.webp 2000w" sizes="(max-width: 1024px) calc(100vw - 112px), 33vw" width="1000" height="625" loading="lazy" decoding="async" alt="Search results for &ldquo;bread&rdquo; across the whole backup: notes, messages and web pages, with the first note previewed and every match highlighted." />
         </a>
-        <figcaption><strong>Search</strong>One box searches messages, notes, calls, voicemail and more.</figcaption>
+        <figcaption><strong>Search</strong>One box searches messages, WhatsApp, notes, calls, voicemail and more.</figcaption>
       </figure>
       <figure class="screen">
         <a class="screen__frame" href="/img/screens/messages-2000.webp">
@@ -264,14 +298,14 @@
         <figcaption><strong>Photos</strong>The whole camera roll, sorted into the albums you made.</figcaption>
       </figure>
     </div>
-    <a class="screens__more" href="/screenshots">See all 16 screens →</a>
+    <a class="screens__more" href="/screenshots">See all 18 screens →</a>
   </section>
 
   <section class="how">
     <div class="how__head">
       <div>
         <div class="how__eyebrow">How it works</div>
-        <h2 class="how__title">Three steps. <span class="it" style="color: var(--butter);">No phone needed.</span></h2>
+        <h2 class="how__title">Four steps. <span class="it" style="color: var(--butter);">No phone needed.</span></h2>
       </div>
       <div class="how__lede">Works even if your phone is broken, lost, or long gone. All you need is a backup somewhere on a computer.</div>
     </div>
@@ -288,8 +322,13 @@
       </div>
       <div>
         <div class="how__num" style="color: var(--sage);">03</div>
+        <div class="how__step-title">Browse what's in there</div>
+        <p class="how__step-desc">Messages, WhatsApp, photos, contacts, calls, notes and voicemail on one page. Search all of it from one box. Nothing you click changes the backup.</p>
+      </div>
+      <div>
+        <div class="how__num" style="color: var(--plum);">04</div>
         <div class="how__step-title">Save what you want</div>
-        <p class="how__step-desc">Browse. Preview. Save. Text threads as PDF, photos as originals, and the rest as everyday files, in a folder you choose.</p>
+        <p class="how__step-desc">Text threads as PDF, photos as originals, and the rest as everyday files, in a folder you choose.</p>
       </div>
     </div>
   </section>
@@ -313,6 +352,28 @@
         <p class="testimonial__quote">Moving to Android doesn't have to mean losing years of messages. Back up the iPhone once, then keep every thread on your computer.</p>
         <div class="testimonial__loc"><a href="/blog/switching-to-android-with-your-data">Switching to Android &rarr;</a></div>
       </article>
+    </div>
+  </section>
+
+  <section class="testimonials testimonials--quotes" data-thanks data-thanks-limit="3" hidden>
+    <div class="section-label">Sent from the app</div>
+    <h2>In their<br /><span class="it">own words.</span></h2>
+    <div class="testimonials__grid" data-thanks-list></div>
+    <p class="testimonials__note">Thank-yous sent from inside OpenExtract by people who said it was OK to quote them. Word for word, without names. <a href="/what-people-say">Read them all →</a></p>
+  </section>
+
+  <section class="uc-related home-blog">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">From the blog</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/blog/what-is-in-an-iphone-backup">What's actually in an iPhone backup →</a>
+        <a class="uc-related__link" href="/blog/encrypted-backups-are-better">Encrypted backups are better, actually →</a>
+        <a class="uc-related__link" href="/blog/recovering-voicemails-from-loved-ones">Recovering voicemails from people who have passed →</a>
+        <a class="uc-related__link" href="/blog/switching-to-android-with-your-data">Switching to Android without losing your iPhone data →</a>
+        <a class="uc-related__link" href="/blog/open-source-trust-model">What "open source" actually means for a tool like this →</a>
+        <a class="uc-related__link" href="/blog/the-journal-you-never-meant-to-keep">The journal you never meant to keep →</a>
+        <a class="uc-related__link" href="/guides">Step-by-step iPhone backup guides →</a>
+      </div>
     </div>
   </section>
 
@@ -357,7 +418,7 @@
       </details>
       <details class="qa">
         <summary>Is it really free? What's the catch?</summary>
-        <p>No catch. It's MIT-licensed open source, built in the open by an independent developer. There's no account, no trial, no paid tier and nothing to upgrade to. It's free, with no strings attached. The code is public on GitHub if you want to verify.</p>
+        <p>No catch. It's MIT-licensed open source, built in the open by an independent developer. There's no account, no trial, no paid tier and nothing to upgrade to. It's free, with no strings attached. The code is public on GitHub if you want to verify. Coming from iMazing? Here's what the <a href="/use-cases/free-imazing-alternative">free iMazing alternative</a> covers, and <a href="/vs-imazing">where iMazing still wins</a>.</p>
       </details>
       <details class="qa">
         <summary>Can it read encrypted backups?</summary>
@@ -365,7 +426,7 @@
       </details>
       <details class="qa">
         <summary>What formats can I export to?</summary>
-        <p>Messages as PDF, HTML, CSV, or plain text. Photos as originals (HEIC, JPEG, MOV). Contacts as vCard or CSV. Each time you save, you choose where the files go.</p>
+        <p>Messages and WhatsApp chats as PDF, HTML, CSV, or plain text (here&rsquo;s <a href="/use-cases/export-whatsapp-chats-from-iphone-backup">how to export WhatsApp chats</a>). Photos as originals (HEIC, JPEG, MOV). Contacts as vCard or CSV. Each time you save, you choose where the files go.</p>
       </details>
       <details class="qa">
         <summary>Will Apple know I'm using this?</summary>
@@ -414,7 +475,6 @@
       <ul class="footer__list">
         <li><a href="/how-it-works">How it works</a></li>
         <li><a href="/screenshots">Screenshots</a></li>
-        <li><a href="/vs-imazing">vs iMazing</a></li>
         <li><a href="#download">Download</a></li>
       </ul>
     </div>
@@ -443,10 +503,23 @@
       </ul>
     </div>
     <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
       <div class="footer__col-head">Project</div>
       <ul class="footer__list">
         <li><a href="/about">About</a></li>
+        <li><a href="/support">Support OpenExtract</a></li>
+        <li><a href="/what-people-say">What people say</a></li>
         <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
         <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
         <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
       </ul>
@@ -476,5 +549,6 @@
       card.classList.add('dl-card--primary');
     })();
   </script>
+  <script defer src="/js/thanks.js"></script>
 </body>
 </html>

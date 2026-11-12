@@ -12,6 +12,8 @@ export interface RecentSession {
   caseLabel?: string;
   backupCount?: number;
   backupDir?: string;
+  /** The backup stopped partway, as of the last time it was opened. */
+  unfinished?: boolean;
 }
 
 export interface AppStateData {

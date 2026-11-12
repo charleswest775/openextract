@@ -1,9 +1,12 @@
 import { TimelineEntryType } from '../../types/timeline';
 
 // One color per kind of event, from the Hearth chart palette (index.css --series-*).
-// Timeline cards, these chips and the Year view all use it.
+// Timeline cards, these chips and the Year view all use it. WhatsApp's teal is
+// the one hue outside the palette: a nod to WhatsApp's own colour, bluer and
+// stronger than the sage of calls so the two don't read as one.
 export const TYPE_COLORS: Record<TimelineEntryType, string> = {
   message: '#c0603e',
+  whatsapp: '#2f8a7b',
   call: '#6f8f6f',
   photo: '#9a6a8a',
   voicemail: '#c89a3a',
@@ -13,6 +16,7 @@ export const TYPE_COLORS: Record<TimelineEntryType, string> = {
 
 export const TYPE_CONFIG: { type: TimelineEntryType; label: string; color: string }[] = [
   { type: 'message',   label: 'Messages',  color: TYPE_COLORS.message },
+  { type: 'whatsapp',  label: 'WhatsApp',  color: TYPE_COLORS.whatsapp },
   { type: 'call',      label: 'Calls',     color: TYPE_COLORS.call },
   { type: 'photo',     label: 'Photos',    color: TYPE_COLORS.photo },
   { type: 'voicemail', label: 'Voicemail', color: TYPE_COLORS.voicemail },

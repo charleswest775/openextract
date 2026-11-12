@@ -45,6 +45,89 @@ def _tlog(msg: str) -> None:
     except Exception:
         pass
 
+
+def _log_rpc_error(method, message: str) -> None:
+    """Note a failed call in the log as "[RPC ERROR] ...", the entries feedback reports include."""
+    try:
+        with open(_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(f"[RPC ERROR] {method}: {message}\n")
+    except Exception:
+        pass
+    print(f"[RPC ERROR] {method}: {message}", file=sys.stderr, flush=True)
+
+
+# ── Sending a result ──────────────────────────────────────────────────────────
+# A result that json can't write used to end the engine: json.dumps raised outside
+# handle_request's try, so the process exited and took every call waiting
+# behind it along (in-app reports OE-26 to OE-28: an iOS 6 backup's photos
+# came back with their UUIDs as raw bytes). Now raw bytes go as text, and a
+# result that still can't be written becomes an error naming the method.
+
+def _bytes_as_text(raw: bytes) -> str:
+    """Raw bytes for JSON: the text they hold when they are UTF-8 text, else hex."""
+    try:
+        text = raw.decode("utf-8").rstrip("\x00")
+    except UnicodeDecodeError:
+        return raw.hex()
+    if any(ch < " " and ch not in "\t\n\r" for ch in text):
+        return raw.hex()  # binary that happens to be valid UTF-8
+    return text
+
+
+def _without_bytes(value, path: str, found: dict):
+    """``value`` with every bytes object in it turned into text.
+
+    Counts each place one was found in ``found``, by a path like
+    ``result.photos[].uuid`` (list positions left out, so a list is one place).
+    """
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        found[path] = found.get(path, 0) + 1
+        return _bytes_as_text(bytes(value))
+    if isinstance(value, dict):
+        out = {}
+        for key, item in value.items():
+            if isinstance(key, (bytes, bytearray, memoryview)):
+                key = _bytes_as_text(bytes(key))
+            out[key] = _without_bytes(item, f"{path}.{key}" if path else str(key), found)
+        return out
+    if isinstance(value, (list, tuple)):
+        return [_without_bytes(item, f"{path}[]", found) for item in value]
+    return value
+
+
+def encode_response(response: dict, method=None) -> str:
+    """One JSON-RPC response as a line of JSON. Never raises.
+
+    A result holding raw bytes is sent with them as text, and the log says
+    where they were so the reader that returned them can be fixed. A result
+    that still can't be written (an object json doesn't know) is replaced by
+    a JSON-RPC error that names the method, and the engine carries on.
+    """
+    try:
+        return json.dumps(response)
+    except (TypeError, ValueError, RecursionError):
+        pass
+    found: dict = {}
+    try:
+        return_line = json.dumps(_without_bytes(response, "", found))
+        failure = None
+    except Exception as e:  # noqa: BLE001  anything at all: the engine must answer
+        return_line, failure = None, e
+    if found:
+        places = ", ".join(p + (f" ({n} values)" if n > 1 else "") for p, n in found.items())
+        _log_rpc_error(method, f"sent raw bytes as text at {places}")
+    if failure is None:
+        return return_line
+    _log_rpc_error(method, f"couldn't send the result: {type(failure).__name__}: {failure}")
+    error = {
+        "code": -32603,
+        "message": f"OpenExtract couldn't send the result of {method}: {type(failure).__name__}: {failure}",
+    }
+    try:
+        return json.dumps({"id": response.get("id"), "error": error})
+    except (TypeError, ValueError):
+        return json.dumps({"id": None, "error": error})
+
 from backup import BackupManager  # noqa: E402
 from messages import MessageExtractor  # noqa: E402
 from contacts import ContactResolver  # noqa: E402
@@ -53,6 +136,7 @@ from voicemail import VoicemailExtractor  # noqa: E402
 from calls import CallExtractor  # noqa: E402
 from notes import NoteExtractor  # noqa: E402
 from browser_history import BrowserHistoryExtractor  # noqa: E402
+from whatsapp import WhatsAppExtractor  # noqa: E402
 from message_recovery import MessageRecoveryExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
 from stats import StatsComputer  # noqa: E402
@@ -69,9 +153,10 @@ class SidecarServer:
         self.call_extractor = CallExtractor()
         self.note_extractor = NoteExtractor()
         self.browser_history_extractor = BrowserHistoryExtractor()
+        self.whatsapp_extractor = WhatsAppExtractor()
         self.message_recovery_extractor = MessageRecoveryExtractor()
         self.device_backup_manager = DeviceBackupManager()
-        self.stats_computer = StatsComputer(self.photo_extractor)
+        self.stats_computer = StatsComputer(self.photo_extractor, self.whatsapp_extractor)
         self.year_counter = YearCounter(
             self.message_extractor, self.photo_extractor, self.call_extractor,
             self.note_extractor, self.browser_history_extractor,
@@ -110,6 +195,14 @@ class SidecarServer:
             "has_browser_history": self.has_browser_history,
             "list_browser_history": self.list_browser_history,
             "export_browser_history": self.export_browser_history,
+            # WhatsApp: its own methods, because its ids overlap with Messages'
+            "list_whatsapp_chats": self.list_whatsapp_chats,
+            "get_whatsapp_messages": self.get_whatsapp_messages,
+            "get_whatsapp_message_offset": self.get_whatsapp_message_offset,
+            "search_whatsapp_messages": self.search_whatsapp_messages,
+            "get_whatsapp_attachment": self.get_whatsapp_attachment,
+            "export_whatsapp_chat": self.export_whatsapp_chat,
+            "export_whatsapp_chats": self.export_whatsapp_chats,
             # Record recovery
             "recover_messages": self.recover_messages,
             "export_recovered_messages": self.export_recovered_messages,
@@ -185,6 +278,9 @@ class SidecarServer:
         backup_dir = params.get("backup_dir")
         # Clear cached contacts so they are reloaded from the (re)opened backup
         self.contact_resolver.clear_cache(udid)
+        # WhatsApp's names and file list too (a reopened backup is a new
+        # accessor anyway; this keeps a backup made again in place honest)
+        self.whatsapp_extractor.clear_cache()
         return self.backup_manager.open_backup(udid, password=password, backup_dir=backup_dir)
 
     def validate_password(self, params):
@@ -409,6 +505,93 @@ class SidecarServer:
             backup, output_dir, browser
         )
 
+    # ── WhatsApp ─────────────────────────────────────────────────────────────
+    # ChatStorage.sqlite's ids overlap with sms.db's, so none of these may be
+    # handed a Messages id, and no Messages method a WhatsApp one.
+
+    def list_whatsapp_chats(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        return self.whatsapp_extractor.list_conversations(backup, contacts)
+
+    def get_whatsapp_messages(self, params):
+        """One page of a chat, in arrival order (each message's ``sort``), newest page first."""
+        udid = params["udid"]
+        chat_id = params["chat_id"]
+        offset = params.get("offset", 0)
+        limit = params.get("limit", 50)
+        date_from = params.get("date_from")
+        date_to = params.get("date_to")
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        return self.whatsapp_extractor.get_messages(
+            backup, chat_id, contacts, offset, limit, date_from, date_to
+        )
+
+    def get_whatsapp_message_offset(self, params):
+        """Where one message sits in its chat, for opening the chat at it."""
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.whatsapp_extractor.get_message_offset(backup, params["chat_id"], params["message_id"])
+
+    def search_whatsapp_messages(self, params):
+        udid = params["udid"]
+        query = params["query"]
+        chat_id = params.get("chat_id")
+        date_from = params.get("date_from")
+        date_to = params.get("date_to")
+        limit = params.get("limit", 5000)
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        return self.whatsapp_extractor.search_messages(
+            backup, query, contacts, chat_id, date_from=date_from, date_to=date_to, limit=limit
+        )
+
+    def get_whatsapp_attachment(self, params):
+        """A media file as base64, or (as_file) a copy on disk to open in another app."""
+        udid = params["udid"]
+        attachment_id = params["attachment_id"]
+        thumbnail = bool(params.get("thumbnail", False))
+        as_file = bool(params.get("as_file", False))
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.whatsapp_extractor.get_attachment(backup, attachment_id, thumbnail=thumbnail, as_file=as_file)
+
+    def export_whatsapp_chat(self, params):
+        udid = params["udid"]
+        chat_id = params["chat_id"]
+        fmt = params.get("format", "txt")
+        output_dir = params.get("output_dir", ".")
+        date_from = params.get("date_from")
+        date_to = params.get("date_to")
+        query = params.get("query")
+        display_name = params.get("display_name")
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        return self.whatsapp_extractor.export_conversation(
+            backup, chat_id, contacts, fmt, output_dir,
+            date_from=date_from, date_to=date_to, query=query, display_name=display_name
+        )
+
+    def export_whatsapp_chats(self, params):
+        udid = params["udid"]
+        chat_ids = params["chat_ids"]
+        conversation_names = params.get("conversation_names", {})
+        fmt = params.get("format", "txt")
+        output_dir = params.get("output_dir", ".")
+        mode = params.get("mode", "separate")
+        date_from = params.get("date_from")
+        date_to = params.get("date_to")
+        query = params.get("query")
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        # conversation_names comes as a JSON object with string keys
+        names = {int(k): v for k, v in conversation_names.items()}
+        return self.whatsapp_extractor.export_conversations(
+            backup, chat_ids, names, contacts, fmt, output_dir,
+            mode=mode, date_from=date_from, date_to=date_to, query=query
+        )
+
     # ── Record recovery ──────────────────────────────────────────────────────
 
     def recover_messages(self, params):
@@ -599,7 +782,8 @@ class SidecarServer:
                 continue
 
             response = self.handle_request(request)
-            _rpc_out.write(json.dumps(response) + "\n")
+            method = request.get("method") if isinstance(request, dict) else None
+            _rpc_out.write(encode_response(response, method) + "\n")
             _rpc_out.flush()
 
 

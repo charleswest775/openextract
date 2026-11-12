@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#faf6f1" />
   <title>OpenExtract vs iMazing: an honest comparison (free vs paid)</title>
-  <meta name="description" content="iMazing is subscription-only now, and its trial stops at 25 messages. OpenExtract is free and open source. A side-by-side look, including where iMazing wins." />
+  <meta name="description" content="iMazing is subscription-only and its trial stops at 25 messages. OpenExtract is free and open source. Feature by feature, including where iMazing wins." />
   <link rel="canonical" href="https://www.openextract.app/vs-imazing" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta property="og:type" content="article" />
@@ -16,6 +16,60 @@
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "OpenExtract vs iMazing: an honest comparison",
+    "description": "iMazing is subscription-only and its trial stops at 25 messages. OpenExtract is free and open source. Feature by feature, including where iMazing wins.",
+    "url": "https://www.openextract.app/vs-imazing",
+    "datePublished": "2026-04-18",
+    "dateModified": "2026-11-11",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": { "@type": "WebSite", "name": "OpenExtract", "url": "https://www.openextract.app/" },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "mentions": {
+      "@type": "SoftwareApplication",
+      "name": "iMazing",
+      "url": "https://imazing.com/"
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/home-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      { "@type": "Question", "name": "Is OpenExtract a fork of iMazing?", "acceptedAnswer": { "@type": "Answer", "text": "No. It's an independent project that reads the documented Apple iPhone-backup format. Any compliant tool can read those files." } },
+      { "@type": "Question", "name": "Can I use OpenExtract exports in court?", "acceptedAnswer": { "@type": "Answer", "text": "Exports keep the date, time and sender of every message, so they read clearly when printed. Whether a court accepts them depends on your jurisdiction and your case, so ask your lawyer." } },
+      { "@type": "Question", "name": "Does OpenExtract handle encrypted backups?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Supply the password; decryption happens on your laptop. Encrypted backups contain more data (saved passwords, Safari history)." } },
+      { "@type": "Question", "name": "Is OpenExtract safe to install?", "acceptedAnswer": { "@type": "Answer", "text": "Source is public on GitHub. Installers are code-signed. Nothing you extract is ever uploaded, and update checks are off unless you turn them on. You can verify all of that yourself." } },
+      { "@type": "Question", "name": "Will it work on backups iMazing made?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, with one extra step. iMazing keeps its backups in its own folder, so OpenExtract won't find them on its own. Use iMazing's Export Backup as Folder, which writes a standard Apple backup, and open that folder in OpenExtract." } }
+    ]
+  }
+  </script>
+
   <script defer src="/_vercel/insights/script.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -43,7 +97,7 @@
   <header class="page-head">
     <div class="page-head__eyebrow">Comparison · honest</div>
     <h1>OpenExtract <span class="it it--coral">vs</span> iMazing</h1>
-    <p class="page-head__lede">A fair look at two tools for extracting data from iPhone backups — from someone who built one of them. Including the places iMazing is the better call.</p>
+    <p class="page-head__lede">A fair look at two tools for extracting data from iPhone backups — from someone who built one of them. Including the places iMazing is the better call. If you just want a free way to get your data out, see what OpenExtract covers as a <a href="/use-cases/free-imazing-alternative">free iMazing alternative</a>. Or compare <a href="/imazing-alternatives">every iMazing alternative</a>, free and paid.</p>
   </header>
 
   <section class="verdict-wrap">
@@ -88,6 +142,7 @@
           <tr><td class="matrix__k">Processing</td><td class="matrix__cell">100% local</td><td class="matrix__cell">100% local</td></tr>
           <tr><td class="matrix__k">Encrypted iPhone backups</td><td class="matrix__cell">Supported</td><td class="matrix__cell">Supported</td></tr>
           <tr><td class="matrix__k">Messages (SMS / iMessage)</td><td class="matrix__cell">Extract + export</td><td class="matrix__cell">Extract + export</td></tr>
+          <tr><td class="matrix__k">WhatsApp chats</td><td class="matrix__cell">Extract + export</td><td class="matrix__cell">Extract + export</td></tr>
           <tr><td class="matrix__k">Photos &amp; videos with EXIF</td><td class="matrix__cell">Yes</td><td class="matrix__cell">Yes</td></tr>
           <tr><td class="matrix__k">Call history</td><td class="matrix__cell">Yes</td><td class="matrix__cell">Yes</td></tr>
           <tr><td class="matrix__k">Contacts &amp; notes</td><td class="matrix__cell">Yes</td><td class="matrix__cell">Yes</td></tr>
@@ -98,7 +153,6 @@
           <tr><td class="matrix__k">Cross-device transfers</td><td class="matrix__cell">No</td><td class="matrix__cell matrix__cell--win-im">Yes</td></tr>
           <tr><td class="matrix__k">App / music / ringtone sync</td><td class="matrix__cell">No</td><td class="matrix__cell matrix__cell--win-im">Yes</td></tr>
           <tr><td class="matrix__k">Paid commercial support</td><td class="matrix__cell">No · free help on GitHub</td><td class="matrix__cell matrix__cell--win-im">Yes, vendor-backed</td></tr>
-          <tr><td class="matrix__k">Manages the phone itself (apps, ringtones, live transfers)</td><td class="matrix__cell">No, reads backups only</td><td class="matrix__cell matrix__cell--win-im">Yes</td></tr>
         </tbody>
       </table>
     </div>
@@ -108,7 +162,7 @@
     <div>
       <h3>Where OpenExtract <span class="it it--coral">wins</span></h3>
       <div class="wheres__row"><div class="wheres__row-k">Price.</div><div class="wheres__row-v">Free and open source. No trial, no paywall and no paid tier.</div></div>
-      <div class="wheres__row"><div class="wheres__row-k">Open source.</div><div class="wheres__row-v">MIT-licensed. Read every line. Fork it. Modify it. Verify exactly what it does to your backup.</div></div>
+      <div class="wheres__row"><div class="wheres__row-k">Open source.</div><div class="wheres__row-v">MIT-licensed. Read every line. Fork it. Modify it. Verify exactly what it does to your backup. <a href="/blog/open-source-trust-model">What that means in practice</a>.</div></div>
       <div class="wheres__row"><div class="wheres__row-k">Auditability for sensitive work.</div><div class="wheres__row-v">For legal or investigative use, "this tool's code is public" is a different trust model from "trust the vendor."</div></div>
       <div class="wheres__row"><div class="wheres__row-k">Linux support.</div><div class="wheres__row-v">Runs on Linux too, so you can get your texts off an iPhone backup on any computer you own. <a href="/use-cases/iphone-backup-extractor-linux">Linux guide</a>.</div></div>
       <div class="wheres__row"><div class="wheres__row-k">No account, no telemetry.</div><div class="wheres__row-v">Nothing to register. Nothing phoned home. Nothing to cancel.</div></div>
@@ -119,19 +173,18 @@
       <div class="wheres__row"><div class="wheres__row-k">Maturity.</div><div class="wheres__row-v">iMazing has over a decade of edge-case handling across iOS versions. OpenExtract is newer; you may hit rough spots it hasn't.</div></div>
       <div class="wheres__row"><div class="wheres__row-k">Live device management.</div><div class="wheres__row-v">Transferring between phones, managing apps, syncing music — iMazing does it. We don't.</div></div>
       <div class="wheres__row"><div class="wheres__row-k">Paid commercial support.</div><div class="wheres__row-v">When something breaks on a deadline, a vendor support team is different from GitHub issues.</div></div>
-      <div class="wheres__row"><div class="wheres__row-k">Managing the phone itself.</div><div class="wheres__row-v">iMazing can manage apps, ringtones and live transfers on a connected iPhone. OpenExtract only reads backups.</div></div>
     </div>
   </section>
 
   <section class="migrate">
     <div class="migrate__inner">
       <div class="migrate__eyebrow">Migrating from iMazing</div>
-      <h2>Your backups <span class="it">already work</span>.</h2>
-      <p>iMazing reads the same iTunes/Finder backup format Apple writes. So does OpenExtract. You don't need to re-back-up anything.</p>
+      <h2>Bring your backups <span class="it">with you</span>.</h2>
+      <p>OpenExtract finds the backups Finder, iTunes or the Apple Devices app made on its own. iMazing keeps the backups it makes in its own folder, and its advice for opening one in another app is Export Backup as Folder, which writes a standard Apple backup.</p>
       <ol>
         <li>Install OpenExtract. Free, about 180 MB.</li>
-        <li>Launch it. It scans for existing backups automatically.</li>
-        <li>If your backup was stored in iMazing's custom location, point OpenExtract at the folder. Any folder with a <code>Manifest.db</code> works.</li>
+        <li>Launch it. It scans Apple's usual backup folders automatically.</li>
+        <li>For a backup iMazing made, use Export Backup as Folder in iMazing, then point OpenExtract at that folder. Any folder with a <code>Manifest.db</code> works.</li>
         <li>Export what you need. Done.</li>
       </ol>
     </div>
@@ -157,7 +210,7 @@
     </details>
     <details class="qa">
       <summary>Will it work on backups iMazing made?</summary>
-      <p>Yes. iMazing writes standard Apple backups unless you configure it otherwise.</p>
+      <p>Yes, with one extra step. iMazing keeps its backups in its own folder, so OpenExtract won't find them on its own. Use iMazing's Export Backup as Folder, which writes a standard Apple backup, and open that folder in OpenExtract.</p>
     </details>
   </section>
 
@@ -171,6 +224,13 @@
         <a class="uc-related__link" href="/use-cases/free-imazing-alternative">A free, open-source iMazing alternative →</a>
       </div>
     </div>
+  </section>
+
+  <section class="testimonials testimonials--quotes" data-thanks data-thanks-limit="3" hidden>
+    <div class="section-label">Sent from the app</div>
+    <h2>In their<br /><span class="it">own words.</span></h2>
+    <div class="testimonials__grid" data-thanks-list></div>
+    <p class="testimonials__note">Thank-yous sent from inside OpenExtract by people who said it was OK to quote them. Word for word, without names. <a href="/what-people-say">Read them all →</a></p>
   </section>
 
   <section class="cta-strip">
@@ -196,7 +256,6 @@
       <ul class="footer__list">
         <li><a href="/how-it-works">How it works</a></li>
         <li><a href="/screenshots">Screenshots</a></li>
-        <li><a href="/vs-imazing">vs iMazing</a></li>
         <li><a href="/#download">Download</a></li>
       </ul>
     </div>
@@ -225,14 +284,28 @@
       </ul>
     </div>
     <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
       <div class="footer__col-head">Project</div>
       <ul class="footer__list">
         <li><a href="/about">About</a></li>
+        <li><a href="/support">Support OpenExtract</a></li>
+        <li><a href="/what-people-say">What people say</a></li>
         <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
         <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
         <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
       </ul>
     </div>
   </footer>
+  <script defer src="/js/thanks.js"></script>
 </body>
 </html>

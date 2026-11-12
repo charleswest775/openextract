@@ -35,7 +35,8 @@ type BackupStatus = 'idle' | 'running' | 'success' | 'error';
 // Errors that are steps for the user, not bugs, so they get no "Report this problem"
 // (python/device_backup.py). DEVICE_SERVICE_REQUIRED means usbmuxd can't be reached:
 // on Windows, Apple Devices or iTunes isn't installed or isn't running.
-// DEVICE_DISCONNECTED means the iPhone was unplugged during the backup.
+// DEVICE_DISCONNECTED means the iPhone dropped off during the backup: unplugged, or
+// the computer went to sleep (electron/main.ts says which when it knows).
 const DEVICE_SERVICE_PREFIX = 'DEVICE_SERVICE_REQUIRED: ';
 const SETUP_PREFIX = /^(TRUST_REQUIRED|PASSCODE_REQUIRED|DEVICE_SERVICE_REQUIRED|DEVICE_DISCONNECTED): /;
 const APPLE_DEVICES_STORE_URL = 'ms-windows-store://pdp/?ProductId=9NP83LWLPZ9K';
@@ -257,6 +258,8 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
         lastOpened: new Date().toISOString(),
         iosVersion: selectedDevice.ios_version,
         backupDir: result.backup_path,
+        // This backup just finished; clear a "Didn't finish" left from an earlier try.
+        unfinished: false,
       });
 
       if (onBackupComplete) {

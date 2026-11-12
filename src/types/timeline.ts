@@ -1,4 +1,6 @@
-export type TimelineEntryType = 'message' | 'call' | 'photo' | 'voicemail' | 'note' | 'browser';
+import type { WhatsAppCallOutcome } from './whatsapp';
+
+export type TimelineEntryType = 'message' | 'whatsapp' | 'call' | 'photo' | 'voicemail' | 'note' | 'browser';
 
 export interface TimelineEntry {
   id: string;                         // "{type}:{original_id}"
@@ -17,6 +19,35 @@ export interface TimelineEntry {
     service: string;
     chatId?: number;
     isGroup?: boolean;
+  };
+  /**
+   * A WhatsApp message. Its id is "whatsapp:<ChatStorage Z_PK>" and its chatId is a
+   * ChatStorage chat, never an sms.db one: open it with openTab('whatsapp', { waChatId }).
+   */
+  whatsapp?: {
+    text: string | null;
+    isFromMe: boolean;
+    /** "me" when from me, "" on system rows, else a name or "+digits". */
+    sender: string;
+    /** text, image, video, audio, document, sticker, gif, contact, shared_location, live_location, call, system, deleted, poll, view_once, link, unknown */
+    messageType: string;
+    /** What happened, for calls, locations, system rows and media without text. */
+    eventText: string | null;
+    /** The first attachment's name or label ("Photo", "IMG_0001.jpg"), for describing and searching. */
+    attachmentLabel: string | null;
+    conversationName: string;
+    chatId: number;
+    chatType: 'individual' | 'group' | 'broadcast' | 'channel';
+    isGroup: boolean;
+    /** Arrival order in the chat (ZSORT), for stepping through matches in thread order. */
+    sort: number | null;
+    /** On a call row: how it went, so search can find "missed" calls and the Timeline can mark them. */
+    call?: {
+      outcome: WhatsAppCallOutcome;
+      direction: 'incoming' | 'outgoing';
+      isVideo: boolean | null;
+      duration: number | null;
+    } | null;
   };
   call?: {
     direction: string;
@@ -66,7 +97,7 @@ export interface ContactOption {
 }
 
 export const DEFAULT_FILTERS: TimelineFilters = {
-  types: new Set(['message', 'call', 'photo', 'voicemail', 'note', 'browser']),
+  types: new Set(['message', 'whatsapp', 'call', 'photo', 'voicemail', 'note', 'browser']),
   contactIdentifier: '',
   dateFrom: '',
   dateTo: '',

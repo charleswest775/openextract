@@ -3,7 +3,8 @@ import {
   ChartIcon, ChevronRightIcon, ClockIcon, CalendarIcon, ExportIcon, FolderIcon, NoteIcon, RecoverIcon, SearchIcon, VoicemailIcon,
 } from '../shared/Icons';
 import { gatherPeople } from '../people/gather';
-import { DATA_SECTIONS, type ExploreContext, type Icon, type Tab } from './sections';
+import { plural } from '../../lib/saveData';
+import { DATA_SECTIONS, whatsappUnreadable, type ExploreContext, type Icon, type Tab } from './sections';
 
 function monthYear(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -31,6 +32,12 @@ interface Tile {
 }
 
 /**
+ * The People tile's line. It names no kinds: People gathers Messages, WhatsApp,
+ * calls and voicemail, and a list of them doesn't fit on the tile.
+ */
+export const PEOPLE_LINE = 'Everyone you were in touch with';
+
+/**
  * The way into a backup: one large tile per kind of data with what's in it,
  * quiet tiles for what the backup lacks, the jobs people come to do, and the tools.
  */
@@ -40,25 +47,36 @@ export default function BackupHome({ ctx, onSearch }: { ctx: ExploreContext; onS
   const shortcut = window.openextract.platform === 'darwin' ? '⌘K' : 'Ctrl+K';
   // People come from the records, so the count grows while the backup is read
   const peopleCount = useMemo(
-    () => gatherPeople(ctx.index.entries).filter(p => !p.isGroup).length,
-    [ctx.index.entries],
+    () => gatherPeople(ctx.index.entries, ctx.index.addressBook ?? []).filter(p => !p.isGroup).length,
+    [ctx.index.entries, ctx.index.addressBook],
   );
 
   const lines: Partial<Record<Tab, string>> = stats ? {
     messages: range(stats.messages.first_message_date, stats.messages.last_message_date),
     photos: range(stats.photos.earliest_date, stats.photos.latest_date),
-    people: 'Messages, calls and voicemail, by person',
+    people: PEOPLE_LINE,
     contacts: 'Saved names, numbers and emails',
     calls: stats.calls.total_duration_seconds > 0 ? `${spoken(stats.calls.total_duration_seconds)} of talking` : 'Who called, and when',
     notes: stats.notes.avg_length_chars > 0 ? `About ${Math.max(1, Math.round(stats.notes.avg_length_chars / 6))} words each` : 'Lists, plans and ideas',
     voicemail: stats.voicemails.total_duration_seconds > 0 ? `${spoken(stats.voicemails.total_duration_seconds)} of audio` : 'Messages people left',
     browser_history: 'Pages visited in Safari and Firefox',
   } : {};
+  // WhatsApp's line comes from the overview: how many chats, or that it couldn't be read
+  if (overview) {
+    lines.whatsapp = overview.whatsapp_status === 'unsupported_format'
+      ? "This WhatsApp version can't be read yet"
+      : overview.whatsapp_status === 'error'
+        ? "Couldn't be read: open it to see why"
+        : overview.total_whatsapp_chats ? plural(overview.total_whatsapp_chats, 'chat') : 'Chats, groups and calls';
+  }
 
   const tiles: Tile[] = [
     ...ctx.data.map(s => ({
       tab: s.id, icon: s.icon, label: s.label,
-      value: s.id === 'people' ? (peopleCount || undefined) : s.count && overview ? s.count(overview) : undefined,
+      value: s.id === 'people' ? (peopleCount || undefined)
+        // An unreadable WhatsApp has no number to show, only why
+        : s.id === 'whatsapp' && whatsappUnreadable(overview) ? undefined
+        : s.count && overview ? s.count(overview) : undefined,
       line: lines[s.id] ?? '',
     })),
     { tab: 'timeline', icon: ClockIcon, label: 'Timeline', line: 'Every event, newest first' },
@@ -74,8 +92,9 @@ export default function BackupHome({ ctx, onSearch }: { ctx: ExploreContext; onS
       default: return '';
     }
   };
+  // WhatsApp isn't listed as missing: most iPhones don't have it, so a backup without it lacks nothing
   const missing = overview
-    ? DATA_SECTIONS.filter(s => s.id !== 'people' && !has(s.id) && (s.id !== 'browser_history' || !hasBrowserHistory))
+    ? DATA_SECTIONS.filter(s => s.id !== 'people' && s.id !== 'whatsapp' && !has(s.id) && (s.id !== 'browser_history' || !hasBrowserHistory))
     : [];
 
   const tasks: { icon: Icon; label: string; tab: Tab }[] = [
@@ -102,7 +121,7 @@ export default function BackupHome({ ctx, onSearch }: { ctx: ExploreContext; onS
         <div>
           <h1 className="text-4xl text-text-primary">{overview?.device_name ?? ctx.session?.name}</h1>
           <p className="text-base text-text-secondary mt-2">
-            {[backedUp && `Backed up ${backedUp}`, overview?.ios_version && `iOS ${overview.ios_version}`, history && `history from ${history}`]
+            {[backedUp && (ctx.unfinished ? `Backup started ${backedUp} and didn't finish` : `Backed up ${backedUp}`), overview?.ios_version && `iOS ${overview.ios_version}`, history && `history from ${history}`]
               .filter(Boolean).join(' · ')}
           </p>
           <button

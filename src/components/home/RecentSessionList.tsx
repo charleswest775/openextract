@@ -1,5 +1,6 @@
 import type { RecentSession } from '../../lib/appState';
 import { PhoneIcon, CaseIcon, ChevronRightIcon } from '../shared/Icons';
+import UnfinishedLabel from '../shared/UnfinishedLabel';
 
 interface Props {
   sessions: RecentSession[];
@@ -55,6 +56,7 @@ export default function RecentSessionList({ sessions, onOpenSession }: Props) {
                   CASE
                 </span>
               )}
+              {session.unfinished && <UnfinishedLabel />}
             </div>
             <div className="text-sm text-text-secondary truncate">{formatSubtitle(session)}</div>
           </div>

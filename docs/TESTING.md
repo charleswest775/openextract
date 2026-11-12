@@ -16,6 +16,7 @@ backup, and never put one in a screenshot, issue or log.
 | Renderer logic | every module in `src/lib`, the hooks' pure logic, dates in several time zones | `scripts/*.test.mjs` | every PR, 3 OSes |
 | Electron main process | the engine client (`sidecar.ts`), every IPC handler, the updater, PDF export, feedback | `scripts/*.test.mjs` | every PR, 3 OSes |
 | Engine | parsing, exports, error handling | `python/tests/test_*.py` | every PR, 3 OSes |
+| Backing up an iPhone | the whole backup path (the engine, pymobiledevice3's MobileBackup2 and DeviceLink, files on disk) against a scripted fake iPhone: dropped and reset connections, unplugging, slow and full disks, folders in use, the iPhone's own errors, passcode waits, replayed traces; backups cut off partway and then opened | `python/tests/test_fake_iphone_backup.py`, `python/tests/test_unfinished_backup.py`, `python/tests/fake_iphone` | every PR, 3 OSes |
 | Engine contract | every JSON-RPC method over stdin/stdout on generated backups, empty states, malformed requests, speed limits | `python/tests/test_rpc_contract.py` | every PR, 3 OSes |
 | Corpus | generated backups against their answer keys; real public backups weekly | `python/tests/corpus` | every PR (generated), weekly (public) |
 | End to end | the real app window: every screen, every export and format, the IPC bridge, recents, passwords, empty states, performance budgets, no network traffic | `scripts/e2e` | every PR on a development build, 3 OSes; before a release on the packaged app |
@@ -32,6 +33,7 @@ From the repository root, with the engine's Python environment set up as in the 
 ```bash
 npm test                              # renderer, main process, guards (about 5 s)
 pytest python/tests/ -v               # engine and engine contract
+pytest python/tests -m fake_iphone    # only the backups from the fake iPhone (python/tests/fake_iphone/README.md)
 pytest python/tests/corpus -m corpus  # generated corpus (and any public items you fetched)
 ```
 

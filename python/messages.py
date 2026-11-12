@@ -208,6 +208,12 @@ class MessageExtractor:
     # ── Delegated raw-extraction methods ─────────────────────────────────────
 
     def list_conversations(self, backup, contacts: dict) -> dict:
+        # No sms.db (a backup that stopped early, or one of a device that never
+        # had Messages) means no conversations: a calm empty, like Voicemail's,
+        # not a read error with a Report button. The library says "sms.db not
+        # found" as an error, so ask it where sms.db is rather than read that.
+        if not self._inner._get_sms_db(backup):
+            return {"conversations": [], "empty_reason": "not_in_backup"}
         return self._inner.list_conversations(backup, contacts)
 
     def get_messages(self, backup, chat_id: int, contacts: dict,

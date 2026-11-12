@@ -18,6 +18,8 @@ export interface BackupFacts {
   iosVersion?: string;
   encrypted?: boolean;
   sizeGB?: number | null;
+  /** The backup stopped partway (OE-31), so sections may fail for that reason alone. */
+  unfinished?: boolean;
 }
 
 export interface RecentFailure {
@@ -204,6 +206,7 @@ export class FeedbackRecorder {
         iosVersion: typeof info.product_version === 'string' ? info.product_version : undefined,
         encrypted: typeof info.encrypted === 'boolean' ? info.encrypted : undefined,
         sizeGB: typeof info.size_gb === 'number' ? Math.round(info.size_gb * 10) / 10 : null,
+        ...(info.unfinished === true ? { unfinished: true } : {}),
       };
       this.outcomes.clear();
     }

@@ -29,24 +29,49 @@
       "permanent": true
     },
     {
+      "source": "/support/pay",
+      "destination": "https://buy.stripe.com/6oUcN5eYMfeebeR5n62wU00",
+      "permanent": false
+    },
+    {
       "source": "/download/mac/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.12.0/OpenExtract-0.12.0-arm64.dmg",
+      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.14.0/OpenExtract-0.14.0-arm64.dmg",
       "permanent": false
     },
     {
       "source": "/download/windows/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.12.0/OpenExtract-Setup-0.12.0.exe",
+      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.14.0/OpenExtract-Setup-0.14.0.exe",
       "permanent": false
     },
     {
       "source": "/download/linux/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.12.0/openextract_0.12.0_amd64.deb",
+      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.14.0/openextract_0.14.0_amd64.deb",
       "permanent": false
     },
     {
       "source": "/download/linux-appimage/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.12.0/OpenExtract-0.12.0.AppImage",
+      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.14.0/OpenExtract-0.14.0.AppImage",
       "permanent": false
+    },
+    {
+      "source": "/for/legal",
+      "destination": "/use-cases/print-text-messages-for-court",
+      "statusCode": 301
+    },
+    {
+      "source": "/for/personal",
+      "destination": "/use-cases/export-iphone-data",
+      "statusCode": 301
+    },
+    {
+      "source": "/for/investigators",
+      "destination": "/use-cases/free-iphone-backup-viewer",
+      "statusCode": 301
+    },
+    {
+      "source": "/what-you-can-recover",
+      "destination": "/blog/what-is-in-an-iphone-backup",
+      "statusCode": 301
     },
     {
       "source": "/:path(.*)",

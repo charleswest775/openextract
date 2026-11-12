@@ -27,3 +27,37 @@ export function notYetOpened(found: BackupInfo[], sessions: RecentSession[]): Ba
     s.backupDir ? samePath(s.backupDir, b.backup_dir) : s.id === b.udid,
   ));
 }
+
+/**
+ * What the home screen says when looking for backups failed, above its Look again
+ * button, instead of leaving out the found list without a word (in-app report OE-27).
+ * `error` is the failed list_backups call's message.
+ */
+export function lookFailedMessage(error: string): string {
+  // The engine has exited (it used to on an iOS 6 backup's photos) and the app
+  // doesn't start it again by itself, so only reopening it helps.
+  if (/sidecar is not running|sidecar exited/i.test(error)) {
+    return "OpenExtract couldn't look for other backups on this computer because its engine stopped. Quit and reopen OpenExtract to look again.";
+  }
+  return "OpenExtract couldn't look for other backups on this computer.";
+}
+
+/**
+ * Shown on a backup that stopped partway, once it's open (the engine's
+ * backup_status.UNFINISHED says the same).
+ */
+export const UNFINISHED_MESSAGE =
+  "This backup didn't finish, so some things may be missing or won't open. Make a new backup to see everything.";
+
+/** The label beside a backup's name in a list when it stopped partway. */
+export const UNFINISHED_LABEL = "Didn't finish";
+
+/**
+ * When a backup was made, for a list: "Backed up Nov 3, 2026". A backup that
+ * stopped partway gives the day it was started, because that's all its date says.
+ */
+export function whenLine(b: Pick<BackupInfo, 'last_backup' | 'unfinished'>, formatDate: (iso: string) => string): string | undefined {
+  const date = b.last_backup ? formatDate(b.last_backup) : '';
+  if (!date) return undefined;
+  return b.unfinished ? `Started ${date}` : `Backed up ${date}`;
+}

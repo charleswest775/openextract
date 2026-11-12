@@ -31,6 +31,8 @@ from ios_backup_core.backup import (
     open_local_backup,
 )
 
+import backup_status
+
 # Re-export for any code paths still importing EncryptedBackup directly via
 # this module (none in main.py, but kept to avoid surprises).
 # OSError too: pycryptodome raises it when Windows refuses to load one of its
@@ -254,12 +256,19 @@ class BackupManager:
         A backup folder has a Manifest.db, or a Manifest.mbdb if iOS 9 or
         earlier made it (``manifest_format`` "db" or "mbdb"). Both have the
         same Info.plist and Manifest.plist.
+
+        A backup that stopped partway is listed too, with ``unfinished`` set
+        (backup_status.py says how that's told). ``openable`` is False when
+        there's nothing in it to open: it stopped before the iPhone sent its
+        Manifest.db, or it's encrypted and the failed try emptied the
+        Manifest.plist that held its keys.
         """
         info_plist = os.path.join(backup_dir, "Info.plist")
         manifest_plist = os.path.join(backup_dir, "Manifest.plist")
 
         fmt = manifest_format(backup_dir)
-        if fmt is None:
+        completion = backup_status.check(backup_dir)
+        if fmt is None and not completion.is_backup:
             return None
 
         info = {}
@@ -316,9 +325,13 @@ class BackupManager:
             except Exception:
                 pass
 
-        info["encrypted"] = encrypted
+        info["encrypted"] = encrypted or completion.problem == backup_status.CANT_UNLOCK
         info["backup_dir"] = backup_dir
         info["manifest_format"] = fmt
+        info["unfinished"] = not completion.finished
+        info["openable"] = completion.openable
+        if not completion.finished:
+            info["unfinished_signs"] = completion.signs
 
         # Size is computed lazily via get_backup_size() to keep list_backups fast.
         info["size_bytes"] = None
@@ -335,10 +348,12 @@ class BackupManager:
         """Find the backup for *udid* one level below *parent_dir*.
 
         Prefers the subfolder whose Info.plist UDID (or folder name) matches;
-        falls back to the first backup found only when none match.
+        falls back to the first backup found only when none match. Among
+        those, one with something to open comes before one that stopped too
+        early to have anything.
         """
         norm = self._norm_udid(udid or "")
-        first = None
+        matches, others = [], []
         for entry in sorted(os.scandir(parent_dir), key=lambda e: e.name):
             if not entry.is_dir():
                 continue
@@ -346,9 +361,13 @@ class BackupManager:
             if not info:
                 continue
             if norm and norm in (self._norm_udid(info.get("udid") or ""), self._norm_udid(entry.name)):
-                return info
-            first = first or info
-        return first
+                matches.append(info)
+            else:
+                others.append(info)
+        for candidates in (matches, others):
+            if candidates:
+                return next((b for b in candidates if b["openable"]), candidates[0])
+        return None
 
     def open_backup(self, udid: str, password: Optional[str] = None,
                     backup_dir: Optional[str] = None) -> dict:
@@ -402,11 +421,10 @@ class BackupManager:
             all_backups = self.list_backups()
             _tlog(f"open_backup slow-path: found {len(all_backups['backups'])} backup(s) in default dirs")
             blocked = all_backups["permission_denied"]
-            for b in all_backups["backups"]:
-                if self._norm_udid(b["udid"]) == norm_udid:
-                    backup_info = b
-                    _tlog(f"open_backup slow-path: matched udid in {b['backup_dir']!r}")
-                    break
+            same_iphone = [b for b in all_backups["backups"] if self._norm_udid(b["udid"]) == norm_udid]
+            if same_iphone:
+                backup_info = next((b for b in same_iphone if b["openable"]), same_iphone[0])
+                _tlog(f"open_backup slow-path: matched udid in {backup_info['backup_dir']!r}")
 
         if not backup_info:
             _tlog(f"open_backup FAILED: backup not found for udid={udid!r} backup_dir={backup_dir!r}")
@@ -424,6 +442,14 @@ class BackupManager:
         backup_dir = backup_info["backup_dir"]
         encrypted = backup_info["encrypted"]
         legacy = backup_info.get("manifest_format") == "mbdb"
+
+        # A backup that stopped partway opens with whatever arrived (the app says it didn't
+        # finish), unless there's nothing to open.
+        if backup_info.get("unfinished"):
+            _tlog(f"open_backup: this backup didn't finish: {backup_info.get('unfinished_signs')}")
+            problem = backup_status.check(backup_dir).problem
+            if problem:
+                raise RuntimeError(problem)
 
         # Surface the same "needs password" sentinel response openextract has
         # always returned BEFORE delegating to ios-backup-core (which raises).

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { AppStateData, RecentSession } from '../lib/appState';
 import type { BackupInfo } from '../hooks/useBackup';
 import { sidecarCall } from '../lib/ipc';
-import { notYetOpened, type FoundBackups } from '../lib/foundBackups';
+import { lookFailedMessage, notYetOpened, type FoundBackups } from '../lib/foundBackups';
 import FirstVisitView from './home/FirstVisitView';
 import ReturnedView from './home/ReturnedView';
 import WorkspaceView from './home/WorkspaceView';
@@ -21,6 +21,9 @@ export default function HomeScreen({ onOpenBackup, onOpenFoundBackup, onCreateBa
   const [appState, setAppState] = useState<AppStateData | null>(null);
   const [loading, setLoading] = useState(true);
   const [found, setFound] = useState<FoundBackups | null>(null);
+  // Why looking for backups failed (null when it didn't), and whether it's looking again.
+  const [lookFailed, setLookFailed] = useState<string | null>(null);
+  const [looking, setLooking] = useState(false);
   const [askingAccess, setAskingAccess] = useState(false);
 
   useEffect(() => {
@@ -51,12 +54,18 @@ export default function HomeScreen({ onOpenBackup, onOpenFoundBackup, onCreateBa
   }
 
   // Look in the folders Finder, iTunes and Apple Devices save backups to.
-  // Nothing shows until this answers, and nothing shows if it fails.
+  // Nothing shows until this answers. If it fails, say so and offer to look
+  // again, rather than leaving out the list without a word (OE-27).
   async function findBackups() {
+    setLooking(true);
     try {
       setFound(await sidecarCall<FoundBackups>('list_backups', {}));
+      setLookFailed(null);
     } catch (err) {
       console.error('Failed to look for backups:', err);
+      setLookFailed(lookFailedMessage(err instanceof Error ? err.message : String(err)));
+    } finally {
+      setLooking(false);
     }
   }
 
@@ -77,6 +86,9 @@ export default function HomeScreen({ onOpenBackup, onOpenFoundBackup, onCreateBa
       // Someone who already has backups open is past needing the nudge.
       blockedFolder={appState.state === 'has_data' ? undefined : blockedFolder}
       onAllowAccess={() => setAskingAccess(true)}
+      lookFailed={lookFailed ?? undefined}
+      onLookAgain={findBackups}
+      looking={looking}
     />
   );
 

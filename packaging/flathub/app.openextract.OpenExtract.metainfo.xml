@@ -12,7 +12,7 @@
     <p>
       Getting your text messages off an iPhone is harder than it should be. OpenExtract opens an
       iPhone backup on your own computer and lets you read, search and save everything in it:
-      messages and iMessages, photos, voicemails, contacts, call history and notes.
+      messages and iMessages, WhatsApp chats, photos, voicemails, contacts, call history and notes.
     </p>
     <p>
       It is free with no strings attached. There is no account, no trial and no paid tier, and
@@ -20,6 +20,7 @@
     </p>
     <ul>
       <li>Read whole conversations as chat bubbles, with photos</li>
+      <li>Read WhatsApp chats and groups, with replies, reactions, photos and voice messages</li>
       <li>Search inside a conversation, and find conversations by name</li>
       <li>Save a conversation as a PDF, with its photos</li>
       <li>Export conversations as HTML, CSV or plain text</li>
@@ -63,6 +64,24 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.14.0" date="2026-11-11">
+      <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.14.0</url>
+      <description>
+        <p>WhatsApp has its own section: chats, groups and broadcast lists in the order they arrived, with replies, reactions, calls, locations, photos, videos, voice messages and documents. Save a chat, or all of them, as a web page, PDF, CSV or text file. WhatsApp messages also show in the Timeline, in search and under each person in People. If WhatsApp's end-to-end encrypted backup is turned on, WhatsApp leaves its chats out of the iPhone's backup, so there's nothing to show. The Timeline no longer shows a calls error on backups that aren't encrypted.</p>
+      </description>
+    </release>
+    <release version="0.13.0" date="2026-11-10">
+      <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.13.0</url>
+      <description>
+        <p>Big backups no longer stop after 2 hours while they're still copying, and the computer stays awake while a backup runs. A backup that stopped partway is marked "Didn't finish" instead of opening as if it were complete, and backups made by iOS 6 open without stopping OpenExtract. When a backup can't go on, the message says why: a full drive, another app syncing the iPhone, the passcode, or the connection dropping.</p>
+      </description>
+    </release>
+    <release version="0.12.0" date="2026-11-07">
+      <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.12.0</url>
+      <description>
+        <p>The first screen now lists the iPhone backups already on this computer, each with an Open button, so most people don't need to pick a folder. Encrypted backups of iPhones on iOS 10.0 or 10.1 open with their password. "Not now" on the update card no longer turns update checks off for good: the card comes back a week later.</p>
+      </description>
+    </release>
     <release version="0.11.0" date="2026-11-07">
       <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.11.0</url>
       <description>

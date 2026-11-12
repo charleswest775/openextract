@@ -742,6 +742,73 @@ class TestStartBackup(unittest.TestCase):
                 self._run_backup_with(mb2, still_connected=False)
             self.assertTrue(str(ctx.exception).startswith("DEVICE_DISCONNECTED:"), error)
 
+    def test_unplugged_message_names_sleep_and_usb(self):
+        """Reporters say the iPhone stayed plugged in (OE-29, OE-31); sleep or USB is the likely cause."""
+        mb2 = self._make_mb2_mock()
+        mb2.backup.side_effect = _stub.exceptions.ConnectionTerminatedError()
+        with self.assertRaises(RuntimeError) as ctx:
+            self._run_backup_with(mb2, still_connected=False)
+        self.assertIn("gone to sleep", str(ctx.exception))
+        self.assertIn("hub", str(ctx.exception))
+
+    def _drop_connection(self, *, received=0, progress=None, encrypted=False):
+        """The backup connection closes with the iPhone still listed, after `received` bytes
+        of a file arrived and the device reported `progress` %. Returns the error."""
+        import os
+        import tempfile
+        from types import SimpleNamespace
+
+        async def _backup(**kwargs):
+            if received:
+                path = os.path.join(kwargs["backup_directory"], "abc-123", "Snapshot", "ab", "ab01")
+                os.makedirs(os.path.dirname(path))
+                kwargs["filter_callback"](SimpleNamespace(file_name="abc-123/Snapshot/ab/ab01"))
+                with open(path, "wb") as f:
+                    f.write(b"x" * received)
+            if progress is not None:
+                kwargs["progress_callback"](progress)
+            raise _stub.exceptions.ConnectionTerminatedError()
+
+        mb2 = self._make_mb2_mock()
+        mb2.backup.side_effect = _backup
+        with (
+            tempfile.TemporaryDirectory() as folder,
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock,
+                  return_value=_make_lockdown_mock()),
+            patch("pymobiledevice3.services.mobilebackup2.Mobilebackup2Service", return_value=mb2),
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock,
+                  return_value=[_make_usbmux_device("abc-123")]),
+            self.assertRaises(RuntimeError) as ctx,
+        ):
+            self.manager.start_backup(udid="abc-123", output_dir=folder, encrypted=encrypted,
+                                      password="pw" if encrypted else None, notify=self.notify)
+        return str(ctx.exception)
+
+    def test_drop_after_data_flowed_names_sleep_not_trust(self):
+        """Trust and the passcode are settled once data arrives (OE-17, OE-29 were told otherwise)."""
+        for encrypted in (False, True):
+            message = self._drop_connection(received=3_200_000_000 // 1000, progress=12.0, encrypted=encrypted)
+            self.assertTrue(message.startswith("The connection to your iPhone dropped partway through the backup, after 3 MB."),
+                            message)
+            self.assertIn("went to sleep", message)
+            self.assertNotIn("Trust", message)
+            self.assertNotIn("PASSCODE_REQUIRED", message)
+
+    def test_drop_after_progress_with_nothing_counted_yet(self):
+        message = self._drop_connection(progress=5.0)
+        self.assertTrue(message.startswith("The connection to your iPhone dropped partway through the backup. "), message)
+
+    def test_drop_before_any_data_keeps_the_trust_and_passcode_advice(self):
+        self.assertIn("Trust", self._drop_connection())
+        self.assertTrue(self._drop_connection(encrypted=True).startswith("PASSCODE_REQUIRED:"))
+
+    def test_copied_so_far_wording(self):
+        import device_backup
+        self.assertEqual(device_backup._copied_so_far(0), "")
+        self.assertEqual(device_backup._copied_so_far(999_999), "")
+        self.assertEqual(device_backup._copied_so_far(450_000_000), ", after 450 MB")
+        self.assertEqual(device_backup._copied_so_far(3_249_000_000), ", after 3.2 GB")
+
     def _end_with_connection_closed(self, output_dir, manifest_age_s=None):
         """The device closes the channel; output_dir/abc-123 may hold a Manifest.db that old."""
         import os
@@ -869,7 +936,8 @@ class TestStartBackup(unittest.TestCase):
 
         async def _backup(**kwargs):
             path = os.path.join(kwargs["backup_directory"], "abc-123", "video")
-            os.makedirs(os.path.dirname(path))
+            # The engine makes the folder first, to mark it (backup_status.BackupTry).
+            os.makedirs(os.path.dirname(path), exist_ok=True)
             kwargs["filter_callback"](SimpleNamespace(file_name="abc-123/video"))
             kwargs["progress_callback"](40.0)
             for _ in range(3):

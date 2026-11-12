@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Where are iPhone backups stored? Windows &amp; Mac — OpenExtract</title>
+  <meta name="description" content="The folders where Finder, iTunes and the Apple Devices app keep iPhone backups on Mac and Windows, how to tell them apart, and how to open one for free." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/where-are-iphone-backups-stored" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/where-are-iphone-backups-stored" />
+  <meta property="og:title" content="Where are iPhone backups stored?" />
+  <meta property="og:description" content="The backup folders on Mac and Windows, how to find the right one, and how to open it." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "Where are iPhone backups stored?",
+  "description": "The folders where Finder, iTunes and the Apple Devices app keep iPhone backups on Mac and Windows, how to tell them apart, and how to open one for free.",
+  "url": "https://www.openextract.app/use-cases/where-are-iphone-backups-stored",
+  "datePublished": "2026-11-10",
+  "dateModified": "2026-11-10",
+  "image": "https://www.openextract.app/img/og-image.png",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "OpenExtract",
+    "url": "https://www.openextract.app/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "OpenExtract",
+    "url": "https://www.openextract.app/",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://www.openextract.app/img/logo.png"
+    }
+  },
+  "about": {
+    "@type": "SoftwareApplication",
+    "name": "OpenExtract",
+    "applicationCategory": "UtilityApplication",
+    "applicationSubCategory": "DataExtraction",
+    "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+    "url": "https://www.openextract.app/",
+    "screenshot": "https://www.openextract.app/img/screens/home-2000.png",
+    "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+    "license": "https://opensource.org/licenses/MIT",
+    "isAccessibleForFree": true,
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+}
+  </script>
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Are iCloud backups stored on my computer?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. An iCloud backup stays in iCloud, and the folders on this page only hold backups made by a cable connection to a Mac or PC. To see which phones have an iCloud backup, open Settings on the iPhone, tap your name, then iCloud, then iCloud Backup."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I move my backups to another drive?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "You can copy a backup folder anywhere, for example to an external drive, and open the copy in OpenExtract. Finder, iTunes and Apple Devices only look in their usual folder, so leave the original where it is if you want them to keep using it."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Will the next backup replace this one?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Each new backup of the same phone updates its folder. To keep one as it is, choose Archive under Manage Backups, or copy the whole folder somewhere else first."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why are there several folders in Backup?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Each folder is one device: an iPhone or iPad backed up on this computer. An archived backup gets a folder of its own."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why does my Mac say I don't have permission?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "macOS protects the folder that holds backups. Finder can show it, but other apps, OpenExtract included, need Full Disk Access: open System Settings, then Privacy & Security, then Full Disk Access, and turn the app on."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I open the files in a backup?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Not directly. Apple renames every file to a long code and keeps a database, Manifest.db, that maps the codes back to real names. A viewer such as OpenExtract reads that database and shows the messages, photos and other data as they were on the phone."
+      }
+    }
+  ]
+}
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Mac · Windows · 3 min</div>
+    <h1>Where are iPhone<br /><span class="it">backups stored</span>?</h1>
+    <p class="page-head__lede">On a Mac, iPhone backups are in <code>~/Library/Application Support/MobileSync/Backup</code>. On Windows they're in <code>%USERPROFILE%\Apple\MobileSync\Backup</code> or, with older iTunes, <code>%AppData%\Apple Computer\MobileSync\Backup</code>. Each phone gets one folder with a long code for a name. Here's how to get there, tell the folders apart, and read one.</p>
+  </header>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>On a Mac</h2>
+        <p>In Finder, choose Go, then Go to Folder, paste <code>~/Library/Application Support/MobileSync/Backup/</code> and press Return. Finder makes backups on macOS Catalina and later; iTunes used the same folder before that.</p>
+        <p>Or let Finder take you there: connect the iPhone, select it in the Finder sidebar, click Manage Backups on the General tab, right-click a backup and choose Show in Finder.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>On Windows</h2>
+        <p>Press the Windows key and R together, paste <code>%USERPROFILE%\Apple\MobileSync\Backup</code> and press Enter. That's where the Apple Devices app and iTunes from the Microsoft Store keep backups. If Windows can't find it, try <code>%AppData%\Apple Computer\MobileSync\Backup</code>, where iTunes downloaded from Apple's website keeps them.</p>
+        <p>Apple Devices and iTunes can also take you there: Manage Backups, right-click a backup, Show in Explorer. For the full walk-through, see <a href="/use-cases/view-iphone-backup-on-windows">view an iPhone backup on Windows</a>.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>Tell the backups apart</h2>
+        <p>Each folder in <code>Backup</code> is one device, named after its ID. Inside are <code>Manifest.db</code>, <code>Info.plist</code>, <code>Status.plist</code> and many folders with two-character names. The date modified tells you roughly when it was last backed up. Manage Backups in Finder or Apple Devices lists each one by device name and date, and so does OpenExtract when you open the <code>Backup</code> folder.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Keep it safe</h2>
+        <p>Don't rename, open or edit anything inside a backup, or Apple's apps may no longer restore it. The next backup of the same phone updates the folder, so to keep one as it is, choose Archive under Manage Backups, or copy the whole folder to another drive. Apple notes that a deleted backup can't be recovered.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">05</div>
+      <div>
+        <h2>Read what's in it</h2>
+        <p>The files themselves won't open: Apple renames each one to a code. <a href="/#download">OpenExtract</a> is a free, open-source viewer for Windows, Mac and Linux that finds backups in these folders on its own, or opens a copy from anywhere. You can read and save messages, photos, contacts, calls, notes, voicemail and web history. An encrypted backup needs the password you set for it.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>On Linux</h2>
+      <p>Apple makes no backup app for Linux, so there's no standard folder. Copy a backup folder over from a Mac or PC, or make one with the <code>idevicebackup2</code> tool, and open it from wherever you saved it. See <a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a>.</p>
+
+      <h2>Not here: iCloud backups</h2>
+      <p>A backup to iCloud isn't saved on any computer, so none of these folders will have it. OpenExtract reads backups saved on a computer only. To make one, connect the iPhone by cable and back up in Finder, the Apple Devices app or iTunes, or with OpenExtract itself.</p>
+
+      <h2>Common questions</h2>
+      <p><strong>Are iCloud backups stored on my computer?</strong> No. An iCloud backup stays in iCloud, and the folders on this page only hold backups made by a cable connection to a Mac or PC. To see which phones have an iCloud backup, open Settings on the iPhone, tap your name, then iCloud, then iCloud Backup.</p>
+      <p><strong>Can I move my backups to another drive?</strong> You can copy a backup folder anywhere, for example to an external drive, and open the copy in OpenExtract. Finder, iTunes and Apple Devices only look in their usual folder, so leave the original where it is if you want them to keep using it.</p>
+      <p><strong>Will the next backup replace this one?</strong> Yes. Each new backup of the same phone updates its folder. To keep one as it is, choose Archive under Manage Backups, or copy the whole folder somewhere else first.</p>
+      <p><strong>Why are there several folders in Backup?</strong> Each folder is one device: an iPhone or iPad backed up on this computer. An archived backup gets a folder of its own.</p>
+      <p><strong>Why does my Mac say I don't have permission?</strong> macOS protects the folder that holds backups. Finder can show it, but other apps, OpenExtract included, need Full Disk Access: open System Settings, then Privacy &amp; Security, then Full Disk Access, and turn the app on.</p>
+      <p><strong>Can I open the files in a backup?</strong> Not directly. Apple renames every file to a long code and keeps a database, Manifest.db, that maps the codes back to real names. A viewer such as OpenExtract reads that database and shows the messages, photos and other data as they were on the phone.</p>
+      <p>Apple's own instructions are on <a href="https://support.apple.com/en-us/108809">Locate and manage backups of your iPhone, iPad and iPod touch</a>.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Windows · Mac · Linux</div>
+        <h3>Found the folder?<br /><span class="it">Now open it.</span></h3>
+        <p>Free, open source, and nothing leaves your computer.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/use-cases/view-iphone-backup-on-windows">View an iPhone backup on Windows →</a>
+        <a class="uc-related__link" href="/use-cases/free-iphone-backup-viewer">A free iPhone backup viewer for Windows, Mac and Linux →</a>
+        <a class="uc-related__link" href="/blog/what-is-in-an-iphone-backup">What's actually in an iPhone backup →</a>
+        <a class="uc-related__link" href="/blog/encrypted-backups-are-better">Why encrypted backups are better →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Found your backup? Read it.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/support">Support OpenExtract</a></li>
+        <li><a href="/what-people-say">What people say</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

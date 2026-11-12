@@ -4,13 +4,13 @@ import type { BackupIndex } from '../../hooks/useTimeline';
 import type { TimelineEntry, TimelineFilters } from '../../types/timeline';
 import {
   LinesIcon, CameraIcon, ContactIcon, PeopleIcon, CallIcon, NoteIcon, VoicemailIcon, GlobeIcon, ClockIcon,
-  CalendarIcon, ChartIcon, ExportIcon, RecoverIcon,
+  CalendarIcon, ChartIcon, ExportIcon, RecoverIcon, WhatsAppIcon,
 } from '../shared/Icons';
 
 /** Every screen inside a backup. */
 export type Tab =
   | 'home' | 'dashboard' | 'people'
-  | 'timeline' | 'year' | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail'
+  | 'timeline' | 'year' | 'messages' | 'whatsapp' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail'
   | 'browser_history' | 'record_recovery' | 'export';
 
 export type Icon = typeof LinesIcon;
@@ -21,6 +21,8 @@ export interface Section {
   icon: Icon;
   /** The overview number that says whether the backup has this kind of data. */
   count?: (o: BackupStatsOverview) => number;
+  /** Whether to show the section, when that isn't just count > 0. */
+  shown?: (o: BackupStatsOverview) => boolean;
 }
 
 export const DETAILS: Section = { id: 'dashboard', label: 'Backup details', icon: ChartIcon };
@@ -30,12 +32,25 @@ export const RECOVER: Section = { id: 'record_recovery', label: 'Recover deleted
 export const SAVE: Section = { id: 'export', label: 'Save to computer', icon: ExportIcon };
 export const PEOPLE: Section = {
   id: 'people', label: 'People', icon: PeopleIcon,
-  count: o => o.total_messages + o.total_calls + o.total_voicemails,
+  count: o => o.total_messages + (o.total_whatsapp_messages ?? 0) + o.total_calls + o.total_voicemails,
 };
+
+/**
+ * WhatsApp is in the backup but couldn't be read (damaged, or a version the
+ * engine doesn't know). Its section still shows, with no number, so the
+ * screen can say why and offer a report, rather than looking like there's no WhatsApp.
+ */
+export function whatsappUnreadable(o: BackupStatsOverview | null | undefined): boolean {
+  return o?.whatsapp_status === 'error' || o?.whatsapp_status === 'unsupported_format';
+}
 
 /** The kinds of data, in the order the home page lists them. */
 export const DATA_SECTIONS: Section[] = [
   { id: 'messages', label: 'Messages', icon: LinesIcon, count: o => o.total_messages },
+  {
+    id: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon, count: o => o.total_whatsapp_messages ?? 0,
+    shown: o => (o.total_whatsapp_messages ?? 0) > 0 || whatsappUnreadable(o),
+  },
   { id: 'photos', label: 'Photos', icon: CameraIcon, count: o => o.photos_in_backup },
   PEOPLE,
   { id: 'contacts', label: 'Address book', icon: ContactIcon, count: o => o.total_contacts },
@@ -65,6 +80,7 @@ export const SCOPED: Partial<Record<Tab, Scope>> = {
   people: { placeholder: 'Search people', items: 'people' },
   contacts: { placeholder: 'Search the address book', items: 'cards' },
   messages: { placeholder: 'Search messages', items: 'messages' },
+  whatsapp: { placeholder: 'Search WhatsApp', items: 'WhatsApp messages' },
   calls: { placeholder: 'Search calls', items: 'calls' },
   notes: { placeholder: 'Search notes', items: 'notes' },
   voicemail: { placeholder: 'Search voicemail', items: 'voicemails' },
@@ -77,15 +93,20 @@ export const SCOPED: Partial<Record<Tab, Scope>> = {
 export function availableData(overview: BackupStatsOverview | null, hasBrowserHistory: boolean): Section[] {
   return DATA_SECTIONS.filter(s => {
     if (s.id === 'browser_history') return hasBrowserHistory;
-    return !s.count || !overview || s.count(overview) > 0;
+    if (!overview) return true;
+    if (s.shown) return s.shown(overview);
+    return !s.count || s.count(overview) > 0;
   });
 }
 
-/** Lower-case names of the kinds of data the backup has none of, e.g. ["photos", "web history"]. */
+/**
+ * Lower-case names of the kinds of data the backup has none of, e.g. ["photos", "web history"].
+ * WhatsApp isn't one: most iPhones don't have it, so a backup without it isn't missing anything.
+ */
 export function missingKinds(overview: BackupStatsOverview | null, hasBrowserHistory: boolean): string[] {
   if (!overview) return [];
   const missing = DATA_SECTIONS
-    .filter(s => s.id !== 'people' && s.count && s.count(overview) === 0)
+    .filter(s => s.id !== 'people' && s.id !== 'whatsapp' && s.count && s.count(overview) === 0)
     .map(s => s.label.toLowerCase());
   if (!hasBrowserHistory) missing.push('web history');
   return missing;
@@ -101,8 +122,10 @@ export function listOf(items: string[]): string {
 export interface OpenOptions {
   /** Timeline filters to start from, e.g. one day, one person or a search. */
   timeline?: Partial<TimelineFilters>;
-  /** Messages: the conversation to open. */
+  /** Messages: the conversation to open (an sms.db chat). */
   chatId?: number;
+  /** WhatsApp: the chat to open (a ChatStorage chat; its ids overlap sms.db's, so never in chatId). */
+  waChatId?: number;
   /** The record to show: the message, note, call, voicemail, photo or web visit a search found. */
   select?: TimelineEntry;
   /** People: who to open, by phone number or email. */
@@ -129,4 +152,6 @@ export interface ExploreContext {
   openTab: (tab: Tab, opts?: OpenOptions) => void;
   onBack: () => void;
   openSettings: () => void;
+  /** The backup stopped partway (python/backup_status.py). */
+  unfinished: boolean;
 }

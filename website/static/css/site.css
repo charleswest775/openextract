@@ -131,6 +131,11 @@ img { max-width: 100%; display: block; }
   font-weight: 500;
   line-height: 0.98;
 }
+.page-head__voice {
+  font-family: var(--serif); font-style: italic; font-weight: 400;
+  font-size: 36px; line-height: 1.1;
+  margin: 18px 0 0;
+}
 .page-head__lede {
   font-size: 22px;
   color: var(--ink-soft);
@@ -205,7 +210,7 @@ img { max-width: 100%; display: block; }
   border-top: 1px solid var(--line);
   padding: 40px 56px;
   display: grid;
-  grid-template-columns: 1.6fr repeat(4, 1fr);
+  grid-template-columns: 1.6fr repeat(5, 1fr);
   gap: 32px;
   background: var(--bg);
 }
@@ -263,6 +268,13 @@ img { max-width: 100%; display: block; }
   font-weight: 500;
   margin: 28px 0 28px;
 }
+/* The H1 names the product in searchers' words; the voice lives in this line under it. */
+.hero__voice {
+  font-family: var(--serif); font-style: italic; font-weight: 400;
+  font-size: 40px; line-height: 1.1; letter-spacing: -0.01em;
+  color: var(--coral);
+  margin: -8px 0 24px;
+}
 .hero__sub {
   font-size: 20px;
   color: var(--ink-soft);
@@ -318,7 +330,7 @@ img { max-width: 100%; display: block; }
 }
 
 .recovered {
-  position: absolute; right: 0; top: 60px;
+  position: absolute; right: 0; top: 28px;
   width: 330px;
   background: white;
   border-radius: 20px;
@@ -416,7 +428,7 @@ img { max-width: 100%; display: block; }
 .how__eyebrow { font-size: 12px; color: var(--butter); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px; font-family: var(--mono); }
 .how__title { font-size: 48px; letter-spacing: -0.025em; margin: 0; font-weight: 500; max-width: 720px; line-height: 1.02; }
 .how__lede { font-size: 15px; color: rgba(250,246,241,0.65); max-width: 320px; line-height: 1.55; }
-.how__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; }
+.how__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 36px; }
 .how__num { font-family: var(--serif); font-style: italic; font-size: 80px; font-weight: 400; line-height: 1; margin-bottom: 18px; letter-spacing: -0.03em; }
 .how__step-title { font-size: 24px; font-weight: 500; letter-spacing: -0.015em; margin-bottom: 12px; }
 .how__step-desc { font-size: 15px; color: rgba(250,246,241,0.65); margin: 0; line-height: 1.6; }
@@ -450,6 +462,16 @@ img { max-width: 100%; display: block; }
 .testimonials--usecases .testimonial__name { font-size: 17px; margin-bottom: 12px; }
 .testimonials--usecases .testimonial__quote { font-family: inherit; font-style: normal; font-size: 16px; line-height: 1.5; }
 .testimonials--usecases .testimonial__loc a { color: inherit; }
+/* Real quotes from the app's Say thanks form, filled in by js/thanks.js. */
+[data-thanks][hidden] { display: none; }
+.testimonials--quotes .testimonial__quote { white-space: pre-line; font-size: 20px; }
+.testimonials__note { margin: 24px 0 0; font-size: 14px; line-height: 1.5; color: var(--ink-dim); max-width: 680px; }
+.testimonials__note a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.testimonials__count, .testimonials__status { margin: 0 0 24px; font-size: 16px; color: var(--ink-dim); max-width: 680px; }
+.testimonials__status:empty { display: none; }
+.testimonials--page { padding-top: 16px; }
+.testimonials--page .testimonials__grid { display: block; columns: 3 280px; column-gap: 20px; }
+.testimonials--page .testimonial { break-inside: avoid; margin-bottom: 20px; }
 
 /* ── Privacy band ───────────────────────────────────── */
 .privacy { padding: 48px 56px 56px; }
@@ -509,8 +531,8 @@ details.qa p {
   margin: 12px 0 0; max-width: 720px; line-height: 1.65;
 }
 /* Links inside running text, which otherwise inherit the text color and look like plain words. */
-details.qa p a, .uc-reason__v a, .step-note p a, .wheres__row-v a, .post-body p a, .post-body li a { color: var(--coral); }
-details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .wheres__row-v a:hover, .post-body p a:hover, .post-body li a:hover { text-decoration: underline; }
+details.qa p a, .uc-reason__v a, .step-note p a, .step-body p a, .wheres__row-v a, .page-head__lede a, .post-body p a, .post-body li a { color: var(--coral); }
+details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .step-body p a:hover, .wheres__row-v a:hover, .page-head__lede a:hover, .post-body p a:hover, .post-body li a:hover { text-decoration: underline; }
 .uc-reason__v code { font-family: var(--mono); background: var(--line-soft); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
 
 /* ── Final CTA (landing) ───────────────────────────── */
@@ -965,6 +987,8 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .wheres__row-
   }
   .hero { padding-top: 32px; padding-bottom: 32px; gap: 32px; }
   .hero h1 { font-size: 48px; }
+  .hero__voice { font-size: 26px; }
+  .page-head__voice { font-size: 28px; }
   .hero-visual { height: 460px; }
   .phone { width: 220px; height: 440px; }
   .recovered { width: 280px; }
@@ -991,4 +1015,39 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .wheres__row-
   .gallery { grid-template-columns: 1fr; gap: 40px; }
   /* Comparison tables: the desktop padding makes three columns wider than a phone, and .matrix clips the overflow. */
   .matrix th, .matrix td { padding: 12px 10px; }
+}
+
+/* ── Support page ─────────────────────────────────── */
+.prose__inner a.support-pay { color: white; margin: 4px 0 4px; }
+.prose__inner a.support-pay:hover { text-decoration: none; filter: brightness(0.95); }
+.prose__inner .support-note { font-size: 14px; color: var(--ink-soft); }
+
+/* ── Roundup: iMazing alternatives ────────────────── */
+.alt-disclosure { font-size: 15px; color: var(--ink-dim); margin: 18px 0 0; max-width: 720px; line-height: 1.5; }
+.alt-disclosure a { color: var(--coral); }
+.alt-disclosure a:hover { text-decoration: underline; }
+.matrix th.matrix__head--plain { color: var(--ink-dim); width: 30%; }
+.matrix tr.matrix__row--oe td { background: var(--coral-15); }
+.matrix td.matrix__k a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.matrix td.matrix__k a:hover { color: var(--coral); }
+.matrix__sub { display: block; font-size: 12px; color: var(--ink-dim); font-weight: 400; margin-top: 2px; }
+.matrix-note { font-size: 13px; color: var(--ink-dim); margin-top: 12px; }
+.alts { padding: 0 56px 48px; max-width: 1100px; margin: 0 auto; }
+.alts h2 { font-size: 44px; letter-spacing: -0.02em; font-weight: 500; margin: 0 0 12px; line-height: 1.02; }
+.alts__intro { font-size: 17px; color: var(--ink-soft); line-height: 1.6; max-width: 720px; margin: 0 0 24px; }
+.alts__intro a, .alt p a { color: var(--coral); }
+.alts__intro a:hover, .alt p a:hover { text-decoration: underline; }
+.alts__list { background: white; border: 1px solid var(--line); border-radius: 20px; padding: 6px 28px; }
+.alt { padding: 22px 0; border-top: 1px solid var(--line); scroll-margin-top: 24px; }
+.alt:first-child { border-top: none; }
+.alt h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; line-height: 1.25; }
+.alt h3 .alt__maker { font-size: 15px; font-weight: 400; color: var(--ink-dim); letter-spacing: 0; }
+.alt--oe h3 { color: var(--coral); }
+.alt__facts { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); margin: 0 0 10px; line-height: 1.5; }
+.alt p { font-size: 15px; color: var(--ink-soft); line-height: 1.6; margin: 0 0 8px; }
+.alt p.alt__more a { font-weight: 600; }
+@media (max-width: 720px) {
+  .alts { padding-left: 24px; padding-right: 24px; }
+  .alts h2 { font-size: 32px; }
+  .alts__list { padding: 4px 18px; }
 }

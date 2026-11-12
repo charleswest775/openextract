@@ -265,6 +265,166 @@
         "title_sha256": "1388d74a9f8d10162511777edc3cc536183640b1f80f0ac705e35d77a2cef531",
         "count": 15
       }
+    },
+    {
+      "id": "wa-sent-first-message",
+      "kind": "whatsapp_message",
+      "source_ref": "WhatsApp, 2023-05-02 11:56 Sent message",
+      "at": "2023-05-02T11:56",
+      "expect": {
+        "is_from_me": true,
+        "text_sha256": "951e3a436085e8df4ba4c9b166cba8dd5803832a5adcd79f249bcb11f705941f"
+      }
+    },
+    {
+      "id": "wa-received-message",
+      "kind": "whatsapp_message",
+      "source_ref": "WhatsApp, 2023-05-02 11:57 Received message",
+      "at": "2023-05-02T11:57",
+      "expect": {
+        "is_from_me": false,
+        "text_sha256": "33edf214f16145c58b6a3049b759fe82ba02ccdfe27e11996bd6b5818962fa64"
+      }
+    },
+    {
+      "id": "wa-received-message-reacted-to",
+      "kind": "whatsapp_message",
+      "source_ref": "WhatsApp, 2023-05-02 11:59 Received message; 12:00 Reacted to message (thumbs up)",
+      "at": "2023-05-02T11:59",
+      "expect": {
+        "is_from_me": false,
+        "has_reaction": true,
+        "text_sha256": "71a3cdefc2254d31da5e7279b3bddf0a82c4f3053ff56db4d2e2c9547b07d26d"
+      }
+    },
+    {
+      "id": "wa-sent-reply",
+      "kind": "whatsapp_message",
+      "source_ref": "WhatsApp, 2023-05-02 12:01 Replied to message (received at 11:59)",
+      "at": "2023-05-02T12:01",
+      "expect": {
+        "is_from_me": true,
+        "has_quote": true,
+        "text_sha256": "2e25ae9db1841794f7da4bcdedb29632a7abc484b4888346be2dcd7864a759e8"
+      }
+    },
+    {
+      "id": "wa-sent-picture",
+      "kind": "whatsapp_message",
+      "source_ref": "WhatsApp, 2023-05-02 12:06 Sent picture",
+      "at": "2023-05-02T12:06",
+      "expect": {
+        "is_from_me": true,
+        "message_type": "image",
+        "has_attachments": true
+      }
+    },
+    {
+      "id": "wa-received-picture",
+      "kind": "whatsapp_message",
+      "source_ref": "WhatsApp, 2023-05-02 12:09 Received picture",
+      "at": "2023-05-02T12:09",
+      "expect": {
+        "is_from_me": false,
+        "message_type": "image",
+        "has_attachments": true
+      }
+    },
+    {
+      "id": "wa-outgoing-audio-call",
+      "kind": "whatsapp_message",
+      "source_ref": "WhatsApp, 2023-05-02 12:12 Outgoing audio call (1:35)",
+      "at": "2023-05-02T12:12",
+      "expect": {
+        "message_type": "call",
+        "call_is_video": false,
+        "call_direction": "outgoing",
+        "call_duration_s": 95
+      }
+    },
+    {
+      "id": "wa-incoming-audio-call",
+      "kind": "whatsapp_message",
+      "source_ref": "WhatsApp, 2023-05-02 12:15 Incoming audio call (1:41)",
+      "at": "2023-05-02T12:15",
+      "expect": {
+        "message_type": "call",
+        "call_is_video": false,
+        "call_direction": "incoming",
+        "call_duration_s": 101
+      }
+    },
+    {
+      "id": "wa-outgoing-video-call",
+      "kind": "whatsapp_message",
+      "source_ref": "WhatsApp, 2023-05-02 12:20 Outgoing video call (1:45)",
+      "at": "2023-05-02T12:20",
+      "expect": {
+        "message_type": "call",
+        "call_is_video": true,
+        "call_direction": "outgoing",
+        "call_duration_s": 105
+      }
+    },
+    {
+      "id": "wa-incoming-video-call",
+      "kind": "whatsapp_message",
+      "source_ref": "WhatsApp, 2023-05-02 12:24 Incoming video call (1:44)",
+      "at": "2023-05-02T12:24",
+      "expect": {
+        "message_type": "call",
+        "call_is_video": true,
+        "call_direction": "incoming",
+        "call_duration_s": 104
+      }
+    },
+    {
+      "id": "wa-deleted-message-absent",
+      "kind": "whatsapp_message_absent",
+      "source_ref": "WhatsApp, 2023-05-02 12:27 Received message; 12:29 Deleted message",
+      "expect": {
+        "text_sha256": "1036c84b60d8eec3c2a8ae1ee96f6f670d02e9fe23a727e407f9399d27371e61"
+      }
+    },
+    {
+      "id": "wa-sent-live-location",
+      "kind": "whatsapp_message",
+      "source_ref": "WhatsApp, 2023-05-17 10:22 Started sending dynamic location",
+      "at": "2023-05-17T10:22",
+      "expect": {
+        "is_from_me": true,
+        "message_type": "live_location"
+      }
+    },
+    {
+      "id": "wa-received-live-location",
+      "kind": "whatsapp_message",
+      "source_ref": "WhatsApp, 2023-05-17 10:28 Started receiving dynamic location",
+      "at": "2023-05-17T10:28",
+      "expect": {
+        "is_from_me": false,
+        "message_type": "live_location"
+      }
+    },
+    {
+      "id": "wa-sent-static-location",
+      "kind": "whatsapp_message",
+      "source_ref": "WhatsApp, 2023-05-17 10:35 Sent static location",
+      "at": "2023-05-17T10:35",
+      "expect": {
+        "is_from_me": true,
+        "message_type": "shared_location"
+      }
+    },
+    {
+      "id": "wa-received-static-location",
+      "kind": "whatsapp_message",
+      "source_ref": "WhatsApp, 2023-05-17 10:36 Received static location",
+      "at": "2023-05-17T10:36",
+      "expect": {
+        "is_from_me": false,
+        "message_type": "shared_location"
+      }
     }
   ]
 }

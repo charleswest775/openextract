@@ -6,8 +6,9 @@ interface PendingRequest {
   method: string;
   resolve: (value: any) => void;
   reject: (reason: any) => void;
-  // How long the engine may spend on this call, and the timer for that. The timer
-  // is null while the call waits behind earlier ones (see startClock).
+  // How long the engine may spend on this call without a progress report, and the
+  // timer for that. The timer is null while the call waits behind earlier ones
+  // (see startClock) and starts over at each progress report (see restartClock).
   timeoutMs: number;
   timeout: NodeJS.Timeout | null;
   // The engine process the request went to. After a restart, the old engine's
@@ -143,6 +144,22 @@ export class PythonSidecar {
     }
   }
 
+  /**
+   * The engine sent a progress report, so the call it is working on is still going:
+   * that call's time limit starts over. A backup or save can then run for as long as
+   * it keeps reporting progress, and times out only after a whole limit with none.
+   * (A big backup over a slow connection can take longer than its 2-hour limit.)
+   */
+  private restartClock(proc: any): void {
+    for (const [, req] of this.pending) {
+      if (req.proc !== proc) continue;
+      if (req.timeout) clearTimeout(req.timeout);
+      req.timeout = null;
+      this.startClock(proc);
+      return;
+    }
+  }
+
   /** Stop waiting for call `id` and start the clock of the next one in line. */
   private finish(id: number): PendingRequest | undefined {
     const req = this.pending.get(id);
@@ -168,6 +185,7 @@ export class PythonSidecar {
         // and a `method` field.  Route them to notificationHandler rather than
         // trying to resolve a pending request.
         if (message.method !== undefined && message.id === undefined) {
+          this.restartClock(this.process);
           if (this.notificationHandler) {
             this.notificationHandler(message as SidecarNotification);
           }

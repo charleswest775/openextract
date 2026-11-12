@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#faf6f1" />
   <title>Fixes for common OpenExtract problems — OpenExtract</title>
-  <meta name="description" content="What to do when OpenExtract shows an error: making an iPhone backup on Windows or Mac, opening a backup, encrypted backup passwords, and more. Find the words you see." />
+  <meta name="description" content="What to do when OpenExtract shows an error: making an iPhone backup, opening one, encrypted backup passwords and more. Find the words you see." />
   <link rel="canonical" href="https://www.openextract.app/fixes" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta property="og:type" content="website" />
@@ -24,6 +24,15 @@
     "name": "Fixes for common OpenExtract problems",
     "url": "https://www.openextract.app/fixes",
     "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Backups made by iOS 6 stop OpenExtract",
+        "url": "https://www.openextract.app/fixes#ios6-photos-stop-engine",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "OpenExtract 0.12.0 stops working a few moments after it opens a backup made by iOS 6, when it reads the backup's photos. After that, everything says \"Sidecar exited with code 1\" or \"Python sidecar is not running\". Reinstalling 0.12.0 won't help. OpenExtract 0.13.0 fixes it: install the latest version from openextract.app, then open the backup again."
+        }
+      },
       {
         "@type": "Question",
         "name": "Part of OpenExtract didn't start",
@@ -116,6 +125,24 @@
       },
       {
         "@type": "Question",
+        "name": "Big backups stopped after 2 hours",
+        "url": "https://www.openextract.app/fixes#backup-stopped-after-2-hours",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "OpenExtract 0.12.0 and earlier stop waiting for a backup after 2 hours, even while it's still copying, so a big backup stops partway. OpenExtract 0.13.0 fixes it: install the latest version from openextract.app, then try the backup again. It now gives up only if the iPhone sends nothing for 2 hours."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "The iPhone disconnected partway through a backup",
+        "url": "https://www.openextract.app/fixes#backup-connection-dropped",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A backup can take hours, and the iPhone drops off if the computer goes to sleep or the USB connection is interrupted, even while it stays plugged in. OpenExtract 0.13.0 and later keep the computer awake during a backup, so if you have an older version, install the latest from openextract.app first. Keep the computer plugged in, keep a laptop's lid open, and don't let it sleep until the backup finishes. Plug the iPhone straight into the computer, not through a hub, dock or monitor, and try another USB port if it keeps happening. Then try the backup again."
+        }
+      },
+      {
+        "@type": "Question",
         "name": "Windows needs Apple Devices to find an iPhone",
         "url": "https://www.openextract.app/fixes#windows-apple-devices",
         "acceptedAnswer": {
@@ -201,6 +228,17 @@
         <p class="fix__seen">What you see: <code>OpenExtract wasn't allowed to change a file in the backup folder</code> or <code>[WinError 5] Access is denied</code></p>
         <p>Another program may be using the backup folder: OneDrive and other cloud folders, and antivirus software, can hold on to files while they work. Choose a new, empty folder that isn't in OneDrive or another synced folder, close any window showing the old one, then try again.</p>
       </div>
+      <div class="fix" id="backup-stopped-after-2-hours">
+        <h3>Big backups stopped after 2 hours</h3>
+        <p class="fix__seen">What you see: <code>Sidecar call timed out: backup.start</code></p>
+        <p class="fix__status">Fixed in OpenExtract 0.13.0. <a href="/#download">Get the latest version</a>.</p>
+        <p>OpenExtract 0.12.0 and earlier stop waiting for a backup after 2 hours, even while it's still copying, so a big backup stops partway. OpenExtract 0.13.0 fixes it: install the latest version from openextract.app, then try the backup again. It now gives up only if the iPhone sends nothing for 2 hours.</p>
+      </div>
+      <div class="fix" id="backup-connection-dropped">
+        <h3>The iPhone disconnected partway through a backup</h3>
+        <p class="fix__seen">What you see: <code>Your iPhone was disconnected before the backup finished</code> or <code>The connection to your iPhone dropped partway through the backup</code> or <code>Your computer went to sleep during the backup</code> or <code>The connection to your iPhone was terminated unexpectedly</code></p>
+        <p>A backup can take hours, and the iPhone drops off if the computer goes to sleep or the USB connection is interrupted, even while it stays plugged in. OpenExtract 0.13.0 and later keep the computer awake during a backup, so if you have an older version, install the latest from openextract.app first. Keep the computer plugged in, keep a laptop's lid open, and don't let it sleep until the backup finishes. Plug the iPhone straight into the computer, not through a hub, dock or monitor, and try another USB port if it keeps happening. Then try the backup again.</p>
+      </div>
       <div class="fix" id="windows-apple-devices">
         <h3>Windows needs Apple Devices to find an iPhone</h3>
         <p class="fix__seen">What you see: <code>OpenExtract needs Apple Devices, Apple's free iPhone app for Windows</code> or <code>Cannot connect to Apple Mobile Device Service</code></p>
@@ -208,6 +246,12 @@
       </div>
 
       <h2 id="open">Opening a backup</h2>
+      <div class="fix" id="ios6-photos-stop-engine">
+        <h3>Backups made by iOS 6 stop OpenExtract</h3>
+        <p class="fix__seen">What you see: <code>Sidecar exited with code 1</code> or <code>Python sidecar is not running</code></p>
+        <p class="fix__status">Fixed in OpenExtract 0.13.0. <a href="/#download">Get the latest version</a>.</p>
+        <p>OpenExtract 0.12.0 stops working a few moments after it opens a backup made by iOS 6, when it reads the backup's photos. After that, everything says &quot;Sidecar exited with code 1&quot; or &quot;Python sidecar is not running&quot;. Reinstalling 0.12.0 won't help. OpenExtract 0.13.0 fixes it: install the latest version from openextract.app, then open the backup again.</p>
+      </div>
       <div class="fix" id="backup-password">
         <h3>The password for an encrypted backup</h3>
         <p class="fix__seen">What you see: <code>Incorrect password. Please try again.</code></p>
@@ -271,7 +315,6 @@
       <ul class="footer__list">
         <li><a href="/how-it-works">How it works</a></li>
         <li><a href="/screenshots">Screenshots</a></li>
-        <li><a href="/vs-imazing">vs iMazing</a></li>
         <li><a href="/#download">Download</a></li>
       </ul>
     </div>
@@ -300,10 +343,23 @@
       </ul>
     </div>
     <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
       <div class="footer__col-head">Project</div>
       <ul class="footer__list">
         <li><a href="/about">About</a></li>
+        <li><a href="/support">Support OpenExtract</a></li>
+        <li><a href="/what-people-say">What people say</a></li>
         <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
         <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
         <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
       </ul>

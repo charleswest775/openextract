@@ -15,8 +15,25 @@
 // For the page: `area` is the section it goes in ('backup', 'open' or 'app'), `seen`
 // is the words the app shows, so people can search for them, and `fixedIn` is the
 // version that fixed a bug of ours. Nothing from a private report goes in here.
+//
+// `hides`, if given, lists fixes not to show alongside this one, for a vaguer fix whose
+// advice would be wrong once this one matches (the app shows at most two).
 
 const KNOWN_FIXES = [
+  {
+    id: 'ios6-photos-stop-engine',
+    title: 'Backups made by iOS 6 stop OpenExtract',
+    area: 'open',
+    seen: ['Sidecar exited with code 1', 'Python sidecar is not running'],
+    fixedIn: '0.13.0',
+    // python/main.py in 0.12.0 exited when a result held raw bytes, which list_photos gave for
+    // an iOS 6 backup (Photos.sqlite keeps photo UUIDs as bytes there), so every later call
+    // failed with "Python sidecar is not running" (OE-26 to OE-28). Its traceback is in the
+    // report's engine log. Reinstalling, which engine-did-not-start suggests, doesn't help.
+    match: /Object of type bytes is not JSON serializable/,
+    hides: ['engine-did-not-start'],
+    text: "OpenExtract 0.12.0 stops working a few moments after it opens a backup made by iOS 6, when it reads the backup's photos. After that, everything says \"Sidecar exited with code 1\" or \"Python sidecar is not running\". Reinstalling 0.12.0 won't help. OpenExtract 0.13.0 fixes it: install the latest version from openextract.app, then open the backup again.",
+  },
   {
     id: 'engine-did-not-start',
     title: "Part of OpenExtract didn't start",
@@ -120,6 +137,36 @@ const KNOWN_FIXES = [
     // _FOLDER_IN_USE after 0.10.1.
     match: /\[WinError 5\] Access is denied: '[^']*Snapshot|wasn't allowed to change a file in the backup folder/,
     text: 'Another program may be using the backup folder: OneDrive and other cloud folders, and antivirus software, can hold on to files while they work. Choose a new, empty folder that isn\'t in OneDrive or another synced folder, close any window showing the old one, then try again.',
+  },
+  {
+    id: 'backup-stopped-after-2-hours',
+    title: 'Big backups stopped after 2 hours',
+    area: 'backup',
+    seen: ['Sidecar call timed out: backup.start'],
+    fixedIn: '0.13.0',
+    // electron/main.ts up to 0.12.0 gave backup.start 2 hours in all, so a big backup that was
+    // still copying stopped partway (OE-17, OE-18, OE-31). From 0.13.0 the limit counts from the
+    // last progress report (electron/sidecar.ts restartClock), so this error then means 2 hours
+    // with nothing from the iPhone, which this text doesn't fit: hence `when`.
+    match: /Sidecar call timed out: backup\.start/,
+    when: /App: OpenExtract 0\.(?:\d|1[0-2])\.\d+\b/,
+    text: "OpenExtract 0.12.0 and earlier stop waiting for a backup after 2 hours, even while it's still copying, so a big backup stops partway. OpenExtract 0.13.0 fixes it: install the latest version from openextract.app, then try the backup again. It now gives up only if the iPhone sends nothing for 2 hours.",
+  },
+  {
+    id: 'backup-connection-dropped',
+    title: 'The iPhone disconnected partway through a backup',
+    area: 'backup',
+    seen: [
+      'Your iPhone was disconnected before the backup finished',
+      'The connection to your iPhone dropped partway through the backup',
+      'Your computer went to sleep during the backup',
+      'The connection to your iPhone was terminated unexpectedly',
+    ],
+    // python/device_backup.py _DEVICE_DISCONNECTED and _CONNECTION_DROPPED, and electron/main.ts
+    // COMPUTER_SLEPT. Up to 0.12.0 a drop partway with the iPhone still listed said "terminated
+    // unexpectedly … tap 'Trust'" (OE-29, OE-31), and the app didn't keep the computer awake.
+    match: /disconnected before the backup finished|connection to your iPhone (?:dropped partway|was terminated unexpectedly)|computer went to sleep during the backup/,
+    text: 'A backup can take hours, and the iPhone drops off if the computer goes to sleep or the USB connection is interrupted, even while it stays plugged in. OpenExtract 0.13.0 and later keep the computer awake during a backup, so if you have an older version, install the latest from openextract.app first. Keep the computer plugged in, keep a laptop\'s lid open, and don\'t let it sleep until the backup finishes. Plug the iPhone straight into the computer, not through a hub, dock or monitor, and try another USB port if it keeps happening. Then try the backup again.',
   },
   {
     id: 'windows-apple-devices',
