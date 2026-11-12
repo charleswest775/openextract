@@ -1,6 +1,7 @@
 // Every screen of an opened backup, on the encrypted maren backup (the only kind that holds
 // calls and web history), checked against the generator's answer key: the home tile, the
-// screen's own count, and something you can click on each screen.
+// screen's own count, and something you can click on each screen. WhatsApp is checked
+// against the key's "whatsapp" section when maren has one.
 import { check, launch, num, sleep, timed, timing } from '../harness.mjs';
 
 // The screens a backup has, as ExploreLayout names its tabs. scripts/e2e-coverage.test.mjs
@@ -27,6 +28,11 @@ export default {
       await shot('home');
       check('home tiles match the answer key', tiles.Messages === key.messages.length && tiles.Photos === key.photos.length
         && tiles['Address book'] === key.contacts.length && tiles.Notes === key.notes.length && tiles.Voicemail === key.voicemails.length, { tiles });
+      // WhatsApp, when the backup has it: the answer key's "whatsapp" section (none from a
+      // backupgen without the WhatsApp writer, and most iPhones have none).
+      const waKey = key.whatsapp ?? null;
+      const waTotal = waKey ? waKey.chats.reduce((n, c) => n + c.message_count, 0) : 0;
+      const waOf = chat => waKey.messages.filter(m => m.chat === chat.chat);
       const engineCalls = await app.api('call', 'list_calls', { udid: key.udid, offset: 0, limit: 100000 });
       const callList = engineCalls.value?.data?.calls ?? engineCalls.value?.data;
       check('Calls tile matches the engine', Array.isArray(callList) && tiles.Calls === callList.length, { tile: tiles.Calls, engine: Array.isArray(callList) ? callList.length : engineCalls });
@@ -49,11 +55,96 @@ export default {
       }
 
       // ── WhatsApp ──
-      // Shown only when the backup has it (the engine's list decides which way to check).
-      // maren has none: most iPhones don't, so there's no tile and it isn't listed as missing.
+      // Checked against the answer key when the backup has it. Without it there's no tile and
+      // it isn't listed as missing, since most iPhones don't have WhatsApp.
       const waList = await app.api('call', 'list_whatsapp_chats', { udid: key.udid });
       const wa = waList.value?.data;
-      if (wa?.conversations?.length) {
+      if (waKey) {
+        check(`WhatsApp tile counts the answer key's ${waTotal} messages`, tiles.WhatsApp === waTotal, { tile: tiles.WhatsApp });
+        check(`the engine lists the answer key's ${waKey.chats.length} chats`, wa?.conversations?.length === waKey.chats.length, wa ?? waList);
+        check('WhatsApp opens', await timed('screen WhatsApp', () => app.open('WhatsApp', /\d+ chats?/)));
+        const waChats = num((await app.text()).match(/([\d,]+) chats?/)?.[1]);
+        check(`WhatsApp lists ${waKey.chats.length} chats`, waChats === waKey.chats.length, waChats);
+        check('WhatsApp opens on a chat', !!(await app.waitFor(() => document.querySelectorAll('[data-message-id]').length, null, 15_000)));
+        // Opens a chat by name and waits for all its messages; returns their bubbles' text by sort.
+        const engineChat = c => wa.conversations.find(x => x.chat_jid === c.jid);
+        const openChat = async c => {
+          const clicked = await app.click(c.name);
+          const ids = (await app.api('call', 'get_whatsapp_messages', { udid: key.udid, chat_id: engineChat(c)?.chat_id, offset: 0, limit: 1000 }))
+            .value?.data?.messages ?? [];
+          const shown = await app.waitFor(n => document.querySelectorAll('[data-message-id]').length === n ? n : null, c.message_count, 15_000);
+          const bubbles = await app.eval(ids => Object.fromEntries(ids.map(([sort, id]) => [sort, document.querySelector(`[data-message-id="${id}"]`)?.textContent ?? null])),
+            ids.map(m => [m.sort, m.message_id]));
+          return { clicked, shown, bubbles, ids: ids.map(m => [m.sort, m.message_id]) };
+        };
+        // A group: its notices, a reply, reactions, a deleted message, a photo that isn't in the backup.
+        const group = waKey.chats.find(c => c.type === 'group' && waOf(c).some(m => m.quoted) && waOf(c).some(m => m.reactions.length))
+          ?? waKey.chats.find(c => c.type === 'group');
+        if (check('the answer key has a WhatsApp group', !!group)) {
+          const g = await openChat(group);
+          check(`the group "${group.name}" shows all ${group.message_count} messages`, g.clicked && g.shown === group.message_count, { clicked: g.clicked, shown: g.shown });
+          const ms = waOf(group);
+          const notices = ms.filter(m => m.notice && m.notice.event !== 'encrypted');
+          check('its notices say who made the group and who was added', notices.every(m => (g.bubbles[m.sort] ?? '').includes(
+            m.notice.event === 'created' ? `${m.notice.name} created the group` : m.notice.member === 'me' ? 'You were added' : `${m.notice.name} was added`)),
+          notices.map(m => g.bubbles[m.sort]));
+          const reply = ms.find(m => m.quoted && m.quoted.text);
+          check('a reply shows the message it answers', !reply || ((g.bubbles[reply.sort] ?? '').includes(reply.text) && g.bubbles[reply.sort].includes(reply.quoted.text)), reply && g.bubbles[reply.sort]);
+          const reacted = ms.filter(m => m.reactions.length);
+          check('reactions sit under their messages', reacted.every(m => m.reactions.every(r => (g.bubbles[m.sort] ?? '').includes(r.emoji))), reacted.map(m => g.bubbles[m.sort]));
+          const deleted = ms.find(m => m.kind === 'deleted');
+          check('a deleted message says so', !deleted || /This message was deleted|You deleted this message/.test(g.bubbles[deleted.sort] ?? ''), deleted && g.bubbles[deleted.sort]);
+          const gone = ms.find(m => m.attachment && !m.attachment.available);
+          check('a photo that isn\'t in the backup is labelled so', !gone || /not in this backup/.test(g.bubbles[gone.sort] ?? ''), gone && g.bubbles[gone.sort]);
+          await shot('whatsapp');
+        }
+        // A one-to-one chat with voice messages, calls and photos.
+        const voiceChat = waKey.chats.find(c => waOf(c).some(m => m.kind === 'audio') && waOf(c).some(m => m.call));
+        if (voiceChat) {
+          const v = await openChat(voiceChat);
+          check(`"${voiceChat.name}" shows all ${voiceChat.message_count} messages`, v.clicked && v.shown === voiceChat.message_count, { shown: v.shown });
+          const voices = waOf(voiceChat).filter(m => m.kind === 'audio');
+          const playButtons = await app.eval(() => [...document.querySelectorAll('[data-message-id] button')].filter(b => b.textContent.trim().startsWith('Play voice message')).length);
+          check(`its ${voices.length} voice messages each have a Play button`, playButtons === voices.length, playButtons);
+          // Play the last one: the app reads it from the backup and the window's own player must decode it
+          await app.eval(() => [...document.querySelectorAll('[data-message-id] button')].filter(b => b.textContent.trim().startsWith('Play voice message')).at(-1)?.click());
+          const played = await app.waitFor(() => {
+            const a = document.querySelector('[data-message-id] audio');
+            return a && Number.isFinite(a.duration) && a.duration > 0 ? Math.round(a.duration) : null;
+          }, null, 15_000);
+          check('a voice message plays in the app, at its length', played === voices.at(-1).attachment.duration
+            && !/can't play here/.test(await app.text()), { played, want: voices.at(-1).attachment.duration });
+          const calls = waOf(voiceChat).filter(m => m.call);
+          check('calls show what happened', calls.every(m => /call/i.test(v.bubbles[m.sort] ?? '') && (m.call.outcome !== 'missed' || /Missed/.test(v.bubbles[m.sort]))),
+            calls.map(m => v.bubbles[m.sort]));
+          // Pictures load as they scroll near: bring each photo into view and wait for it
+          const photoIds = waOf(voiceChat).filter(m => m.kind === 'image' && m.attachment.available)
+            .map(m => (v.ids ?? []).find(([sort]) => sort === m.sort)?.[1]);
+          let loadedPhotos = 0;
+          for (const id of photoIds) {
+            await app.eval(id => document.querySelector(`[data-message-id="${id}"]`)?.scrollIntoView({ block: 'center' }), id);
+            if (await app.waitFor(id => [...(document.querySelector(`[data-message-id="${id}"]`)?.querySelectorAll('img') ?? [])]
+              .some(i => i.complete && i.naturalWidth > 0) || null, id, 15_000)) loadedPhotos++;
+          }
+          check(`its ${photoIds.length} photos load`, photoIds.length > 0 && loadedPhotos === photoIds.length, loadedPhotos);
+          await shot('whatsapp-voice');
+        }
+        // A shared location with WhatsApp's map preview, a document, and starred messages.
+        const placeChat = waKey.chats.find(c => waOf(c).some(m => m.kind === 'shared_location'));
+        if (placeChat) {
+          const p = await openChat(placeChat);
+          check(`"${placeChat.name}" shows all ${placeChat.message_count} messages`, p.clicked && p.shown === placeChat.message_count, { shown: p.shown });
+          const place = waOf(placeChat).find(m => m.kind === 'shared_location');
+          check('a shared location shows its place', (p.bubbles[place.sort] ?? '').includes(place.location.place ?? 'Location'), p.bubbles[place.sort]);
+          const map = await app.waitFor(() => [...document.querySelectorAll('[data-message-id] img')].some(i => i.complete && i.naturalWidth > 0) || null, null, 20_000);
+          check('its map preview loads', !!map);
+          const doc = waOf(placeChat).find(m => m.kind === 'document');
+          check('a document shows its name', !doc || (p.bubbles[doc.sort] ?? '').includes(doc.attachment.name.replace(/\.pdf$/, '')), doc && p.bubbles[doc.sort]);
+          const starred = await app.eval(() => document.querySelectorAll('[data-message-id] [aria-label=Starred]').length);
+          check('starred messages are marked', starred === waOf(placeChat).filter(m => m.starred).length, starred);
+          await shot('whatsapp-location');
+        }
+      } else if (wa?.conversations?.length) {
         check('WhatsApp opens', await timed('screen WhatsApp', () => app.open('WhatsApp', /\d+ chats?/)));
         const waChats = num((await app.text()).match(/([\d,]+) chats?/)?.[1]);
         check(`WhatsApp lists the engine's ${wa.conversations.length} chats`, waChats === wa.conversations.length, waChats);
@@ -108,6 +199,23 @@ export default {
       check('People lists the most-messaged person first', /Most in touch first[\s\S]*Theo Navarro/.test(people));
       check('a person opens with their history', await app.click('Theo Navarro') && !!(await app.waitForText(/Open conversation/, 10_000)));
       check('"Open conversation" goes to the thread', await app.click('Open conversation') && !!(await app.waitForText(/Theo Navarro/, 10_000)));
+      if (waKey) {
+        // Someone who writes on both: their texts and WhatsApp chat on one page, matched by number.
+        const both = waKey.chats.find(c => c.type === 'individual' && c.contact && key.conversations.some(t => t.chat_identifier === c.handle));
+        if (both) {
+          await app.open('People', /Most in touch first/);
+          const wants = `${both.message_count} WhatsApp message`;
+          check(`${both.name}'s page has their texts and their WhatsApp`, await app.click(both.name)
+            && !!(await app.waitFor(w => document.body.innerText.includes(w) && /\d+ messages?/.test(document.body.innerText), wants, 10_000)), wants);
+          check('"Open WhatsApp chat" goes to the chat', await app.click('Open WhatsApp chat') && !!(await app.waitForText(/\d+ chats?/, 10_000)));
+        }
+        // Someone only on WhatsApp is a person too.
+        const outsider = waKey.chats.find(c => c.type === 'individual' && !c.contact);
+        if (outsider) {
+          await app.open('People', /Most in touch first/);
+          check(`${outsider.name}, only on WhatsApp, is in People`, (await app.text()).includes(outsider.name));
+        }
+      }
 
       // ── Address book ──
       check('Address book opens', await timed('screen Address book', () => app.open('Address book', /\d+ cards?/)));
@@ -163,11 +271,12 @@ export default {
       const tl = await app.text();
       const events = num(tl.match(/([\d,]+) events/)?.[1]);
       const chips = await app.eval(() => Object.fromEntries([...document.querySelectorAll('button')]
-        .map(b => b.textContent.trim().match(/^(Messages|Calls|Photos|Voicemail|Notes|Web)([\d,]+)$/)).filter(Boolean).map(m => [m[1], Number(m[2].replace(/,/g, ''))])));
+        .map(b => b.textContent.trim().match(/^(Messages|WhatsApp|Calls|Photos|Voicemail|Notes|Web)([\d,]+)$/)).filter(Boolean).map(m => [m[1], Number(m[2].replace(/,/g, ''))])));
       const chipTotal = Object.values(chips).reduce((a, n) => a + n, 0);
       check('timeline total is the sum of its type chips', events === chipTotal, { events, chips });
       check('timeline photos, notes, voicemail and web visits match the answer key', chips.Photos === key.photos.length && chips.Notes === key.notes.length
         && chips.Voicemail === key.voicemails.length && chips.Web === key.browser_history.length && chips.Calls === tiles.Calls, chips);
+      check(`timeline has the answer key's ${waTotal} WhatsApp messages`, (chips.WhatsApp ?? 0) === waTotal, chips);
       await app.click(`Photos${chips.Photos}`);
       await sleep(800);
       const afterChip = num((await app.text()).match(/([\d,]+) events/)?.[1]);
