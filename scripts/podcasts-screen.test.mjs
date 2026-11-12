@@ -116,7 +116,7 @@ const HISTORY = [
   episode({ id: 31, podcast_id: 3, podcast_title: 'Heard from a link', title: 'A guest episode', play_count: 1, listened: true, last_played_date: '2023-07-01T10:00:00Z', webpage_url: 'https://example.com/guest' }),
 ];
 
-const AUDIO_NOTE = "Episode audio isn't kept in iPhone backups. Each episode links to where the podcast publishes it.";
+const AUDIO_NOTE = "Episode audio isn't kept in iPhone backups. Get audio opens an episode in your browser, from where the podcast publishes it.";
 
 /** The screen on a fake engine. `answers(method, params)` is the engine's data, or a whole { success, ... } reply. */
 function screen(t, answers, extra = {}) {
@@ -238,19 +238,26 @@ test('a show asks for its own episodes by podcast_id, Listened first when it has
   assert.equal(calls(bridge).length, before, 'no second call for a list already read');
 });
 
-test('links go through openExternal: the show\'s website and each episode\'s page', async t => {
+test('links go through openExternal: the show\'s website, each episode\'s audio and page', async t => {
   const { bridge, mount } = screen(t, engine);
   const probe = mount();
   await settle();
   probe.rerender();
   await settle();
   probe.rerender();
-  // An episode row in the history: its page, else the audio's address
+  // An episode row in the history: Get audio opens the published audio, Episode page its page
   const rows = findAll(probe.out, el => el.props?.episode && el.props?.inHistory === true);
   const guest = rows.find(r => r.props.episode.id === 31);
   const row = guest.type(guest.props);
-  find(row, el => el.type === 'button').props.onClick();
-  assert.deepEqual(bridge.calls.filter(c => c[0] === 'openExternal').at(-1), ['openExternal', 'https://example.com/guest']);
+  const opened = () => bridge.calls.filter(c => c[0] === 'openExternal').at(-1);
+  find(row, el => el.type === 'button' && el.props.children === 'Get audio').props.onClick();
+  assert.deepEqual(opened(), ['openExternal', 'https://cdn.example.com/garden/bulbs.mp3']);
+  find(row, el => el.type === 'button' && el.props.children === 'Episode page').props.onClick();
+  assert.deepEqual(opened(), ['openExternal', 'https://example.com/guest']);
+  // No page: only Get audio
+  const pruning = rows.find(r => r.props.episode.id === 11);
+  const labels = findAll(pruning.type(pruning.props), el => el.type === 'button').map(b => b.props.children);
+  assert.deepEqual(labels, ['Get audio']);
 
   find(probe.out, el => el.props?.onClick && el.props?.title?.props?.text === 'Garden Hour').props.onClick();
   probe.rerender();

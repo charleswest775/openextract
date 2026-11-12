@@ -69,7 +69,7 @@ When you follow a show, the app marks its whole back catalogue `ZPLAYSTATE = 0` 
 
 ## Why the audio is never there
 
-`ZASSETURL` of a downloaded episode points into `/var/mobile/Media/Podcasts/` (`file:`), or `ipod-library:` for one synced from a computer. That folder isn't part of an iPhone backup, encrypted or not, and Manifest.db has no rows for it on any phone checked. So the app shows "Downloaded on the iPhone" as a fact about the phone, never offers to play or save an episode, and says once, calmly: "Episode audio isn't kept in iPhone backups. Each episode links to where the podcast publishes it." The app never fetches feeds, artwork or audio, and the renderer's content security policy blocks remote images anyway.
+`ZASSETURL` of a downloaded episode points into `/var/mobile/Media/Podcasts/` (`file:`), or `ipod-library:` for one synced from a computer. That folder isn't part of an iPhone backup, encrypted or not, and Manifest.db has no rows for it on any phone checked. So the app shows "Downloaded on the iPhone" as a fact about the phone, never plays or saves an episode itself, and says once, calmly: "Episode audio isn't kept in iPhone backups. Get audio opens an episode in your browser, from where the podcast publishes it." Get audio hands the episode's published audio address (`ZENCLOSUREURL`, http or https only) to the browser, which plays or downloads it; the app itself never fetches feeds, artwork or audio, and the renderer's content security policy blocks remote images anyway.
 
 ## The app
 

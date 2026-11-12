@@ -116,10 +116,14 @@ test('an episode\'s line: published date and length, or in the history the show 
   assert.equal(pc.episodeLine(episode({ published_date: null, duration_seconds: null })), '');
 });
 
-test('links open only web addresses: the episode page, else where the audio is published', () => {
-  assert.equal(pc.episodeLink({ webpage_url: 'https://example.com/ep/1', enclosure_url: 'https://cdn.example.com/1.mp3' }), 'https://example.com/ep/1');
-  assert.equal(pc.episodeLink({ webpage_url: null, enclosure_url: 'https://cdn.example.com/1.mp3' }), 'https://cdn.example.com/1.mp3');
-  assert.equal(pc.episodeLink({ webpage_url: 'file:///var/mobile/Media/Podcasts/1.mp3', enclosure_url: null }), null);
+test('links open only web addresses: the episode page, and the published audio', () => {
+  assert.equal(pc.episodeLink({ webpage_url: 'https://example.com/ep/1' }), 'https://example.com/ep/1');
+  assert.equal(pc.episodeLink({ webpage_url: null }), null);
+  assert.equal(pc.episodeLink({ webpage_url: 'file:///var/mobile/Media/Podcasts/1.mp3' }), null);
+  assert.equal(pc.episodeAudio({ enclosure_url: 'https://cdn.example.com/1.mp3' }), 'https://cdn.example.com/1.mp3');
+  assert.equal(pc.episodeAudio({ enclosure_url: null }), null);
+  // The phone's own copy (never in a backup) is never offered
+  assert.equal(pc.episodeAudio({ enclosure_url: 'ipod-library://item/item.mp3?id=1' }), null);
   assert.equal(pc.webAddress('javascript:alert(1)'), null);
   assert.equal(pc.webAddress(' http://example.com '), 'http://example.com');
   assert.equal(pc.webAddress(null), null);
@@ -155,7 +159,7 @@ test('empty states: calm when the Podcasts app wasn\'t used, a Report button whe
 });
 
 test('the audio note says once, calmly, that audio isn\'t in backups', () => {
-  assert.equal(pc.AUDIO_NOTE, "Episode audio isn't kept in iPhone backups. Each episode links to where the podcast publishes it.");
+  assert.equal(pc.AUDIO_NOTE, "Episode audio isn't kept in iPhone backups. Get audio opens an episode in your browser, from where the podcast publishes it.");
 });
 
 test('home tile: shows followed, else episodes listened to; unreadable says so with no number', () => {

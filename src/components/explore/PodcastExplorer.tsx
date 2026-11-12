@@ -11,7 +11,7 @@ import { plural, savePodcasts } from '../../lib/saveData';
 import { matches } from '../../lib/search';
 import { formatDate } from '../../lib/dates';
 import {
-  AUDIO_NOTE, defaultEpisodeView, emptyCopy, episodeChips, episodeLine, episodeLink, episodeMatchFields, episodeName,
+  AUDIO_NOTE, defaultEpisodeView, emptyCopy, episodeChips, episodeLine, episodeAudio, episodeLink, episodeMatchFields, episodeName,
   episodesEmptyText, followState, groupShows, historyOrder, noMatchCopy, showCounts, showLine, showMatchFields, showName,
   webAddress,
 } from '../../lib/podcasts';
@@ -377,6 +377,7 @@ function ShowDetails({ show, query, view, onView }: {
 
 function EpisodeRow({ episode, query, inHistory }: { episode: PodcastEpisode; query: string; inHistory: boolean }) {
   const link = episodeLink(episode);
+  const audio = episodeAudio(episode);
   const chips = episodeChips(episode);
   const name = episodeName(episode);
   return (
@@ -392,15 +393,30 @@ function EpisodeRow({ episode, query, inHistory }: { episode: PodcastEpisode; qu
           </div>
         )}
       </div>
-      {link && (
-        <button
-          type="button"
-          className="hearth-ghost-btn !px-3 !py-1.5 flex-shrink-0"
-          aria-label={`Open "${name}" on the web`}
-          onClick={() => window.openextract.openExternal(link)}
-        >
-          Open on the web
-        </button>
+      {(audio || link) && (
+        <div className="flex flex-shrink-0 gap-2">
+          {audio && (
+            <button
+              type="button"
+              className="hearth-ghost-btn !px-3 !py-1.5"
+              aria-label={`Get the audio of "${name}" in your browser`}
+              title="Opens in your browser, from where the podcast publishes it"
+              onClick={() => window.openextract.openExternal(audio)}
+            >
+              Get audio
+            </button>
+          )}
+          {link && (
+            <button
+              type="button"
+              className="hearth-ghost-btn !px-3 !py-1.5"
+              aria-label={`Open the page for "${name}" on the web`}
+              onClick={() => window.openextract.openExternal(link)}
+            >
+              Episode page
+            </button>
+          )}
+        </div>
       )}
     </li>
   );

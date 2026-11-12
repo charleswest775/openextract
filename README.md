@@ -1,6 +1,6 @@
 # OpenExtract
 
-A free, open-source iPhone backup extractor for Windows, Mac and Linux: read and save the messages, WhatsApp chats, photos, voicemails, calls, contacts, notes and podcasts in an iPhone or iPad backup.
+A free, open-source iPhone backup extractor for Windows, Mac and Linux: read and save the messages, WhatsApp chats, photos, voicemails, calls, contacts and notes in an iPhone or iPad backup.
 
 **[Download for Windows, Mac or Linux](https://www.openextract.app/?ref=gh-readme#download)** · **[openextract.app](https://www.openextract.app/?ref=gh-readme)**
 
@@ -22,7 +22,6 @@ A free, open-source iPhone backup extractor for Windows, Mac and Linux: read and
 - 📋 **Calls** — View calls with contact name resolution
 - 👤 **Address book** — Browse and export your saved contact cards
 - 📝 **Notes** — Read and export your iOS notes
-- 🎙️ **Podcasts** — The shows you follow and the episodes you listened to; save your subscriptions as OPML for another podcast app, or everything as CSV. Episode audio isn't kept in iPhone backups
 - 🔒 **Encrypted Backups** — Full support for password-protected backups
 - 📤 **Export** — Save conversations as PDF, HTML, CSV, or plain text
 

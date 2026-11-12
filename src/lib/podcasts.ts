@@ -13,7 +13,7 @@ import type { Podcast, PodcastEpisode, PodcastsEmptyReason, PodcastsStatus } fro
 import { formatDate } from './dates';
 
 /** The one note about audio, said once on the screen. */
-export const AUDIO_NOTE = "Episode audio isn't kept in iPhone backups. Each episode links to where the podcast publishes it.";
+export const AUDIO_NOTE = "Episode audio isn't kept in iPhone backups. Get audio opens an episode in your browser, from where the podcast publishes it.";
 
 // "1 show", "3 shows". A copy of saveData's plural, so this file needs nothing from the bridge.
 function count(n: number, one: string, many = `${one}s`): string {
@@ -150,9 +150,17 @@ export function episodeLine(episode: PodcastEpisode, { inHistory = false } = {})
   return parts.filter(Boolean).join(' · ');
 }
 
-/** Where an episode can be found on the web: its page, else the audio's address. */
-export function episodeLink(episode: Pick<PodcastEpisode, 'webpage_url' | 'enclosure_url'>): string | null {
-  return webAddress(episode.webpage_url) ?? webAddress(episode.enclosure_url);
+/** The episode's own page on the web, if it has one. */
+export function episodeLink(episode: Pick<PodcastEpisode, 'webpage_url'>): string | null {
+  return webAddress(episode.webpage_url);
+}
+
+/**
+ * Where the podcast publishes the episode's audio. The backup never has the audio, so "Get
+ * audio" opens this in the browser, which plays or downloads it: the app itself fetches nothing.
+ */
+export function episodeAudio(episode: Pick<PodcastEpisode, 'enclosure_url'>): string | null {
+  return webAddress(episode.enclosure_url);
 }
 
 /** A link the app will open: only http and https, never a file or app address. */

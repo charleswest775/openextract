@@ -36,7 +36,12 @@ export default {
       check('a followed show opens on what was listened to', await app.click(show.title)
         && !!(await app.waitForText(new RegExp(`${show.episode_count} episodes, ${show.listened_count} listened to`), 10_000)));
       check('All episodes lists every episode', await app.click('All episodes')
-        && !!(await app.waitForText(/Open on the web/, 10_000)));
+        && !!(await app.waitForText(/Episode page/, 10_000)));
+      // Get audio hands the published audio to the browser (stubbed by the harness); the app fetches nothing
+      await app.opened();
+      await app.click('Get audio');
+      const opened = await app.opened();
+      check('Get audio opens the published audio in the browser', opened.length === 1 && /^https:\/\/cdn\.example\.com\/.+\.mp3$/.test(opened[0]?.[1] ?? ''), opened);
       check('no podcast artwork or feed is fetched', !(await app.eval(() => [...document.images].some(i => /^https?:/.test(i.src)))));
 
       // The screen's own Save, both formats
