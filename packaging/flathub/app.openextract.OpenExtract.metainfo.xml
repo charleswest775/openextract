@@ -12,7 +12,7 @@
     <p>
       Getting your text messages off an iPhone is harder than it should be. OpenExtract opens an
       iPhone backup on your own computer and lets you read, search and save everything in it:
-      messages and iMessages, WhatsApp chats, photos, voicemails, contacts, call history and notes.
+      messages and iMessages, WhatsApp chats, photos, voicemails, contacts, call history, notes and podcasts.
     </p>
     <p>
       It is free with no strings attached. There is no account, no trial and no paid tier, and
@@ -25,6 +25,7 @@
       <li>Save a conversation as a PDF, with its photos</li>
       <li>Export conversations as HTML, CSV or plain text</li>
       <li>Save voicemails as audio files and photos as ordinary image files</li>
+      <li>See the podcasts you follow and the episodes you played, and save your subscriptions for another podcast app</li>
       <li>Opens encrypted backups with the backup password</li>
     </ul>
   </description>
@@ -64,6 +65,12 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.15.0" date="2026-11-12">
+      <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.15.0</url>
+      <description>
+        <p>Podcasts has its own section: the shows you follow in Apple Podcasts and the episodes you played, newest first, with how many times and where you stopped. Save your subscriptions as an OPML file, which most podcast apps can import, or every show and episode as a spreadsheet. A backup never includes podcast audio, so each episode has a Get audio button that opens it in your browser. When a recent backup has moved or its drive isn't plugged in, the app says so and offers Find it. Saving inside OpenExtract's own program folder is refused, because an update would delete it.</p>
+      </description>
+    </release>
     <release version="0.14.0" date="2026-11-11">
       <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.14.0</url>
       <description>
