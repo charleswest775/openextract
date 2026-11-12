@@ -46,7 +46,9 @@ export default {
       }
 
       // WhatsApp: most iPhones don't have it, so a backup without it has no WhatsApp tile and
-      // doesn't list it as missing; the engine says so without an error.
+      // doesn't list it as missing; the engine says so without an error. The answer key agrees
+      // (a backupgen that writes WhatsApp lists it under "absent").
+      check('the answer key has no WhatsApp for this backup', !key.whatsapp && [undefined, 'none'].includes(key.absent?.whatsapp), key.absent);
       await app.home();
       const waShown = await app.eval(() => [...document.querySelectorAll('span')].some(s => s.textContent.trim() === 'WhatsApp'));
       check('WhatsApp: no tile, and not listed as missing', !('WhatsApp' in (await app.tiles())) && !waShown);
@@ -81,6 +83,9 @@ export default {
       if (r2.opened) {
         const t2 = await app.homeTiles();
         check('its message count matches the answer key', t2.Messages === enc.expected.messages.length, t2);
+        const waEnc = (await app.api('call', 'list_whatsapp_chats', { udid: enc.expected.udid })).value?.data;
+        check('it has no WhatsApp either, and says so calmly', !enc.expected.whatsapp && !('WhatsApp' in t2)
+          && waEnc?.empty_reason === 'not_in_backup' && !waEnc?.error, waEnc);
       }
     } finally {
       await app.close();
