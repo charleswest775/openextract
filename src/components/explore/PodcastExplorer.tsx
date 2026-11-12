@@ -89,9 +89,15 @@ export default function PodcastExplorer({ udid, query }: Props) {
 
   const groups = useMemo(() => {
     const { followed, others } = groupShows(podcasts);
-    const keep = (p: Podcast) => matches(query, ...showMatchFields(p));
+    // A show stays listed when its name matches, or when it's the open show
+    // and one of its episodes does (so searching for an episode title
+    // narrows the open show's episodes instead of leaving it).
+    const prefix = typeof selected === 'number' ? `${udid}:${selected}:` : null;
+    const openShowHasHit = !!query && prefix !== null && Object.entries(lists).some(([key, l]) =>
+      key.startsWith(prefix) && l.episodes.some(e => matches(query, ...episodeMatchFields(e))));
+    const keep = (p: Podcast) => matches(query, ...showMatchFields(p)) || (openShowHasHit && p.id === selected);
     return { followed: followed.filter(keep), others: others.filter(keep) };
-  }, [podcasts, query]);
+  }, [podcasts, query, selected, lists, udid]);
   const shownCount = groups.followed.length + groups.others.length;
 
   // A search that hides the open show opens the first one that matches
@@ -190,7 +196,7 @@ export default function PodcastExplorer({ udid, query }: Props) {
                 line={showLine(p)}
               />
             ))}
-            {groups.others.length > 0 && <div className="hearth-eyebrow px-4 pt-4 pb-1.5">Played, not followed</div>}
+            {groups.others.length > 0 && <div className="hearth-eyebrow px-4 pt-4 pb-1.5">Not followed</div>}
             {groups.others.map(p => (
               <ListButton
                 key={p.id}
@@ -262,7 +268,7 @@ export default function PodcastExplorer({ udid, query }: Props) {
       {choosing && (
         <SaveDialog
           title="Save your podcasts"
-          formats={[FORMATS.opml, FORMATS.csv]}
+          formats={podcasts.some(p => p.followed && p.feed_url) ? [FORMATS.opml, FORMATS.csv] : [FORMATS.csv]}
           onSave={save}
           onCancel={() => setChoosing(false)}
         />

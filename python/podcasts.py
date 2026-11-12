@@ -39,11 +39,13 @@ except ImportError:
     _CorePodcastExtractor = None
     podcasts_to_opml = None
 
-__all__ = ["PodcastExtractor", "NOTHING_TO_SAVE", "NO_FEEDS_TO_SAVE"]
+__all__ = ["PodcastExtractor", "NOTHING_TO_SAVE", "NO_FEEDS_TO_SAVE", "NONE_FOLLOWED"]
 
 # What the app is told, in words for people.
 NOTHING_TO_SAVE = "There are no podcasts in this backup to save."
-NO_FEEDS_TO_SAVE = "None of the podcasts in this backup have a feed address to save."
+NO_FEEDS_TO_SAVE = "None of the podcasts you follow have a feed address to save."
+NONE_FOLLOWED = ("You don't follow any of the podcasts in this backup, so there's no subscription list to save. "
+                 "Save them as a spreadsheet to get every show.")
 
 FORMATS = ("opml", "csv")
 
@@ -174,9 +176,10 @@ class PodcastExtractor:
             return {"error": f"The podcasts couldn't be saved there: {e.strerror or e}"}
 
     def _write_opml(self, backup, podcasts, output_dir, now=None) -> dict:
-        shows = [p for p in podcasts if p.get("followed") and p.get("feed_url")]
+        followed = [p for p in podcasts if p.get("followed")]
+        shows = [p for p in followed if p.get("feed_url")]
         if not shows:
-            return {"error": NO_FEEDS_TO_SAVE, "empty_reason": "no_records"}
+            return {"error": NO_FEEDS_TO_SAVE if followed else NONE_FOLLOWED, "empty_reason": "no_records"}
         device = _device_name(backup)
         title = f"Podcasts from {device}" if device else "Podcasts"
         created = format_datetime(now or datetime.now(timezone.utc), usegmt=True)

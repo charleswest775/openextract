@@ -117,6 +117,10 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
   });
 
   function start(kind: KindInfo) {
+    // A subscription list needs a followed show: with none, only the spreadsheet is offered
+    if (kind.id === 'podcasts' && overview && (overview.total_podcasts_followed ?? 1) === 0) {
+      kind = { ...kind, formats: kind.formats.filter(f => f.id !== 'opml') };
+    }
     if (kind.formats.length > 1) setChoosing(kind);
     else save(kind.id, kind.formats[0].id);
   }

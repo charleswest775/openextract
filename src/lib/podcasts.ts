@@ -50,7 +50,7 @@ export interface ShowGroups {
   others: Podcast[];
 }
 
-/** The list's two groups: followed shows, then the quiet "Played, not followed" group. */
+/** The list's two groups: followed shows, then the quiet "Not followed" group. */
 export function groupShows(podcasts: Podcast[]): ShowGroups {
   const followed = podcasts.filter(p => p.followed).sort(byTitle);
   const others = podcasts.filter(p => !p.followed)

@@ -175,7 +175,7 @@ test('opens on the listening history: asked for with listened_only, most recentl
   assert.match(out, /Listening history/);
   assert.match(out, /3 episodes played on this iPhone/);
   assert.match(out, />Following</);
-  assert.match(out, />Played, not followed</);
+  assert.match(out, />Not followed</);
   // Followed shows A to Z, then the rest
   assert.ok(out.indexOf('Apple Orchard Weekly') < out.indexOf('Garden Hour'));
   assert.ok(out.indexOf('Garden Hour') < out.indexOf('Heard from a link'));
@@ -300,6 +300,38 @@ test('Save offers subscriptions (OPML) and a spreadsheet, and saves through expo
   assert.deepEqual(calls(bridge).at(-1), ['export_podcasts', { udid: 'u1', output_dir: '/Users/jane/Desktop', format: 'opml' }]);
   assert.equal(result.title, 'Saved 2 podcasts');
   assert.equal(result.path, '/Users/jane/Desktop/Podcasts.opml');
+});
+
+test('searching for an episode title keeps the open show and narrows its episodes', async t => {
+  const { mount } = screen(t, engine);
+  const probe = mount();
+  await settle();
+  probe.rerender();
+  await settle();
+  const showButton = title => find(probe.rerender(), el => el.props?.onClick && el.props?.title?.props?.text === title);
+  showButton('Apple Orchard Weekly').props.onClick();
+  probe.rerender();
+  await settle();
+  probe.rerender();
+  // "Episode of show 2" is in the open show's list; the show's own name doesn't match
+  let out = html({ out: probe.rerender({ query: 'episode of show' }) });
+  assert.match(out, /aria-label="Apple Orchard Weekly"/, 'the open show stays open');
+  assert.match(out, /Episode of show 2/);
+  assert.match(out, /1 of 3 podcasts/);
+  // A word in no episode and no show still says nothing matches
+  out = html({ out: probe.rerender({ query: 'xylophone' }) });
+  assert.match(out, /0 of 3 podcasts/);
+});
+
+test('with no followed show, Save offers only the spreadsheet', async t => {
+  const unfollowed = SHOWS.map(p => ({ ...p, followed: false }));
+  const { mount } = screen(t, (method, params) => (method === 'list_podcasts' ? { podcasts: unfollowed } : engine(method, params)));
+  const probe = mount();
+  await settle();
+  probe.rerender();
+  find(probe.out, el => el.props?.label === 'Save' && el.props?.onClick).props.onClick();
+  const dialog = find(probe.rerender(), el => Array.isArray(el.props?.formats));
+  assert.deepEqual(dialog.props.formats.map(f => f.id), ['csv']);
 });
 
 // ── Without shows ────────────────────────────────────────────────────────────

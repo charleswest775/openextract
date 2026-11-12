@@ -61,7 +61,7 @@ Dates are Apple seconds (since 2001-01-01) and come back as ISO 8601 UTC strings
 
 ## Followed, and implicitly followed
 
-`followed` is true when the show is `ZSUBSCRIBED = 1` and not `ZISIMPLICITLYFOLLOWED = 1`. From iOS 16 the app quietly "follows" a show you only played an episode of; those are kept as shows (with `implicitly_followed`) but aren't something you chose, so the screen lists them under "Played, not followed" and the OPML save leaves them out. iOS 13 has no such column, so every subscribed show there is followed. All six shows on each Hickman phone are followed; no corpus backup has an implicit follow yet.
+`followed` is true when the show is `ZSUBSCRIBED = 1` and not `ZISIMPLICITLYFOLLOWED = 1`. From iOS 16 the app quietly "follows" a show you only played an episode of; those are kept as shows (with `implicitly_followed`) but aren't something you chose, so the screen lists them under "Not followed" (with shows you unfollowed) and the OPML save leaves them out. iOS 13 has no such column, so every subscribed show there is followed. All six shows on each Hickman phone are followed; no corpus backup has an implicit follow yet.
 
 ## Listened, and the "played" back catalogue
 
@@ -82,7 +82,7 @@ Engine (`python/podcasts.py`, over the library class; the import is guarded, so 
   - Nothing to save is `{error, empty_reason}`, so the screen shows a calm notice and writes nothing.
 - `get_backup_stats` overview: `total_podcasts`, `total_podcasts_followed`, `total_podcast_episodes_listened`, `podcasts_status`. `errors` gets a `podcasts: ...` line only for a real error.
 
-Screen: a Podcasts tile and section after Voicemail, shown when the backup has shows or the library couldn't be read, and never listed as "Not in this backup" (most iPhones have never used Podcasts). The list starts with Listening history (every listened episode, most recently played first), then followed shows, then "Played, not followed". A show's page has its feed address, website and counts, and its episodes with a Listened / All episodes switch. The feedback area is `podcasts`.
+Screen: a Podcasts tile and section after Voicemail, shown when the backup has shows or the library couldn't be read, and never listed as "Not in this backup" (most iPhones have never used Podcasts). The list starts with Listening history (every listened episode, most recently played first), then followed shows, then "Not followed". A show's page has its feed address, website and counts, and its episodes with a Listened / All episodes switch. The feedback area is `podcasts`.
 
 ## Tests
 

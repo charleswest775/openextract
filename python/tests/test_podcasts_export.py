@@ -253,8 +253,17 @@ class TestOpml(AdapterCase):
 
     def test_no_followed_show_with_a_feed_writes_nothing(self):
         self.inner.podcasts = {"podcasts": [SHOWS[2], SHOWS[3], SHOWS[4]]}
-        self.assertEqual(self.save("opml"), {"error": "None of the podcasts in this backup have a feed address to save.",
+        self.assertEqual(self.save("opml"), {"error": "None of the podcasts you follow have a feed address to save.",
                                              "empty_reason": "no_records"})
+        self.assertFalse(self.out.exists())
+
+    def test_no_followed_show_says_so_not_that_feeds_are_missing(self):
+        # Shows only played (implicitly followed) or unfollowed: every one has a feed
+        self.inner.podcasts = {"podcasts": [SHOWS[3], SHOWS[4]]}
+        result = self.save("opml")
+        self.assertEqual(result["empty_reason"], "no_records")
+        self.assertTrue(result["error"].startswith("You don't follow any of the podcasts in this backup"))
+        self.assertNotIn("feed address", result["error"])
         self.assertFalse(self.out.exists())
 
 
