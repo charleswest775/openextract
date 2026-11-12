@@ -129,10 +129,10 @@ describe('removeStaleStagingDirs', () => {
 });
 
 describe('exportMessagesPdf', () => {
-  test('only the two conversation exports are allowed, and the engine isn\'t asked otherwise', async () => {
+  test('only the conversation and WhatsApp chat exports are allowed, and the engine isn\'t asked otherwise', async () => {
     const { pdf, outputDir } = setup();
     const engine = fakeEngine();
-    for (const method of ['list_messages', 'write_file', 'export_calls', '__proto__', '']) {
+    for (const method of ['list_messages', 'write_file', 'export_calls', 'export_whatsapp', 'get_whatsapp_messages', '__proto__', '']) {
       await assert.rejects(pdf.exportMessagesPdf(engine, method, { output_dir: outputDir }), {
         message: `PDF export is not available for ${method}`,
       });
@@ -183,6 +183,24 @@ describe('exportMessagesPdf', () => {
       pageSize: 'Letter',
       margins: { top: 0.5, bottom: 0.5, left: 0.5, right: 0.5 },
     });
+  });
+
+  test('WhatsApp chats print the same way, through their own engine methods', async () => {
+    const { pdf, temp, outputDir } = setup();
+    // An iMessage "Riley.pdf" saved earlier in the same folder is kept
+    fs.writeFileSync(path.join(outputDir, 'Riley.pdf'), 'from Messages');
+    const one = fakeEngine(['Riley.html'], { messageCount: 9 });
+    const result = await pdf.exportMessagesPdf(one, 'export_whatsapp_chat', { udid: 'u', chat_id: 3, output_dir: outputDir });
+    assert.deepEqual(one.calls.map(c => [c.method, c.params.format, c.params.chat_id]), [['export_whatsapp_chat', 'pdf_source', 3]]);
+    assert.deepEqual(result, { files: [path.join(outputDir, 'Riley (2).pdf')], message_count: 9 });
+    assert.equal(fs.readFileSync(path.join(outputDir, 'Riley.pdf'), 'utf-8'), 'from Messages');
+
+    const many = fakeEngine(['Riley (2).html', 'Hiking crew.html'], { messageCount: 30 });
+    const merged = await pdf.exportMessagesPdf(many, 'export_whatsapp_chats', { udid: 'u', chat_ids: [3, 4], output_dir: outputDir });
+    assert.equal(many.calls[0].method, 'export_whatsapp_chats');
+    assert.deepEqual(merged.files.map(f => path.basename(f)), ['Riley (2) (2).pdf', 'Hiking crew.pdf']);
+    assert.equal(merged.message_count, 30);
+    assert.deepEqual(stagingDirsIn(temp), []);
   });
 
   test('never overwrites: an existing Mom.pdf makes the next one Mom (2).pdf, then Mom (3).pdf', async () => {

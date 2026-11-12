@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MessageCircle, PhoneCall, Image, Voicemail, NotebookPen, Globe, ChevronDown, ChevronUp, Loader2, X, ZoomIn } from 'lucide-react';
+import { MessageCircle, MessagesSquare, PhoneCall, Image, Voicemail, NotebookPen, Globe, ChevronDown, ChevronUp, ChevronRight, Loader2, X, ZoomIn } from 'lucide-react';
 import { TimelineEntry } from '../../types/timeline';
 import { TYPE_COLORS } from './TimelineTypeChips';
 import { formatTime, formatDate, formatDuration } from '../../lib/dates';
+import { whatsAppMediaLabel, whatsAppSender, whatsAppText } from '../../lib/timelineExport';
 import { sidecarCall } from '../../lib/ipc';
 import AmrPlayer from '../voicemail/AmrPlayer';
 
@@ -117,9 +118,14 @@ interface MessageViewerProps {
   service: string;
   timestamp: string;
   onClose: () => void;
+  /** Who said it, when that isn't the conversation itself (someone in a group). */
+  sender?: string;
+  /** Opens the whole conversation at this message, with this button label. */
+  openLabel?: string;
+  onOpen?: () => void;
 }
 
-function MessageViewerModal({ text, displayText, isFromMe, conversationName, service, timestamp, onClose }: MessageViewerProps) {
+function MessageViewerModal({ text, displayText, isFromMe, conversationName, service, timestamp, onClose, sender, openLabel, onOpen }: MessageViewerProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handler);
@@ -159,12 +165,22 @@ function MessageViewerModal({ text, displayText, isFromMe, conversationName, ser
         }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
-              {isFromMe ? `Me → ${conversationName}` : conversationName}
+              {isFromMe ? `Me → ${conversationName}` : sender ? `${sender} → ${conversationName}` : conversationName}
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: 2 }}>
               {service} · {formatDate(timestamp)} at {formatTime(timestamp)}
             </div>
           </div>
+          {onOpen && (
+            <button
+              onClick={e => { e.stopPropagation(); onOpen(); }}
+              className="hearth-ghost-btn"
+              style={{ marginLeft: 'auto', marginRight: 10, flexShrink: 0 }}
+            >
+              {openLabel ?? 'Open'}
+              <ChevronRight size={16} />
+            </button>
+          )}
           <button
             onClick={onClose}
             style={{
@@ -279,6 +295,7 @@ function NoteViewerModal({ title, body, modified, onClose }: NoteViewerProps) {
 
 const TYPE_CONFIG = {
   message:   { color: TYPE_COLORS.message,   icon: MessageCircle, badge: 'Message'   },
+  whatsapp:  { color: TYPE_COLORS.whatsapp,  icon: MessagesSquare, badge: 'WhatsApp' },
   call:      { color: TYPE_COLORS.call,      icon: PhoneCall,     badge: 'Call'      },
   photo:     { color: TYPE_COLORS.photo,     icon: Image,         badge: 'Photo'     },
   voicemail: { color: TYPE_COLORS.voicemail, icon: Voicemail,     badge: 'Voicemail' },
@@ -288,6 +305,7 @@ const TYPE_CONFIG = {
 
 function accentColor(entry: TimelineEntry): string {
   if (entry.type === 'call' && entry.call?.status === 'missed') return 'var(--error)';
+  if (entry.type === 'whatsapp' && entry.whatsapp?.call?.outcome === 'missed') return 'var(--error)';
   return TYPE_CONFIG[entry.type].color;
 }
 
@@ -391,9 +409,11 @@ function VoicemailPlayer({ voicemailId, udid }: VoicemailPlayerProps) {
 interface Props {
   entry: TimelineEntry;
   udid: string;
+  /** Opens a WhatsApp message in its chat. Without it, the message still shows, just with no way through to the chat. */
+  onOpenWhatsApp?: (entry: TimelineEntry) => void;
 }
 
-export default function TimelineEntryCard({ entry, udid }: Props) {
+export default function TimelineEntryCard({ entry, udid, onOpenWhatsApp }: Props) {
   const [vmExpanded, setVmExpanded] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -444,6 +464,46 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
             service={service}
             timestamp={entry.timestamp}
             onClose={() => setMsgOpen(false)}
+          />
+        )}
+      </>
+    );
+  } else if (entry.type === 'whatsapp' && entry.whatsapp) {
+    const w = entry.whatsapp;
+    const { text, isFromMe, conversationName } = w;
+    // Someone in a group said it: "Ana → Family". A notice ("Riley joined") is no one's.
+    const sender = whatsAppSender(w) ?? undefined;
+    const hasWords = !!text?.trim();
+    const shown = whatsAppText(w) || '(no text)';
+    const label = hasWords ? whatsAppMediaLabel(w) : null;
+
+    body = (
+      <>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+          {metaLeft}
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {isFromMe ? `Me → ${conversationName}` : sender ? `${sender} → ${conversationName}` : conversationName}
+        </div>
+        <div style={{
+          fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          color: 'var(--text-secondary)', fontStyle: hasWords ? 'normal' : 'italic',
+        }}>
+          {shown}
+        </div>
+        {msgOpen && (
+          <MessageViewerModal
+            text={text}
+            displayText={hasWords ? text! : shown}
+            isFromMe={isFromMe}
+            conversationName={conversationName}
+            sender={sender}
+            // A caption's photo: named in the line under the title
+            service={label && w.messageType !== 'link' ? `WhatsApp · ${label}` : 'WhatsApp'}
+            timestamp={entry.timestamp}
+            onClose={() => setMsgOpen(false)}
+            openLabel="Open in WhatsApp"
+            onOpen={onOpenWhatsApp ? () => { setMsgOpen(false); onOpenWhatsApp(entry); } : undefined}
           />
         )}
       </>
@@ -599,11 +659,11 @@ export default function TimelineEntryCard({ entry, udid }: Props) {
     );
   }
 
-  const isClickable = entry.type === 'voicemail' || entry.type === 'note' || entry.type === 'message';
+  const isClickable = entry.type === 'voicemail' || entry.type === 'note' || entry.type === 'message' || entry.type === 'whatsapp';
 
   function handleCardClick() {
     if (entry.type === 'note') setNoteOpen(true);
-    else if (entry.type === 'message') setMsgOpen(true);
+    else if (entry.type === 'message' || entry.type === 'whatsapp') setMsgOpen(true);
   }
 
   return (

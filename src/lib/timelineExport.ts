@@ -16,6 +16,68 @@ function escapeCsv(s: string): string {
   return s;
 }
 
+type WhatsAppPayload = NonNullable<TimelineEntry['whatsapp']>;
+
+// What a WhatsApp message without words was, in the words WhatsApp's own chat
+// list uses (and the WhatsApp screen's previews, from the same engine).
+const WHATSAPP_KINDS: Record<string, string> = {
+  image: 'Photo', video: 'Video', audio: 'Audio', gif: 'GIF', sticker: 'Sticker',
+  shared_location: 'Location', live_location: 'Live location', contact: 'Contact card',
+  poll: 'Poll', link: 'Link', view_once: 'View-once message',
+};
+
+/** What kind of media a WhatsApp message is ("Photo", a document's name), or null for plain text, calls and notices. */
+export function whatsAppMediaLabel(w: WhatsAppPayload): string | null {
+  if (w.messageType === 'document') return w.attachmentLabel || 'Document';
+  return WHATSAPP_KINDS[w.messageType] ?? null;
+}
+
+// The kind to name before a message's own words, when the words alone wouldn't
+// say what it was: a photo's caption, a poll's question. A link's words are the link.
+function captionLabel(w: WhatsAppPayload): string | null {
+  return w.messageType === 'link' ? null : whatsAppMediaLabel(w);
+}
+
+/**
+ * One line for a WhatsApp message: its words ("Photo · At the lake" under a
+ * photo), else what happened ("Missed voice call", "Riley joined"), else what
+ * it was ("Photo"), else its attachment's name. Empty only if the engine sent
+ * nothing at all to go by.
+ */
+export function whatsAppText(w: WhatsAppPayload): string {
+  const text = w.text?.trim();
+  if (text) {
+    const label = captionLabel(w);
+    return label ? `${label} · ${text}` : text;
+  }
+  return w.eventText || whatsAppMediaLabel(w) || w.attachmentLabel || '';
+}
+
+/** Who said it, when that's worth saying: someone in a group (not you, not a notice, not a channel posting as itself). */
+export function whatsAppSender(w: WhatsAppPayload): string | null {
+  if (w.isFromMe || !w.sender || w.messageType === 'system' || w.chatType === 'individual') return null;
+  return w.sender === w.conversationName ? null : w.sender;
+}
+
+function whatsAppDescription(w: WhatsAppPayload): string {
+  const text = w.text?.trim();
+  const label = text ? captionLabel(w) : null;
+  const said = text
+    ? (label ? `[${label}] ${text}` : text)
+    : `[${w.eventText || whatsAppMediaLabel(w) || w.attachmentLabel || 'Message'}]`;
+  // A notice ("Riley joined") is no one's: no Sent/Received in front
+  if (w.messageType === 'system' || (!w.isFromMe && !w.sender)) return said;
+  if (w.isFromMe) return `Sent: ${said}`;
+  const by = whatsAppSender(w);
+  return by ? `Received from ${by}: ${said}` : `Received: ${said}`;
+}
+
+/** What each kind of entry is called in a saved Timeline. */
+const TYPE_LABELS: Record<TimelineEntry['type'], string> = {
+  message: 'Message', whatsapp: 'WhatsApp', call: 'Call', photo: 'Photo',
+  voicemail: 'Voicemail', note: 'Note', browser: 'Browser',
+};
+
 function entryDescription(e: TimelineEntry): string {
   switch (e.type) {
     case 'message': {
@@ -69,6 +131,8 @@ function entryDescription(e: TimelineEntry): string {
       const b = e.browser!;
       return `[${b.browserName === 'firefox' ? 'Firefox' : 'Safari'}] ${b.title || b.domain} (${b.url})`;
     }
+    case 'whatsapp':
+      return e.whatsapp ? whatsAppDescription(e.whatsapp) : '';
     default:
       return '';
   }
@@ -77,6 +141,10 @@ function entryDescription(e: TimelineEntry): string {
 function entryContact(e: TimelineEntry): string {
   if (e.type === 'message' && e.message) {
     return e.message.conversationName || e.contactName || e.contactIdentifier || '';
+  }
+  // Never the chat's WhatsApp address: a chat with no number goes by its name alone
+  if (e.type === 'whatsapp' && e.whatsapp) {
+    return e.whatsapp.conversationName || e.contactName || '';
   }
   return e.contactName || e.contactIdentifier || '';
 }
@@ -112,7 +180,7 @@ function toMarkdown(entries: TimelineEntry[]): string {
     }
 
     const time = formatTime(e.timestamp) || '--:--';
-    const typeLabel = e.type.charAt(0).toUpperCase() + e.type.slice(1);
+    const typeLabel = TYPE_LABELS[e.type] ?? e.type;
     const contact = entryContact(e);
     const contactStr = contact ? ` | **${contact}**` : '';
 
@@ -129,7 +197,7 @@ function toMarkdown(entries: TimelineEntry[]): string {
 
 function toHtml(entries: TimelineEntry[]): string {
   const TYPE_COLORS: Record<string, string> = {
-    message: '#007AFF', call: '#30d158', photo: '#AF52DE',
+    message: '#007AFF', whatsapp: '#128C7E', call: '#30d158', photo: '#AF52DE',
     voicemail: '#ff9f0a', note: '#5AC8FA', browser: '#34C759',
   };
 
@@ -145,7 +213,7 @@ function toHtml(entries: TimelineEntry[]): string {
 
     const time = formatTime(e.timestamp) || '--:--';
     const color = TYPE_COLORS[e.type] || '#888';
-    const typeLabel = e.type.charAt(0).toUpperCase() + e.type.slice(1);
+    const typeLabel = TYPE_LABELS[e.type] ?? e.type;
     const contact = entryContact(e);
     const contactHtml = contact ? ` &mdash; <strong>${escapeHtml(contact)}</strong>` : '';
 

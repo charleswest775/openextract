@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
 import { useTimeline, type BackupIndex } from '../../hooks/useTimeline';
 import { TimelineEntry, TimelineEntryType, TimelineFilters } from '../../types/timeline';
 import TimelineFilterBar from './TimelineFilterBar';
@@ -29,10 +29,13 @@ interface Props {
   startingFilters?: Partial<TimelineFilters>;
   /** What the top search box holds; the Timeline shows only events that match. */
   query: string;
+  /** Opens a WhatsApp message in its chat on the WhatsApp screen. */
+  onOpenWhatsApp?: (entry: TimelineEntry) => void;
 }
 
 const LOADING_LABELS: Record<TimelineEntryType, string> = {
   message:   'Messages',
+  whatsapp:  'WhatsApp',
   call:      'Calls',
   photo:     'Photos',
   voicemail: 'Voicemail',
@@ -40,7 +43,7 @@ const LOADING_LABELS: Record<TimelineEntryType, string> = {
   browser:   'Web history',
 };
 
-const ALL_TYPES: TimelineEntryType[] = ['message', 'call', 'photo', 'voicemail', 'note', 'browser'];
+const ALL_TYPES: TimelineEntryType[] = ['message', 'whatsapp', 'call', 'photo', 'voicemail', 'note', 'browser'];
 
 // Group entries by calendar day
 export function groupByDay(entries: TimelineEntry[]): { date: string; entries: TimelineEntry[] }[] {
@@ -57,7 +60,7 @@ export function groupByDay(entries: TimelineEntry[]): { date: string; entries: T
   return groups;
 }
 
-export default function TimelineView({ udid, index, startingFilters, query }: Props) {
+export default function TimelineView({ udid, index, startingFilters, query, onOpenWhatsApp }: Props) {
   const {
     entries,
     filteredEntries,
@@ -67,6 +70,7 @@ export default function TimelineView({ udid, index, startingFilters, query }: Pr
     loading,
     loadingTypes,
     errors,
+    whatsappCap,
     filters,
     setFilters,
     page,
@@ -137,6 +141,21 @@ export default function TimelineView({ udid, index, startingFilters, query }: Pr
               <ReportProblemButton error={`${LOADING_LABELS[type]}: ${msg}`} area="timeline" className="ml-1" />
             </div>
           ))}
+        </div>
+      )}
+
+      {/* More WhatsApp than the index reads: say the oldest chats aren't here */}
+      {whatsappCap && (
+        <div style={{ flexShrink: 0, padding: '6px 20px' }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '5px 10px', borderRadius: 6,
+            background: 'var(--bg-surface)', border: '0.5px solid var(--border-default)',
+            fontSize: 14, color: 'var(--text-secondary)',
+          }}>
+            <Info size={16} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
+            WhatsApp: the newest {whatsappCap.loaded.toLocaleString()} of {whatsappCap.total.toLocaleString()} messages are in the Timeline and search. Older chats open in full in the WhatsApp section.
+          </div>
         </div>
       )}
 
@@ -218,7 +237,7 @@ export default function TimelineView({ udid, index, startingFilters, query }: Pr
               {/* Entry cards */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {group.entries.map(entry => (
-                  <TimelineEntryCard key={entry.id} entry={entry} udid={udid} />
+                  <TimelineEntryCard key={entry.id} entry={entry} udid={udid} onOpenWhatsApp={onOpenWhatsApp} />
                 ))}
               </div>
             </div>

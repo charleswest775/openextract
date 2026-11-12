@@ -41,6 +41,7 @@ jobs:
               'Timeline': ['ui'],
               'Year': ['ui'],
               'Messages': ['messages'],
+              'WhatsApp': ['messages'],
               'Photos': ['photos'],
               'Address book': ['python-engine'],
               'Calls': ['python-engine'],

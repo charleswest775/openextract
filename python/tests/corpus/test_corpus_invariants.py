@@ -29,6 +29,7 @@ NOTE_STORE = ("AppDomainGroup-group.com.apple.notes", "NoteStore.sqlite")
 PHOTOS = ("CameraRollDomain", "Media/PhotoData/Photos.sqlite")
 VOICEMAIL = ("HomeDomain", "Library/Voicemail/voicemail.db")
 SAFARI = ("HomeDomain", "Library/Safari/History.db")
+WHATSAPP = ("AppDomainGroup-group.net.whatsapp.WhatsApp.shared", "ChatStorage.sqlite")
 
 EARLIEST = datetime(2007, 6, 29, tzinfo=timezone.utc)  # first iPhone
 ATTACHMENT_SAMPLE = 200
@@ -102,6 +103,7 @@ def test_no_extractor_errors(ctx):
         ("list_notes", lambda: ctx.notes_result, NOTE_STORE),
         ("list_voicemails", lambda: ctx.voicemails_result, VOICEMAIL),
         ("list_browser_history", lambda: ctx.browser_result, SAFARI),
+        ("list_whatsapp_chats", lambda: ctx.whatsapp_result, WHATSAPP),
     ]
     problems = []
     for method, fetch, (domain, path) in checks:
@@ -496,6 +498,19 @@ def test_stats_agree_with_lists(ctx):
         expected["overview.total_calls"] = (overview.get("total_calls"), ctx.calls_result.get("total"))
     except SidecarError:
         pass  # reported by test_no_extractor_errors
+    try:
+        whatsapp = ctx.whatsapp_result
+    except SidecarError:
+        pass  # reported by test_no_extractor_errors
+    else:
+        chats = whatsapp.get("conversations", [])
+        expected["overview.total_whatsapp_chats"] = (overview.get("total_whatsapp_chats"), len(chats))
+        expected["overview.total_whatsapp_messages"] = (
+            overview.get("total_whatsapp_messages"), sum(c["message_count"] for c in chats)
+        )
+        status = ("ok" if chats else whatsapp.get("empty_reason")
+                  or ("error" if whatsapp.get("error") else "no_records"))
+        expected["overview.whatsapp_status"] = (overview.get("whatsapp_status"), status)
     mismatches = {name: f"stats={a} list={b}" for name, (a, b) in expected.items() if a != b}
     assert not mismatches, f"stats disagree with the list screens: {mismatches}"
 
@@ -566,6 +581,9 @@ def _what_every_screen_shows(c) -> dict:
         "voicemails": len(c.result_or_empty("voicemails_result").get("voicemails", [])),
         "calls": c.result_or_empty("calls_result").get("total"),
         "visits": c.result_or_empty("browser_result").get("total"),
+        "whatsapp_chats": sorted(
+            (x["chat_id"], x.get("message_count")) for x in c.result_or_empty("whatsapp_result").get("conversations", [])
+        ),
         "stats": c.result_or_empty("stats"),
     }
 

@@ -10,6 +10,7 @@ import { check, csvRows, launch, looksValid, pdfStats, sleep, timing } from '../
 // scripts/e2e-coverage.test.mjs fails if ExportPanel gains a kind or format missing here.
 export const PANEL_EXPORTS = {
   messages: ['html', 'pdf', 'csv', 'txt'],
+  whatsapp: ['html', 'pdf', 'csv', 'txt'],
   photos: ['originals'],
   contacts: ['vcf', 'csv'],
   calls: ['csv'],
@@ -18,7 +19,7 @@ export const PANEL_EXPORTS = {
   browser_history: ['csv'],
 };
 const PANEL_LABELS = {
-  messages: 'Messages', photos: 'Photos & videos', contacts: 'Address book', calls: 'Call history',
+  messages: 'Messages', whatsapp: 'WhatsApp', photos: 'Photos & videos', contacts: 'Address book', calls: 'Call history',
   voicemail: 'Voicemail', notes: 'Notes', browser_history: 'Web history',
 };
 
@@ -52,8 +53,18 @@ export default {
         await app.eval(() => [...document.querySelectorAll('button')].filter(b => /^(Not now|Close|Dismiss|No thanks|×)$/.test(b.textContent.trim()) && b.closest('.fixed')).forEach(b => b.click()));
       };
 
+      // WhatsApp chats in this backup, as the engine lists them (maren has none)
+      const waChats = (await app.api('call', 'list_whatsapp_chats', { udid: key.udid })).value?.data?.conversations?.length ?? 0;
+
       // ── Save to this computer: every kind × every format ──
       for (const [kind, formats] of Object.entries(PANEL_EXPORTS)) {
+        // A kind the backup doesn't have isn't offered at all
+        if (kind === 'whatsapp' && waChats === 0) {
+          await app.open('Save to this computer', /Copy what's in this backup/);
+          const offered = await app.eval(() => [...document.querySelectorAll('li')].some(li => li.innerText.trim().startsWith('WhatsApp')));
+          check('Save panel: no WhatsApp on a backup without it', !offered);
+          continue;
+        }
         for (const format of formats) {
           await app.open('Save to this computer', /Copy what's in this backup/);
           const dir = path.join(root, `panel-${kind}-${format}`);
@@ -63,12 +74,13 @@ export default {
               .find(b => { let el = b; for (let i = 0; i < 6 && el; i++, el = el.parentElement) if (el.innerText?.startsWith(label)) return true; return false; });
             row?.click();
             return !!row;
-          }, label), format, { mode: kind === 'messages' ? 'separate' : undefined });
+          }, label), format, { mode: kind === 'messages' || kind === 'whatsapp' ? 'separate' : undefined });
           timing(`export ${kind} ${format}`, res.ms ?? 0);
           const files = res.files;
           const ext = f => path.extname(f).slice(1).toLowerCase();
           let pass = true, detail = {};
           if (kind === 'messages') { pass = files.filter(f => ext(f) === format).length === key.conversations.length; detail = { want: key.conversations.length }; }
+          if (kind === 'whatsapp') { pass = files.filter(f => ext(f) === format && !f.includes('/')).length === waChats; detail = { want: waChats }; }
           if (kind === 'photos') { const media = files.filter(f => /\.(jpe?g|heic|png|mov|mp4|gif)$/i.test(f)); pass = media.length === key.photos.length; detail = { media: media.length, want: key.photos.length }; }
           if (kind === 'contacts' && format === 'vcf') { const cards = files.map(f => (fs.readFileSync(path.join(dir, f), 'utf-8').match(/BEGIN:VCARD/g) || []).length).reduce((a, n) => a + n, 0); pass = cards === key.contacts.length; detail = { cards }; }
           if (kind === 'contacts' && format === 'csv') { const rows = csvRows(path.join(dir, files.find(f => ext(f) === 'csv'))); pass = rows === key.contacts.length; detail = { rows }; }

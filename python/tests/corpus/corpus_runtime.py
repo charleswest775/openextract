@@ -125,6 +125,42 @@ class ItemContext:
     def messages(self) -> list[dict]:
         return [m for page in self.message_pages.values() for m in page["messages"]]
 
+    # WhatsApp: kept apart from the Messages properties above. Its chat and
+    # message ids overlap with sms.db's, and every check on ``messages`` assumes
+    # sms rows.
+
+    @cached_property
+    def whatsapp_result(self) -> dict:
+        return self.rpc("list_whatsapp_chats")
+
+    @cached_property
+    def whatsapp_chats(self) -> list[dict]:
+        return self.whatsapp_result.get("conversations", [])
+
+    @cached_property
+    def whatsapp_pages(self) -> dict[int, dict]:
+        """chat_id → {"messages": [...] in arrival order, "total": n, "error": str|None}, every page fetched."""
+        out = {}
+        for chat in self.whatsapp_chats:
+            chat_id = chat["chat_id"]
+            pages, offset, total, error = [], 0, 0, None
+            while True:
+                page = self.rpc("get_whatsapp_messages", chat_id=chat_id, offset=offset, limit=PAGE)
+                error = error or page.get("error")
+                pages.append([{**m, "chat_id": chat_id} for m in page.get("messages", [])])
+                total = page.get("total", 0)
+                next_offset = page.get("next_offset", offset + PAGE)
+                if next_offset >= total or next_offset <= offset:
+                    break
+                offset = next_offset
+            # Each page is the next-older batch, in arrival order within itself.
+            out[chat_id] = {"messages": [m for p in reversed(pages) for m in p], "total": total, "error": error}
+        return out
+
+    @cached_property
+    def whatsapp_messages(self) -> list[dict]:
+        return [m for page in self.whatsapp_pages.values() for m in page["messages"]]
+
     def _paged(self, method: str, key: str, **params) -> dict:
         items, offset = [], 0
         while True:
@@ -191,6 +227,7 @@ class ItemContext:
             "visits": lambda: self.browser_result.get("visits", []),
             "photos": lambda: self.photos_result.get("photos", []),
             "albums": lambda: self.albums_result.get("albums", []),
+            "whatsapp_messages": lambda: self.whatsapp_messages,
         }
         for name, fetch in sources.items():
             try:

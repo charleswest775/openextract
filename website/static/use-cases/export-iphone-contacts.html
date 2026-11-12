@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Export iPhone contacts to Excel, CSV or vCard, free — OpenExtract</title>
+  <meta name="description" content="Save every contact from your iPhone to your computer as a spreadsheet for Excel or as vCard cards for Google Contacts. No iCloud needed. Free and open source." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/export-iphone-contacts" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/export-iphone-contacts" />
+  <meta property="og:title" content="Export iPhone contacts to Excel, CSV or vCard, free" />
+  <meta property="og:description" content="Open an iPhone backup and save the whole address book as a spreadsheet or contact cards." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Export iPhone contacts to Excel, CSV or vCard",
+    "description": "Save every contact from your iPhone to your computer as a spreadsheet for Excel or as vCard cards for Google Contacts. No iCloud needed. Free and open source.",
+    "url": "https://www.openextract.app/use-cases/export-iphone-contacts",
+    "datePublished": "2026-11-11",
+    "dateModified": "2026-11-11",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/home-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Do I need an encrypted backup for contacts?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Contacts are in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I get my contacts into Google Contacts or onto an Android phone?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Save them as contact cards (a .vcf file) and import that file at Google Contacts. Once the contacts are in your Google account, an Android phone signed in to the same account shows them."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which details are saved?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "First name, last name, the full name, company, every phone number, every email address and the note on each card. Postal addresses, birthdays and contact photos aren't included in the file."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I save only some contacts?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Type a name, number, email or company in the search box on the Address book screen, then click Save contacts. Only the cards that match are saved, and the save window says how many."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it work without iCloud?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract reads a backup saved on your own Mac or PC, so you don't need iCloud, an Apple ID sign-in or the phone itself once the backup exists. It can't read an iCloud backup."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does anything get uploaded?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. The only thing it asks the internet for is whether a new version is out, and it asks you before it checks. You can turn that off in Settings."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it really free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. The code is on GitHub."
+        }
+      }
+    ]
+  }
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 4 min</div>
+    <h1>Export iPhone contacts<br />to <span class="it">Excel, CSV or vCard</span>.</h1>
+    <p class="page-head__lede">Back up the iPhone to your Mac or PC, open the backup in OpenExtract, a free app, and save the whole address book in one go: as a spreadsheet for Excel or Google Sheets, or as contact cards that Google Contacts and the Mac's Contacts app import. No iCloud, no account, and an ordinary backup is enough.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <p>The iPhone's Contacts app can share one card at a time, and getting the whole list out usually means syncing it through iCloud and exporting it from a website. That's no help if you don't use iCloud, if the phone is broken, or if all you have is an old backup. Most of the tools that come up when you search for this are paid apps. OpenExtract does it for free, with no trial and no limit on how many contacts you save, and it reads everything on your own computer.</p>
+      <h2>Which file to choose</h2>
+      <ul>
+        <li><strong>Spreadsheet (CSV)</strong> opens in Excel, Numbers or Google Sheets, one row per contact. Pick this to sort, print or tidy the list, or to import it into a program that takes CSV files.</li>
+        <li><strong>Contact cards (vCard, .vcf)</strong> is one file holding every card. Pick this to import the contacts into Google Contacts, the Mac's Contacts app or another phone.</li>
+      </ul>
+      <p>You can save both; it only takes a moment each.</p>
+    </div>
+  </section>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>Install OpenExtract</h2>
+        <p>Download it for <a href="/download/windows">Windows</a> or <a href="/download/mac">Mac</a> (Apple Silicon) and install it. The Windows installer is signed by Charles West, the developer; if SmartScreen shows a notice for a new app, choose More info, then Run anyway.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>Back up the iPhone, or use a backup you have</h2>
+        <p>On OpenExtract's start screen, click <strong>Back up my iPhone</strong>, connect the phone with a cable, tap <strong>Trust</strong> on it and enter its passcode if it asks, then choose a folder and start. A backup often takes about half an hour. Contacts are in ordinary backups, so encryption is up to you; an encrypted backup holds more, such as call history and web history (<a href="/blog/encrypted-backups-are-better">here's why encrypted backups are better</a>).</p>
+        <p>Already backed up with Finder, iTunes or the Apple Devices app? OpenExtract lists the backups it finds on the computer on its start screen, or you can choose <strong>Open a backup folder</strong>. Here's <a href="/use-cases/where-are-iphone-backups-stored">where iPhone backups are stored</a>.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>Open the address book</h2>
+        <p>Open the backup (type its password if it's encrypted) and click <strong>Address book</strong> on its home page. Every card saved on the phone is there, with its name, company, phone numbers and email addresses, whether or not you were ever in touch with that person. Where you were, <strong>See history</strong> opens that person's page with your messages, calls and voicemails together.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Save the contacts</h2>
+        <p>Click <strong>Save contacts</strong> at the top right, pick <strong>Spreadsheet</strong> or <strong>Contact cards</strong>, and choose where to save. OpenExtract writes <code>Contacts.csv</code> or <code>Contacts.vcf</code>. To save only some contacts, type a name, number, email or company in the search box first; then only the matching cards are saved.</p>
+        <p>The same files are also under <strong>Save to this computer</strong> on the backup's home page, next to messages, photos and the rest.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">05</div>
+      <div>
+        <h2>Use the file</h2>
+        <p><strong>Excel or Google Sheets:</strong> open <code>Contacts.csv</code>. The columns are first name, last name, full name, company, phone numbers, email addresses and notes. A contact with several numbers or emails has them in one cell, separated by semicolons.</p>
+        <p><strong>Google Contacts or Android:</strong> at Google Contacts, choose Import and pick <code>Contacts.vcf</code>. An Android phone signed in to the same Google account then shows them.</p>
+        <p><strong>Mac Contacts app:</strong> choose File, then Import, and pick <code>Contacts.vcf</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>What it can't do</h2>
+      <ul>
+        <li><strong>Some details stay behind.</strong> The file has names, company, phone numbers, email addresses and notes. Postal addresses, birthdays and contact photos aren't included.</li>
+        <li><strong>It only has what the backup has.</strong> Contacts added after the backup was made aren't in it. Make a new backup first if you want today's list.</li>
+        <li><strong>No iCloud.</strong> It works from a backup on your computer, not from iCloud or an iCloud backup.</li>
+        <li><strong>It can't put contacts back</strong> on an iPhone by itself. Import the .vcf file into Contacts, Google or another phone instead.</li>
+      </ul>
+      <h2>Common questions</h2>
+      <p><strong>Do I need an encrypted backup for contacts?</strong> No. Contacts are in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it.</p>
+      <p><strong>Can I get my contacts into Google Contacts or onto an Android phone?</strong> Yes. Save them as contact cards (a .vcf file) and import that file at Google Contacts. Once the contacts are in your Google account, an Android phone signed in to the same account shows them.</p>
+      <p><strong>Which details are saved?</strong> First name, last name, the full name, company, every phone number, every email address and the note on each card. Postal addresses, birthdays and contact photos aren&#x27;t included in the file.</p>
+      <p><strong>Can I save only some contacts?</strong> Yes. Type a name, number, email or company in the search box on the Address book screen, then click Save contacts. Only the cards that match are saved, and the save window says how many.</p>
+      <p><strong>Does it work without iCloud?</strong> Yes. OpenExtract reads a backup saved on your own Mac or PC, so you don&#x27;t need iCloud, an Apple ID sign-in or the phone itself once the backup exists. It can&#x27;t read an iCloud backup.</p>
+      <p><strong>Does anything get uploaded?</strong> No. OpenExtract reads the backup on your own computer and doesn&#x27;t send it anywhere. The only thing it asks the internet for is whether a new version is out, and it asks you before it checks. You can turn that off in Settings.</p>
+      <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Windows · Mac · Linux</div>
+        <h3>Your contacts,<br /><span class="it">in a file you keep.</span></h3>
+        <p>Free, open source, and the backup never leaves your computer.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/use-cases/keep-messages-iphone-to-android">Moving from iPhone to Android? Keep your messages →</a>
+        <a class="uc-related__link" href="/use-cases/export-iphone-call-history-to-windows-pc">Export iPhone call history to a Windows PC →</a>
+        <a class="uc-related__link" href="/use-cases/where-are-iphone-backups-stored">Where are iPhone backups stored? →</a>
+        <a class="uc-related__link" href="/use-cases/export-iphone-data">Export everything else from your iPhone →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Your iPhone contacts, saved on your computer.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/support">Support OpenExtract</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

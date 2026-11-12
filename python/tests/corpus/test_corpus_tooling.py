@@ -204,6 +204,27 @@ def test_message_facts(tmp_path):
     assert not evaluate(facts["gone"], ExtractedData(messages=[{"date": None, "text": "Deleted"}]))[0]
 
 
+def test_whatsapp_message_facts(tmp_path):
+    facts = _facts(tmp_path, [
+        {"id": "reply", "kind": "whatsapp_message", "source_ref": "log", "at": "2023-05-02T12:01",
+         "expect": {"is_from_me": True, "has_quote": True, "text_sha256": text_sha256("Fine, thanks")}},
+        {"id": "call", "kind": "whatsapp_message", "source_ref": "log", "at": "2023-05-02T12:12",
+         "expect": {"message_type": "call", "call_is_video": False, "call_direction": "outgoing", "call_duration_s": 95}},
+        {"id": "gone", "kind": "whatsapp_message_absent", "source_ref": "log", "expect": {"text_sha256": text_sha256("gone")}},
+    ])
+    reply = {"date": "2023-05-02T16:01:20+00:00", "is_from_me": True, "text": "fine,  thanks",
+             "quoted": {"message_id": 3, "text": "How are you?"}, "attachments": []}
+    call = {"date": "2023-05-02T16:12:05+00:00", "is_from_me": True, "message_type": "call", "text": "",
+            "call": {"is_video": False, "direction": "outgoing", "duration": 97, "outcome": "answered"}}
+    data = ExtractedData(whatsapp_messages=[reply, call])
+    assert evaluate(facts["reply"], data)[0] and evaluate(facts["call"], data)[0] and evaluate(facts["gone"], data)[0]
+    # Messages' rows never answer a WhatsApp fact (the ids and stores are separate)
+    assert not evaluate(facts["reply"], ExtractedData(messages=[reply]))[0]
+    assert not evaluate(facts["reply"], ExtractedData(whatsapp_messages=[{**reply, "quoted": None}]))[0]
+    assert not evaluate(facts["call"], ExtractedData(whatsapp_messages=[{**call, "call": {**call["call"], "is_video": True}}]))[0]
+    assert not evaluate(facts["gone"], ExtractedData(whatsapp_messages=[{"text": "Gone"}]))[0]
+
+
 def test_fact_reports_extraction_errors(tmp_path):
     facts = _facts(tmp_path, [{"id": "c", "kind": "call", "source_ref": "log", "at": "2023-05-09T20:39", "expect": {}}])
     ok, detail = evaluate(facts["c"], ExtractedData(errors={"calls": "list_calls: boom"}))

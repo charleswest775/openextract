@@ -224,13 +224,31 @@ const isNumber = (f: string | null | undefined) => {
   return count >= 3 && count <= 15;
 };
 
-/** Whether a query matches these fields: `matches('bread', note.title, note.body)`. */
+// A WhatsApp chat's own address ("120363…@g.us") isn't a phone number, and its digits shouldn't match one.
+// The same test as people.ts isWhatsAppAddress (this file stays free of imports).
+const WHATSAPP_ADDRESS = /@(?:s\.whatsapp\.net|g\.us|lid|broadcast|newsletter)$/i;
+const isWhatsAppAddress = (f: string | null | undefined) => !!f && WHATSAPP_ADDRESS.test(f.trim());
+
+/**
+ * Whether a query matches these fields: `matches('bread', note.title, note.body)`.
+ * A WhatsApp chat's address among them is never searched: no one types it, and
+ * "612" would find a group whose address happens to have those digits in it.
+ */
 export function matches(query: string, ...fields: (string | null | undefined)[]): boolean {
   const terms = parseQuery(query);
-  return terms.length === 0 || matchesTerms(haystack(fields, fields.filter(isNumber)), terms);
+  if (terms.length === 0) return true;
+  const searched = fields.filter(f => !isWhatsAppAddress(f));
+  return matchesTerms(haystack(searched, searched.filter(isNumber)), terms);
 }
 
 const entryText = new WeakMap<TimelineEntry, Haystack>();
+
+// What a WhatsApp message without words was, so "whatsapp photo" finds the photos
+const WHATSAPP_KINDS: Record<string, string> = {
+  image: 'photo', video: 'video', audio: 'audio', gif: 'gif', sticker: 'sticker',
+  shared_location: 'location', live_location: 'live location', contact: 'contact card',
+  poll: 'poll', document: 'document', link: 'link', view_once: 'view once',
+};
 
 // Words for what kind of record it is, so "missed", "voicemail" or "screenshot" find them
 function kindWords(e: TimelineEntry): string {
@@ -241,6 +259,20 @@ function kindWords(e: TimelineEntry): string {
     }
     case 'voicemail': return 'voicemail';
     case 'photo': return e.photo!.duration > 0 || e.photo!.kind === 'video' ? 'video' : `${e.photo!.kind.replace('_', ' ')} photo`;
+    case 'whatsapp': {
+      const w = e.whatsapp;
+      if (!w) return 'whatsapp';
+      const words = ['whatsapp'];
+      if (w.call) {
+        words.push(`${w.call.outcome === 'missed' ? 'missed' : w.call.direction} whatsapp call`);
+        if (w.call.isVideo !== null) words.push(w.call.isVideo ? 'video call' : 'voice call');
+      } else if (w.messageType === 'call') {
+        words.push('whatsapp call');
+      }
+      const kind = WHATSAPP_KINDS[w.messageType];
+      if (kind) words.push(kind);
+      return words.join(' ');
+    }
     default: return '';
   }
 }
@@ -253,6 +285,9 @@ export function searchText(e: TimelineEntry): Haystack {
       [
         e.contactName,
         e.message?.text, e.message?.conversationName,
+        e.whatsapp?.text, e.whatsapp?.conversationName, e.whatsapp?.eventText, e.whatsapp?.attachmentLabel,
+        // Who said it in a group ("me" isn't a name to search by)
+        e.whatsapp && !e.whatsapp.isFromMe ? e.whatsapp.sender : null,
         kindWords(e),
         e.call?.app,
         e.photo?.filename,
@@ -260,7 +295,7 @@ export function searchText(e: TimelineEntry): Haystack {
         e.note?.title, e.note?.body,
         e.browser?.title, e.browser?.domain, e.browser?.url,
       ],
-      [e.contactIdentifier, e.voicemail?.phoneNumber],
+      [isWhatsAppAddress(e.contactIdentifier) ? null : e.contactIdentifier, e.voicemail?.phoneNumber],
     );
     entryText.set(e, hay);
   }

@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Export WhatsApp chats from an iPhone backup, free — OpenExtract</title>
+  <meta name="description" content="Read and save WhatsApp chats from an iPhone backup on Windows or Mac, with photos, voice messages and calls, as PDF, web page, CSV or text. Free." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/export-whatsapp-chats-from-iphone-backup" />
+  <link rel="alternate" hreflang="en" href="https://www.openextract.app/use-cases/export-whatsapp-chats-from-iphone-backup" />
+  <link rel="alternate" hreflang="de" href="https://www.openextract.app/de/whatsapp-chats-exportieren" />
+  <link rel="alternate" hreflang="x-default" href="https://www.openextract.app/use-cases/export-whatsapp-chats-from-iphone-backup" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/export-whatsapp-chats-from-iphone-backup" />
+  <meta property="og:title" content="Export WhatsApp chats from an iPhone backup, free" />
+  <meta property="og:description" content="Open an iPhone backup and save your WhatsApp chats as a PDF, a web page, a spreadsheet or a text file." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Export WhatsApp chats from an iPhone backup",
+    "description": "Read and save WhatsApp chats from an iPhone backup on Windows or Mac, with photos, voice messages and calls, as PDF, web page, CSV or text. Free.",
+    "url": "https://www.openextract.app/use-cases/export-whatsapp-chats-from-iphone-backup",
+    "inLanguage": "en",
+    "datePublished": "2026-11-11",
+    "dateModified": "2026-11-11",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/home-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Can OpenExtract open WhatsApp's own iCloud backup?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. The chat backup WhatsApp makes from its own settings (Settings, then Chats, then Chat Backup) is kept in iCloud, and only WhatsApp can restore it. OpenExtract reads a different backup: the backup of the whole iPhone that Finder, iTunes, the Apple Devices app or OpenExtract itself saves on your computer. WhatsApp's chats are usually in that one too. The exception: if WhatsApp's end-to-end encrypted backup is turned on (Settings, then Chats, then Chat Backup), WhatsApp keeps its chats out of the iPhone's backup, and there's nothing for OpenExtract to show. To read them here, turn that off in WhatsApp and back up the iPhone again."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do I need an encrypted backup?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. WhatsApp's chats are in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it, and the password stays on your computer."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Why do some photos say \"not in this backup\"?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Because they weren't on the iPhone when it was backed up. WhatsApp doesn't always keep every photo, video or document on the phone: one that was never downloaded, or that was deleted to free up space, isn't in the backup either. OpenExtract says so in its place, for example \"Photo not in this backup\", and shows everything that is there."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it read WhatsApp Business?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. It reads the ordinary WhatsApp app. Chats in WhatsApp Business aren't read."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it work with WhatsApp on an Android phone?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract reads iPhone backups only."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How are the people in a chat named?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "With the name saved in the iPhone's contacts for their number. If they aren't in the contacts, OpenExtract uses the name WhatsApp has for them, and otherwise their phone number."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which versions of WhatsApp does it read?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "It's checked on real public test backups from WhatsApp 2.20 to 2.24, made on iOS 13 to 17. If a backup holds a version it can't read yet, the WhatsApp screen says so and has a button to report it."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does anything get uploaded?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. It goes online for only two things: to check for a new version, if you allow it (you can turn that off in Settings), and to send a problem report, only when you click Send."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it really free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. The code is on GitHub."
+        }
+      }
+    ]
+  }
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 5 min</div>
+    <h1>Export <span class="it">WhatsApp chats</span><br />from an iPhone backup.</h1>
+    <p class="page-head__lede">Back up the iPhone to your Windows PC or Mac, open the backup in OpenExtract, a free app, and read your WhatsApp chats there, with their photos, voice messages and calls. Save one chat or all of them as a web page, a PDF, a spreadsheet or a text file. Nothing is uploaded.</p>
+    <p class="alt-disclosure">OpenExtract is an independent open-source app. It isn't made by WhatsApp or Meta and has no connection to them. <span lang="de">Auf Deutsch: <a href="/de/whatsapp-chats-exportieren" hreflang="de">WhatsApp-Chats aus dem iPhone-Backup exportieren</a></span></p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <p>WhatsApp's own Export Chat works one chat at a time. It gives you a text file, with any photos and voice messages as separate files beside it in a zip, not something you can read like the chat. Its chat backup goes to iCloud, where only WhatsApp can restore it and you can't open it yourself. Neither is much help if you want your chats on your own computer, in a form you can read, print and keep.</p>
+      <p>There's another way in. When you back up an iPhone to a computer, WhatsApp's chats go into that backup along with your texts and photos. OpenExtract reads them from there, in their own WhatsApp section, and saves them as files that open anywhere. It's free, with no trial and no limit on how much you save.</p>
+      <figure class="screen">
+        <a class="screen__frame" href="/img/screens/whatsapp-2000.webp">
+          <img src="/img/screens/whatsapp-1000.webp" srcset="/img/screens/whatsapp-1000.webp 1000w, /img/screens/whatsapp-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 720px" width="1000" height="625" loading="lazy" decoding="async" alt="The WhatsApp section in OpenExtract, opened on a made-up sample backup: six chats listed beside an open group chat, with a reply that quotes an earlier message, emoji reactions under messages and a photo of a lake." />
+        </a>
+        <figcaption><strong>WhatsApp, opened from a backup</strong>A made-up sample backup in OpenExtract. <a href="/screenshots">See every screen</a>.</figcaption>
+      </figure>
+
+      <h2>Who this is for</h2>
+      <ul>
+        <li><strong>Keeping a record.</strong> A chat you need to hold on to, for yourself, for work or for a dispute, saved as a PDF or a web page with every date and sender.</li>
+        <li><strong>Chats from a phone that's gone.</strong> If the iPhone is broken, lost, sold or locked for good, a backup on a computer can still hold its WhatsApp chats. That includes chats with someone who has died.</li>
+        <li><strong>A copy before you move on.</strong> Leaving WhatsApp, changing phones or clearing old chats, and want a readable copy of what was there first.</li>
+        <li><strong>Searching years of chats.</strong> One search box finds WhatsApp messages alongside texts, notes and calls.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>Install OpenExtract</h2>
+        <p>Download it for <a href="/download/windows">Windows</a> or <a href="/download/mac">Mac</a> (Apple Silicon) and install it. There's a <a href="/use-cases/iphone-backup-extractor-linux">Linux version</a> too. It's free, with no account and no trial. The Windows installer is signed by Charles West, the developer; if SmartScreen shows a notice for a new app, choose More info, then Run anyway.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>Back up the iPhone, or use a backup you have</h2>
+        <p>On OpenExtract's start screen, click <strong>Back up my iPhone</strong>, connect the phone with a cable, tap <strong>Trust</strong> on it and enter its passcode if it asks, then choose a folder and start. A backup often takes about half an hour. WhatsApp's chats are in ordinary and encrypted backups alike, so encryption is up to you; an encrypted backup holds more of the rest, such as call history (<a href="/blog/encrypted-backups-are-better">here's why encrypted backups are better</a>).</p>
+        <p>Already backed up with Finder on a Mac, or with the Apple Devices app or iTunes on Windows? OpenExtract lists the backups it finds on the start screen, or you can choose <strong>Open a backup folder</strong>. Here's <a href="/use-cases/where-are-iphone-backups-stored">where iPhone backups are stored</a>. A backup has the chats as they were on the day it was made, so make a new one if you want today's.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>Open WhatsApp</h2>
+        <p>Open the backup (type its password if it's encrypted) and click <strong>WhatsApp</strong> on its home page. Its tile says how many chats there are. If WhatsApp wasn't on the iPhone, there's no WhatsApp tile. Your chats, groups and broadcast lists are listed with the newest first; click one to read it.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Read the chat</h2>
+        <p>Messages are in the order they arrived on the iPhone, as WhatsApp showed them. A reply shows the message it answers, and reactions sit under the message they react to. Photos, videos, stickers, documents and shared or live locations (with WhatsApp's saved map preview) show in place, and voice messages play right there. From WhatsApp 2.24 on, calls show in the chat too, with whether they were answered and how long they lasted. Starred messages have a star, and a message deleted for everyone says so.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">05</div>
+      <div>
+        <h2>Save one chat, or all of them</h2>
+        <p>With a chat open, click <strong>Save chat</strong>. To save several, click <strong>Select</strong>, tick the chats (or <strong>Select all</strong>), then click the button that says how many you ticked. Choose <strong>Web page</strong>, <strong>Readable document</strong> (that&rsquo;s the PDF), <strong>Spreadsheet</strong> or <strong>Plain text</strong>, click <strong>Save</strong> and pick a folder. With more than one chat, you can keep one file per chat or put everything in one file.</p>
+        <p>To save every chat in one go, click <strong>Save to this computer</strong> on the backup's home page, then <strong>Save</strong> next to WhatsApp.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>What you get</h2>
+      <ul>
+        <li><strong>Web page</strong> looks like the chat and opens in any browser. Photos show in place, and videos and voice messages play in the page. The files are copied into a folder beside the page, documents included, so keep the two together if you move them.</li>
+        <li><strong>PDF</strong> looks like a printed chat, with the photos in place. Good for printing and sharing.</li>
+        <li><strong>Spreadsheet (CSV)</strong> opens in Excel, Numbers or Google Sheets: one row per message with the date, who sent it, the text, the message it replies to and its reactions.</li>
+        <li><strong>Plain text</strong> is a list of messages, each with its date and sender, that opens anywhere.</li>
+      </ul>
+      <p>Dates and times are in your computer's time zone. Notices such as "This message was deleted" and calls are kept in the file, in the order they arrived.</p>
+      <p>WhatsApp shows up elsewhere in OpenExtract too: in the <strong>Timeline</strong>, which lists everything in the backup by date; in the search box at the top of the backup's home page, which finds texts, WhatsApp messages, notes, calls and more at once; and on each person's page in <strong>People</strong>, matched to their texts and calls by phone number.</p>
+
+      <h2>What it can't do</h2>
+      <ul>
+        <li><strong>Only what's in the backup.</strong> Photos, videos and files that WhatsApp didn't keep on the iPhone aren't in its backup. They're labelled "not in this backup" instead.</li>
+        <li><strong>Not WhatsApp's own iCloud backup.</strong> The chat backup WhatsApp makes to iCloud from its settings can't be opened, and nor can anything else in iCloud. OpenExtract works from a backup on your computer.</li>
+        <li><strong>Not with WhatsApp's end-to-end encrypted backup turned on.</strong> With that setting on, WhatsApp leaves its chats out of the iPhone's backup, so the backup has no WhatsApp to show.</li>
+        <li><strong>Not WhatsApp Business, and not Android.</strong> It reads the ordinary WhatsApp app from an iPhone backup.</li>
+        <li><strong>Older calls.</strong> Calls show in the chat from WhatsApp 2.24 (2024) on. Calls logged by older versions aren't shown yet. WhatsApp calls can also appear in the iPhone's own call history, which OpenExtract reads from encrypted backups.</li>
+        <li><strong>A few things aren't shown yet.</strong> Status updates aren't shown, and the Year view doesn't count WhatsApp messages yet.</li>
+        <li><strong>Not other chat apps.</strong> WeChat, Line, Viber, Kik, Telegram and Signal aren't read.</li>
+        <li><strong>It can't put chats back</strong> on a phone or into WhatsApp. The files are a copy for your computer.</li>
+        <li><strong>It isn't a certified document.</strong> If it's for a legal matter, read <a href="/use-cases/print-text-messages-for-court">printing texts for court</a> first; the same advice applies to WhatsApp.</li>
+      </ul>
+
+      <h2>Common questions</h2>
+      <p><strong>Can OpenExtract open WhatsApp's own iCloud backup?</strong> No. The chat backup WhatsApp makes from its own settings (Settings, then Chats, then Chat Backup) is kept in iCloud, and only WhatsApp can restore it. OpenExtract reads a different backup: the backup of the whole iPhone that Finder, iTunes, the Apple Devices app or OpenExtract itself saves on your computer. WhatsApp&#x27;s chats are usually in that one too. The exception: if WhatsApp&#x27;s end-to-end encrypted backup is turned on (Settings, then Chats, then Chat Backup), WhatsApp keeps its chats out of the iPhone&#x27;s backup, and there&#x27;s nothing for OpenExtract to show. To read them here, turn that off in WhatsApp and back up the iPhone again.</p>
+      <p><strong>Do I need an encrypted backup?</strong> No. WhatsApp&#x27;s chats are in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it, and the password stays on your computer.</p>
+      <p><strong>Why do some photos say "not in this backup"?</strong> Because they weren&#x27;t on the iPhone when it was backed up. WhatsApp doesn&#x27;t always keep every photo, video or document on the phone: one that was never downloaded, or that was deleted to free up space, isn&#x27;t in the backup either. OpenExtract says so in its place, for example "Photo not in this backup", and shows everything that is there.</p>
+      <p><strong>Does it read WhatsApp Business?</strong> No. It reads the ordinary WhatsApp app. Chats in WhatsApp Business aren&#x27;t read.</p>
+      <p><strong>Does it work with WhatsApp on an Android phone?</strong> No. OpenExtract reads iPhone backups only.</p>
+      <p><strong>How are the people in a chat named?</strong> With the name saved in the iPhone&#x27;s contacts for their number. If they aren&#x27;t in the contacts, OpenExtract uses the name WhatsApp has for them, and otherwise their phone number.</p>
+      <p><strong>Which versions of WhatsApp does it read?</strong> It&#x27;s checked on real public test backups from WhatsApp 2.20 to 2.24, made on iOS 13 to 17. If a backup holds a version it can&#x27;t read yet, the WhatsApp screen says so and has a button to report it.</p>
+      <p><strong>Does anything get uploaded?</strong> No. OpenExtract reads the backup on your own computer and doesn&#x27;t send it anywhere. It goes online for only two things: to check for a new version, if you allow it (you can turn that off in Settings), and to send a problem report, only when you click Send.</p>
+      <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Windows · Mac · Linux</div>
+        <h3>Your WhatsApp chats,<br /><span class="it">in files you keep.</span></h3>
+        <p>Free, open source, and the backup never leaves your computer.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/use-cases/export-iphone-messages">Get all your text messages off your iPhone →</a>
+        <a class="uc-related__link" href="/use-cases/print-text-messages-for-court">Print text messages for court →</a>
+        <a class="uc-related__link" href="/use-cases/where-are-iphone-backups-stored">Where are iPhone backups stored? →</a>
+        <a class="uc-related__link" href="/use-cases/keep-messages-iphone-to-android">Moving from iPhone to Android? Keep your messages →</a>
+        <a class="uc-related__link" href="/blog/encrypted-backups-are-better">Why encrypted backups are better →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Your WhatsApp chats, saved on your computer.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/support">Support OpenExtract</a></li>
+        <li><a href="/what-people-say">What people say</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
