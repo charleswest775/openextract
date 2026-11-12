@@ -2,14 +2,14 @@
 <!-- One <url> per page, using the page's <link rel="canonical"> href. Add new pages here,
      and set <lastmod> to the date a page's content last changed. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://www.openextract.app/</loc><lastmod>2026-11-11</lastmod></url>
-  <url><loc>https://www.openextract.app/how-it-works</loc><lastmod>2026-11-11</lastmod></url>
-  <url><loc>https://www.openextract.app/screenshots</loc><lastmod>2026-11-11</lastmod></url>
+  <url><loc>https://www.openextract.app/</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://www.openextract.app/how-it-works</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://www.openextract.app/screenshots</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://www.openextract.app/vs-imazing</loc><lastmod>2026-11-11</lastmod></url>
   <url><loc>https://www.openextract.app/vs-iexplorer</loc><lastmod>2026-11-09</lastmod></url>
   <url><loc>https://www.openextract.app/vs-ibackup-viewer</loc><lastmod>2026-11-11</lastmod></url>
   <url><loc>https://www.openextract.app/vs-reincubate</loc><lastmod>2026-11-11</lastmod></url>
-  <url><loc>https://www.openextract.app/imazing-alternatives</loc><lastmod>2026-11-11</lastmod></url>
+  <url><loc>https://www.openextract.app/imazing-alternatives</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://www.openextract.app/de/imazing-alternative</loc><lastmod>2026-11-11</lastmod></url>
   <url><loc>https://www.openextract.app/de/whatsapp-chats-exportieren</loc><lastmod>2026-11-11</lastmod></url>
   <url><loc>https://www.openextract.app/about</loc><lastmod>2026-11-08</lastmod></url>
@@ -18,14 +18,14 @@
   <url><loc>https://www.openextract.app/privacy</loc><lastmod>2026-11-08</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/free-imazing-alternative</loc><lastmod>2026-11-11</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/export-iphone-messages</loc><lastmod>2026-11-11</lastmod></url>
-  <url><loc>https://www.openextract.app/use-cases/export-iphone-data</loc><lastmod>2026-11-07</lastmod></url>
-  <url><loc>https://www.openextract.app/use-cases/free-iphone-backup-viewer</loc><lastmod>2026-11-11</lastmod></url>
-  <url><loc>https://www.openextract.app/use-cases/iphone-backup-extractor-linux</loc><lastmod>2026-11-11</lastmod></url>
+  <url><loc>https://www.openextract.app/use-cases/export-iphone-data</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://www.openextract.app/use-cases/free-iphone-backup-viewer</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://www.openextract.app/use-cases/iphone-backup-extractor-linux</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/print-text-messages-for-court</loc><lastmod>2026-11-07</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/export-imessage-to-pdf</loc><lastmod>2026-11-07</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/save-iphone-texts-to-windows-pc</loc><lastmod>2026-11-07</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/where-are-iphone-backups-stored</loc><lastmod>2026-11-10</lastmod></url>
-  <url><loc>https://www.openextract.app/use-cases/view-iphone-backup-on-windows</loc><lastmod>2026-11-11</lastmod></url>
+  <url><loc>https://www.openextract.app/use-cases/view-iphone-backup-on-windows</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/save-voicemails-from-iphone-backup</loc><lastmod>2026-11-07</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/recover-deleted-text-messages-iphone</loc><lastmod>2026-11-07</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/keep-messages-iphone-to-android</loc><lastmod>2026-11-07</lastmod></url>
@@ -33,6 +33,7 @@
   <url><loc>https://www.openextract.app/use-cases/export-iphone-contacts</loc><lastmod>2026-11-11</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/export-whatsapp-chats-from-iphone-backup</loc><lastmod>2026-11-11</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/extract-photos-from-iphone-backup</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://www.openextract.app/use-cases/export-podcasts-from-iphone-backup</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://www.openextract.app/guides</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://www.openextract.app/fixes</loc><lastmod>2026-11-06</lastmod></url>
   <url><loc>https://www.openextract.app/blog</loc><lastmod>2026-11-11</lastmod></url>
