@@ -76,7 +76,7 @@
         "name": "Kann OpenExtract die WhatsApp-Sicherung aus iCloud öffnen?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Nein. Das Chat-Backup, das WhatsApp in seinen eigenen Einstellungen anlegt (Einstellungen › Chats › Chat-Backup), liegt in iCloud, und nur WhatsApp kann es wiederherstellen. OpenExtract liest ein anderes Backup: die Sicherung des ganzen iPhones, die der Finder, iTunes, die App „Apple-Geräte“ oder OpenExtract selbst auf deinem Computer speichert. Darin stecken die WhatsApp-Chats ebenfalls."
+          "text": "Nein. Das Chat-Backup, das WhatsApp in seinen eigenen Einstellungen anlegt (Einstellungen › Chats › Chat-Backup), liegt in iCloud, und nur WhatsApp kann es wiederherstellen. OpenExtract liest ein anderes Backup: die Sicherung des ganzen iPhones, die der Finder, iTunes, die App „Apple-Geräte“ oder OpenExtract selbst auf deinem Computer speichert. Darin stecken die WhatsApp-Chats normalerweise ebenfalls. Die Ausnahme: Ist in WhatsApp das Ende-zu-Ende-verschlüsselte Backup eingeschaltet (Einstellungen › Chats › Chat-Backup), lässt WhatsApp seine Chats aus dem iPhone-Backup heraus, und OpenExtract hat nichts zu zeigen. Um sie hier zu lesen, schalte es in WhatsApp aus und sichere das iPhone neu."
         }
       },
       {
@@ -261,6 +261,7 @@
       <ul>
         <li><strong>Nur, was im Backup ist.</strong> Fotos, Videos und Dateien, die WhatsApp nicht auf dem iPhone behalten hat, sind auch nicht im Backup. An ihrer Stelle steht „<span lang="en">not in this backup</span>“.</li>
         <li><strong>Nicht das Chat-Backup von WhatsApp in iCloud.</strong> Die Sicherung, die WhatsApp in seinen Einstellungen nach iCloud schreibt, kann OpenExtract nicht öffnen, ebenso wenig wie alles andere in iCloud. Es arbeitet mit einem Backup auf deinem Computer.</li>
+        <li><strong>Nicht mit eingeschaltetem Ende-zu-Ende-verschlüsseltem Backup.</strong> Ist es in WhatsApp an, lässt WhatsApp seine Chats aus dem iPhone-Backup heraus, und das Backup enthält kein WhatsApp.</li>
         <li><strong>Nicht WhatsApp Business und nicht Android.</strong> OpenExtract liest die normale WhatsApp-App aus einem iPhone-Backup.</li>
         <li><strong>Ältere Anrufe.</strong> Anrufe stehen ab WhatsApp 2.24 (2024) im Chat. Anrufe, die ältere Versionen gespeichert haben, zeigt OpenExtract noch nicht. WhatsApp-Anrufe können aber auch in der Anrufliste des iPhones stehen, die OpenExtract aus verschlüsselten Backups liest.</li>
         <li><strong>Ein paar Dinge fehlen noch.</strong> Status-Updates werden nicht angezeigt, und die Jahresansicht („<span lang="en">Year</span>“) zählt WhatsApp-Nachrichten noch nicht mit.</li>
@@ -275,7 +276,7 @@
     <h2>Häufige Fragen</h2>
     <details class="qa">
       <summary>Kann OpenExtract die WhatsApp-Sicherung aus iCloud öffnen?</summary>
-      <p>Nein. Das Chat-Backup, das WhatsApp in seinen eigenen Einstellungen anlegt (Einstellungen › Chats › Chat-Backup), liegt in iCloud, und nur WhatsApp kann es wiederherstellen. OpenExtract liest ein anderes Backup: die Sicherung des ganzen iPhones, die der Finder, iTunes, die App „Apple-Geräte“ oder OpenExtract selbst auf deinem Computer speichert. Darin stecken die WhatsApp-Chats ebenfalls.</p>
+      <p>Nein. Das Chat-Backup, das WhatsApp in seinen eigenen Einstellungen anlegt (Einstellungen › Chats › Chat-Backup), liegt in iCloud, und nur WhatsApp kann es wiederherstellen. OpenExtract liest ein anderes Backup: die Sicherung des ganzen iPhones, die der Finder, iTunes, die App „Apple-Geräte“ oder OpenExtract selbst auf deinem Computer speichert. Darin stecken die WhatsApp-Chats normalerweise ebenfalls. Die Ausnahme: Ist in WhatsApp das Ende-zu-Ende-verschlüsselte Backup eingeschaltet (Einstellungen › Chats › Chat-Backup), lässt WhatsApp seine Chats aus dem iPhone-Backup heraus, und OpenExtract hat nichts zu zeigen. Um sie hier zu lesen, schalte es in WhatsApp aus und sichere das iPhone neu.</p>
     </details>
     <details class="qa">
       <summary>Brauche ich ein verschlüsseltes Backup?</summary>

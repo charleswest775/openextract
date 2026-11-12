@@ -27,6 +27,7 @@ OpenExtract is made by Charles West, an independent developer, with help from co
 - How it saves: messages as PDF, HTML, CSV or plain text; WhatsApp chats as a web page (with their photos and files), PDF, CSV or plain text, one file per chat or all in one; photos and videos as the original files; contacts as vCard or CSV; call history as CSV; notes as text or PDF; voicemails as audio files with a CSV list; web history as CSV; deleted messages it finds as CSV, HTML or PDF.
 - What it doesn't do:
   - It reads WhatsApp from an iPhone backup, but not WhatsApp's own chat backup in iCloud, WhatsApp Business, or WhatsApp on Android. It doesn't show calls from WhatsApp versions before 2.24 or status updates yet, and the Year view doesn't count WhatsApp messages yet.
+  - With WhatsApp's end-to-end encrypted backup turned on, WhatsApp leaves its chats out of the iPhone's backup, so OpenExtract has no WhatsApp to show for that backup.
   - It doesn't read other third-party chat apps, such as WeChat, Line, Viber, Kik, Telegram or Signal. (Calls made with apps like these can appear in the call history, because iOS logs them there.)
   - It doesn't read iCloud backups or anything stored in iCloud, only backups on a computer.
   - It doesn't manage a phone: no app, music or ringtone syncing, and no transfers between phones. The only thing it does with a connected iPhone is back it up.

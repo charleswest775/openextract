@@ -73,7 +73,7 @@
         "name": "Can OpenExtract open WhatsApp's own iCloud backup?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "No. The chat backup WhatsApp makes from its own settings (Settings, then Chats, then Chat Backup) is kept in iCloud, and only WhatsApp can restore it. OpenExtract reads a different backup: the backup of the whole iPhone that Finder, iTunes, the Apple Devices app or OpenExtract itself saves on your computer. WhatsApp's chats are in that one too."
+          "text": "No. The chat backup WhatsApp makes from its own settings (Settings, then Chats, then Chat Backup) is kept in iCloud, and only WhatsApp can restore it. OpenExtract reads a different backup: the backup of the whole iPhone that Finder, iTunes, the Apple Devices app or OpenExtract itself saves on your computer. WhatsApp's chats are usually in that one too. The exception: if WhatsApp's end-to-end encrypted backup is turned on (Settings, then Chats, then Chat Backup), WhatsApp keeps its chats out of the iPhone's backup, and there's nothing for OpenExtract to show. To read them here, turn that off in WhatsApp and back up the iPhone again."
         }
       },
       {
@@ -251,6 +251,7 @@
       <ul>
         <li><strong>Only what's in the backup.</strong> Photos, videos and files that WhatsApp didn't keep on the iPhone aren't in its backup. They're labelled "not in this backup" instead.</li>
         <li><strong>Not WhatsApp's own iCloud backup.</strong> The chat backup WhatsApp makes to iCloud from its settings can't be opened, and nor can anything else in iCloud. OpenExtract works from a backup on your computer.</li>
+        <li><strong>Not with WhatsApp's end-to-end encrypted backup turned on.</strong> With that setting on, WhatsApp leaves its chats out of the iPhone's backup, so the backup has no WhatsApp to show.</li>
         <li><strong>Not WhatsApp Business, and not Android.</strong> It reads the ordinary WhatsApp app from an iPhone backup.</li>
         <li><strong>Older calls.</strong> Calls show in the chat from WhatsApp 2.24 (2024) on. Calls logged by older versions aren't shown yet. WhatsApp calls can also appear in the iPhone's own call history, which OpenExtract reads from encrypted backups.</li>
         <li><strong>A few things aren't shown yet.</strong> Status updates aren't shown, and the Year view doesn't count WhatsApp messages yet.</li>
@@ -260,7 +261,7 @@
       </ul>
 
       <h2>Common questions</h2>
-      <p><strong>Can OpenExtract open WhatsApp's own iCloud backup?</strong> No. The chat backup WhatsApp makes from its own settings (Settings, then Chats, then Chat Backup) is kept in iCloud, and only WhatsApp can restore it. OpenExtract reads a different backup: the backup of the whole iPhone that Finder, iTunes, the Apple Devices app or OpenExtract itself saves on your computer. WhatsApp&#x27;s chats are in that one too.</p>
+      <p><strong>Can OpenExtract open WhatsApp's own iCloud backup?</strong> No. The chat backup WhatsApp makes from its own settings (Settings, then Chats, then Chat Backup) is kept in iCloud, and only WhatsApp can restore it. OpenExtract reads a different backup: the backup of the whole iPhone that Finder, iTunes, the Apple Devices app or OpenExtract itself saves on your computer. WhatsApp&#x27;s chats are usually in that one too. The exception: if WhatsApp&#x27;s end-to-end encrypted backup is turned on (Settings, then Chats, then Chat Backup), WhatsApp keeps its chats out of the iPhone&#x27;s backup, and there&#x27;s nothing for OpenExtract to show. To read them here, turn that off in WhatsApp and back up the iPhone again.</p>
       <p><strong>Do I need an encrypted backup?</strong> No. WhatsApp&#x27;s chats are in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it, and the password stays on your computer.</p>
       <p><strong>Why do some photos say "not in this backup"?</strong> Because they weren&#x27;t on the iPhone when it was backed up. WhatsApp doesn&#x27;t always keep every photo, video or document on the phone: one that was never downloaded, or that was deleted to free up space, isn&#x27;t in the backup either. OpenExtract says so in its place, for example "Photo not in this backup", and shows everything that is there.</p>
       <p><strong>Does it read WhatsApp Business?</strong> No. It reads the ordinary WhatsApp app. Chats in WhatsApp Business aren&#x27;t read.</p>
