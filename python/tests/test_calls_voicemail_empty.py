@@ -1,10 +1,12 @@
 """
-Tests for the Calls and Voicemail empty states.
+Tests for the Calls, Voicemail and Messages empty states.
 
 Backups with no call history or no voicemail (like the synthetic "Einstein"
 backups, which hold only Messages and Contacts) used to come back with errors:
 every call-less backup was told to turn on encryption, even encrypted ones,
-and a missing voicemail.db was reported as "voicemail.db not found".
+and a missing voicemail.db was reported as "voicemail.db not found". A backup
+without sms.db (one that stopped early) got "sms.db not found" as a read
+error, which the Messages screen shows with a Report button.
 """
 
 import hashlib
@@ -20,6 +22,7 @@ from contextlib import contextmanager
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from backup import BackupManager, OpenBackup  # noqa: E402
 from calls import CallExtractor  # noqa: E402
+from messages import MessageExtractor  # noqa: E402
 from voicemail import VoicemailExtractor  # noqa: E402
 
 UDID = "00008030-0000000000000000"
@@ -162,6 +165,16 @@ class TestCallsVoicemailEmptyStates(unittest.TestCase):
         backup = self._open({VOICEMAIL_DB: EMPTY_VOICEMAIL})
         result = VoicemailExtractor().list_voicemails(backup, {})
         self.assertEqual(result, {"voicemails": [], "empty_reason": "no_records"})
+
+    def test_missing_sms_db_is_an_empty_state(self):
+        for open_backup in (self._open, self._open_encrypted):
+            with self.subTest(open_backup.__name__):
+                backup = open_backup({VOICEMAIL_DB: EMPTY_VOICEMAIL})  # other data, but no sms.db
+                messages = MessageExtractor()
+                self.assertEqual(messages.list_conversations(backup, {}),
+                                 {"conversations": [], "empty_reason": "not_in_backup"})
+                # Only the list changes: the rest of Messages answers as before
+                self.assertEqual(messages.get_messages(backup, 1, {}), {"messages": [], "error": "sms.db not found"})
 
     def test_exporting_without_voicemail_db_is_not_an_error(self):
         backup = self._open({})

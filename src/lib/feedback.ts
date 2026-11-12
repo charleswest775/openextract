@@ -42,8 +42,8 @@ export const FEEDBACK_KINDS: { id: FeedbackKind; label: string; hint: string }[]
 
 export type FeedbackArea =
   | 'general' | 'open_backup' | 'create_backup' | 'search' | 'dashboard' | 'people' | 'timeline' | 'year'
-  | 'messages' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history' | 'record_recovery'
-  | 'export';
+  | 'messages' | 'whatsapp' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history'
+  | 'record_recovery' | 'export';
 
 export const FEEDBACK_AREAS: { id: FeedbackArea; label: string }[] = [
   { id: 'general', label: 'The app in general' },
@@ -55,6 +55,7 @@ export const FEEDBACK_AREAS: { id: FeedbackArea; label: string }[] = [
   { id: 'timeline', label: 'Timeline' },
   { id: 'year', label: 'Year' },
   { id: 'messages', label: 'Messages' },
+  { id: 'whatsapp', label: 'WhatsApp' },
   { id: 'photos', label: 'Photos' },
   { id: 'contacts', label: 'Address book' },
   { id: 'calls', label: 'Calls' },

@@ -52,10 +52,13 @@ def _apple_ts_to_iso(ts) -> Optional[str]:
 class StatsComputer:
     """Computes comprehensive backup statistics in a single call."""
 
-    def __init__(self, photo_extractor=None):
+    def __init__(self, photo_extractor=None, whatsapp_extractor=None):
         # The Photos screen's extractor, so the Overview counts photos the same
         # way and from the same per-backup cache.
         self._photo_extractor = photo_extractor
+        # The WhatsApp screen's, for the same reason (its names and file list
+        # are cached per backup).
+        self._whatsapp_extractor = whatsapp_extractor
 
     def compute(self, backup, contacts: dict) -> dict:
         """Return all stats for a backup. Each section is independent — failures are isolated."""
@@ -129,6 +132,18 @@ class StatsComputer:
         overview["total_calls"] = call_stats.get("total", 0)
         overview["total_notes"] = note_stats.get("total", 0)
         overview["total_voicemails"] = vm_stats.get("total", 0)
+
+        # WhatsApp: kept apart from total_messages, which is sms.db's.
+        try:
+            wa_stats = self._whatsapp_stats(backup)
+        except Exception as e:
+            wa_stats = {"chats": 0, "messages": 0, "status": "error"}
+            errors.append(f"whatsapp: {e}")
+        if wa_stats.get("error"):
+            errors.append(f"whatsapp: {wa_stats['error']}")
+        overview["total_whatsapp_messages"] = wa_stats["messages"]
+        overview["total_whatsapp_chats"] = wa_stats["chats"]
+        overview["whatsapp_status"] = wa_stats["status"]
 
         # Remove internal keys from sub-dicts
         msg_stats.pop("total", None)
@@ -500,6 +515,32 @@ class StatsComputer:
             "avg_length_chars": round(sum(lengths) / len(lengths)) if lengths else 0,
             "longest_chars": max(lengths) if lengths else 0,
         }
+
+    # ── WhatsApp ──────────────────────────────────────────────────────────────
+
+    def _whatsapp_stats(self, backup) -> dict:
+        """Chats and messages the WhatsApp screen lists, and whether WhatsApp could be read.
+
+        status is "ok", or why there is nothing: "not_in_backup", "no_records",
+        "unsupported_format" (a layout this version can't read), or "error"
+        (in the backup but unreadable; only that one also comes back as
+        ``error``, for the overview's list of errors). Messages count every
+        row in the listed chats, notices included, as the chat list does.
+        """
+        extractor = self._whatsapp_extractor
+        if extractor is None:
+            from whatsapp import WhatsAppExtractor
+            extractor = WhatsAppExtractor()
+        probe = extractor.has_whatsapp(backup)
+        chats, messages = int(probe.get("chats") or 0), int(probe.get("messages") or 0)
+        reason = probe.get("empty_reason")
+        if reason:
+            return {"chats": 0, "messages": 0, "status": reason}
+        if probe.get("error"):
+            return {"chats": 0, "messages": 0, "status": "error", "error": probe["error"]}
+        if not probe.get("has_whatsapp") or not messages:
+            return {"chats": 0, "messages": 0, "status": "no_records"}
+        return {"chats": chats, "messages": messages, "status": "ok"}
 
     # ── Voicemails ────────────────────────────────────────────────────────────
 

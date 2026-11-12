@@ -25,6 +25,9 @@ about a new version if someone tells them. This file lists all of it in order.
     in `website/static/index.html`, and the `/download/*` redirects in
     `website/static/vercel.json`;
   - tags it, builds, signs (Windows), notarizes (macOS) and uploads every file;
+  - gives Windows updates their own copy of the installer, `OpenExtract-Update-X.Y.Z.exe`,
+    which `latest.yml` names, so download counts tell updates from new installs
+    (`scripts/update-feed.mjs`);
   - runs the Windows App Control check on the draft (see `packaging/README.md`);
   - checks the `/download/*` redirects match the release's files, publishes, and opens the
     sync PR `chore: release vX.Y.Z`.
@@ -83,3 +86,7 @@ links instead of a versioned GitHub file wherever the form takes a link, and add
       `node scripts/build-fixes-page.mjs` to rebuild `fixes.html` (`npm test` fails until you do).
 - [ ] If the listings' facts changed (new data types, new platform, new screenshots), update
       `website/static/llms.txt`, the README's feature list, and the listings that show features.
+- [ ] Merge any PR that announces a feature new in this release (site pages, `llms.txt`, the
+      README) only now: after the sync PR has merged and the stable links above give the new
+      version. Keep such a PR a draft until then. Merged earlier, the pages promise a feature that
+      the download buttons don't have yet.

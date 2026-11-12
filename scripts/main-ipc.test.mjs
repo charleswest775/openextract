@@ -381,6 +381,13 @@ describe('small handlers', () => {
     assert.equal(await m.invoke('shell:openPath', file), '');
     assert.deepEqual(m.env.callsTo('shell.openPath'), [[file]]);
 
+    // Programs and scripts are never opened, whatever they're called
+    for (const name of ['Invoice.exe', 'Invoice.pdf.EXE', 'run.command', 'x.lnk', 'a.js', 'Tool.app', 'evil.exe. ', 'b.hta']) {
+      assert.match(await m.invoke('shell:openPath', path.join(m.userData, name)), /doesn't open programs/);
+    }
+    for (const bad of ['', null, undefined, 42, {}]) assert.match(await m.invoke('shell:openPath', bad), /doesn't open programs/);
+    assert.deepEqual(m.env.callsTo('shell.openPath'), [[file]]);
+
     await m.invoke('shell:showItemInFolder', file);
     for (const bad of ['', null, undefined, 42, {}]) await m.invoke('shell:showItemInFolder', bad);
     assert.deepEqual(m.env.callsTo('shell.showItemInFolder'), [[file]]);

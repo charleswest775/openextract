@@ -39,6 +39,7 @@ const NOT_PERSON_TYPES = new Set<TimelineEntryType>(['photo', 'note', 'browser']
 
 const COUNT_WORDS: Record<TimelineEntryType, [string, string]> = {
   message:   ['message', 'messages'],
+  whatsapp:  ['WhatsApp message', 'WhatsApp messages'],
   call:      ['call', 'calls'],
   photo:     ['photo', 'photos'],
   voicemail: ['voicemail', 'voicemails'],
@@ -82,7 +83,8 @@ export default function YearView({ udid, selection, onSelectionChange, onOpenDay
   const grid = useMemo(() => (counts ? buildYearGrid(counts.year) : null), [counts?.year]);
 
   const totals = useMemo(() => {
-    const out: Record<TimelineEntryType, number> = { message: 0, call: 0, photo: 0, voicemail: 0, note: 0, browser: 0 };
+    // The engine doesn't count WhatsApp by day yet, so its chip stays hidden here (and out of the selection above)
+    const out: Record<TimelineEntryType, number> = { message: 0, whatsapp: 0, call: 0, photo: 0, voicemail: 0, note: 0, browser: 0 };
     for (const day of Object.values(counts?.days ?? {})) {
       for (const { type } of TYPE_CONFIG) out[type] += day[type] ?? 0;
     }

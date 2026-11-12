@@ -27,7 +27,7 @@ export default function ContactExplorer({ ctx, query, openContactId }: Props) {
   const [choosing, setChoosing] = useState(false);
   const { busy, run } = useSaveAction('contacts');
 
-  const people = useMemo(() => gatherPeople(entries), [entries]);
+  const people = useMemo(() => gatherPeople(entries, addressBook ?? []), [entries, addressBook]);
   const { personOf } = useMemo(() => linkCards(people, contacts), [people, contacts]);
 
   const filtered = useMemo(() => contacts

@@ -7,7 +7,10 @@ tests' ``SidecarClient``, the way Electron's main process does.
 Backups come from ios-backup-core's ``backupgen`` (corpus/synthetic.py): Maren
 (every data type filled), Einstein (Messages and Contacts only) and, for
 message recovery, a copy of Einstein's backup with a few messages moved to
-"Recently Deleted" or orphaned, which backupgen can't write.
+"Recently Deleted" or orphaned, which backupgen can't write. For WhatsApp,
+which backupgen doesn't write either, a copy of Einstein's backup with
+WhatsApp added and an encrypted backup holding only WhatsApp
+(whatsapp_backup.py).
 """
 
 from __future__ import annotations
@@ -47,6 +50,7 @@ from corpus.synthetic import (  # noqa: E402
     persona_available,
 )
 from sidecar_client import ProtocolError, SidecarClient, SidecarError  # noqa: E402
+import whatsapp_backup  # noqa: E402
 
 MAREN = "syn-maren-ios26-plain"
 MAREN_ENCRYPTED = "syn-maren-ios26-encrypted"
@@ -256,6 +260,8 @@ class BackupEngine(Engine):
         self.expected = expected or {}
         self.encrypted = password is not None
         self._message_pages: dict[int, list[dict]] = {}
+        # Kept apart from _message_pages: WhatsApp chat ids overlap with sms.db's.
+        self._whatsapp_pages: dict[int, list[dict]] = {}
         try:
             self.open_result = self.open()
         except Exception:
@@ -296,6 +302,24 @@ class BackupEngine(Engine):
         return self._message_pages[chat_id]
 
     @cached_property
+    def whatsapp_chats(self) -> list[dict]:
+        return self.rpc("list_whatsapp_chats")["conversations"]
+
+    def whatsapp_messages_of(self, chat_id: int) -> list[dict]:
+        """Every message in a WhatsApp chat, in arrival order, read page by page as the app does."""
+        if chat_id not in self._whatsapp_pages:
+            pages, offset = [], 0
+            while True:
+                page = self.rpc("get_whatsapp_messages", chat_id=chat_id, offset=offset, limit=5)
+                assert "error" not in page, page
+                pages.append(page["messages"])
+                if not page["messages"] or page["next_offset"] >= page["total"]:
+                    break
+                offset = page["next_offset"]
+            self._whatsapp_pages[chat_id] = [m for page in reversed(pages) for m in page]
+        return self._whatsapp_pages[chat_id]
+
+    @cached_property
     def attachments(self) -> list[tuple[int, dict, dict]]:
         """(chat_id, message, attachment) for every attachment in every conversation."""
         return [
@@ -332,6 +356,7 @@ class ContractRuntime:
         self._engines: dict[str, Engine] = {}
         self._failures: dict[str, str] = {}
         self._recovery_plan: Optional[RecoveryPlan] = None
+        self._whatsapp_plans: dict[str, WhatsAppPlan] = {}
 
     def _get(self, name: str, start: Callable[[], Engine]) -> Engine:
         if name in self._failures:  # don't wait for a hung engine again in every test
@@ -374,6 +399,33 @@ class ContractRuntime:
         """An engine with the doctored Einstein copy open (see make_recovery_copy)."""
         plan = self.recovery_plan()
         engine = self._get("recovery", lambda: BackupEngine("recovery", plan.backup_dir, plan.udid))
+        engine.plan = plan
+        return engine
+
+    def whatsapp_plan(self, encrypted: bool = False) -> "WhatsAppPlan":
+        """The WhatsApp backup (a copy of Einstein's, or an encrypted one), built on first use."""
+        key = "encrypted" if encrypted else "plain"
+        if key not in self._whatsapp_plans:
+            problem = whatsapp_backup.backupgen_problem()
+            if problem:
+                skip_or_fail(f"no WhatsApp test backup: {problem}")
+            folder = self._tmp_factory.mktemp(f"whatsapp-{key}")
+            scenario = whatsapp_backup.build_files(folder / "parts")
+            if encrypted:
+                backup_dir = whatsapp_backup.make_encrypted(folder, scenario, whatsapp_backup.PASSWORD)
+                plan = WhatsAppPlan(backup_dir, whatsapp_backup.ENCRYPTED_UDID, whatsapp_backup.PASSWORD, scenario)
+            else:
+                _, source = generated_backup(EINSTEIN)
+                backup_dir = whatsapp_backup.make_plain_copy(source, folder / whatsapp_backup.PLAIN_UDID, scenario)
+                plan = WhatsAppPlan(backup_dir, whatsapp_backup.PLAIN_UDID, None, scenario)
+            self._whatsapp_plans[key] = plan
+        return self._whatsapp_plans[key]
+
+    def whatsapp(self, encrypted: bool = False) -> BackupEngine:
+        """An engine with a WhatsApp backup open (see whatsapp_backup.py); ``.plan`` says what's in it."""
+        plan = self.whatsapp_plan(encrypted)
+        name = "whatsapp-encrypted" if encrypted else "whatsapp"
+        engine = self._get(name, lambda: BackupEngine(name, plan.backup_dir, plan.udid, plan.password))
         engine.plan = plan
         return engine
 
@@ -486,6 +538,16 @@ def make_recovery_copy(source: Path, dest: Path) -> RecoveryPlan:
         message_rows=message_rows,
         original_counts=original_counts,
     )
+
+
+# ── A backup with WhatsApp ───────────────────────────────────────────────────
+
+@dataclass
+class WhatsAppPlan:
+    backup_dir: Path
+    udid: str
+    password: Optional[str]
+    scenario: "whatsapp_backup.Scenario"
 
 
 # ── Small checks ─────────────────────────────────────────────────────────────

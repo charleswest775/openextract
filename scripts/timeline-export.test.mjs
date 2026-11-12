@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { loadTs } from './test-helpers/load-ts.mjs';
 import { rerunInTimeZones, enUS, childZone } from './test-helpers/time-zones.mjs';
 
-const { formatTimeline, FORMAT_FILTERS } = loadTs('src/lib/timelineExport.ts');
+const { formatTimeline, FORMAT_FILTERS, whatsAppText, whatsAppMediaLabel, whatsAppSender } = loadTs('src/lib/timelineExport.ts');
 const { formatDate, formatTime } = loadTs('src/lib/dates.ts');
 
 const local = (y, mo, d, h = 0, mi = 0, s = 0) => new Date(y, mo - 1, d, h, mi, s);
@@ -56,6 +56,18 @@ const note = (when, over = {}) => ({
   id: `note:${++n}`, type: 'note', timestamp: at(when), contactName: null, contactIdentifier: null,
   note: { noteId: n, title: 'Groceries', bodyPreview: 'eggs, flour', body: 'eggs, flour', modified: at(when), ...over },
 });
+// A WhatsApp message as normalizeWhatsApp makes it (fictional people, 555 numbers)
+const whatsapp = (when, text, over = {}, entry = {}) => ({
+  id: `whatsapp:${++n}`, type: 'whatsapp', timestamp: at(when), contactName: 'Riley Okafor', contactIdentifier: '+15035550142',
+  whatsapp: {
+    text, isFromMe: false, sender: 'Riley Okafor', messageType: 'text', eventText: null, attachmentLabel: null,
+    conversationName: 'Riley Okafor', chatId: 12, chatType: 'individual', isGroup: false, sort: n, call: null, ...over,
+  },
+  ...entry,
+});
+const inFamily = (when, text, over = {}) => whatsapp(when, text, {
+  sender: 'Ana', conversationName: 'Family', chatId: 30, chatType: 'group', isGroup: true, ...over,
+}, { contactName: 'Family', contactIdentifier: '120363000000000001@g.us' });
 const visit = (when, over = {}) => ({
   id: `browser:s_${++n}`, type: 'browser', timestamp: when === null ? '' : at(when), contactName: null, contactIdentifier: null,
   browser: { url: 'https://www.nhl.com/scores', title: 'NHL Scores', domain: 'www.nhl.com', browserName: 'safari', ...over },
@@ -122,6 +134,71 @@ test('what each kind of entry says', () => {
   assert.equal(describe(visit(DAY, { browserName: 'firefox', title: '' })), '[Firefox] www.nhl.com (https://www.nhl.com/scores)');
 });
 
+test('what a WhatsApp message says', () => {
+  assert.equal(describe(whatsapp(DAY, 'Bring the blue tent')), 'Received: Bring the blue tent');
+  assert.equal(describe(whatsapp(DAY, 'On my way', { isFromMe: true, sender: 'me' })), 'Sent: On my way');
+  // In a group, who said it; from you, just Sent
+  assert.equal(describe(inFamily(DAY, 'Ana is driving')), 'Received from Ana: Ana is driving');
+  assert.equal(describe(inFamily(DAY, 'Me too', { isFromMe: true, sender: 'me' })), 'Sent: Me too');
+  // A notice is no one's: no Sent/Received, no sender
+  assert.equal(describe(inFamily(DAY, null, { messageType: 'system', sender: '', eventText: 'Riley joined' })), '[Riley joined]');
+  // Calls and locations: the engine's words
+  assert.equal(describe(whatsapp(DAY, null, {
+    messageType: 'call', eventText: 'Missed voice call', call: { outcome: 'missed', direction: 'incoming', isVideo: false, duration: null },
+  })), 'Received: [Missed voice call]');
+  assert.equal(describe(whatsapp(DAY, null, { messageType: 'call', eventText: 'Outgoing video call · 2:05', isFromMe: true, sender: 'me' })),
+    'Sent: [Outgoing video call · 2:05]');
+  assert.equal(describe(whatsapp(DAY, null, { messageType: 'shared_location', eventText: 'Location' })), 'Received: [Location]');
+  // Media without words says what it was; with a caption, both
+  assert.equal(describe(whatsapp(DAY, null, { messageType: 'image', attachmentLabel: 'Photo' })), 'Received: [Photo]');
+  assert.equal(describe(whatsapp(DAY, 'At the lake', { messageType: 'image', attachmentLabel: 'Photo' })), 'Received: [Photo] At the lake');
+  assert.equal(describe(whatsapp(DAY, null, { messageType: 'document', attachmentLabel: 'Packing list.pdf' })), 'Received: [Packing list.pdf]');
+  assert.equal(describe(whatsapp(DAY, 'for Saturday', { messageType: 'document', attachmentLabel: 'Packing list.pdf' })),
+    'Received: [Packing list.pdf] for Saturday');
+  assert.equal(describe(whatsapp(DAY, null, { messageType: 'sticker', attachmentLabel: 'a1b2c3.webp' })), 'Received: [Sticker]');
+  assert.equal(describe(whatsapp(DAY, null, { messageType: 'deleted', eventText: 'This message was deleted' })),
+    'Received: [This message was deleted]');
+  assert.equal(describe(whatsapp(DAY, 'https://example.com/tents', { messageType: 'link' })), 'Received: https://example.com/tents');
+  assert.equal(describe(whatsapp(DAY, 'Where to eat?', { messageType: 'poll', isFromMe: true, sender: 'me' })), 'Sent: [Poll] Where to eat?');
+  // Something with nothing to say at all still says it was a message, never a blank row
+  assert.equal(describe(whatsapp(DAY, null, { messageType: 'unknown' })), 'Received: [Message]');
+  assert.equal(describe(whatsapp(DAY, '   ', { messageType: 'unknown', attachmentLabel: 'file.bin' })), 'Received: [file.bin]');
+  // A channel's posts come from the channel itself
+  assert.equal(describe(whatsapp(DAY, 'Opening hours change', { sender: 'Garden club', conversationName: 'Garden club', chatType: 'channel' })),
+    'Received: Opening hours change');
+});
+
+test('whatsAppText: one line for the Timeline and search results', () => {
+  const w = over => ({ text: null, isFromMe: false, sender: 'Riley Okafor', messageType: 'text', eventText: null, attachmentLabel: null,
+    conversationName: 'Riley Okafor', chatId: 12, chatType: 'individual', isGroup: false, sort: 1, ...over });
+  assert.equal(whatsAppText(w({ text: '  Bring the tent ' })), 'Bring the tent');
+  // Words under a photo or a poll say what they were under; a link's words are the link
+  assert.equal(whatsAppText(w({ text: 'At the lake', messageType: 'image', attachmentLabel: 'Photo' })), 'Photo · At the lake');
+  assert.equal(whatsAppText(w({ text: 'Where to eat?', messageType: 'poll' })), 'Poll · Where to eat?');
+  assert.equal(whatsAppText(w({ text: 'https://example.com/tents', messageType: 'link' })), 'https://example.com/tents');
+  assert.equal(whatsAppText(w({ messageType: 'call', eventText: 'Missed voice call' })), 'Missed voice call');
+  assert.equal(whatsAppText(w({ messageType: 'image', attachmentLabel: '3f2a9c.jpg' })), 'Photo');
+  assert.equal(whatsAppText(w({ messageType: 'document', attachmentLabel: 'Packing list.pdf' })), 'Packing list.pdf');
+  assert.equal(whatsAppText(w({ messageType: 'document' })), 'Document');
+  assert.equal(whatsAppText(w({ messageType: 'unknown', attachmentLabel: 'file.bin' })), 'file.bin');
+  assert.equal(whatsAppText(w({ messageType: 'unknown' })), '');
+  assert.equal(whatsAppMediaLabel(w({ messageType: 'text' })), null);
+  assert.equal(whatsAppMediaLabel(w({ messageType: 'live_location' })), 'Live location');
+});
+
+test('whatsAppSender: who said it, only when it adds something', () => {
+  const w = over => ({ text: 'hi', isFromMe: false, sender: 'Ana', messageType: 'text', eventText: null, attachmentLabel: null,
+    conversationName: 'Family', chatId: 30, chatType: 'group', isGroup: true, sort: 1, ...over });
+  assert.equal(whatsAppSender(w()), 'Ana');
+  assert.equal(whatsAppSender(w({ isFromMe: true, sender: 'me' })), null);
+  assert.equal(whatsAppSender(w({ messageType: 'system', sender: '' })), null);
+  assert.equal(whatsAppSender(w({ sender: '' })), null);
+  // One-to-one: the chat is the person already
+  assert.equal(whatsAppSender(w({ chatType: 'individual', isGroup: false, sender: 'Riley Okafor', conversationName: 'Riley Okafor' })), null);
+  // A channel posting as itself
+  assert.equal(whatsAppSender(w({ chatType: 'channel', isGroup: false, sender: 'Garden club', conversationName: 'Garden club' })), null);
+});
+
 test('who each entry is with', () => {
   const contact = entry => csvRows([entry])[1][3];
   assert.equal(contact(message(DAY, 'x', { conversationName: 'Book club 📚' })), 'Book club 📚');
@@ -129,6 +206,34 @@ test('who each entry is with', () => {
   assert.equal(contact({ ...call(DAY), contactName: null }), '+15035550188');
   assert.equal(contact(voicemail(DAY)), '+14065550109');
   assert.equal(contact(photo(DAY)), '');
+  assert.equal(contact(whatsapp(DAY, 'x')), 'Riley Okafor');
+  assert.equal(contact(inFamily(DAY, 'x')), 'Family');
+  // Never a WhatsApp address, even for a chat with no number to go by
+  assert.equal(contact(whatsapp(DAY, 'x', { conversationName: '' }, { contactName: null, contactIdentifier: null })), '');
+  assert.equal(contact(inFamily(DAY, 'x', { conversationName: '' })), 'Family');
+});
+
+test('WhatsApp is labelled "WhatsApp" in every format, with its own colour', () => {
+  const entry = whatsapp(DAY, 'Bring the blue tent');
+  const md = formatTimeline([entry], 'md');
+  assert.ok(md.includes(`- \`${formatTime(entry.timestamp)}\` **WhatsApp** | **Riley Okafor**\n  Received: Bring the blue tent`), md);
+  assert.ok(!md.includes('Whatsapp'));
+  const html = formatTimeline([entry], 'html');
+  assert.ok(html.includes('>WhatsApp</span>'));
+  assert.ok(!html.includes('Whatsapp'));
+  assert.ok(html.includes('border-left:3px solid #128C7E'), 'not the grey kept for unknown kinds');
+  // CSV keeps the kind as a plain word, like the others
+  assert.deepEqual(csvRows([entry])[1].slice(2), ['whatsapp', 'Riley Okafor', 'Received: Bring the blue tent']);
+  // The other kinds keep their labels
+  assert.ok(formatTimeline([message(DAY, 'x'), visit(DAY)], 'md').includes('**Message**'));
+  assert.ok(formatTimeline([visit(DAY)], 'html').includes('>Browser</span>'));
+});
+
+test('HTML escapes what came from WhatsApp too', () => {
+  const html = formatTimeline([inFamily(DAY, '<img src=x onerror=alert(1)>', { sender: '<b>Ana</b>', conversationName: 'Tom & "Jerry"' })], 'html');
+  assert.ok(!html.includes('<img') && !html.includes('<b>Ana'));
+  assert.ok(html.includes('Received from &lt;b&gt;Ana&lt;/b&gt;: &lt;img src=x onerror=alert(1)&gt;'));
+  assert.ok(html.includes('<strong>Tom &amp; &quot;Jerry&quot;</strong>'));
 });
 
 test('entries are grouped under their local day, through midnight and DST changes', () => {

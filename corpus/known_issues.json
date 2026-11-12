@@ -1,4 +1,25 @@
 {
   "description": "Known corpus failures that need a product decision or a larger fix. Each entry turns the named check into a strict xfail for that item: the run stays green while the issue exists and fails as soon as it is fixed, so the entry gets removed. 'check' is an invariant test name (e.g. test_every_photo_listed) or a spot-fact id.",
-  "issues": []
+  "issues": [
+    {
+      "item": "pub-hickman-15.3.1",
+      "check": "wa-outgoing-audio-call",
+      "reason": "WhatsApp 2.23 keeps calls outside ChatStorage.sqlite (they are type-59 rows only from 2.24); reading WhatsApp's own call history is a follow-up to the WhatsApp section"
+    },
+    {
+      "item": "pub-hickman-15.3.1",
+      "check": "wa-incoming-audio-call",
+      "reason": "WhatsApp 2.23 keeps calls outside ChatStorage.sqlite (they are type-59 rows only from 2.24); reading WhatsApp's own call history is a follow-up to the WhatsApp section"
+    },
+    {
+      "item": "pub-hickman-15.3.1",
+      "check": "wa-outgoing-video-call",
+      "reason": "WhatsApp 2.23 keeps calls outside ChatStorage.sqlite (they are type-59 rows only from 2.24); reading WhatsApp's own call history is a follow-up to the WhatsApp section"
+    },
+    {
+      "item": "pub-hickman-15.3.1",
+      "check": "wa-incoming-video-call",
+      "reason": "WhatsApp 2.23 keeps calls outside ChatStorage.sqlite (they are type-59 rows only from 2.24); reading WhatsApp's own call history is a follow-up to the WhatsApp section"
+    }
+  ]
 }

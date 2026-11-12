@@ -3,6 +3,7 @@
  * and the file formats more than one screen produces.
  */
 import { exportMessagesPdf, saveFolder, sidecarCall } from './ipc';
+import { chatName } from './whatsapp';
 
 /** What a finished save reports in its notice. */
 export interface SaveResult {
@@ -14,11 +15,13 @@ export interface SaveResult {
 
 /**
  * Engine export methods report some failures in their result instead of throwing:
- * { success: false, error }, { status: 'error', message } or a bare { error }.
+ * { success: false, error }, { status: 'error', message }, a bare { error }, or
+ * { error, empty_reason } when there was nothing to save (WhatsApp not in the backup).
  */
 export function checkEngineResult<T>(result: T): T {
   const r = result as any;
-  const failed = r && (r.success === false || r.status === 'error' || (r.error && Object.keys(r).length === 1));
+  const failed = r && (r.success === false || r.status === 'error'
+    || (r.error && (Object.keys(r).length === 1 || r.empty_reason)));
   if (failed) throw new Error(r.error || r.message || 'The export did not finish.');
   return result;
 }
@@ -122,14 +125,42 @@ interface ConversationRef {
   chat_identifier: string;
 }
 
+/** A WhatsApp chat as list_whatsapp_chats gives it; its address is never shown, so no chat_identifier. */
+interface WhatsAppChatRef {
+  chat_id: number;
+  display_name: string;
+  handle?: string;
+}
+
+/** The engine methods that save one chat or several, and the PDF exporter's name for them. */
+type ExportMethods =
+  | { one: 'export_conversation'; many: 'export_conversations' }
+  | { one: 'export_whatsapp_chat'; many: 'export_whatsapp_chats' };
+
+const MESSAGES_EXPORT: ExportMethods = { one: 'export_conversation', many: 'export_conversations' };
+const WHATSAPP_EXPORT: ExportMethods = { one: 'export_whatsapp_chat', many: 'export_whatsapp_chats' };
+
+async function exportOne(methods: ExportMethods, params: Record<string, unknown>, format: ConversationFormat): Promise<any> {
+  return format === 'pdf'
+    ? exportMessagesPdf(methods.one, params)
+    : checkEngineResult(await sidecarCall(methods.one, { ...params, format }));
+}
+
+async function exportMany(methods: ExportMethods, params: Record<string, unknown>, format: ConversationFormat): Promise<{ files: string[]; message_count: number }> {
+  const result: any = format === 'pdf'
+    ? await exportMessagesPdf(methods.many, params)
+    : checkEngineResult(await sidecarCall<{ files: string[]; message_count: number }>(methods.many, { ...params, format }));
+  // Every file written, however the engine named them
+  const files: string[] = Array.isArray(result?.files) ? result.files : result?.file ? [result.file] : [];
+  return { files, message_count: result?.message_count ?? 0 };
+}
+
 /** Save one conversation into a folder the person picks. */
 export async function saveConversation(udid: string, convo: ConversationRef, format: ConversationFormat): Promise<SaveResult | null> {
   const outputDir = await saveFolder();
   if (!outputDir) return null;
   const params = { udid, chat_id: convo.chat_id, output_dir: outputDir, display_name: convo.display_name };
-  const result: any = format === 'pdf'
-    ? await exportMessagesPdf('export_conversation', params)
-    : checkEngineResult(await sidecarCall('export_conversation', { ...params, format }));
+  const result = await exportOne(MESSAGES_EXPORT, params, format);
   const file: string | undefined = result?.file ?? result?.files?.[0];
   return {
     title: `Saved your conversation with ${convo.display_name || convo.chat_identifier}`,
@@ -153,14 +184,51 @@ export async function saveConversations(
     udid, chat_ids: convos.map(c => c.chat_id), conversation_names: conversationNames,
     output_dir: outputDir, mode,
   };
-  const result = format === 'pdf'
-    ? await exportMessagesPdf('export_conversations', params)
-    : checkEngineResult(await sidecarCall<{ files: string[]; message_count: number }>(
-      'export_conversations', { ...params, format },
-    ));
+  const result = await exportMany(MESSAGES_EXPORT, params, format);
   return {
     title: `Saved ${plural(result.message_count, 'message')}`,
     detail: `${plural(convos.length, 'conversation')} in ${plural(result.files.length, 'file')}`,
+    path: result.files.length === 1 ? result.files[0] : outputDir,
+  };
+}
+
+// WhatsApp chats save the same way through their own engine methods: a WhatsApp
+// chat id is a different database's number, and the same number given to
+// export_conversation would save somebody's text messages instead.
+
+/** Save one WhatsApp chat into a folder the person picks. */
+export async function saveWhatsAppChat(udid: string, chat: WhatsAppChatRef, format: ConversationFormat): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const params = { udid, chat_id: chat.chat_id, output_dir: outputDir, display_name: chat.display_name };
+  const result = await exportOne(WHATSAPP_EXPORT, params, format);
+  const file: string | undefined = result?.file ?? result?.files?.[0];
+  return {
+    title: `Saved your WhatsApp chat with ${chatName(chat)}`,
+    detail: result?.message_count != null ? plural(result.message_count, 'message') : undefined,
+    path: file ?? outputDir,
+  };
+}
+
+/** Save several WhatsApp chats, one file each ('separate') or all in one ('merged'). */
+export async function saveWhatsAppChats(
+  udid: string,
+  chats: WhatsAppChatRef[],
+  format: ConversationFormat,
+  mode: 'separate' | 'merged',
+): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const conversationNames: Record<number, string> = {};
+  for (const c of chats) conversationNames[c.chat_id] = chatName(c);
+  const params = {
+    udid, chat_ids: chats.map(c => c.chat_id), conversation_names: conversationNames,
+    output_dir: outputDir, mode,
+  };
+  const result = await exportMany(WHATSAPP_EXPORT, params, format);
+  return {
+    title: `Saved ${plural(result.message_count, 'WhatsApp message')}`,
+    detail: `${plural(chats.length, 'chat')} in ${plural(result.files.length, 'file')}`,
     path: result.files.length === 1 ? result.files[0] : outputDir,
   };
 }
