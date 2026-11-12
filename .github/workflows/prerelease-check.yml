@@ -142,7 +142,7 @@ jobs:
           # Node on Windows needs C:\ paths, not Git Bash's /c/ ones.
           native() { if command -v cygpath >/dev/null; then cygpath -w "$1"; else echo "$1"; fi; }
           args=(scripts/e2e/run.mjs --app "$(native "$GITHUB_WORKSPACE/release/${{ matrix.app }}")" --backups e2e-backups.json --out e2e-out
-                --suites first-run,open,screens,exports,empty,ipc,network,hickman,smoke)
+                --suites first-run,open,screens,search,exports,empty,ipc,network,hickman,smoke)
           if [ "$RUNNER_OS" = Linux ]; then env -u PYTHONUTF8 xvfb-run -a -s '-screen 0 1600x1000x24' node "${args[@]}"; else env -u PYTHONUTF8 node "${args[@]}"; fi
 
       # Maren and einstein are fictional; the hickman suite keeps every Hickman screenshot and

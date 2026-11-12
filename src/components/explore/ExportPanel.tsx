@@ -3,16 +3,20 @@ import { saveFolder, sidecarCall } from '../../lib/ipc';
 import { photoExportSummary, photoSaveFailures, photoSaveProgress, PhotoExportResult } from '../../lib/photoCounts';
 import { percentDone } from '../../lib/exportProgress';
 import {
-  checkEngineResult, contactsToCsv, contactsToVcard, notesToText, plural, saveConversations, saveTextFile, saveWhatsAppChats,
+  checkEngineResult, contactsToCsv, contactsToVcard, notesToText, plural, saveConversations, savePodcasts, saveTextFile,
+  saveWhatsAppChats,
   type ContactRecord, type ConversationFormat, type NoteRecord, type SaveResult,
 } from '../../lib/saveData';
 import type { WhatsAppChatsResult } from '../../types/whatsapp';
+import type { PodcastSaveFormat } from '../../types/podcasts';
 import type { BackupStatsOverview } from '../../hooks/useBackupStats';
 import { useSaveAction } from '../../hooks/useSaveAction';
 import { useExportProgress } from '../../hooks/useExportProgress';
 import PageHeader from '../shared/PageHeader';
 import SaveDialog, { ConversationModeChoice, FORMATS, SaveButton, SaveProgress, type SaveFormat } from '../shared/SaveDialog';
-import { LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon, GlobeIcon, ContactIcon, WhatsAppIcon } from '../shared/Icons';
+import {
+  LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon, GlobeIcon, ContactIcon, WhatsAppIcon, PodcastIcon,
+} from '../shared/Icons';
 
 interface Props {
   udid: string;
@@ -21,7 +25,7 @@ interface Props {
   hasBrowserHistory: boolean;
 }
 
-type Kind = 'messages' | 'whatsapp' | 'photos' | 'contacts' | 'calls' | 'voicemail' | 'notes' | 'browser_history';
+type Kind = 'messages' | 'whatsapp' | 'photos' | 'contacts' | 'calls' | 'voicemail' | 'podcasts' | 'notes' | 'browser_history';
 
 interface KindInfo {
   id: Kind;
@@ -68,6 +72,11 @@ const KINDS: KindInfo[] = [
     formats: [FORMATS.audio],
   },
   {
+    id: 'podcasts', label: 'Podcasts', icon: PodcastIcon, count: o => o.total_podcasts ?? 0,
+    what: n => `${n != null ? plural(n, 'podcast') : 'Every podcast'}, to follow in another podcast app or open in a spreadsheet`,
+    formats: [FORMATS.opml, FORMATS.csv],
+  },
+  {
     id: 'notes', label: 'Notes', icon: NoteIcon, count: o => o.total_notes,
     what: n => `${n != null ? plural(n, 'note') : 'Every note'}, in one text file`,
     formats: [FORMATS.txt],
@@ -96,6 +105,7 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
     contacts: useSaveAction('contacts'),
     calls: useSaveAction('calls'),
     voicemail: useSaveAction('voicemail'),
+    podcasts: useSaveAction('podcasts'),
     notes: useSaveAction('notes'),
     browser_history: useSaveAction('browser_history'),
   };
@@ -107,6 +117,10 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
   });
 
   function start(kind: KindInfo) {
+    // A subscription list needs a followed show: with none, only the spreadsheet is offered
+    if (kind.id === 'podcasts' && overview && (overview.total_podcasts_followed ?? 1) === 0) {
+      kind = { ...kind, formats: kind.formats.filter(f => f.id !== 'opml') };
+    }
     if (kind.formats.length > 1) setChoosing(kind);
     else save(kind.id, kind.formats[0].id);
   }
@@ -155,6 +169,9 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
         });
         return path ? { title: `Saved ${plural(notes.length, 'note')}`, path } : null;
       }
+      case 'podcasts':
+        // The engine writes the files: subscriptions (OPML), or shows and episodes (CSV)
+        return savePodcasts(udid, format as PodcastSaveFormat);
       default:
         return saveToFolder(kind);
     }

@@ -42,7 +42,7 @@ export const FEEDBACK_KINDS: { id: FeedbackKind; label: string; hint: string }[]
 
 export type FeedbackArea =
   | 'general' | 'open_backup' | 'create_backup' | 'search' | 'dashboard' | 'people' | 'timeline' | 'year'
-  | 'messages' | 'whatsapp' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'browser_history'
+  | 'messages' | 'whatsapp' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail' | 'podcasts' | 'browser_history'
   | 'record_recovery' | 'export';
 
 export const FEEDBACK_AREAS: { id: FeedbackArea; label: string }[] = [
@@ -61,6 +61,7 @@ export const FEEDBACK_AREAS: { id: FeedbackArea; label: string }[] = [
   { id: 'calls', label: 'Calls' },
   { id: 'notes', label: 'Notes' },
   { id: 'voicemail', label: 'Voicemail' },
+  { id: 'podcasts', label: 'Podcasts' },
   { id: 'browser_history', label: 'Web history' },
   { id: 'record_recovery', label: 'Recovering deleted messages' },
   { id: 'export', label: 'Exporting' },

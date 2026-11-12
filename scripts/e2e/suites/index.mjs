@@ -6,9 +6,10 @@ import screens from './screens.mjs';
 import search from './search.mjs';
 import exportsSuite from './exports.mjs';
 import empty from './empty.mjs';
+import podcasts from './podcasts.mjs';
 import ipc from './ipc.mjs';
 import network from './network.mjs';
 import hickman from './hickman.mjs';
 import smoke from './smoke.mjs';
 
-export const SUITES = [firstRun, open, screens, search, exportsSuite, empty, ipc, network, hickman, smoke];
+export const SUITES = [firstRun, open, screens, search, exportsSuite, empty, podcasts, ipc, network, hickman, smoke];
