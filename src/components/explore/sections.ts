@@ -4,14 +4,15 @@ import type { BackupIndex } from '../../hooks/useTimeline';
 import type { TimelineEntry, TimelineFilters } from '../../types/timeline';
 import {
   LinesIcon, CameraIcon, ContactIcon, PeopleIcon, CallIcon, NoteIcon, VoicemailIcon, GlobeIcon, ClockIcon,
-  CalendarIcon, ChartIcon, ExportIcon, RecoverIcon, WhatsAppIcon,
+  CalendarIcon, ChartIcon, ExportIcon, RecoverIcon, WhatsAppIcon, PodcastIcon,
 } from '../shared/Icons';
+import { podcastsUnreadable } from '../../lib/podcasts';
 
 /** Every screen inside a backup. */
 export type Tab =
   | 'home' | 'dashboard' | 'people'
   | 'timeline' | 'year' | 'messages' | 'whatsapp' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail'
-  | 'browser_history' | 'record_recovery' | 'export';
+  | 'podcasts' | 'browser_history' | 'record_recovery' | 'export';
 
 export type Icon = typeof LinesIcon;
 
@@ -44,6 +45,9 @@ export function whatsappUnreadable(o: BackupStatsOverview | null | undefined): b
   return o?.whatsapp_status === 'error' || o?.whatsapp_status === 'unsupported_format';
 }
 
+/** Podcasts in the backup that couldn't be read: shown with no number, like WhatsApp. */
+export { podcastsUnreadable };
+
 /** The kinds of data, in the order the home page lists them. */
 export const DATA_SECTIONS: Section[] = [
   { id: 'messages', label: 'Messages', icon: LinesIcon, count: o => o.total_messages },
@@ -57,6 +61,10 @@ export const DATA_SECTIONS: Section[] = [
   { id: 'calls', label: 'Calls', icon: CallIcon, count: o => o.total_calls },
   { id: 'notes', label: 'Notes', icon: NoteIcon, count: o => o.total_notes },
   { id: 'voicemail', label: 'Voicemail', icon: VoicemailIcon, count: o => o.total_voicemails },
+  {
+    id: 'podcasts', label: 'Podcasts', icon: PodcastIcon, count: o => o.total_podcasts ?? 0,
+    shown: o => (o.total_podcasts ?? 0) > 0 || podcastsUnreadable(o),
+  },
   { id: 'browser_history', label: 'Web history', icon: GlobeIcon },
 ];
 
@@ -84,6 +92,7 @@ export const SCOPED: Partial<Record<Tab, Scope>> = {
   calls: { placeholder: 'Search calls', items: 'calls' },
   notes: { placeholder: 'Search notes', items: 'notes' },
   voicemail: { placeholder: 'Search voicemail', items: 'voicemails' },
+  podcasts: { placeholder: 'Search podcasts', items: 'podcasts' },
   browser_history: { placeholder: 'Search web history', items: 'page visits' },
   timeline: { placeholder: 'Search the timeline', items: 'events' },
   record_recovery: { placeholder: 'Search deleted messages', items: 'deleted messages' },
@@ -102,11 +111,12 @@ export function availableData(overview: BackupStatsOverview | null, hasBrowserHi
 /**
  * Lower-case names of the kinds of data the backup has none of, e.g. ["photos", "web history"].
  * WhatsApp isn't one: most iPhones don't have it, so a backup without it isn't missing anything.
+ * Podcasts isn't either: many iPhones never use the Podcasts app.
  */
 export function missingKinds(overview: BackupStatsOverview | null, hasBrowserHistory: boolean): string[] {
   if (!overview) return [];
   const missing = DATA_SECTIONS
-    .filter(s => s.id !== 'people' && s.id !== 'whatsapp' && s.count && s.count(overview) === 0)
+    .filter(s => s.id !== 'people' && s.id !== 'whatsapp' && s.id !== 'podcasts' && s.count && s.count(overview) === 0)
     .map(s => s.label.toLowerCase());
   if (!hasBrowserHistory) missing.push('web history');
   return missing;

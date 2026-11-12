@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Podcasts: a Podcasts section with the shows you follow in Apple Podcasts and the episodes you listened to, newest first, with how many times you played each one and where you stopped. Shows you played but didn't follow are listed apart. Save your subscriptions as an OPML file, which most podcast apps can import, or every show and episode as CSV. The episodes themselves aren't there to play: an iPhone backup never includes podcast audio, so each episode links to where the podcast publishes it. Reading podcasts was contributed by gbaudic (ios-backup-core#25)
+
 ### Changed
 - Windows: the app's updater now downloads a copy of the installer named `OpenExtract-Update-X.Y.Z.exe` instead of `OpenExtract-Setup-X.Y.Z.exe`. It's the same signed file. The only difference is that GitHub's download counts for each release now show updates and new installs apart; the app still sends nothing. The first update to this version may download the whole installer rather than only the parts that changed
 

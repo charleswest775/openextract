@@ -232,6 +232,7 @@ openextract/
 │   ├── contacts.py    # Address book parsing
 │   ├── photos.py      # Photo/video extraction
 │   ├── voicemail.py   # Voicemail extraction
+│   ├── podcasts.py    # Podcasts (shows, listening history, OPML/CSV)
 │   ├── calls.py       # Call history parsing
 │   └── notes.py       # Notes extraction
 └── scripts/           # Build scripts

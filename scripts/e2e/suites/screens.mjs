@@ -9,7 +9,7 @@ import { check, launch, num, sleep, timed, timing } from '../harness.mjs';
 export const SCREENS = {
   home: 'Backup home', dashboard: 'Backup details', people: 'People', timeline: 'Timeline', year: 'Year',
   messages: 'Messages', whatsapp: 'WhatsApp', photos: 'Photos', contacts: 'Address book', calls: 'Calls', notes: 'Notes',
-  voicemail: 'Voicemail', browser_history: 'Web history', record_recovery: 'Recover deleted messages', export: 'Save to this computer',
+  voicemail: 'Voicemail', podcasts: 'Podcasts', browser_history: 'Web history', record_recovery: 'Recover deleted messages', export: 'Save to this computer',
 };
 
 export default {
@@ -257,6 +257,32 @@ export default {
       const play = await app.waitFor(() => !!document.querySelector('button[aria-label=Play]'), null, 20_000);
       check('a voicemail\'s audio loads and can play', !!play && !/Couldn't read the voicemail/.test(await app.text()));
       await shot('voicemail');
+
+      // ── Podcasts ──
+      // Like WhatsApp: shown only when the backup has a Podcasts library (the engine's list
+      // decides which way to check). maren has none, so no tile and not listed as missing.
+      const podList = await app.api('call', 'list_podcasts', { udid: key.udid });
+      const pods = podList.value?.data;
+      if (pods?.podcasts?.length) {
+        check('Podcasts opens', await timed('screen Podcasts', () => app.open('Podcasts', /\d+ podcasts?/)));
+        const shows = num((await app.text()).match(/([\d,]+) podcasts?/)?.[1]);
+        check(`Podcasts lists the engine's ${pods.podcasts.length} shows`, shows === pods.podcasts.length, shows);
+        check('Podcasts opens on the listening history or a show', !!(await app.waitForText(/Listening history/, 10_000)));
+        check('Podcasts says once, calmly, that episode audio isn\'t in backups',
+          (await app.text()).split("Episode audio isn't kept in iPhone backups").length === 2);
+        const followed = pods.podcasts.find(p => p.followed && p.title);
+        if (followed) {
+          check('a followed show opens with its episodes', await app.click(followed.title)
+            && !!(await app.waitForText(/All episodes/, 10_000)));
+        }
+        check('no podcast artwork or feed is fetched', !(await app.eval(() => [...document.images].some(i => /^https?:/.test(i.src)))));
+        await shot('podcasts');
+      } else {
+        check('the engine says calmly that Podcasts isn\'t in this backup', podList.value?.success === true && pods?.empty_reason === 'not_in_backup' && !pods?.error && Array.isArray(pods?.podcasts), pods ?? podList);
+        await app.home();
+        const listed = await app.eval(() => [...document.querySelectorAll('span')].some(s => s.textContent.trim() === 'Podcasts'));
+        check('no Podcasts tile, and not listed as missing', !('Podcasts' in tiles) && !listed, { tiles });
+      }
 
       // ── Web history ──
       check('Web history opens', await timed('screen Web history', () => app.open('Web history', /Web history/)));

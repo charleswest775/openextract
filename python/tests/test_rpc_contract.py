@@ -14,7 +14,9 @@ cleanly empty), written by ios-backup-core's backupgen (corpus/synthetic.py)
 into the corpus cache. WhatsApp, which backupgen doesn't write, comes from
 whatsapp_backup.py: a copy of Einstein's backup with WhatsApp added (so
 sms.db's ids and WhatsApp's collide) and an encrypted backup holding only
-WhatsApp. Without backupgen, or without network the first time
+WhatsApp. Podcasts, likewise, come from podcasts_backup.py: a copy of
+Einstein's backup with an Apple Podcasts library added, and an encrypted
+backup holding only that library. Without backupgen, or without network the first time
 Maren's photos are needed, these tests skip, unless OPENEXTRACT_REQUIRE_GENERATED=1
 (set in CI) makes that a failure.
 
@@ -35,8 +37,10 @@ import re
 import shutil
 import sys
 import time
+import xml.etree.ElementTree as ET
 from collections import Counter
 from datetime import datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Callable
 
@@ -70,6 +74,7 @@ from rpc_contract_support import (  # noqa: E402
     same_path,
 )
 import whatsapp_backup as wb  # noqa: E402
+import podcasts_backup as pb  # noqa: E402
 
 # ── Performance budgets ──────────────────────────────────────────────────────
 # Seconds of wall-clock time for one cold call on a freshly started engine with
@@ -141,6 +146,16 @@ class Ctx:
     def whatsapp_enc(self) -> BackupEngine:
         """An encrypted backup holding only WhatsApp (password "test")."""
         return self.runtime.whatsapp(encrypted=True)
+
+    @property
+    def podcasts(self) -> BackupEngine:
+        """Einstein's backup with an Apple Podcasts library added; ``.plan.scenario`` says what's in it."""
+        return self.runtime.podcasts()
+
+    @property
+    def podcasts_enc(self) -> BackupEngine:
+        """An encrypted backup holding only the Podcasts library (password "test")."""
+        return self.runtime.podcasts(encrypted=True)
 
     @property
     def plain(self) -> Engine:
@@ -983,6 +998,121 @@ def case_export_whatsapp_chats(ctx):
     assert [Path(f).suffix for f in result["files"]] == [".html"] and result["message_count"] == total
 
 
+# ── Podcasts ─────────────────────────────────────────────────────────────────
+# The library (MTLibrary.sqlite) in a copy of Einstein's backup, and in an
+# encrypted backup holding only it. "Listened" is the history (a play count,
+# a last played date or a position), never the app's "played" mark alone,
+# which it puts on a followed show's whole back catalogue.
+
+PODCAST_CSV_HEADER = ["Title", "Author", "Followed", "Feed URL", "Website", "Added", "Last played",
+                      "Episodes", "Listened"]
+EPISODE_CSV_HEADER = ["Podcast", "Title", "Published", "Duration (s)", "Listened", "Play count",
+                      "Last played", "Position (s)", "State", "Saved", "Downloaded on iPhone",
+                      "Audio URL", "Web page"]
+
+
+@contract("list_podcasts")
+def case_list_podcasts(ctx):
+    pod = ctx.podcasts
+    s = pod.plan.scenario
+    result = pod.rpc("list_podcasts")
+    assert "error" not in result and "empty_reason" not in result, result
+    shows = result["podcasts"]
+    assert [p["id"] for p in shows] == sorted(s.shows)  # the library's own order
+    for p in shows:
+        assert {k: p[k] for k in s.shows[p["id"]]} == s.shows[p["id"]], p["id"]
+        for key in ("added_date", "last_played_date", "unfollowed_date"):
+            if p[key]:
+                local_day(p[key])
+    # Played but never chosen: not followed
+    assert {p["id"] for p in shows if p["followed"]} == s.followed
+    assert next(p for p in shows if p["id"] == pb.SHOW_IMPLICIT)["implicitly_followed"] is True
+    # The encrypted backup reads the same
+    assert ctx.podcasts_enc.podcasts == shows
+
+
+@contract("list_podcast_episodes")
+def case_list_podcast_episodes(ctx):
+    pod = ctx.podcasts
+    s = pod.plan.scenario
+    result = pod.rpc("list_podcast_episodes")
+    assert "error" not in result and "empty_reason" not in result, result
+    episodes = result["episodes"]
+    assert [e["id"] for e in episodes] == s.newest_first(s.episodes)  # newest published first
+    for e in episodes:
+        assert {k: e[k] for k in s.episodes[e["id"]]} == s.episodes[e["id"]], e["id"]
+        assert "description" not in e  # never shown; would make the answer much bigger
+        assert not any("asset" in key for key in e)  # where the iPhone kept the audio means nothing here
+    assert pod.rpc("list_podcast_episodes", podcast_id=None)["episodes"] == episodes
+    # One show's. The app sends a number; a string reads the same.
+    for podcast_id in (pb.SHOW_FIELD_NOTES, str(pb.SHOW_FIELD_NOTES)):
+        ids = [e["id"] for e in pod.rpc("list_podcast_episodes", podcast_id=podcast_id)["episodes"]]
+        assert ids == s.newest_first(s.episodes_of(pb.SHOW_FIELD_NOTES))
+    # The listening history: not the back catalogue the app marked played
+    history = pod.rpc("list_podcast_episodes", listened_only=True)["episodes"]
+    assert [e["id"] for e in history] == s.newest_first(s.listened)
+    assert pb.EP_BACK_CATALOGUE not in s.listened and pb.EP_IN_PROGRESS in s.listened
+    one = pod.rpc("list_podcast_episodes", podcast_id=pb.SHOW_FIELD_NOTES, listened_only=True)["episodes"]
+    assert {e["id"] for e in one} == {pb.EP_DOWNLOADED, pb.EP_IN_PROGRESS}
+    # A show the library doesn't have: nothing, calmly
+    assert pod.rpc("list_podcast_episodes", podcast_id=999) == {"episodes": [], "empty_reason": "no_records"}
+    # The encrypted backup reads the same
+    assert ctx.podcasts_enc.podcast_episodes == episodes
+
+
+@contract("export_podcasts")
+def case_export_podcasts(ctx):
+    pod = ctx.podcasts
+    s = pod.plan.scenario
+    # OPML: the followed shows with a feed, for another podcast app
+    out = ctx.folder("podcasts-opml")
+    result = pod.rpc("export_podcasts", output_dir=str(out), format="opml")
+    path = Path(result["path"])
+    assert result == {"status": "success", "count": len(s.opml_feeds), "path": str(path), "files": [str(path)]}
+    assert same_path(path.parent, out) and path.name == "Podcasts.opml"
+    root = ET.parse(path).getroot()
+    assert (root.tag, root.get("version")) == ("opml", "2.0")
+    assert root.findtext("head/title") == f"Podcasts from {pb.DEVICE_NAME}"
+    assert parsedate_to_datetime(root.findtext("head/dateCreated")).tzinfo is not None  # RFC 822
+    outlines = root.findall("body/outline")
+    assert {o.get("text"): o.get("xmlUrl") for o in outlines} == s.opml_feeds
+    assert all(o.get("type") == "rss" for o in outlines)
+    assert "Field Notes &amp; &lt;Margins&gt;" in path.read_text(encoding="utf-8")
+    # Saving again never overwrites
+    again = pod.rpc("export_podcasts", output_dir=str(out), format="opml")
+    assert Path(again["path"]).name == "Podcasts (2).opml" and len(files_under(out)) == 2
+    # CSV: every show and every episode
+    out = ctx.folder("podcasts-csv")
+    result = pod.rpc("export_podcasts", output_dir=str(out), format="csv")
+    assert (result["status"], result["count"]) == ("success", len(s.shows))
+    shows_csv, episodes_csv = (Path(f) for f in result["files"])
+    assert result["path"] == result["files"][0]
+    assert (shows_csv.name, episodes_csv.name) == ("Podcasts.csv", "Podcast episodes.csv")
+    assert files_under(out) == sorted([shows_csv, episodes_csv])
+    rows = read_csv(shows_csv)
+    assert rows[0] == PODCAST_CSV_HEADER and len(rows) - 1 == len(s.shows)
+    titles = [row[0] for row in rows[1:]]
+    assert pb.AMPERSAND_TITLE in titles and "'" + pb.FORMULA_TITLE in titles  # never a formula
+    rows = read_csv(episodes_csv)
+    assert rows[0] == EPISODE_CSV_HEADER and len(rows) - 1 == len(s.episodes)
+    by_title = {row[1]: row for row in rows[1:]}
+    assert "'" + pb.FORMULA_EPISODE in by_title
+    in_progress = by_title[s.episodes[pb.EP_IN_PROGRESS]["title"]]
+    assert in_progress[7:10] == [str(int(pb.IN_PROGRESS_AT)), "In progress", "Yes"]
+    published = datetime.fromisoformat(in_progress[2])
+    assert published.utcoffset() is not None  # local time, with its offset
+    assert published == datetime.fromisoformat(s.episodes[pb.EP_IN_PROGRESS]["published_date"])
+    assert by_title[s.episodes[pb.EP_DOWNLOADED]["title"]][10] == "Yes"
+    # The encrypted backup saves the same shows
+    out = ctx.folder("podcasts-encrypted-opml")
+    result = ctx.podcasts_enc.rpc("export_podcasts", output_dir=str(out), format="opml")
+    assert result["count"] == len(s.opml_feeds)
+    assert {o.get("xmlUrl") for o in ET.parse(result["path"]).getroot().iter("outline")} == set(s.opml_feeds.values())
+    out = ctx.folder("podcasts-docx")
+    assert_error_dict(pod.rpc("export_podcasts", output_dir=str(out), format="docx"), "Unsupported format")
+    assert files_under(out) == []
+
+
 @contract("recover_messages")
 def case_recover_messages(ctx):
     rec = ctx.runtime.recovery()
@@ -1118,6 +1248,18 @@ def case_get_backup_stats(ctx):
         assert (o["total_whatsapp_messages"], o["total_whatsapp_chats"], o["whatsapp_status"]) == \
             (s.total_messages, len(s.counts), "ok")
         assert o["total_messages"] == (0 if engine.encrypted else einstein_messages)
+    # Podcasts: every show, the followed ones, and the listening history, as the screen lists them
+    o = ctx.maren.rpc("get_backup_stats")["overview"]
+    assert (o["total_podcasts"], o["podcasts_status"]) == (0, "not_in_backup")
+    for engine in (ctx.podcasts, ctx.podcasts_enc):
+        s = engine.plan.scenario
+        stats = engine.rpc("get_backup_stats")
+        assert stats["errors"] == []
+        o = stats["overview"]
+        assert (o["total_podcasts"], o["total_podcasts_followed"], o["total_podcast_episodes_listened"],
+                o["podcasts_status"]) == (len(s.shows), len(s.followed), len(s.listened), "ok")
+        assert o["total_podcasts"] == len(engine.podcasts)
+        assert o["total_podcast_episodes_listened"] == len(engine.rpc("list_podcast_episodes", listened_only=True)["episodes"])
 
 
 @contract("get_year_counts")
@@ -1437,6 +1579,26 @@ def empty_export_whatsapp_chats(e, out):
     assert files_under(out) == []
 
 
+@empty_state("list_podcasts")
+def empty_list_podcasts(e, out):
+    assert e.rpc("list_podcasts") == {"podcasts": [], "empty_reason": "not_in_backup"}
+
+
+@empty_state("list_podcast_episodes")
+def empty_list_podcast_episodes(e, out):
+    nothing = {"episodes": [], "empty_reason": "not_in_backup"}
+    assert e.rpc("list_podcast_episodes") == nothing
+    assert e.rpc("list_podcast_episodes", podcast_id=1, listened_only=True) == nothing
+
+
+@empty_state("export_podcasts")
+def empty_export_podcasts(e, out):
+    for fmt in ("opml", "csv"):
+        result = e.rpc("export_podcasts", output_dir=str(out), format=fmt)
+        assert result == {"error": "There are no podcasts in this backup to save.", "empty_reason": "not_in_backup"}
+    assert files_under(out) == []
+
+
 @empty_state("get_backup_stats")
 def empty_get_backup_stats(e, out):
     stats = e.rpc("get_backup_stats")
@@ -1444,9 +1606,11 @@ def empty_get_backup_stats(e, out):
     o = stats["overview"]
     assert o["total_messages"] == len(e.expected["messages"]) and o["total_contacts"] == len(e.expected["contacts"])
     for key in ("total_photos", "total_videos", "photos_in_backup", "total_calls", "total_notes", "total_voicemails",
-                "total_whatsapp_messages", "total_whatsapp_chats"):
+                "total_whatsapp_messages", "total_whatsapp_chats", "total_podcasts", "total_podcasts_followed",
+                "total_podcast_episodes_listened"):
         assert o[key] == 0, key
     assert o["whatsapp_status"] == "not_in_backup"
+    assert o["podcasts_status"] == "not_in_backup"
 
 
 @empty_state("get_year_counts")
@@ -1612,6 +1776,22 @@ def test_whatsapp_reads_send_no_raw_bytes(runtime):
         wa.rpc("search_whatsapp_messages", query="e", chat_id=chat["chat_id"])
     wa.rpc("get_backup_stats")
     log = Path(wa.client._tmp.name) / "python_log.txt"
+    errors = [line for line in log.read_text(encoding="utf-8").splitlines() if "[RPC ERROR]" in line] if log.exists() else []
+    assert not errors, errors[:5]
+
+
+def test_podcast_reads_send_no_raw_bytes(runtime):
+    """Every Podcasts read, over the whole test backup, leaves no "[RPC ERROR]" in the engine's log.
+
+    One episode title is stored as a BLOB, as some libraries do: it must come
+    back as text, and the engine would only log raw bytes, not fail.
+    """
+    pod = runtime.podcasts()
+    for show in pod.rpc("list_podcasts")["podcasts"]:
+        pod.rpc("list_podcast_episodes", podcast_id=show["id"])
+    pod.rpc("list_podcast_episodes", listened_only=True)
+    pod.rpc("get_backup_stats")
+    log = Path(pod.client._tmp.name) / "python_log.txt"
     errors = [line for line in log.read_text(encoding="utf-8").splitlines() if "[RPC ERROR]" in line] if log.exists() else []
     assert not errors, errors[:5]
 

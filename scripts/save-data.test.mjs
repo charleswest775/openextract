@@ -399,3 +399,67 @@ test('saveWhatsAppChats as PDF, and its failures', async t => {
   folder = null;
   assert.equal(await save.saveWhatsAppChats('u', [RILEY], 'csv', 'merged'), null);
 });
+
+// ── Podcasts: the engine writes the files (export_podcasts) ──
+
+test('savePodcasts as OPML: the followed shows, into the chosen folder', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => '/Users/jane/Desktop',
+    call: async (_m, p) => ({
+      success: true,
+      data: { status: 'success', count: 6, path: `${p.output_dir}/Podcasts.opml`, files: [`${p.output_dir}/Podcasts.opml`] },
+    }),
+  });
+  const result = await save.savePodcasts('00008030-001A', 'opml');
+  assert.deepEqual(calls[1], ['call', 'export_podcasts', { udid: '00008030-001A', output_dir: '/Users/jane/Desktop', format: 'opml' }]);
+  assert.deepEqual(result, {
+    title: 'Saved 6 podcasts',
+    detail: 'Subscription list for another podcast app',
+    path: '/Users/jane/Desktop/Podcasts.opml',
+  });
+});
+
+test('savePodcasts as CSV: shows and episodes, and "Show in folder" finds the shows file', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => 'D:\\Exports',
+    call: async () => ({
+      success: true,
+      data: {
+        status: 'success', count: 1, path: 'D:\\Exports\\Podcasts (2).csv',
+        files: ['D:\\Exports\\Podcasts (2).csv', 'D:\\Exports\\Podcast episodes (2).csv'],
+      },
+    }),
+  });
+  const result = await save.savePodcasts('u', 'csv');
+  assert.deepEqual(calls[1], ['call', 'export_podcasts', { udid: 'u', output_dir: 'D:\\Exports', format: 'csv' }]);
+  assert.deepEqual(result, {
+    title: 'Saved 1 podcast',
+    detail: 'Spreadsheets of the shows and their episodes',
+    path: 'D:\\Exports\\Podcasts (2).csv',
+  });
+});
+
+test('savePodcasts: cancelled does nothing', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => null,
+    call: async () => assert.fail('nothing is exported without a folder'),
+  });
+  assert.equal(await save.savePodcasts('u', 'opml'), null);
+  assert.equal(await save.savePodcasts('u', 'csv'), null);
+  assert.deepEqual(calls.map(c => c[0]), ['saveFolder', 'saveFolder']);
+});
+
+test('savePodcasts: nothing to save, or a library that can\'t be read, is reported', async t => {
+  let data = { error: 'There are no podcasts in this backup to save.', empty_reason: 'not_in_backup' };
+  const { lib: save } = loadWith(t, {
+    saveFolder: async () => '/tmp/out',
+    call: async () => (data ? { success: true, data } : { success: false, error: 'The engine stopped.' }),
+  });
+  await assert.rejects(save.savePodcasts('u', 'csv'), { message: 'There are no podcasts in this backup to save.' });
+  data = { error: 'None of the podcasts in this backup have a feed address to save.', empty_reason: 'no_records' };
+  await assert.rejects(save.savePodcasts('u', 'opml'), { message: 'None of the podcasts in this backup have a feed address to save.' });
+  data = { error: "The Podcasts library couldn't be read." };
+  await assert.rejects(save.savePodcasts('u', 'opml'), { message: "The Podcasts library couldn't be read." });
+  data = null;
+  await assert.rejects(save.savePodcasts('u', 'opml'), { message: 'The engine stopped.' });
+});

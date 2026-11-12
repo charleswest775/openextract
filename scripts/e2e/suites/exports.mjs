@@ -15,12 +15,13 @@ export const PANEL_EXPORTS = {
   contacts: ['vcf', 'csv'],
   calls: ['csv'],
   voicemail: ['audio'],
+  podcasts: ['opml', 'csv'],
   notes: ['txt'],
   browser_history: ['csv'],
 };
 const PANEL_LABELS = {
   messages: 'Messages', whatsapp: 'WhatsApp', photos: 'Photos & videos', contacts: 'Address book', calls: 'Call history',
-  voicemail: 'Voicemail', notes: 'Notes', browser_history: 'Web history',
+  voicemail: 'Voicemail', podcasts: 'Podcasts', notes: 'Notes', browser_history: 'Web history',
 };
 
 export default {
@@ -60,6 +61,9 @@ export default {
       const waChats = waKey ? waKey.chats.length : engineChats;
       if (waKey) check(`the engine lists the answer key's ${waChats} WhatsApp chats`, engineChats === waChats, engineChats);
       const waTotal = waKey ? waKey.chats.reduce((n, c) => n + c.message_count, 0) : null;
+      // And its podcasts (maren has none: no Podcasts library)
+      const podcasts = (await app.api('call', 'list_podcasts', { udid: key.udid })).value?.data?.podcasts ?? [];
+      const followedFeeds = podcasts.filter(p => p.followed && p.feed_url).length;
 
       // ── Save to this computer: every kind × every format ──
       for (const [kind, formats] of Object.entries(PANEL_EXPORTS)) {
@@ -68,6 +72,12 @@ export default {
           await app.open('Save to this computer', /Copy what's in this backup/);
           const offered = await app.eval(() => [...document.querySelectorAll('li')].some(li => li.innerText.trim().startsWith('WhatsApp')));
           check('Save panel: no WhatsApp on a backup without it', !offered);
+          continue;
+        }
+        if (kind === 'podcasts' && podcasts.length === 0) {
+          await app.open('Save to this computer', /Copy what's in this backup/);
+          const offered = await app.eval(() => [...document.querySelectorAll('li')].some(li => li.innerText.trim().startsWith('Podcasts')));
+          check('Save panel: no Podcasts on a backup without them', !offered);
           continue;
         }
         for (const format of formats) {
@@ -110,6 +120,16 @@ export default {
           if (kind === 'contacts' && format === 'csv') { const rows = csvRows(path.join(dir, files.find(f => ext(f) === 'csv'))); pass = rows === key.contacts.length; detail = { rows }; }
           if (kind === 'calls') { const rows = csvRows(path.join(dir, files.find(f => ext(f) === 'csv'))); const shown = tiles.Calls; pass = rows === shown; detail = { rows, shown }; }
           if (kind === 'voicemail') { const audio = files.filter(f => /\.(amr|m4a|wav|mp3|caf)$/i.test(f)); pass = audio.length === key.voicemails.length; detail = { audio: audio.length }; }
+          if (kind === 'podcasts' && format === 'opml') {
+            const opml = files.filter(f => ext(f) === 'opml');
+            const outlines = opml.length === 1 ? (fs.readFileSync(path.join(dir, opml[0]), 'utf-8').match(/<outline\b[^>]*xmlUrl=/g) || []).length : -1;
+            pass = outlines === followedFeeds; detail = { outlines, want: followedFeeds };
+          }
+          if (kind === 'podcasts' && format === 'csv') {
+            const shows = files.find(f => /^Podcasts( \(\d+\))?\.csv$/.test(f));
+            const rows = shows ? csvRows(path.join(dir, shows)) : -1;
+            pass = rows === podcasts.length && files.some(f => /^Podcast episodes( \(\d+\))?\.csv$/.test(f)); detail = { rows, want: podcasts.length, files };
+          }
           if (kind === 'notes') { const txt = fs.readFileSync(path.join(dir, files[0]), 'utf-8'); pass = key.notes.every(n => txt.includes(n.title)); detail = { kb: Math.round(txt.length / 1024) }; }
           if (kind === 'browser_history') { const rows = csvRows(path.join(dir, files.find(f => ext(f) === 'csv'))); pass = rows === key.browser_history.length; detail = { rows }; }
           if (format === 'pdf') { const stats = files.map(f => pdfStats(path.join(dir, f))); pass = pass && stats.every(s => s.header && s.pages > 0); }
@@ -184,6 +204,8 @@ export default {
         { name: 'Voicemail', ready: /\d+ voicemails?/, button: 'Save all', formats: [null] },
         { name: 'Web history', ready: /Most Visited Sites|Browsing Activity/, button: 'Save all', formats: [null] },
         { name: 'Timeline', ready: /[\d,]+ events/, button: 'Save', formats: ['html', 'csv', 'md'] },
+        // Only on a backup with a Podcasts library
+        ...(podcasts.length ? [{ name: 'Podcasts', ready: /\d+ podcasts?/, button: 'Save', formats: ['opml', 'csv'] }] : []),
       ];
       for (const s of screens) {
         for (const format of s.formats) {

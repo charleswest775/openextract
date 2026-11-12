@@ -5,7 +5,7 @@ import OrganicLoader from '../shared/OrganicLoader';
 import { allOnlyInIcloud, moreOnlyInIcloud } from '../../lib/photoCounts';
 import { Info } from 'lucide-react';
 import {
-  LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon, VoicemailIcon, LockIcon, WhatsAppIcon,
+  LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon, VoicemailIcon, LockIcon, WhatsAppIcon, PodcastIcon,
 } from '../shared/Icons';
 import { ReportProblemButton } from '../shared/Feedback';
 
@@ -206,6 +206,8 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
 
   const whatsappMessages = overview.total_whatsapp_messages ?? 0;
   const whatsappUnreadable = overview.whatsapp_status === 'error' || overview.whatsapp_status === 'unsupported_format';
+  const podcastCount = overview.total_podcasts ?? 0;
+  const podcastsUnreadable = overview.podcasts_status === 'error' || overview.podcasts_status === 'unsupported_format';
   const tiles = [
     { tab: 'messages', icon: LinesIcon, value: overview.total_messages, label: 'Messages' },
     { tab: 'whatsapp', icon: WhatsAppIcon, value: whatsappMessages, label: 'WhatsApp' },
@@ -214,11 +216,12 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
     { tab: 'calls', icon: CallIcon, value: overview.total_calls, label: 'Calls' },
     { tab: 'notes', icon: NoteIcon, value: overview.total_notes, label: 'Notes' },
     { tab: 'voicemail', icon: VoicemailIcon, value: overview.total_voicemails, label: 'Voicemails' },
+    { tab: 'podcasts', icon: PodcastIcon, value: podcastCount, label: 'Podcasts' },
   ];
   const present = tiles.filter(t => t.value > 0);
-  // WhatsApp isn't listed as missing: most iPhones don't have it
+  // WhatsApp and Podcasts aren't listed as missing: many iPhones don't use them
   const missing = [
-    ...tiles.filter(t => t.value === 0 && t.tab !== 'whatsapp').map(t => t.label === 'Photos & Videos' ? 'photos' : t.label.toLowerCase()),
+    ...tiles.filter(t => t.value === 0 && t.tab !== 'whatsapp' && t.tab !== 'podcasts').map(t => t.label === 'Photos & Videos' ? 'photos' : t.label.toLowerCase()),
     ...(hasBrowserHistory ? [] : ['web history']),
   ];
 
@@ -330,6 +333,25 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
                 <div className="space-y-0.5">
                   <MiniStat label="Chats" value={(overview.total_whatsapp_chats ?? 0).toLocaleString()} />
                   <MiniStat label="Messages" value={whatsappMessages.toLocaleString()} />
+                </div>
+              )}
+            </InsightCard>
+          )}
+
+          {/* Podcasts: shows followed and episodes listened to, or that it's there but couldn't be read */}
+          {(podcastCount > 0 || podcastsUnreadable) && (
+            <InsightCard title="Podcasts" icon={PodcastIcon} onViewAll={() => onNavigate('podcasts')}>
+              {podcastsUnreadable ? (
+                <p className="text-sm text-text-secondary">
+                  {overview.podcasts_status === 'unsupported_format'
+                    ? "The Podcasts app's library is in this backup, but this version of it can't be read yet."
+                    : "The Podcasts app's library is in this backup, but it couldn't be read."}
+                </p>
+              ) : (
+                <div className="space-y-0.5">
+                  <MiniStat label="Shows" value={podcastCount.toLocaleString()} />
+                  <MiniStat label="Following" value={(overview.total_podcasts_followed ?? 0).toLocaleString()} />
+                  <MiniStat label="Episodes listened to" value={(overview.total_podcast_episodes_listened ?? 0).toLocaleString()} />
                 </div>
               )}
             </InsightCard>
