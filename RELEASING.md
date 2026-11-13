@@ -6,52 +6,60 @@ about a new version if someone tells them. This file lists all of it in order.
 
 ## 1. Before the release
 
-- [ ] Run **Pre-release check** (Actions tab) on `main` and wait for it to pass. `release.yml`
-      always tags and publishes, so this is the only dry run: it builds the engine and app on
-      Linux, macOS and Windows, runs the backup corpus and every end-to-end suite.
-- [ ] Move the changes under `## [Unreleased]` in `CHANGELOG.md` into release notes you're happy
-      to publish (the workflow never edits the changelog).
+- [ ] Make sure `## [Unreleased]` in `CHANGELOG.md` says everything users will notice, in words
+      you're happy to publish. Start it with a short plain-words paragraph, above the `###`
+      headings, when you can: the workflow uses that paragraph as the Flatpak's release notes
+      (without one it uses the bullets, leaving out ones that start "Windows:" or "macOS:").
 - [ ] Credentials that have broken releases before:
   - Apple: if notarization answers 403 "A required agreement is missing", accept the new
     agreement at developer.apple.com/account.
   - Azure Trusted Signing: the `AZURE_CLIENT_SECRET` repository secret expires around
     October 2028.
 
+You don't need to run **Pre-release check** first any more: the release runs it. Run it by hand
+when you want to know whether `main` (or a branch, or an ios-backup-core branch) would pass
+before releasing.
+
 ## 2. The release
 
-- [ ] Run **Release** (Actions tab) with the new version, for example `0.13.0`. It takes about
-      25 to 30 minutes. On its own it:
-  - creates `release/vX.Y.Z` with the version in `package.json`, the version pill and file names
-    in `website/static/index.html`, and the `/download/*` redirects in
-    `website/static/vercel.json`;
-  - tags it, builds, signs (Windows), notarizes (macOS) and uploads every file;
+- [ ] Run **Release** (Actions tab) with the new version, for example `0.16.0`. It takes about
+      15 to 20 minutes. On its own it:
+  - creates `release/vX.Y.Z` with the version in `package.json`, `## [X.Y.Z] - <date>` under an
+    empty `## [Unreleased]` in `CHANGELOG.md`, the version pill and file names in
+    `website/static/index.html`, and the `/download/*` redirects in `website/static/vercel.json`;
+  - tags it and creates a draft release;
+  - side by side: builds, signs (Windows), notarizes (macOS) and uploads every file; runs the
+    TypeScript checks, ruff and the Python tests; and runs **Pre-release check** on the tag (the
+    backup corpus and every end-to-end suite on Linux, macOS and Windows);
   - gives Windows updates their own copy of the installer, `OpenExtract-Update-X.Y.Z.exe`,
     which `latest.yml` names, so download counts tell updates from new installs
     (`scripts/update-feed.mjs`);
-  - runs the Windows App Control check on the draft (see `packaging/README.md`);
-  - checks the `/download/*` redirects match the release's files, publishes, and opens the
-    sync PR `chore: release vX.Y.Z`.
+  - tests the draft's signed packages: the Windows App Control check (see `packaging/README.md`)
+    and installing, upgrading and uninstalling on fresh runners (`installers.yml`);
+  - checks the `/download/*` redirects match the release's files, and publishes once all of the
+    above has passed;
+  - adds the winget, Chocolatey and Flatpak files for the new version to the release branch
+    (`scripts/release-files.mjs`), and opens the sync PR `chore: release vX.Y.Z`.
 - [ ] If it fails: fix, delete the draft **and** the tag (`gh release delete vX.Y.Z --cleanup-tag`),
       and run it again. The app's updater only sees published releases, so nobody gets a draft.
+      A job that failed for a reason outside the code (a macOS runner that was never assigned,
+      a test that passes on a second try) can be re-run instead: `gh run rerun <id> --failed`.
 
 ## 3. Straight after publishing
 
-- [ ] Add a commit to `release/vX.Y.Z` that puts `## [X.Y.Z] - YYYY-MM-DD` under an empty
-      `## [Unreleased]` in `CHANGELOG.md`.
-- [ ] Merge the sync PR (if the workflow couldn't open it, open it by hand from
-      `release/vX.Y.Z`). **Until it's merged, openextract.app's download buttons still give the
+- [ ] Look over the sync PR, then merge it. It carries the version bump, the CHANGELOG
+      heading, the website links and the `packaging/` files. If the run's summary says the
+      packaging files weren't added, add them to the release branch by hand first
+      (`packaging/README.md`). If the workflow couldn't open the PR, open it by hand from
+      `release/vX.Y.Z`. **Until it's merged, openextract.app's download buttons still give the
       old version.**
 - [ ] After Vercel deploys, check each stable link gives the new file:
       ```bash
-      for p in windows mac linux linux-appimage; do curl -sI https://www.openextract.app/download/$p | grep -i '^location'; done
+      for p in windows mac linux linux-appimage; do curl -sI https://www.openextract.app/download/$p/file | grep -i '^location'; done
       ```
-- [ ] Flatpak files, in a PR (the **Flatpak** workflow builds and lints them):
-  - in `packaging/flathub/app.openextract.OpenExtract.yml`, point the `.deb` source at the new
-    release and change its `sha256` (shown on the release page next to the file, or
-    `gh api repos/charleswest775/openextract/releases/tags/vX.Y.Z --jq '.assets[] | select(.name|endswith(".deb")) | .digest'`);
-  - add a `<release>` entry at the top of `<releases>` in
-    `packaging/flathub/app.openextract.OpenExtract.metainfo.xml`, in plain words.
-  These matter now for the Flatpak build, and become a Flathub update once it's listed there.
+- [ ] Read the new `<release>` in `packaging/flathub/app.openextract.OpenExtract.metainfo.xml`.
+      If it came from the bullets and reads badly, shorten it in a follow-up PR; it only needs
+      to be right by the time Flathub picks it up.
 
 ## 4. Outside this repo
 
@@ -63,8 +71,8 @@ links instead of a versioned GitHub file wherever the form takes a link, and add
 
 | Where | What to do |
 |---|---|
-| winget (`OpenExtract.OpenExtract`) | Add `packaging/winget/<version>/` and open an `Update: OpenExtract.OpenExtract version <version>` PR to microsoft/winget-pkgs. Steps in `packaging/README.md`. |
-| Chocolatey (`openextract`) | Bump `packaging/chocolatey/`, then run **Windows stores** with "Push to Chocolatey" ticked. Moderation takes a few days. Steps in `packaging/README.md`. |
+| winget (`OpenExtract.OpenExtract`) | Open an `Update: OpenExtract.OpenExtract version <version>` PR to microsoft/winget-pkgs with `packaging/winget/<version>/` (the release adds that folder). Steps in `packaging/README.md`. |
+| Chocolatey (`openextract`) | Once the sync PR has merged (it updates `packaging/chocolatey/`), run **Windows stores** with "Push to Chocolatey" ticked. Moderation takes a few days. Steps in `packaging/README.md`. |
 | Uptodown (two apps: Windows and Mac) | In the Uptodown developer console, open each app → Files → **+ Add new version**, tick "Use url" and paste the release's GitHub link to the `.exe` (Windows app) or `.dmg` (Mac app), with the version. Add a line under "New features", then Submit for review. Uptodown's editors may also add versions themselves. |
 | Softonic (once listed) | In the Softonic Publishing Center, upload the new `.exe` and `.dmg` (both must be signed, which they are). |
 | MacUpdate (once listed) | Submit the new version number and a one-line "What's new" (the download link is the stable one, so it doesn't change). |

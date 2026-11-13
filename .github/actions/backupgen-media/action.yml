@@ -1,0 +1,26 @@
+name: Cache the generated backups' photos
+description: >
+  Maren's 170 public-domain photos come from Wikimedia Commons the first time backupgen needs
+  them (~140 MB). Downloading them took 2 to 7 minutes on every runner that generates the test
+  backups; from this cache, generating all four takes well under a minute. Sets
+  BACKUPGEN_MEDIA_CACHE for later steps. Run it after ios-backup-core is cloned next to the
+  repository and Python is set up, and before anything generates a backup.
+  The key is the same in every workflow, so a release (run on main) uses the cache CI saved on main.
+
+runs:
+  using: composite
+  steps:
+    - name: Key for the generated backups' photos
+      id: key
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: |
+        echo "BACKUPGEN_MEDIA_CACHE=$RUNNER_TEMP/backupgen-media" >> "$GITHUB_ENV"
+        echo "path=$RUNNER_TEMP/backupgen-media" >> "$GITHUB_OUTPUT"
+        echo "key=backupgen-media-${{ runner.os }}-$(python -c "import hashlib, glob; print(hashlib.sha256(b''.join(open(f, 'rb').read() for f in sorted(glob.glob('../ios-backup-core/backupgen/personas/*/photos.json')))).hexdigest()[:16])")" >> "$GITHUB_OUTPUT"
+
+    - name: Cache the generated backups' photos
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.key.outputs.path }}
+        key: ${{ steps.key.outputs.key }}

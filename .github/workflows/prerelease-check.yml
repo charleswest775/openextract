@@ -1,7 +1,7 @@
 name: Pre-release check
 
-# Run this by hand from the Actions tab before cutting a release: release.yml always tags
-# and publishes, so it can't be used as a dry run.
+# release.yml runs this on the new tag, alongside the signed builds, and publishes only if it
+# passes. Run it by hand from the Actions tab to check main or a branch at any time.
 #
 # On Linux, macOS and Windows it builds the engine and the app the way release.yml does,
 # but unsigned and unpublished, then
@@ -23,6 +23,19 @@ on:
       items:
         description: 'Public corpus items to fetch and test (comma-separated)'
         required: false
+        default: 'pub-hickman-13.3.1,pub-hickman-13.4.1,pub-hickman-15.3.1,pub-hickman-16.1.2,pub-hickman-17.3,pub-fcsc25-16.0'
+  # From release.yml. The defaults match workflow_dispatch's above; keep them in step.
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Tag to check out and test (release.yml passes the new release tag)'
+        type: string
+        default: ''
+      ios_backup_core_ref:
+        type: string
+        default: 'master'
+      items:
+        type: string
         default: 'pub-hickman-13.3.1,pub-hickman-13.4.1,pub-hickman-15.3.1,pub-hickman-16.1.2,pub-hickman-17.3,pub-fcsc25-16.0'
 
 permissions:
@@ -55,6 +68,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || '' }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -79,6 +94,9 @@ jobs:
           git clone --depth=1 --branch "$REF" \
             https://github.com/charleswest775/ios-backup-core.git \
             "$GITHUB_WORKSPACE/../ios-backup-core"
+
+      - name: Cache the generated backups' photos
+        uses: ./.github/actions/backupgen-media
 
       - name: Install Python dependencies and PyInstaller
         working-directory: python

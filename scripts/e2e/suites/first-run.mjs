@@ -15,8 +15,11 @@ export default {
       const text = await app.text();
       check('welcome screen offers both ways in', /Back up my iPhone/.test(text) && /Open a backup folder/.test(text));
       check('says the data stays on this computer', /never leaves your computer/i.test(text));
+      // The version arrives from the main process after the screen first paints, so wait for it
+      // rather than reading the text once (on a slow runner it wasn't there yet).
       const version = await app.api('getVersion');
-      check('shows the app version', typeof version.value === 'string' && text.includes(`v${version.value}`), { version, text: text.slice(0, 80) });
+      const shown = typeof version.value === 'string' && !!(await app.waitForText(new RegExp(`v${version.value.replace(/\./g, '\\.')}`), 15_000));
+      check('shows the app version', shown, { version, text: (await app.text()).slice(0, 80) });
 
       // "Back up my iPhone" with nothing plugged in explains what to do, and Back returns home.
       check('"Back up my iPhone" opens', await app.click('Back up my iPhone'));

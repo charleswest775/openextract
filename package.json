@@ -69,6 +69,7 @@
       "repo": "openextract",
       "releaseType": "release"
     },
+    "afterPack": "build/sign-windows.js",
     "afterSign": "build/notarize.js",
     "mac": {
       "hardenedRuntime": true,
@@ -84,10 +85,6 @@
     },
     "win": {
       "target": "nsis",
-      "signExts": [
-        ".dll",
-        ".pyd"
-      ],
       "azureSignOptions": {
         "publisherName": "Charles West",
         "endpoint": "https://eus.codesigning.azure.net/",

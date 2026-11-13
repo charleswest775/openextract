@@ -235,9 +235,26 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends desktop-file-utils xvfb
 
+      - name: Clone ios-backup-core (sibling for editable install)
+        run: git clone --depth=1 https://github.com/charleswest775/ios-backup-core.git "$GITHUB_WORKSPACE/../ios-backup-core"
+
+      # As .github/actions/backupgen-media does (same key, so it finds CI's cache), written out
+      # here because this job checks out the tag under test, which may predate that action.
+      - name: Key for the generated backups' photos
+        id: media
+        run: |
+          echo "BACKUPGEN_MEDIA_CACHE=$RUNNER_TEMP/backupgen-media" >> "$GITHUB_ENV"
+          echo "path=$RUNNER_TEMP/backupgen-media" >> "$GITHUB_OUTPUT"
+          echo "key=backupgen-media-${{ runner.os }}-$(python -c "import hashlib, glob; print(hashlib.sha256(b''.join(open(f, 'rb').read() for f in sorted(glob.glob('../ios-backup-core/backupgen/personas/*/photos.json')))).hexdigest()[:16])")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the generated backups' photos
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.media.outputs.path }}
+          key: ${{ steps.media.outputs.key }}
+
       - name: Generate the test backups
         run: |
-          git clone --depth=1 https://github.com/charleswest775/ios-backup-core.git "$GITHUB_WORKSPACE/../ios-backup-core"
           (cd python && pip install -r requirements.txt)
           python scripts/e2e/backups.py e2e-backups.json
 
