@@ -439,6 +439,20 @@ jobs:
     with:
       tag: v${{ inputs.version }}
 
+  # The one check that needs hardware. While this job waits, install the draft's Windows
+  # installer on a PC, plug in an iPhone and start a backup with Back up my iPhone
+  # (packaging/README.md, "Before publishing: back up a real iPhone"), then approve it to
+  # publish, or reject it to keep the draft. It waits only if the "release" environment
+  # (Settings > Environments) has required reviewers; otherwise it passes at once.
+  iphone-check:
+    needs: [preflight, build-windows, windows-app-control]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    steps:
+      - name: Approved
+        run: echo "Back up my iPhone was checked on a real PC with the v${{ inputs.version }} draft" >> "$GITHUB_STEP_SUMMARY"
+
   build-linux:
     needs: preflight
     runs-on: ubuntu-latest
@@ -530,7 +544,7 @@ jobs:
       tag: v${{ inputs.version }}
 
   finalize:
-    needs: [preflight, build-macos, build-windows, build-linux, windows-app-control, installers]
+    needs: [preflight, build-macos, build-windows, build-linux, windows-app-control, installers, iphone-check]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

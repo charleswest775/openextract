@@ -13,7 +13,8 @@ name: Windows App Control check
 #     code signed by OpenExtract's publisher run or load: stricter than Smart App
 #     Control (no reputation lookups), so what passes here passes there,
 #   - checks the policy blocks an unsigned copy of pycryptodome's AES DLL (the canary),
-#   - starts the installed engine and, over JSON-RPC, lists backups and opens the
+#   - starts the installed engine and, over JSON-RPC, searches for iPhones (with no Apple
+#     software it must say Apple Devices is needed, #184), lists backups and opens the
 #     generated encrypted Maren backup (which loads pycryptodome's native DLLs) and reads
 #     from it, then starts the app and checks its engine is still running,
 #   - fails on any App Control block of a file the app or the engine loaded.

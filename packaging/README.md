@@ -57,7 +57,55 @@ If the step "Check the policy blocks the canary" fails, the policy itself
 isn't working on that runner image, so the check proves nothing until
 it's fixed. To see a real failure, run it with tag `v0.9.0`: every file it
 installs is signed, but its one-file engine unpacks `python311.dll` into
-`%TEMP%`, App Control blocks it, and the engine exits.
+`%TEMP%`, App Control blocks it, and the engine exits. Releases up to 0.10.0
+also fail its device check, which came with #184: without Apple's software
+their engine reports an error instead of "Apple Devices is needed".
+
+## Before publishing: back up a real iPhone
+
+Windows users reach their iPhone through Apple Devices (#184), and GitHub's
+runners have no iPhone. So before each release is published, someone plugs
+an iPhone into a Windows PC and starts a backup with the release candidate.
+
+**What runs without an iPhone:** `windows-device-support.yml` (when the
+device code changes, and weekly) and the pre-release check install Apple
+Devices from the app's setup card on a fresh runner, and check that the
+engine starts Apple's service when it's stopped. The App Control check
+makes sure the signed engine says Apple Devices is needed, rather than
+crashing, on a PC without Apple's software.
+
+**When:** the Release workflow's `iphone-check` job waits for approval once
+the Windows build and the App Control check pass, while the release is
+still a draft. It only waits if the `release` environment (Settings >
+Environments > release) has required reviewers, so add the maintainer
+there once.
+
+**Steps:**
+
+1. Plug an iPhone into the Windows test PC with a cable, and unlock it.
+2. From a Mac checkout, install the draft on the PC and drive it:
+
+   ```bash
+   .claude/skills/windows-smoke-test/smoke.sh --release vX.Y.Z --require-device --start-backup
+   ```
+
+   It installs the draft's signed installer over the PC's OpenExtract (per
+   user, no admin prompt), runs the Python suite and `npm test` on the tag,
+   then goes through Back up my iPhone in your Windows session: the setup
+   card, Install Apple Devices, Apple's service stopped and started again,
+   the device list, and a backup of the iPhone until files arrive (then it
+   stops the backup and deletes it). If the iPhone asks, tap Trust or enter
+   its passcode. The skill's `SKILL.md` says how to reach the PC.
+
+   Without the script: install `OpenExtract-Setup-X.Y.Z.exe` from the draft
+   release, open OpenExtract, click Back up my iPhone, pick the iPhone and a
+   folder, click Start Backup, and wait for "Backing up files" with a file
+   count going up.
+3. Pass: the iPhone is listed with its name and iOS version, there's no red
+   error or "Report this problem", and files are arriving. Then approve
+   `iphone-check` in the run (Review deployments) to publish. Otherwise
+   reject it: the release stays a draft. Fix the problem, delete the draft
+   and its tag, and release again.
 
 ## winget
 
