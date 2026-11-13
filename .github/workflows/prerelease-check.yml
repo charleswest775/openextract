@@ -65,6 +65,9 @@ jobs:
     env:
       PYTHONUTF8: '1'
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # Inside the checkout, so the public backups' cache below has the same path on every
+      # system. Every corpus command (fetch, the tests, scripts/e2e/backups.py) reads it.
+      OPENEXTRACT_CORPUS_CACHE: ${{ github.workspace }}/.corpus-cache
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -123,13 +126,54 @@ jobs:
       - name: Package (unpacked, no publish)
         run: npx electron-builder --dir --publish never
 
-      - name: Fetch public backups
-        id: fetch
+      # The public backups (about 5 GB) come from their publishers' sites: usually 2 to 5
+      # minutes, sometimes far longer (18 on 2026-11-13). One copy of the downloads, shared
+      # by Linux, macOS and Windows, is kept in the Actions cache: the Linux job saves it on
+      # main, and every run restores it (branches can read main's caches). A cache shared
+      # between systems needs the same relative path on each, hence a folder in the checkout
+      # (Windows keeps the home folder on another drive). The key covers the chosen items'
+      # download details in corpus/manifest.json, parsed so line endings don't change it;
+      # fetch re-downloads anything the restored copy lacks or that no longer matches its hash.
+      - name: Choose the public backups
+        id: corpus
         env:
           ITEMS: ${{ inputs.items }}
         run: |
           # The end-to-end run needs pub-hickman-15.3.1 whatever the item list says.
-          python -m corpus.fetch fetch $(echo "$ITEMS,pub-hickman-15.3.1" | tr ',' '\n' | sort -u)
+          items=$(echo "$ITEMS,pub-hickman-15.3.1" | tr ',' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ')
+          hash=$(python - $items <<'EOF'
+          import hashlib, json, sys
+          fetch = {item["key"]: item["fetch"] for item in json.load(open("corpus/manifest.json", encoding="utf-8"))["items"]}
+          chosen = {key: fetch[key] for key in sorted(sys.argv[1:])}
+          print(hashlib.sha256(json.dumps(chosen, sort_keys=True).encode()).hexdigest()[:16])
+          EOF
+          )
+          echo "Items: $items"
+          echo "items=$items" >> "$GITHUB_OUTPUT"
+          echo "key=corpus-public-$hash" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the public backups' downloads
+        id: corpus-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .corpus-cache/pub-*/download
+          key: ${{ steps.corpus.outputs.key }}
+          restore-keys: corpus-public-
+          enableCrossOsArchive: true
+
+      - name: Fetch public backups
+        id: fetch
+        env:
+          ITEMS: ${{ steps.corpus.outputs.items }}
+        run: python -m corpus.fetch fetch $ITEMS
+
+      - name: Save the public backups' downloads
+        if: matrix.os == 'ubuntu-latest' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/deployment-optimization-848d0c') && steps.corpus-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .corpus-cache/pub-*/download
+          key: ${{ steps.corpus.outputs.key }}
+          enableCrossOsArchive: true
 
       - name: Corpus, packaged engine (public + generated)
         env:
