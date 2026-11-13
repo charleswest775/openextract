@@ -1,8 +1,8 @@
 name: Release
 
 # One run from version number to published release, about 15 to 20 minutes:
-#   preflight   makes `release/vX.Y.Z` (version bump, CHANGELOG heading, website download
-#               links), tags it and creates a draft release. About a minute.
+#   preflight   makes `release/vX.Y.Z` (version bump, CHANGELOG heading, the website's version
+#               label), tags it and creates a draft release. About a minute.
 #   checks      TypeScript, ruff, the Python tests and a build, on the tag.
 #   prerelease  prerelease-check.yml on the tag: the backup corpus and every end-to-end suite
 #               against unsigned packaged builds on Linux, macOS and Windows.
@@ -10,6 +10,8 @@ name: Release
 #   windows-app-control, installers   test the draft's signed packages on fresh runners.
 #   finalize    publishes once every job above has passed, adds the store packaging files
 #               (winget, Chocolatey, Flatpak) to the release branch, and opens the sync PR.
+#               openextract.app's download links follow the newest published release on their
+#               own (website/static/api/_lib/download.js), so they switch when it publishes.
 # checks, prerelease and the builds run side by side. If anything fails the release stays a
 # draft: fix it, delete the draft and the tag (`gh release delete vX.Y.Z --cleanup-tag`), and
 # run it again.
@@ -102,73 +104,18 @@ jobs:
             git commit -m "CHANGELOG: $VERSION"
           fi
 
-      # --- Update website download URLs on the release branch ---
-      # Touches two files:
-      #   - website/static/index.html: nav version pill + installer filename refs.
-      #     Nav copy may be `v0.4` (no patch) or `v0.4.0`; both should bump cleanly.
-      #   - website/static/vercel.json: /download/{mac,windows,linux,linux-appimage}/file
-      #     redirects (behind the /download/* landing pages) point at the GitHub
-      #     release asset for this version. If we don't update vercel.json, the
-      #     website keeps serving the previous version's binaries.
-      - name: Update website version and download URLs
+      # The version label in the home page's nav: what the page shows until /api/latest answers
+      # (website/static/api/_lib/download.js). The download links need nothing here: they
+      # follow the newest published release on their own.
+      - name: Update the website's version label
         run: |
-          VERSION="${{ inputs.version }}"
-          STAGED=0
-
           INDEX="website/static/index.html"
-          if [ -f "$INDEX" ]; then
-            # nav version pill — match vX.Y or vX.Y.Z so a 2-segment value still bumps.
-            sed -i "s/v[0-9]\+\.[0-9]\+\(\.[0-9]\+\)\?/v${VERSION}/g" "$INDEX"
-            sed -i "s/OpenExtract-Setup-[0-9]\+\.[0-9]\+\.[0-9]\+/OpenExtract-Setup-${VERSION}/g" "$INDEX"
-            sed -i "s/OpenExtract-[0-9]\+\.[0-9]\+\.[0-9]\+-arm64/OpenExtract-${VERSION}-arm64/g" "$INDEX"
-            sed -i "s/OpenExtract-[0-9]\+\.[0-9]\+\.[0-9]\+\.AppImage/OpenExtract-${VERSION}.AppImage/g" "$INDEX"
-            sed -i "s/openextract_[0-9]\+\.[0-9]\+\.[0-9]\+_amd64/openextract_${VERSION}_amd64/g" "$INDEX"
-            if ! git diff --quiet "$INDEX"; then
-              git add "$INDEX"
-              STAGED=1
-              echo "index.html updated to v${VERSION}"
-            fi
+          sed -i "s|<span class=\"nav__version\">v[^<]*</span>|<span class=\"nav__version\">v${{ inputs.version }}</span>|" "$INDEX"
+          if git diff --quiet "$INDEX"; then
+            grep -q 'class="nav__version">v${{ inputs.version }}<' "$INDEX" || echo "::warning::$INDEX has no nav__version label to update"
           else
-            echo "No $INDEX found, skipping"
-          fi
-
-          VERCEL="website/static/vercel.json"
-          if [ -f "$VERCEL" ]; then
-            # Set each redirect to this version's asset by name rather than swapping
-            # version numbers, so a new or renamed asset (e.g. /download/linux moving
-            # from the AppImage to the .deb) takes effect on release. The names must
-            # match what electron-builder uploads; finalize checks them before publishing.
-            node - "$VERCEL" "$VERSION" <<'EOF'
-          const fs = require('fs');
-          const [file, version] = process.argv.slice(2);
-          const base = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/v${version}`;
-          const assets = {
-            '/download/mac/file': `OpenExtract-${version}-arm64.dmg`,
-            '/download/windows/file': `OpenExtract-Setup-${version}.exe`,
-            '/download/linux/file': `openextract_${version}_amd64.deb`,
-            '/download/linux-appimage/file': `OpenExtract-${version}.AppImage`,
-          };
-          const config = JSON.parse(fs.readFileSync(file, 'utf8'));
-          for (const [source, asset] of Object.entries(assets)) {
-            const redirect = config.redirects.find((r) => r.source === source);
-            if (!redirect) throw new Error(`${file} has no ${source} redirect`);
-            redirect.destination = `${base}/${asset}`;
-          }
-          fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
-          EOF
-            if ! git diff --quiet "$VERCEL"; then
-              git add "$VERCEL"
-              STAGED=1
-              echo "vercel.json updated to v${VERSION}"
-            fi
-          else
-            echo "No $VERCEL found, skipping"
-          fi
-
-          if [ "$STAGED" = "1" ]; then
-            git commit -m "chore: update website download URLs to v${VERSION}"
-          else
-            echo "No website changes needed"
+            git add "$INDEX"
+            git commit -m "chore: website version label v${{ inputs.version }}"
           fi
 
       # --- Push release branch (release/* is not protected) and tag ---
@@ -600,27 +547,23 @@ jobs:
       - name: Fetch main for comparison
         run: git fetch --no-tags origin main:refs/remotes/origin/main
 
-      # Every /download/* redirect on the release branch must name an asset this
-      # release actually has; otherwise the website would 404 once the sync PR merges.
-      # Runs while the release is still a draft so a mismatch never goes public.
-      - name: Check website download links against release assets
+      # openextract.app's download links give the newest published release's files by name
+      # (website/static/api/_lib/download.js), so every one of those names must be in this
+      # release, or its link breaks the moment it's published. Checked while it's a draft.
+      - name: Check the website's download links will find this release's files
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ASSETS=$(gh release view "v${{ inputs.version }}" --json assets --jq '.assets[].name')
           FAILED=0
-          while read -r SOURCE URL; do
-            NAME="${URL##*/}"
-            if [[ "$URL" != */releases/download/v${{ inputs.version }}/* ]]; then
-              echo "::error::$SOURCE points at $URL, not v${{ inputs.version }}"
-              FAILED=1
-            elif ! grep -qxF "$NAME" <<< "$ASSETS"; then
-              echo "::error::$SOURCE points at $NAME, which v${{ inputs.version }} does not have"
-              FAILED=1
+          while read -r PLATFORM NAME; do
+            if grep -qxF "$NAME" <<< "$ASSETS"; then
+              echo "/download/$PLATFORM/file -> $NAME"
             else
-              echo "$SOURCE -> $NAME"
+              echo "::error::/download/$PLATFORM/file would give $NAME, which v${{ inputs.version }} does not have"
+              FAILED=1
             fi
-          done < <(jq -r '.redirects[] | select(.source | startswith("/download/")) | "\(.source) \(.destination)"' website/static/vercel.json)
+          done < <(node website/static/api/_lib/download.js "${{ inputs.version }}")
           exit $FAILED
 
       - name: Publish release (remove draft)
@@ -628,6 +571,31 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release edit "v${{ inputs.version }}" --draft=false
+
+      # The live site's download links should give this release now. Each try adds its own
+      # query, so the edge cache can't answer with an earlier lookup. Only a warning if not:
+      # the release is already out, and the links fall back to GitHub's release page.
+      - name: Check openextract.app's download links give the new version
+        continue-on-error: true
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          links_ok() {
+            local ok=0 location
+            while read -r PLATFORM NAME; do
+              location=$(curl -sS -o /dev/null -w '%{redirect_url}' "https://www.openextract.app/download/$PLATFORM/file?check=$GITHUB_RUN_ID-$1" || true)
+              location=${location%%\?*} # a vercel.json redirect passes the query on
+              echo "/download/$PLATFORM/file -> ${location:-no redirect}"
+              [[ "$location" == */releases/download/v$VERSION/$NAME ]] || ok=1
+            done < <(node website/static/api/_lib/download.js "$VERSION")
+            return $ok
+          }
+          for try in 1 2 3 4 5 6; do
+            links_ok "$try" && exit 0
+            sleep 20
+          done
+          echo "::warning::openextract.app's download links don't give v$VERSION yet. Check them (RELEASING.md, step 3)."
+          exit 1
 
       # winget, Chocolatey and Flatpak files for this version, from the published release's
       # checksums and the CHANGELOG (scripts/release-files.mjs), so the sync PR carries them
@@ -657,8 +625,8 @@ jobs:
             commit -m "packaging: winget, Chocolatey and Flatpak for v$VERSION"
           git push origin "HEAD:release/v$VERSION"
 
-      # Open a PR so main picks up the version bump + website URL updates.
-      # This is the only path for those changes to reach main under the
+      # Open a PR so main picks up the version bump, CHANGELOG heading, version label and
+      # packaging files. This is the only path for those changes to reach main under the
       # required-PR-review branch protection policy.
       - name: Open sync PR to main
         env:
@@ -685,7 +653,7 @@ jobs:
 
           - the version in \`package.json\` and \`package-lock.json\`;
           - \`## [${{ inputs.version }}]\` in \`CHANGELOG.md\`;
-          - the version pill and download links in \`website/static/index.html\` and \`website/static/vercel.json\` (openextract.app's download buttons give the old version until this merges);
+          - the version label in \`website/static/index.html\` (only what the home page shows before it hears from \`/api/latest\`: openextract.app's download links and label already give v${{ inputs.version }});
           - $([ "${{ steps.packaging.outcome }}" = success ] && echo "the winget, Chocolatey and Flatpak files in \`packaging/\`." || echo "**not** the winget, Chocolatey and Flatpak files: the workflow couldn't write them (see its log), so add them by hand as \`packaging/README.md\` says.")
 
           Then follow RELEASING.md's steps after publishing.
