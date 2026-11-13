@@ -9,8 +9,8 @@
   <!-- Download landing page. It exists so download clicks show up as pageviews of
        /download/mac in Vercel Web Analytics (Hobby has no custom events, and a bare
        redirect never loads the analytics script). The meta refresh sends the browser
-       on to /download/mac/file, which vercel.json redirects to the GitHub release
-       asset for the current version. Browsers stay on this page while the file
+       on to /download/mac/file, which api/download.js redirects to
+       the newest release's file on GitHub. Browsers stay on this page while the file
        downloads, so the pageview always gets recorded. -->
   <meta http-equiv="refresh" content="1;url=/download/mac/file" />
   <meta name="robots" content="noindex, nofollow" />

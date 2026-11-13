@@ -573,6 +573,18 @@
       document.querySelector('.dl-card--primary').classList.remove('dl-card--primary');
       card.classList.add('dl-card--primary');
     })();
+    // The label in the nav is the version this page was last released with. The download
+    // links already give the newest release (api/_lib/download.js), so show its number too.
+    (function () {
+      var label = document.querySelector('.nav__version');
+      if (!label || !window.fetch) return;
+      fetch('/api/latest')
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (latest) {
+          if (latest && /^\d+\.\d+\.\d+$/.test(latest.version)) label.textContent = 'v' + latest.version;
+        })
+        .catch(function () {});
+    })();
   </script>
   <script defer src="/js/thanks.js"></script>
 </body>

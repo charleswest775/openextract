@@ -25,8 +25,7 @@ before releasing.
 - [ ] Run **Release** (Actions tab) with the new version, for example `0.16.0`. It takes about
       15 to 20 minutes. On its own it:
   - creates `release/vX.Y.Z` with the version in `package.json`, `## [X.Y.Z] - <date>` under an
-    empty `## [Unreleased]` in `CHANGELOG.md`, the version pill and file names in
-    `website/static/index.html`, and the `/download/*` redirects in `website/static/vercel.json`;
+    empty `## [Unreleased]` in `CHANGELOG.md`, and the version label in `website/static/index.html`;
   - tags it and creates a draft release;
   - side by side: builds, signs (Windows), notarizes (macOS) and uploads every file; runs the
     TypeScript checks, ruff and the Python tests; and runs **Pre-release check** on the tag (the
@@ -36,8 +35,11 @@ before releasing.
     (`scripts/update-feed.mjs`);
   - tests the draft's signed packages: the Windows App Control check (see `packaging/README.md`)
     and installing, upgrading and uninstalling on fresh runners (`installers.yml`);
-  - checks the `/download/*` redirects match the release's files, and publishes once all of the
-    above has passed;
+  - checks the release has every file the website's download links will give, and publishes
+    once all of the above has passed;
+  - checks openextract.app's download links give the new version. They follow the newest
+    published release on their own (`website/static/api/_lib/download.js`), so they switch
+    within a minute or two of publishing, without waiting for the sync PR;
   - adds the winget, Chocolatey and Flatpak files for the new version to the release branch
     (`scripts/release-files.mjs`), and opens the sync PR `chore: release vX.Y.Z`.
 - [ ] If it fails: fix, delete the draft **and** the tag (`gh release delete vX.Y.Z --cleanup-tag`),
@@ -48,12 +50,12 @@ before releasing.
 ## 3. Straight after publishing
 
 - [ ] Look over the sync PR, then merge it. It carries the version bump, the CHANGELOG
-      heading, the website links and the `packaging/` files. If the run's summary says the
-      packaging files weren't added, add them to the release branch by hand first
-      (`packaging/README.md`). If the workflow couldn't open the PR, open it by hand from
-      `release/vX.Y.Z`. **Until it's merged, openextract.app's download buttons still give the
-      old version.**
-- [ ] After Vercel deploys, check each stable link gives the new file:
+      heading, the home page's written version label and the `packaging/` files. If the run's
+      summary says the packaging files weren't added, add them to the release branch by hand
+      first (`packaging/README.md`). If the workflow couldn't open the PR, open it by hand from
+      `release/vX.Y.Z`. openextract.app's download links already give the new version.
+- [ ] If the release run warned that the download links don't give the new version, check each
+      stable link by hand:
       ```bash
       for p in windows mac linux linux-appimage; do curl -sI https://www.openextract.app/download/$p/file | grep -i '^location'; done
       ```
@@ -81,7 +83,7 @@ links instead of a versioned GitHub file wherever the form takes a link, and add
 
 | Where | Why nothing is needed |
 |---|---|
-| openextract.app | The sync PR moves the download links and the version pill; other pages don't name the current version. |
+| openextract.app | The download links and the home page's version label follow the newest published release (`website/static/api/_lib/download.js`); other pages don't name the current version. |
 | GitHub releases | The release itself; the in-app updater reads it. |
 | SourceForge (once mirrored) | GitHub integration copies each release automatically, as long as the files are on the release when it's published (the workflow uploads everything before publishing). |
 | FileHorse, MajorGeeks, TechSpot | Their editors track new versions. If a listing still shows an old version a week later, send them the stable links. |
@@ -95,6 +97,6 @@ links instead of a versioned GitHub file wherever the form takes a link, and add
 - [ ] If the listings' facts changed (new data types, new platform, new screenshots), update
       `website/static/llms.txt`, the README's feature list, and the listings that show features.
 - [ ] Merge any PR that announces a feature new in this release (site pages, `llms.txt`, the
-      README) only now: after the sync PR has merged and the stable links above give the new
+      README) only now: once the release is published and the stable links above give the new
       version. Keep such a PR a draft until then. Merged earlier, the pages promise a feature that
       the download buttons don't have yet.

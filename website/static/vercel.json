@@ -12,6 +12,12 @@
       ]
     }
   ],
+  "rewrites": [
+    {
+      "source": "/download/:platform(mac|windows|linux|linux-appimage)/file",
+      "destination": "/api/download?platform=:platform"
+    }
+  ],
   "redirects": [
     {
       "source": "/img/screens/overview-:file",
@@ -31,26 +37,6 @@
     {
       "source": "/support/pay",
       "destination": "https://buy.stripe.com/6oUcN5eYMfeebeR5n62wU00",
-      "permanent": false
-    },
-    {
-      "source": "/download/mac/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.15.1/OpenExtract-0.15.1-arm64.dmg",
-      "permanent": false
-    },
-    {
-      "source": "/download/windows/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.15.1/OpenExtract-Setup-0.15.1.exe",
-      "permanent": false
-    },
-    {
-      "source": "/download/linux/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.15.1/openextract_0.15.1_amd64.deb",
-      "permanent": false
-    },
-    {
-      "source": "/download/linux-appimage/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.15.1/OpenExtract-0.15.1.AppImage",
       "permanent": false
     },
     {
