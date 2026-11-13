@@ -118,8 +118,11 @@ test('the packaging files for a new version, from the repository\'s own', () => 
     const current = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
     const [major, minor, patch] = current.split('.').map(Number);
     const next = `${major}.${minor}.${patch + 1}`;
-    const changelog = datedChangelog(fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8'), next, '2027-01-02').text
-      .replace(`## [${next}] - 2027-01-02\n\n`, `## [${next}] - 2027-01-02\n\nA plain-words summary.\n\n`);
+    // On Windows the checkout's CHANGELOG has CRLF line endings, so match either.
+    const dated = datedChangelog(fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8'), next, '2027-01-02').text;
+    const heading = new RegExp(`(## \\[${next.replace(/\./g, '\\.')}\\] - 2027-01-02)(\\r?\\n)\\2`);
+    assert.match(dated, heading);
+    const changelog = dated.replace(heading, '$1$2$2A plain-words summary.$2$2');
     fs.writeFileSync(path.join(dir, 'CHANGELOG.md'), changelog);
 
     const written = writePackaging(dir, { version: next, date: '2027-01-02', exeSha256: EXE, debSha256: DEB });
