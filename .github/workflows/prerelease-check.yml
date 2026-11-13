@@ -168,7 +168,7 @@ jobs:
         run: python -m corpus.fetch fetch $ITEMS
 
       - name: Save the public backups' downloads
-        if: matrix.os == 'ubuntu-latest' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/deployment-optimization-848d0c') && steps.corpus-cache.outputs.cache-hit != 'true'
+        if: matrix.os == 'ubuntu-latest' && github.ref == 'refs/heads/main' && steps.corpus-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: .corpus-cache/pub-*/download
