@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Export notes from an iPhone backup, free — OpenExtract</title>
+  <meta name="description" content="Read the Apple Notes in an iPhone backup on your PC or Mac and save them as PDF or plain text, one note or all at once. Free and open source." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/export-notes-from-iphone-backup" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/export-notes-from-iphone-backup" />
+  <meta property="og:title" content="Export notes from an iPhone backup, free" />
+  <meta property="og:description" content="Open an iPhone backup and save its Apple Notes as PDF or plain text." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Export notes from an iPhone backup, free",
+    "description": "Read the Apple Notes in an iPhone backup on your PC or Mac and save them as PDF or plain text, one note or all at once. Free and open source.",
+    "url": "https://www.openextract.app/use-cases/export-notes-from-iphone-backup",
+    "datePublished": "2026-11-13",
+    "dateModified": "2026-11-13",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/home-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Do I need an encrypted backup for notes?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Apple Notes are in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I save all my notes at once?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Under Save to this computer on the backup's home page, Notes saves every note in the backup into one text file, each with its title and the dates it was made and last edited. From the Notes screen you can save the note you're reading as a PDF or a text file."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Are pictures and attachments saved?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract reads the text of each note. Photos, drawings, scanned documents and other attachments in a note aren't shown or saved, and checklists and tables come out as plain text, if at all."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can it open locked notes?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Notes locked with a password or Face ID are encrypted by the Notes app, and OpenExtract doesn't unlock them."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it work with old iPhones?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. It reads the notes database iPhones have used since iOS 9, and the older one from iOS 4 to 8, including backups made by iTunes years ago."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I search my notes?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. The Notes screen has a search box, and the search on the backup's home page looks through the full text of every note along with messages, calls and the rest. Notes also appear in the timeline by date."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does anything get uploaded?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. It goes online only when you let it: to check for a new version, if you allow it (you can turn that off in Settings); to send a problem report or a thank-you, when you click Send; and on Windows, to install Apple's free Apple Devices app from Microsoft, if you ask it to, for backing up an iPhone. Nothing from inside your backup goes with any of them."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it really free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. The code is on GitHub."
+        }
+      }
+    ]
+  }
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 3 min</div>
+    <h1>Export notes<br />from an <span class="it">iPhone backup</span>.</h1>
+    <p class="page-head__lede">Open the backup in OpenExtract, a free app, read the notes from Apple Notes on your Windows PC or Mac, and save them as PDF or plain text: one note, or every note in one file. No iCloud, no account, and an ordinary backup is enough.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <p>An iPhone backup made by Finder, iTunes or the Apple Devices app holds the Notes app's notes, but not in a form you can open: they sit in a database inside the backup, under a file name made of letters and numbers. That matters when the phone is lost, broken or wiped and the backup is all that's left, or when you want a list, a recipe or years of notes on your computer without restoring a whole phone. OpenExtract reads them on your own computer, for free, with no trial and no limit on how many you save.</p>
+      <figure class="screen">
+        <a class="screen__frame" href="/img/screens/notes-2000.webp">
+          <img src="/img/screens/notes-1000.webp" srcset="/img/screens/notes-1000.webp 1000w, /img/screens/notes-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 720px" width="1000" height="625" loading="lazy" decoding="async" alt="The Notes screen in OpenExtract, opened on a made-up sample backup: a list of notes, and a note called National parks open beside it, listing parks visited and planned." />
+        </a>
+        <figcaption><strong>Notes, opened from a backup</strong>A made-up sample backup in OpenExtract. <a href="/screenshots">See every screen</a>.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>Install OpenExtract</h2>
+        <p>Download it for <a href="/download/windows">Windows</a> or <a href="/download/mac">Mac</a> (Apple Silicon) and install it. The Windows installer is signed by Charles West, the developer; if SmartScreen shows a notice for a new app, choose More info, then Run anyway.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>Open the backup, or make one</h2>
+        <p>Already backed up with Finder, iTunes or the Apple Devices app? OpenExtract lists the backups it finds on the computer on its start screen, or you can choose <strong>Open a backup folder</strong>. Here's <a href="/use-cases/where-are-iphone-backups-stored">where iPhone backups are stored</a>. If the backup is encrypted, type its password.</p>
+        <p>No backup yet? Click <strong>Back up my iPhone</strong>, connect the phone with a cable, tap <strong>Trust</strong> on it and enter its passcode if it asks, then choose a folder and start. Notes are in ordinary backups, so encryption is up to you.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>Read the notes</h2>
+        <p>Click <strong>Notes</strong> on the backup's home page. The list shows every note, most recently edited first, with its title, date and first lines; click one to read it in full. The search box at the top narrows the list to notes with those words anywhere in them.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Save one note</h2>
+        <p>With a note open, click <strong>Save note</strong>, pick <strong>Readable document</strong> (a PDF, which prints well) or <strong>Plain text</strong>, and choose a folder. The file is named after the note and starts with its title and the dates it was made and last edited.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">05</div>
+      <div>
+        <h2>Or save them all</h2>
+        <p>On the backup's home page, open <strong>Save to this computer</strong> and choose <strong>Notes</strong>. Every note in the backup goes into one text file, each under its title and dates, which opens in any text editor and is easy to search.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>What it can't do</h2>
+      <ul>
+        <li><strong>Pictures and attachments.</strong> It reads the text of each note. Photos, drawings, scans and other attachments aren't saved, and checklists and tables come out as plain text, if at all.</li>
+        <li><strong>Locked notes.</strong> Notes locked with a password or Face ID stay locked; OpenExtract doesn't unlock them.</li>
+        <li><strong>Folders.</strong> Notes are listed together by date, not in the folders you made in the Notes app.</li>
+        <li><strong>Very long notes.</strong> A note longer than 20,000 characters (about 3,000 words) is cut off at that point.</li>
+        <li><strong>Every note as a PDF in one go.</strong> Saving everything at once makes one text file; PDFs are saved one note at a time.</li>
+        <li><strong>It only has what the backup has.</strong> Notes written after the backup was made aren't in it. It doesn't read iCloud, an iCloud backup, or notes kept in other apps.</li>
+      </ul>
+      <h2>Common questions</h2>
+      <p><strong>Do I need an encrypted backup for notes?</strong> No. Apple Notes are in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it.</p>
+      <p><strong>Can I save all my notes at once?</strong> Yes. Under Save to this computer on the backup&#x27;s home page, Notes saves every note in the backup into one text file, each with its title and the dates it was made and last edited. From the Notes screen you can save the note you&#x27;re reading as a PDF or a text file.</p>
+      <p><strong>Are pictures and attachments saved?</strong> No. OpenExtract reads the text of each note. Photos, drawings, scanned documents and other attachments in a note aren&#x27;t shown or saved, and checklists and tables come out as plain text, if at all.</p>
+      <p><strong>Can it open locked notes?</strong> No. Notes locked with a password or Face ID are encrypted by the Notes app, and OpenExtract doesn&#x27;t unlock them.</p>
+      <p><strong>Does it work with old iPhones?</strong> Yes. It reads the notes database iPhones have used since iOS 9, and the older one from iOS 4 to 8, including backups made by iTunes years ago.</p>
+      <p><strong>Can I search my notes?</strong> Yes. The Notes screen has a search box, and the search on the backup&#x27;s home page looks through the full text of every note along with messages, calls and the rest. Notes also appear in the timeline by date.</p>
+      <p><strong>Does anything get uploaded?</strong> No. OpenExtract reads the backup on your own computer and doesn&#x27;t send it anywhere. It goes online only when you let it: to check for a new version, if you allow it (you can turn that off in Settings); to send a problem report or a thank-you, when you click Send; and on Windows, to install Apple&#x27;s free Apple Devices app from Microsoft, if you ask it to, for backing up an iPhone. Nothing from inside your backup goes with any of them.</p>
+      <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Windows · Mac · Linux</div>
+        <h3>Your notes,<br /><span class="it">on your own computer.</span></h3>
+        <p>Free, open source, and the backup never leaves your computer.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/use-cases/where-are-iphone-backups-stored">Where are iPhone backups stored? →</a>
+        <a class="uc-related__link" href="/use-cases/view-iphone-backup-on-windows">View an iPhone backup on Windows →</a>
+        <a class="uc-related__link" href="/use-cases/extract-photos-from-iphone-backup">Extract photos from an iPhone backup →</a>
+        <a class="uc-related__link" href="/use-cases/export-iphone-data">Export everything else from your iPhone →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Your iPhone notes, saved on your computer.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/support">Support OpenExtract</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
