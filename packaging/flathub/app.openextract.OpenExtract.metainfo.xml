@@ -65,6 +65,12 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.15.1" date="2026-11-13">
+      <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.15.1</url>
+      <description>
+        <p>Backing up an iPhone works again. In 0.15.0 every backup stopped at once saying pymobiledevice3 is not installed, because part of the code that talks to iPhones was left out when the app was built.</p>
+      </description>
+    </release>
     <release version="0.15.0" date="2026-11-12">
       <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.15.0</url>
       <description>
