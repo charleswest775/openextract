@@ -30,7 +30,7 @@
         "url": "https://www.openextract.app/fixes#backups-fail-in-0-15-0",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "OpenExtract 0.15.0 can't make backups: a part it needs was left out when this version was built, so every backup stops at once and says pymobiledevice3 is not installed. Installing pymobiledevice3 yourself won't help, because OpenExtract uses its own copy. The next version fixes it. Until then, OpenExtract still opens backups normally, so make the backup with Finder on a Mac, or with Apple Devices or iTunes on Windows, then open it in OpenExtract. On Linux, the command pymobiledevice3 backup2 backup --full ~/iphone-backup makes one in that folder."
+          "text": "OpenExtract 0.15.0 can't make backups: a part it needs was left out when this version was built, so every backup stops at once and says pymobiledevice3 is not installed. Installing pymobiledevice3 yourself won't help, because OpenExtract uses its own copy. OpenExtract 0.15.1 fixes it: install the latest version from openextract.app, then try the backup again."
         }
       },
       {
@@ -209,7 +209,8 @@
       <div class="fix" id="backups-fail-in-0-15-0">
         <h3>OpenExtract 0.15.0 can't make backups</h3>
         <p class="fix__seen">What you see: <code>pymobiledevice3 is not installed. Run: pip install pymobiledevice3</code></p>
-        <p>OpenExtract 0.15.0 can't make backups: a part it needs was left out when this version was built, so every backup stops at once and says pymobiledevice3 is not installed. Installing pymobiledevice3 yourself won't help, because OpenExtract uses its own copy. The next version fixes it. Until then, OpenExtract still opens backups normally, so make the backup with Finder on a Mac, or with Apple Devices or iTunes on Windows, then open it in OpenExtract. On Linux, the command pymobiledevice3 backup2 backup --full ~/iphone-backup makes one in that folder.</p>
+        <p class="fix__status">Fixed in OpenExtract 0.15.1. <a href="/#download">Get the latest version</a>.</p>
+        <p>OpenExtract 0.15.0 can't make backups: a part it needs was left out when this version was built, so every backup stops at once and says pymobiledevice3 is not installed. Installing pymobiledevice3 yourself won't help, because OpenExtract uses its own copy. OpenExtract 0.15.1 fixes it: install the latest version from openextract.app, then try the backup again.</p>
       </div>
       <div class="fix" id="iphone-full">
         <h3>Your iPhone needs free space to make a backup</h3>
