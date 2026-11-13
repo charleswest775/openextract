@@ -26,6 +26,15 @@
     "mainEntity": [
       {
         "@type": "Question",
+        "name": "OpenExtract 0.15.0 can't make backups",
+        "url": "https://www.openextract.app/fixes#backups-fail-in-0-15-0",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "OpenExtract 0.15.0 can't make backups: a part it needs was left out when this version was built, so every backup stops at once and says pymobiledevice3 is not installed. Installing pymobiledevice3 yourself won't help, because OpenExtract uses its own copy. The next version fixes it. Until then, OpenExtract still opens backups normally, so make the backup with Finder on a Mac, or with Apple Devices or iTunes on Windows, then open it in OpenExtract. On Linux, the command pymobiledevice3 backup2 backup --full ~/iphone-backup makes one in that folder."
+        }
+      },
+      {
+        "@type": "Question",
         "name": "Backups made by iOS 6 stop OpenExtract",
         "url": "https://www.openextract.app/fixes#ios6-photos-stop-engine",
         "acceptedAnswer": {
@@ -197,6 +206,11 @@
     <div class="prose__inner">
       <!-- fixes:start -->
       <h2 id="backup">Backing up an iPhone</h2>
+      <div class="fix" id="backups-fail-in-0-15-0">
+        <h3>OpenExtract 0.15.0 can't make backups</h3>
+        <p class="fix__seen">What you see: <code>pymobiledevice3 is not installed. Run: pip install pymobiledevice3</code></p>
+        <p>OpenExtract 0.15.0 can't make backups: a part it needs was left out when this version was built, so every backup stops at once and says pymobiledevice3 is not installed. Installing pymobiledevice3 yourself won't help, because OpenExtract uses its own copy. The next version fixes it. Until then, OpenExtract still opens backups normally, so make the backup with Finder on a Mac, or with Apple Devices or iTunes on Windows, then open it in OpenExtract. On Linux, the command pymobiledevice3 backup2 backup --full ~/iphone-backup makes one in that folder.</p>
+      </div>
       <div class="fix" id="iphone-full">
         <h3>Your iPhone needs free space to make a backup</h3>
         <p class="fix__seen">What you see: <code>Your iPhone is too full to make a backup</code></p>

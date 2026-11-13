@@ -499,6 +499,25 @@ const OLD_NO_DEVICE_SERVICE = 'Cannot connect to Apple Mobile Device Service. On
 
 // One real error per known fix; the last test checks that every fix has one.
 const REAL_ERRORS = [
+  // python/device_backup.py in 0.15.0, whose engine was built without pyimg4's package metadata
+  // (OE-50, OE-51, OE-54), and the end of the engine log's traceback.
+  {
+    fix: 'backups-fail-in-0-15-0',
+    os: WINDOWS,
+    area: 'create_backup',
+    version: '0.15.0',
+    errors: [['backup.start', 'pymobiledevice3 is not installed. Run: pip install pymobiledevice3']],
+    log: [
+      '[RPC ERROR] backup.start: Traceback (most recent call last):',
+      '  File "pyimg4\\__init__.py", line 7, in <module>',
+      '  File "importlib\\metadata\\__init__.py", line 565, in from_name',
+      'importlib.metadata.PackageNotFoundError: No package metadata was found for pyimg4',
+      'During handling of the above exception, another exception occurred:',
+      'Traceback (most recent call last):',
+      '  File "device_backup.py", line 687, in start_backup',
+      'RuntimeError: pymobiledevice3 is not installed. Run: pip install pymobiledevice3',
+    ].join('\n'),
+  },
   // python/main.py in 0.12.0, exiting on list_photos' raw bytes from an iOS 6 backup (OE-26 to
   // OE-28): the engine log's traceback, then every call after it. Reinstalling (engine-did-not-start)
   // wouldn't help, so that fix is hidden.
@@ -700,6 +719,12 @@ test('reports about something else get no known fix', async () => {
   }
   for (const version of ['0.9.1', '0.10.2', '0.11.0', '0.12.0']) {
     assert.deepEqual(await knownFixesFor({ ...twoHours, version }), ['backup-stopped-after-2-hours'], version);
+  }
+  // Only 0.15.0's engine was built without pyimg4's metadata. Another version saying pymobiledevice3
+  // is missing is a source checkout without it, where pip install is the right answer.
+  const notInstalled = REAL_ERRORS.find(c => c.fix === 'backups-fail-in-0-15-0');
+  for (const version of ['0.14.0', '0.15.1', '0.16.0']) {
+    assert.deepEqual(await knownFixesFor({ ...notInstalled, version }), [], version);
   }
   // A Mac without usbmuxd needs a restart, not Apple Devices.
   assert.deepEqual(await knownFixesFor({

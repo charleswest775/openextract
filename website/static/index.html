@@ -37,7 +37,7 @@
     "@type": "SoftwareApplication",
     "name": "OpenExtract",
     "alternateName": "openextract",
-    "description": "Free, open-source desktop application that reads iPhone backups made by iTunes or Finder, encrypted or not, and saves the messages, WhatsApp chats, photos and videos, contacts, call history, notes, voicemails and Safari and Firefox history in them. Runs 100% locally.",
+    "description": "Free, open-source desktop application that reads iPhone backups made by iTunes or Finder, encrypted or not, and saves the messages, WhatsApp chats, photos and videos, contacts, call history, notes, voicemails, podcasts and Safari and Firefox history in them. Runs 100% locally.",
     "applicationCategory": "UtilityApplication",
     "applicationSubCategory": "DataExtraction",
     "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
@@ -57,6 +57,7 @@
       "Contacts export",
       "Notes export",
       "Voicemail extraction",
+      "Apple Podcasts subscriptions (OPML) and listening history",
       "Safari and Firefox history",
       "Export to PDF, CSV, HTML",
       "Timeline and whole-backup search",
@@ -85,7 +86,7 @@
     <a href="/" class="nav__brand">
       <div class="nav__logo" aria-hidden="true">o</div>
       <span class="nav__wordmark">OpenExtract</span>
-      <span class="nav__version">v0.14.0</span>
+      <span class="nav__version">v0.15.0</span>
     </a>
     <div class="nav__links">
       <a href="/how-it-works">How it works</a>
@@ -255,12 +256,36 @@
         <div class="feature-card__ex">5,906 visits · 312 sites</div>
       </article>
       <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--coral-22);">🔎</div>
+        <div class="feature-card__icon" style="background: var(--coral-22);">🎧</div>
+        <div>
+          <div class="feature-card__title">Podcasts</div>
+          <p class="feature-card__desc">The shows you follow and every episode you played. Save your subscriptions to move them to another podcast app (<a href="/use-cases/export-podcasts-from-iphone-backup">how</a>).</p>
+        </div>
+        <div class="feature-card__ex">214 episodes played · 18 shows</div>
+      </article>
+      <article class="feature-card">
+        <div class="feature-card__icon" style="background: var(--sage-22);">🔎</div>
         <div>
           <div class="feature-card__title">Timeline &amp; search</div>
           <p class="feature-card__desc">Everything in the backup in one list by date, and one box that searches texts, WhatsApp, notes, calls and more at once.</p>
         </div>
         <div class="feature-card__ex">Filter by person, type or date</div>
+      </article>
+      <article class="feature-card">
+        <div class="feature-card__icon" style="background: var(--butter-22);">👥</div>
+        <div>
+          <div class="feature-card__title">People</div>
+          <p class="feature-card__desc">Everyone you were in touch with, with your texts, WhatsApp chats, calls and voicemails to and from them together.</p>
+        </div>
+        <div class="feature-card__ex">One page per person</div>
+      </article>
+      <article class="feature-card">
+        <div class="feature-card__icon" style="background: var(--plum-22);">📅</div>
+        <div>
+          <div class="feature-card__title">Year</div>
+          <p class="feature-card__desc">A whole year at a glance, one square per day. Click a day to see what happened.</p>
+        </div>
+        <div class="feature-card__ex">365 days · busier days darker</div>
       </article>
     </div>
   </section>
@@ -275,7 +300,7 @@
     </div>
     <figure class="screen">
       <a class="screen__frame" href="/img/screens/home-2000.webp">
-        <img src="/img/screens/home-1000.webp" srcset="/img/screens/home-1000.webp 1000w, /img/screens/home-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), calc(100vw - 112px)" width="1000" height="625" loading="lazy" decoding="async" alt="The home page for Maren's iPhone: tiles for 1,410 messages, 88 WhatsApp messages in 6 chats, 170 photos, 53 people, 45 address book cards, 166 calls, 25 notes and 9 voicemails, plus Web history, Timeline and Year, under a search box that runs across the top." />
+        <img src="/img/screens/home-1000.webp" srcset="/img/screens/home-1000.webp 1000w, /img/screens/home-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), calc(100vw - 112px)" width="1000" height="625" loading="lazy" decoding="async" alt="The home page for Maren's iPhone: tiles for 1,410 messages, 88 WhatsApp messages in 6 chats, 170 photos, 53 people, 45 address book cards, 166 calls, 25 notes, 9 voicemails and 8 podcasts, plus Web history, Timeline and Year, under a search box that runs across the top." />
       </a>
     </figure>
     <div class="screens__grid">
@@ -298,7 +323,7 @@
         <figcaption><strong>Photos</strong>The whole camera roll, sorted into the albums you made.</figcaption>
       </figure>
     </div>
-    <a class="screens__more" href="/screenshots">See all 18 screens →</a>
+    <a class="screens__more" href="/screenshots">See all 20 screens →</a>
   </section>
 
   <section class="how">
@@ -323,7 +348,7 @@
       <div>
         <div class="how__num" style="color: var(--sage);">03</div>
         <div class="how__step-title">Browse what's in there</div>
-        <p class="how__step-desc">Messages, WhatsApp, photos, contacts, calls, notes and voicemail on one page. Search all of it from one box. Nothing you click changes the backup.</p>
+        <p class="how__step-desc">Messages, WhatsApp, photos, contacts, calls, notes, voicemail and podcasts on one page. Search texts, WhatsApp, notes, calls and more from one box. Nothing you click changes the backup.</p>
       </div>
       <div>
         <div class="how__num" style="color: var(--plum);">04</div>
@@ -426,7 +451,7 @@
       </details>
       <details class="qa">
         <summary>What formats can I export to?</summary>
-        <p>Messages and WhatsApp chats as PDF, HTML, CSV, or plain text (here&rsquo;s <a href="/use-cases/export-whatsapp-chats-from-iphone-backup">how to export WhatsApp chats</a>). Photos as originals (HEIC, JPEG, MOV). Contacts as vCard or CSV. Each time you save, you choose where the files go.</p>
+        <p>Messages and WhatsApp chats as PDF, HTML, CSV, or plain text (here&rsquo;s <a href="/use-cases/export-whatsapp-chats-from-iphone-backup">how to export WhatsApp chats</a>). Photos as originals (HEIC, JPEG, MOV). Contacts as vCard or CSV. Podcast subscriptions as OPML, which most podcast apps import (<a href="/use-cases/export-podcasts-from-iphone-backup">how to move your podcasts</a>). Each time you save, you choose where the files go.</p>
       </details>
       <details class="qa">
         <summary>Will Apple know I'm using this?</summary>
