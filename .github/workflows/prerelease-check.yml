@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       ios_backup_core_ref:
-        description: 'ios-backup-core branch or tag to build against'
+        description: 'ios-backup-core branch, tag or full commit SHA to build against'
         required: false
         default: 'master'
       items:
@@ -29,7 +29,36 @@ permissions:
   contents: read
 
 jobs:
+  # One commit for all three OSes. The summary shows it, so Release can be given the
+  # commit this run tested (its ios_backup_core_ref input).
+  ios_backup_core:
+    name: ios-backup-core commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.core.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve ios-backup-core
+        id: core
+        uses: ./.github/actions/ios-backup-core
+        with:
+          ref: ${{ inputs.ios_backup_core_ref || 'master' }}
+
+      - name: Record it
+        env:
+          REF: ${{ inputs.ios_backup_core_ref || 'master' }}
+          SHA: ${{ steps.core.outputs.sha }}
+        run: |
+          {
+            echo "ios-backup-core \`$REF\` is [\`$SHA\`](https://github.com/charleswest775/ios-backup-core/commit/$SHA)."
+            echo "To release against the commit this run tested, give Release \`$SHA\` as ios_backup_core_ref."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   packaged:
+    needs: ios_backup_core
     name: packaged app (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -72,13 +101,10 @@ jobs:
 
       # Same sibling layout as ci.yml: python/requirements.txt installs
       # ios-backup-core from ../../ios-backup-core.
-      - name: Clone ios-backup-core (sibling for editable install)
-        env:
-          REF: ${{ inputs.ios_backup_core_ref || 'master' }}
-        run: |
-          git clone --depth=1 --branch "$REF" \
-            https://github.com/charleswest775/ios-backup-core.git \
-            "$GITHUB_WORKSPACE/../ios-backup-core"
+      - name: Check out ios-backup-core (sibling for editable install)
+        uses: ./.github/actions/ios-backup-core
+        with:
+          ref: ${{ needs.ios_backup_core.outputs.sha }}
 
       - name: Install Python dependencies and PyInstaller
         working-directory: python

@@ -7,6 +7,11 @@ name: Release
 #   2. Tag that branch and build artifacts from the tag.
 #   3. Open a PR from the release branch back to `main` so the bump and URL
 #      updates can be reviewed and merged by a human.
+#
+# ios-backup-core isn't versioned yet, so preflight picks one commit of it and every job
+# builds and tests against that commit. Each job cloning master for itself let a merge
+# there during the run reach the installers untested, and could give each OS a different
+# commit. The commit is in the run summary and at the foot of the release notes.
 
 on:
   workflow_dispatch:
@@ -14,6 +19,11 @@ on:
       version:
         description: 'Release version (e.g. 0.4.0)'
         required: true
+        type: string
+      ios_backup_core_ref:
+        description: 'ios-backup-core branch, tag or full commit SHA to build against (blank = master). The Pre-release check''s summary shows the commit it tested.'
+        required: false
+        default: ''
         type: string
 
 concurrency:
@@ -30,6 +40,7 @@ jobs:
     outputs:
       tag: v${{ inputs.version }}
       release_branch: release/v${{ inputs.version }}
+      ios_backup_core_sha: ${{ steps.core.outputs.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -102,15 +113,22 @@ jobs:
 
       # python/requirements.txt installs ios-backup-core via `-e ../../ios-backup-core`.
       # The expected layout is openextract/ and ios-backup-core/ as siblings on disk,
-      # so clone ios-backup-core one level above $GITHUB_WORKSPACE before pip runs.
+      # so check ios-backup-core out one level above $GITHUB_WORKSPACE before pip runs.
+      # The commit this resolves to is the one every later job checks out.
       # TODO: remove this step once ios-backup-core ships to PyPI and requirements.txt
       # pins a versioned release instead of the editable path install.
-      - name: Clone ios-backup-core (sibling for editable install)
-        shell: bash
+      - name: Check out ios-backup-core (sibling for editable install)
+        id: core
+        uses: ./.github/actions/ios-backup-core
+        with:
+          ref: ${{ inputs.ios_backup_core_ref || 'master' }}
+
+      - name: Record the ios-backup-core commit
+        env:
+          REF: ${{ inputs.ios_backup_core_ref || 'master' }}
+          SHA: ${{ steps.core.outputs.sha }}
         run: |
-          git clone --depth=1 \
-            https://github.com/charleswest775/ios-backup-core.git \
-            "$GITHUB_WORKSPACE/../ios-backup-core"
+          echo "ios-backup-core \`$REF\` is [\`$SHA\`](https://github.com/charleswest775/ios-backup-core/commit/$SHA). Every job in this run builds and tests against that commit." >> "$GITHUB_STEP_SUMMARY"
 
       # Run from python/ so pip resolves `-e ../../ios-backup-core` the same
       # way it does locally (README tells devs to `cd python` first).
@@ -205,25 +223,32 @@ jobs:
           git tag "v${{ inputs.version }}"
           git push origin "v${{ inputs.version }}"
 
-      # Left to itself, --generate-notes compared v0.9.0 against v0.3.4 and
+      # Left to itself, GitHub's generated notes compared v0.9.0 against v0.3.4 and
       # listed ~75 PRs (release tags sit on release/* branches, off main's
       # history). Start the notes at the previous version's tag instead.
+      # The notes are GitHub's generated list (the call `gh release create
+      # --generate-notes --notes-start-tag` makes), then the ios-backup-core commit.
       - name: Create draft GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
+          CORE_SHA: ${{ steps.core.outputs.sha }}
         run: |
           PREV=$( (git tag -l 'v[0-9]*.[0-9]*.[0-9]*'; echo "v$VERSION") \
             | sort -uV | grep -B1 -x "v$VERSION" | grep -vx "v$VERSION" | head -n1 || true)
-          NOTES_FROM=()
+          NOTES_FROM=(-f tag_name="v$VERSION")
           if [ -n "$PREV" ]; then
             echo "Release notes start at $PREV"
-            NOTES_FROM=(--notes-start-tag "$PREV")
+            NOTES_FROM+=(-f previous_tag_name="$PREV")
           fi
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" "${NOTES_FROM[@]}" --jq .body > "$NOTES"
+          # shellcheck disable=SC2016  # the backticks are Markdown
+          printf '\n---\nBuilt with ios-backup-core [`%s`](https://github.com/charleswest775/ios-backup-core/commit/%s).\n' \
+            "${CORE_SHA:0:12}" "$CORE_SHA" >> "$NOTES"
           gh release create "v$VERSION" \
             --draft \
-            --generate-notes \
-            "${NOTES_FROM[@]}" \
+            --notes-file "$NOTES" \
             --title "v$VERSION"
 
   build-macos:
@@ -253,13 +278,12 @@ jobs:
       - name: Install Node dependencies
         run: npm install
 
-      # See preflight job for rationale on sibling-clone + working-directory.
-      - name: Clone ios-backup-core (sibling for editable install)
-        shell: bash
-        run: |
-          git clone --depth=1 \
-            https://github.com/charleswest775/ios-backup-core.git \
-            "$GITHUB_WORKSPACE/../ios-backup-core"
+      # See preflight job for rationale on the sibling checkout + working-directory.
+      # The exact commit preflight tested, not whatever master is now.
+      - name: Check out ios-backup-core (sibling for editable install)
+        uses: ./.github/actions/ios-backup-core
+        with:
+          ref: ${{ needs.preflight.outputs.ios_backup_core_sha }}
 
       - name: Install Python dependencies and PyInstaller
         working-directory: python
@@ -358,13 +382,12 @@ jobs:
       - name: Install Node dependencies
         run: npm install
 
-      # See preflight job for rationale on sibling-clone + working-directory.
-      - name: Clone ios-backup-core (sibling for editable install)
-        shell: bash
-        run: |
-          git clone --depth=1 \
-            https://github.com/charleswest775/ios-backup-core.git \
-            "$GITHUB_WORKSPACE/../ios-backup-core"
+      # See preflight job for rationale on the sibling checkout + working-directory.
+      # The exact commit preflight tested, not whatever master is now.
+      - name: Check out ios-backup-core (sibling for editable install)
+        uses: ./.github/actions/ios-backup-core
+        with:
+          ref: ${{ needs.preflight.outputs.ios_backup_core_sha }}
 
       - name: Install Python dependencies and PyInstaller
         working-directory: python
@@ -438,6 +461,7 @@ jobs:
     uses: ./.github/workflows/windows-app-control.yml
     with:
       tag: v${{ inputs.version }}
+      ios_backup_core_ref: ${{ needs.preflight.outputs.ios_backup_core_sha }}
 
   build-linux:
     needs: preflight
@@ -495,13 +519,12 @@ jobs:
       - name: Install Node dependencies
         run: npm install
 
-      # See preflight job for rationale on sibling-clone + working-directory.
-      - name: Clone ios-backup-core (sibling for editable install)
-        shell: bash
-        run: |
-          git clone --depth=1 \
-            https://github.com/charleswest775/ios-backup-core.git \
-            "$GITHUB_WORKSPACE/../ios-backup-core"
+      # See preflight job for rationale on the sibling checkout + working-directory.
+      # The exact commit preflight tested, not whatever master is now.
+      - name: Check out ios-backup-core (sibling for editable install)
+        uses: ./.github/actions/ios-backup-core
+        with:
+          ref: ${{ needs.preflight.outputs.ios_backup_core_sha }}
 
       - name: Install Python dependencies and PyInstaller
         working-directory: python
@@ -528,6 +551,7 @@ jobs:
     uses: ./.github/workflows/installers.yml
     with:
       tag: v${{ inputs.version }}
+      ios_backup_core_ref: ${{ needs.preflight.outputs.ios_backup_core_sha }}
 
   finalize:
     needs: [preflight, build-macos, build-windows, build-linux, windows-app-control, installers]
@@ -607,9 +631,12 @@ jobs:
       - name: Summary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CORE_SHA: ${{ needs.preflight.outputs.ios_backup_core_sha }}
         run: |
           echo "## Release v${{ inputs.version }} published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Built with ios-backup-core [\`$CORE_SHA\`](https://github.com/charleswest775/ios-backup-core/commit/$CORE_SHA)." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
           gh release view "v${{ inputs.version }}" --json assets --jq '.assets[] | "- \(.name) (\(.size / 1048576 | floor)MB)"' >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

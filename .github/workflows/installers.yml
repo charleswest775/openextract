@@ -17,6 +17,11 @@ on:
         type: string
         required: false
         default: ''
+      ios_backup_core_ref:
+        description: 'ios-backup-core branch, tag or full commit SHA to build and make the test backups with (blank = master). release.yml passes the commit it built.'
+        type: string
+        required: false
+        default: ''
   workflow_dispatch:
     inputs:
       tag:
@@ -96,9 +101,10 @@ jobs:
       - name: Install Node dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Clone ios-backup-core (sibling for editable install)
-        run: |
-          git clone --depth=1 https://github.com/charleswest775/ios-backup-core.git "$GITHUB_WORKSPACE/../ios-backup-core"
+      - name: Check out ios-backup-core (sibling for editable install)
+        uses: ./.github/actions/ios-backup-core
+        with:
+          ref: ${{ inputs.ios_backup_core_ref || 'master' }}
 
       - name: Install Python dependencies and PyInstaller
         working-directory: python
@@ -235,9 +241,17 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends desktop-file-utils xvfb
 
+      # The same fetch as .github/actions/ios-backup-core, written out because this job
+      # checks out the tag under test, and an older tag doesn't have that action.
       - name: Generate the test backups
+        env:
+          CORE_REF: ${{ inputs.ios_backup_core_ref || 'master' }}
         run: |
-          git clone --depth=1 https://github.com/charleswest775/ios-backup-core.git "$GITHUB_WORKSPACE/../ios-backup-core"
+          core="$GITHUB_WORKSPACE/../ios-backup-core"
+          git init -q "$core"
+          git -C "$core" fetch -q --depth=1 --no-tags https://github.com/charleswest775/ios-backup-core.git "$CORE_REF"
+          git -C "$core" -c advice.detachedHead=false checkout -q --detach FETCH_HEAD
+          echo "ios-backup-core: $CORE_REF -> $(git -C "$core" rev-parse HEAD)"
           (cd python && pip install -r requirements.txt)
           python scripts/e2e/backups.py e2e-backups.json
 

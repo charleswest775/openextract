@@ -2,7 +2,10 @@ iphone-backup-decrypt>=0.11.0  # passphrase_key, which ios-backup-core uses for 
 Pillow>=10.0
 pillow-heif>=0.13.0
 debugpy>=1.8.0
-pymobiledevice3>=11.26.1,<12
+# An exact version: 11.x comes out almost daily, and the engine's messages match
+# pymobiledevice3's error wording (device_backup.py). CI, the Pre-release check and the
+# release all install this one. Bump it on purpose: see "pymobiledevice3" in RELEASING.md.
+pymobiledevice3==11.52.1
 reportlab>=4.0
 # ios-backup-core is the shared iPhone-backup parsing library extracted from
 # this codebase. Until it is published to PyPI, install it from a sibling
