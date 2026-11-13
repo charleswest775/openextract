@@ -824,6 +824,12 @@ class SidecarServer:
 
 if __name__ == "__main__":
     import sys
+    if "--self-check" in sys.argv:
+        # scripts/bundle-engine.mjs, after PyInstaller: run every import in the engine's
+        # source files (in the folder given, or the current one) in this built engine, then exit.
+        import self_check
+        _args = sys.argv[sys.argv.index("--self-check") + 1:]
+        sys.exit(self_check.run(_args[0] if _args else "."))
     if "--debug" in sys.argv:
         try:
             import debugpy

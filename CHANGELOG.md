@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Back up my iPhone works again. In 0.15.0 every backup stopped at once with "pymobiledevice3 is not installed. Run: pip install pymobiledevice3", on Windows, macOS and Linux: part of the code that talks to iPhones was left out when the app was built. Installing pymobiledevice3 yourself didn't help, because OpenExtract uses its own copy. If that code ever fails to load again, the app says so and no longer suggests pip, and the build now checks for it before anything ships (OE-50, OE-51, OE-54)
+
 ## [0.15.0] - 2026-11-12
 
 ### Added
