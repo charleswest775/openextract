@@ -19,6 +19,9 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = process.env.GITHUB_REPOSITORY || 'charleswest775/openextract';
 const V = String.raw`\d+\.\d+\.\d+`;
+// Files keep their own line endings (a Windows checkout has CRLF): lines are matched with
+// [ \t]*$ rather than \s*$, which would swallow the \r, and new lines use the file's ending.
+const eolOf = text => (text.includes('\r\n') ? '\r\n' : '\n');
 
 /** `text` with the one match of `re` replaced; throws if `re` matches no line, or more than one, in `what`. */
 function replaceOnce(text, re, replacement, what) {
@@ -32,7 +35,8 @@ function replaceOnce(text, re, replacement, what) {
 
 /** CHANGELOG.md with `## [version] - date` under an empty `## [Unreleased]`, and a warning if Unreleased had nothing in it. */
 export function datedChangelog(text, version, date) {
-  const lines = text.split('\n');
+  const eol = eolOf(text);
+  const lines = text.split(/\r?\n/);
   const at = lines.findIndex(l => /^## \[Unreleased\]\s*$/.test(l));
   if (at < 0) throw new Error('CHANGELOG.md has no "## [Unreleased]" heading');
   if (lines.some(l => l.startsWith(`## [${version}]`))) throw new Error(`CHANGELOG.md already has a "## [${version}]" heading`);
@@ -41,12 +45,12 @@ export function datedChangelog(text, version, date) {
   const empty = next >= lines.length || lines[next].startsWith('## ');
   lines.splice(at + 1, next - at - 1, '', `## [${version}] - ${date}`, '');
   const warning = empty ? `CHANGELOG.md has nothing under [Unreleased], so ${version}'s section is empty` : null;
-  return { text: lines.join('\n'), warning };
+  return { text: lines.join(eol), warning };
 }
 
 /** The body of `## [version]` in CHANGELOG.md, up to the next `## ` heading. */
 export function changelogSection(text, version) {
-  const lines = text.split('\n');
+  const lines = text.split(/\r?\n/);
   const at = lines.findIndex(l => l.startsWith(`## [${version}]`));
   if (at < 0) throw new Error(`CHANGELOG.md has no "## [${version}]" section`);
   const end = lines.findIndex((l, i) => i > at && l.startsWith('## '));
@@ -76,7 +80,7 @@ export function releaseNotes(section) {
   const intro = section.split(/^### /m)[0].trim();
   if (intro) return { paragraphs: intro.split(/\n\s*\n/).map(plainWords).filter(Boolean), bullets: [] };
   const bullets = section
-    .split('\n')
+    .split(/\r?\n/)
     .filter(l => /^\s*- /.test(l))
     .map(l => l.replace(/^\s*- /, ''))
     .filter(l => !/^(Windows|macOS|Mac):/i.test(l))
@@ -91,7 +95,7 @@ const xml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&
 /** The metainfo with a <release> for `version` first in <releases>. Unchanged if it has one already. */
 export function metainfoWithRelease(text, version, date, notes) {
   if (new RegExp(`<release version="${version.replace(/\./g, '\\.')}"`).test(text)) return text;
-  const m = /^(\s*)<releases>\s*$/m.exec(text);
+  const m = /^([ \t]*)<releases>[ \t]*$/m.exec(text);
   if (!m) throw new Error('metainfo has no <releases> element');
   const i = m[1];
   const lines = [`${i}  <release version="${version}" date="${date}">`, `${i}    <url type="details">https://github.com/${REPO}/releases/tag/v${version}</url>`];
@@ -107,7 +111,8 @@ export function metainfoWithRelease(text, version, date, notes) {
   }
   lines.push(`${i}  </release>`);
   const at = m.index + m[0].length;
-  return text.slice(0, at) + '\n' + lines.join('\n') + text.slice(at);
+  const eol = eolOf(text);
+  return text.slice(0, at) + eol + lines.join(eol) + text.slice(at);
 }
 
 /** The Flatpak manifest with its .deb source pointing at `version`'s .deb and its checksum. */
@@ -139,14 +144,14 @@ const newer = (a, b) => { const x = semver(a), y = semver(b); for (let k = 0; k 
 export function wingetManifests(from, version, date, exeSha256) {
   const out = {};
   for (const [name, text] of Object.entries(from)) {
-    let t = replaceOnce(text, new RegExp(`^PackageVersion: ${V}\\s*$`, 'm'), `PackageVersion: ${version}`, `${name} PackageVersion`);
+    let t = replaceOnce(text, new RegExp(`^PackageVersion: ${V}[ \\t]*$`, 'm'), `PackageVersion: ${version}`, `${name} PackageVersion`);
     if (name.endsWith('.installer.yaml')) {
-      t = replaceOnce(t, /^ReleaseDate: \S+\s*$/m, `ReleaseDate: ${date}`, `${name} ReleaseDate`);
-      t = replaceOnce(t, new RegExp(`^(\\s*InstallerUrl: \\S*/releases/download/)v${V}/OpenExtract-Setup-${V}\\.exe\\s*$`, 'm'), `$1v${version}/OpenExtract-Setup-${version}.exe`, `${name} InstallerUrl`);
-      t = replaceOnce(t, /^(\s*InstallerSha256: )[0-9A-Fa-f]{64}\s*$/m, `$1${exeSha256.toUpperCase()}`, `${name} InstallerSha256`);
+      t = replaceOnce(t, /^ReleaseDate: \S+[ \t]*$/m, `ReleaseDate: ${date}`, `${name} ReleaseDate`);
+      t = replaceOnce(t, new RegExp(`^([ \\t]*InstallerUrl: \\S*/releases/download/)v${V}/OpenExtract-Setup-${V}\\.exe[ \\t]*$`, 'm'), `$1v${version}/OpenExtract-Setup-${version}.exe`, `${name} InstallerUrl`);
+      t = replaceOnce(t, /^([ \t]*InstallerSha256: )[0-9A-Fa-f]{64}[ \t]*$/m, `$1${exeSha256.toUpperCase()}`, `${name} InstallerSha256`);
     }
     if (/\.locale\.[^.]+\.yaml$/.test(name)) {
-      t = replaceOnce(t, new RegExp(`^(ReleaseNotesUrl: \\S*/releases/tag/)v${V}\\s*$`, 'm'), `$1v${version}`, `${name} ReleaseNotesUrl`);
+      t = replaceOnce(t, new RegExp(`^(ReleaseNotesUrl: \\S*/releases/tag/)v${V}[ \\t]*$`, 'm'), `$1v${version}`, `${name} ReleaseNotesUrl`);
     }
     out[name] = t;
   }

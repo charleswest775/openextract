@@ -7,7 +7,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  changelogSection, chocolateyNuspec, datedChangelog, flatpakManifest, metainfoWithRelease, plainWords, releaseNotes, writePackaging,
+  changelogSection, chocolateyNuspec, datedChangelog, flatpakManifest, metainfoWithRelease, plainWords, releaseNotes, wingetManifests, writePackaging,
 } from './release-files.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -86,6 +86,26 @@ test('the metainfo gets one <release> first, escaped, and is left alone the seco
   assert.match(list, /\n {8}<ul>\n {10}<li>One\.<\/li>\n {10}<li>Two\.<\/li>\n {8}<\/ul>\n/);
 });
 
+test('files with Windows line endings keep them', () => {
+  const crlf = s => s.replace(/\n/g, '\r\n');
+  const changelog = datedChangelog(crlf(CHANGELOG), '0.15.2', '2026-11-14').text;
+  assert.equal(changelog, crlf(datedChangelog(CHANGELOG, '0.15.2', '2026-11-14').text));
+  assert.equal(changelogSection(changelog, '0.15.2'), '### Fixed\n- Something broke and now it doesn\'t (OE-60)');
+
+  const meta = '<component>\n  <releases>\n    <release version="0.15.1" date="2026-11-13"/>\n  </releases>\n</component>\n';
+  const notes = { paragraphs: ['New.'], bullets: ['One.'] };
+  assert.equal(metainfoWithRelease(crlf(meta), '0.15.2', '2026-11-14', notes), crlf(metainfoWithRelease(meta, '0.15.2', '2026-11-14', notes)));
+
+  const installer = 'PackageIdentifier: OpenExtract.OpenExtract\nPackageVersion: 0.15.1\nReleaseDate: 2026-11-13\nInstallers:\n  - Architecture: x64\n    InstallerUrl: https://github.com/charleswest775/openextract/releases/download/v0.15.1/OpenExtract-Setup-0.15.1.exe\n    InstallerSha256: ' + 'EF'.repeat(32) + '\nManifestType: installer\n';
+  const name = 'OpenExtract.OpenExtract.installer.yaml';
+  const lf = wingetManifests({ [name]: installer }, '0.15.2', '2026-11-14', EXE)[name];
+  assert.equal(wingetManifests({ [name]: crlf(installer) }, '0.15.2', '2026-11-14', EXE)[name], crlf(lf));
+  assert.match(lf, /^PackageVersion: 0\.15\.2\nReleaseDate: 2026-11-14\n/m);
+
+  const manifest = '      - type: file\n        url: https://github.com/charleswest775/openextract/releases/download/v0.15.1/openextract_0.15.1_amd64.deb\n        sha256: ' + 'ef'.repeat(32) + '\n        dest-filename: openextract.deb\n';
+  assert.equal(flatpakManifest(crlf(manifest), '0.15.2', DEB), crlf(flatpakManifest(manifest, '0.15.2', DEB)));
+});
+
 test('a file that no longer looks as expected is an error, not a silent no-op', () => {
   assert.throws(() => chocolateyNuspec('<package><version>1.0</version></package>', '0.15.2'), /openextract\.nuspec <version>: expected one match/);
   assert.throws(() => flatpakManifest('modules: []\n', '0.15.2', DEB), /Flatpak manifest \.deb source/);
@@ -114,8 +134,8 @@ test('the packaging files for a new version, from the repository\'s own', () => 
     assert.match(read(`packaging/winget/${next}/OpenExtract.OpenExtract.yaml`), new RegExp(`^PackageVersion: ${next}$`, 'm'));
     assert.match(read('packaging/chocolatey/openextract.nuspec'), new RegExp(`<version>${next}</version>[\\s\\S]*/tag/v${next}</releaseNotes>`));
     assert.match(read('packaging/chocolatey/tools/chocolateyinstall.ps1'), new RegExp(`/v${next}/OpenExtract-Setup-${next}\\.exe'[\\s\\S]*checksum64\\s*= '${EXE}'`));
-    assert.match(read('packaging/flathub/app.openextract.OpenExtract.yml'), new RegExp(`/v${next}/openextract_${next}_amd64\\.deb\\n\\s*sha256: ${DEB}`));
-    assert.match(read('packaging/flathub/app.openextract.OpenExtract.metainfo.xml'), new RegExp(`<releases>\\n {4}<release version="${next.replace(/\./g, '\\.')}" date="2027-01-02">[\\s\\S]*?<p>A plain-words summary\\.</p>`));
+    assert.match(read('packaging/flathub/app.openextract.OpenExtract.yml'), new RegExp(`/v${next}/openextract_${next}_amd64\\.deb\\r?\\n\\s*sha256: ${DEB}`));
+    assert.match(read('packaging/flathub/app.openextract.OpenExtract.metainfo.xml'), new RegExp(`<releases>\\r?\\n {4}<release version="${next.replace(/\./g, '\\.')}" date="2027-01-02">[\\s\\S]*?<p>A plain-words summary\\.</p>`));
     // Everything else in the folder is as it was.
     for (const rel of ['packaging/README.md', 'packaging/flathub/flathub.json', 'packaging/flathub/app.openextract.OpenExtract.desktop']) {
       assert.equal(read(rel), fs.readFileSync(path.join(ROOT, rel), 'utf8'), rel);
