@@ -71,6 +71,13 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Clone ios-backup-core
+        shell: bash
+        run: git clone --depth=1 https://github.com/charleswest775/ios-backup-core.git "$GITHUB_WORKSPACE/../ios-backup-core"
+
+      - name: Cache the generated backups' photos
+        uses: ./.github/actions/backupgen-media
+
       # Before the policy is on: this Python and its packages aren't ours, so it blocks them.
       - name: Generate the encrypted Maren backup
         id: backup
@@ -78,7 +85,6 @@ jobs:
         env:
           OPENEXTRACT_CORPUS_CACHE: ${{ runner.temp }}/corpus
         run: |
-          git clone --depth=1 https://github.com/charleswest775/ios-backup-core.git "$GITHUB_WORKSPACE/../ios-backup-core"
           pip install "$GITHUB_WORKSPACE/../ios-backup-core" pillow tzdata  # Windows has no time zone database of its own
           python - <<'EOF'
           import os

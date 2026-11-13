@@ -55,12 +55,16 @@ jobs:
           cd "$HOME/flathub-lint"
           flatpak run --command=flatpak-builder-lint org.flatpak.Builder appstream app.openextract.OpenExtract.metainfo.xml
 
+      # No cache-key: the action's own key is the manifest's hash, so a new cache
+      # (about 330 MB) is saved only when the manifest changes, and a build with
+      # a changed manifest still starts from the newest "flatpak-builder-x86_64"
+      # one. A key with the commit in it (as the action's README shows) saved a
+      # new cache on every push that no later run could find.
       - name: Build
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           manifest-path: ${{ env.MANIFEST }}
           bundle: openextract.flatpak
-          cache-key: flatpak-builder-${{ github.sha }}
           upload-artifact: true
           # Flathub's build bot copies the store screenshots to its own
           # server and the repo linter checks for that, so do the same. The

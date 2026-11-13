@@ -12,11 +12,13 @@ export default {
     const b = backups['maren-encrypted'];
     const app = await launch(target);
     try {
-      timing('launch to welcome screen', app.launchMs);
+      // Their own budgets: this is often the app's very first launch after installing, which
+      // the OS may check first (scripts/e2e/budgets.json).
+      timing('installed app: launch to welcome screen', app.launchMs);
       // The engine starts with the app; the first answer is what opening a backup waits for.
       const t0 = performance.now();
       const ping = await app.api('call', 'ping', {});
-      timing('first engine answer after launch', app.launchMs + performance.now() - t0);
+      timing('installed app: first engine answer after launch', app.launchMs + performance.now() - t0);
       check('the bundled engine answers', ping.value?.success && ping.value.data?.status === 'ok', ping);
       const r = await app.openBackup(b.dir, b.password);
       if (!check('encrypted backup opens', r.opened, r)) return;

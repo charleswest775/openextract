@@ -1,12 +1,21 @@
 name: Release
 
-# The release pipeline never pushes directly to `main`. Branch protection
-# requires PRs, so instead we:
-#   1. Build a `release/vX.Y.Z` branch carrying the version bump + website
-#      URL updates, and push it (release/* is unprotected).
-#   2. Tag that branch and build artifacts from the tag.
-#   3. Open a PR from the release branch back to `main` so the bump and URL
-#      updates can be reviewed and merged by a human.
+# One run from version number to published release, about 15 to 20 minutes:
+#   preflight   makes `release/vX.Y.Z` (version bump, CHANGELOG heading, website download
+#               links), tags it and creates a draft release. About a minute.
+#   checks      TypeScript, ruff, the Python tests and a build, on the tag.
+#   prerelease  prerelease-check.yml on the tag: the backup corpus and every end-to-end suite
+#               against unsigned packaged builds on Linux, macOS and Windows.
+#   build-*     build, sign, notarize and upload each platform's packages to the draft.
+#   windows-app-control, installers   test the draft's signed packages on fresh runners.
+#   finalize    publishes once every job above has passed, adds the store packaging files
+#               (winget, Chocolatey, Flatpak) to the release branch, and opens the sync PR.
+# checks, prerelease and the builds run side by side. If anything fails the release stays a
+# draft: fix it, delete the draft and the tag (`gh release delete vX.Y.Z --cleanup-tag`), and
+# run it again.
+#
+# The pipeline never pushes to `main`. Branch protection requires PRs, so the version bump
+# and the rest reach main through the sync PR from `release/vX.Y.Z` (release/* is unprotected).
 
 on:
   workflow_dispatch:
@@ -20,13 +29,17 @@ concurrency:
   group: release
   cancel-in-progress: false
 
+env:
+  # The maintainer's time zone: the release's date in CHANGELOG.md, the Flatpak metainfo and
+  # winget's ReleaseDate is the date there, as it has been for every earlier release.
+  RELEASE_TZ: America/Los_Angeles
+
 jobs:
   preflight:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     permissions:
       contents: write
-      pull-requests: write
     outputs:
       tag: v${{ inputs.version }}
       release_branch: release/v${{ inputs.version }}
@@ -77,55 +90,17 @@ jobs:
             echo "Version already matches ${{ inputs.version }}"
           fi
 
-      # --- Quality gates (fail fast before touching remotes) ---
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: python/requirements*.txt
-
-      - name: Install Node dependencies
-        run: npm install
-
-      - name: TypeScript check (renderer)
-        run: npx tsc --noEmit
-
-      - name: TypeScript check (electron)
-        run: npx tsc --noEmit -p tsconfig.electron.json
-
-      # python/requirements.txt installs ios-backup-core via `-e ../../ios-backup-core`.
-      # The expected layout is openextract/ and ios-backup-core/ as siblings on disk,
-      # so clone ios-backup-core one level above $GITHUB_WORKSPACE before pip runs.
-      # TODO: remove this step once ios-backup-core ships to PyPI and requirements.txt
-      # pins a versioned release instead of the editable path install.
-      - name: Clone ios-backup-core (sibling for editable install)
-        shell: bash
+      # `## [X.Y.Z] - <date>` under an empty `## [Unreleased]`. Warns (and goes on) if
+      # Unreleased has nothing in it.
+      - name: Date the release in CHANGELOG.md
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          git clone --depth=1 \
-            https://github.com/charleswest775/ios-backup-core.git \
-            "$GITHUB_WORKSPACE/../ios-backup-core"
-
-      # Run from python/ so pip resolves `-e ../../ios-backup-core` the same
-      # way it does locally (README tells devs to `cd python` first).
-      - name: Install Python dependencies
-        working-directory: python
-        run: pip install ruff pytest -r requirements.txt
-
-      - name: Python lint
-        run: ruff check python/
-
-      - name: Python tests
-        run: pytest python/tests/ -v
-
-      - name: Build verification
-        run: npm run build
+          node scripts/release-files.mjs changelog "$VERSION" "$(TZ="$RELEASE_TZ" date +%F)"
+          if ! git diff --quiet CHANGELOG.md; then
+            git add CHANGELOG.md
+            git commit -m "CHANGELOG: $VERSION"
+          fi
 
       # --- Update website download URLs on the release branch ---
       # Touches two files:
@@ -225,6 +200,82 @@ jobs:
             --generate-notes \
             "${NOTES_FROM[@]}" \
             --title "v$VERSION"
+
+  # The quality gates that used to hold up the builds. They run beside them now; finalize
+  # waits for them before publishing.
+  checks:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v5
+        with:
+          ref: v${{ inputs.version }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: python/requirements*.txt
+
+      - name: Install Node dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: TypeScript check (renderer)
+        run: npx tsc --noEmit
+
+      - name: TypeScript check (electron)
+        run: npx tsc --noEmit -p tsconfig.electron.json
+
+      # python/requirements.txt installs ios-backup-core via `-e ../../ios-backup-core`.
+      # The expected layout is openextract/ and ios-backup-core/ as siblings on disk,
+      # so clone ios-backup-core one level above $GITHUB_WORKSPACE before pip runs.
+      # TODO: remove this step once ios-backup-core ships to PyPI and requirements.txt
+      # pins a versioned release instead of the editable path install.
+      - name: Clone ios-backup-core (sibling for editable install)
+        shell: bash
+        run: |
+          git clone --depth=1 \
+            https://github.com/charleswest775/ios-backup-core.git \
+            "$GITHUB_WORKSPACE/../ios-backup-core"
+
+      - name: Cache the generated backups' photos
+        uses: ./.github/actions/backupgen-media
+
+      # Run from python/ so pip resolves `-e ../../ios-backup-core` the same
+      # way it does locally (README tells devs to `cd python` first).
+      - name: Install Python dependencies
+        working-directory: python
+        run: pip install ruff pytest -r requirements.txt
+
+      - name: Python lint
+        run: ruff check python/
+
+      - name: Python tests
+        run: pytest python/tests/ -v
+
+      - name: Build verification
+        run: npm run build
+
+  # The backup corpus and every end-to-end suite against unsigned packaged builds of the tag
+  # (prerelease-check.yml). Publishing waits for it.
+  prerelease:
+    needs: preflight
+    permissions:
+      contents: read
+    uses: ./.github/workflows/prerelease-check.yml
+    with:
+      ref: v${{ inputs.version }}
 
   build-macos:
     needs: preflight
@@ -384,14 +435,13 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
-      # electron-builder signs an extraResources file only when the entry copies a
-      # directory (a single-file `from` skips the signing hook), and then only .exe files
-      # and the win.signExts extensions. The engine is a folder on Windows, so this
-      # covers every DLL and .pyd in it: Smart App Control refuses to load unsigned ones
-      # (#169), and the Microsoft Store requires every .exe and .dll to be signed. Check
-      # every PE file, found by content rather than extension, along with the installer;
-      # failing here keeps the release in draft. windows-app-control checks the installed
-      # app the same way, and loads it under App Control.
+      # build/sign-windows.js (afterPack) signs every DLL, .pyd and other non-.exe PE file in
+      # the packed app in one batch; electron-builder signs the .exe files, the installer
+      # and the uninstaller. Smart App Control refuses to load unsigned code (#169), and the
+      # Microsoft Store requires every .exe and .dll to be signed. Check every PE file, found
+      # by content rather than extension, along with the installer; failing here keeps the
+      # release in draft. windows-app-control checks the installed app the same way, and
+      # loads it under App Control.
       - name: Verify Authenticode signatures
         shell: pwsh
         run: |
@@ -530,9 +580,9 @@ jobs:
       tag: v${{ inputs.version }}
 
   finalize:
-    needs: [preflight, build-macos, build-windows, build-linux, windows-app-control, installers]
+    needs: [preflight, checks, prerelease, build-macos, build-windows, build-linux, windows-app-control, installers]
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: write
       pull-requests: write
@@ -579,6 +629,34 @@ jobs:
         run: |
           gh release edit "v${{ inputs.version }}" --draft=false
 
+      # winget, Chocolatey and Flatpak files for this version, from the published release's
+      # checksums and the CHANGELOG (scripts/release-files.mjs), so the sync PR carries them
+      # and there's no separate packaging PR. After publishing, and allowed to fail: the
+      # release matters more, and the files can still be done by hand (packaging/README.md).
+      - name: Add the store packaging files to the release branch
+        id: packaging
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          sha256_of() {
+            local name=$1 digest
+            digest=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" --jq ".assets[] | select(.name == \"$name\") | .digest // empty")
+            if [[ "$digest" == sha256:* ]]; then echo "${digest#sha256:}"; return; fi
+            # Older API answers have no digest: download the file and hash it.
+            gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" --pattern "$name" --output - | sha256sum | cut -d' ' -f1
+          }
+          EXE=$(sha256_of "OpenExtract-Setup-$VERSION.exe")
+          DEB=$(sha256_of "openextract_${VERSION}_amd64.deb")
+          echo "OpenExtract-Setup-$VERSION.exe sha256 $EXE"
+          echo "openextract_${VERSION}_amd64.deb sha256 $DEB"
+          node scripts/release-files.mjs packaging "$VERSION" "$(TZ="$RELEASE_TZ" date +%F)" --exe-sha256 "$EXE" --deb-sha256 "$DEB"
+          git add packaging
+          git -c user.name="github-actions[bot]" -c user.email="github-actions[bot]@users.noreply.github.com" \
+            commit -m "packaging: winget, Chocolatey and Flatpak for v$VERSION"
+          git push origin "HEAD:release/v$VERSION"
+
       # Open a PR so main picks up the version bump + website URL updates.
       # This is the only path for those changes to reach main under the
       # required-PR-review branch protection policy.
@@ -602,7 +680,16 @@ jobs:
             --base main \
             --head "release/v${{ inputs.version }}" \
             --title "chore: release v${{ inputs.version }}" \
-            --body "Auto-opened by the Release workflow after v${{ inputs.version }} artifacts were published. Merging this PR keeps \`main\` in sync: version bump in \`package.json\` and updated download URLs in \`website/static/index.html\`."
+            --body-file - <<EOF
+          Opened by the Release workflow after v${{ inputs.version }} was published. Merging it brings \`main\` up to date:
+
+          - the version in \`package.json\` and \`package-lock.json\`;
+          - \`## [${{ inputs.version }}]\` in \`CHANGELOG.md\`;
+          - the version pill and download links in \`website/static/index.html\` and \`website/static/vercel.json\` (openextract.app's download buttons give the old version until this merges);
+          - $([ "${{ steps.packaging.outcome }}" = success ] && echo "the winget, Chocolatey and Flatpak files in \`packaging/\`." || echo "**not** the winget, Chocolatey and Flatpak files: the workflow couldn't write them (see its log), so add them by hand as \`packaging/README.md\` says.")
+
+          Then follow RELEASING.md's steps after publishing.
+          EOF
 
       - name: Summary
         env:
@@ -617,3 +704,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Next step" >> $GITHUB_STEP_SUMMARY
           echo "Merge the [sync PR](https://github.com/${{ github.repository }}/pulls?q=is%3Apr+is%3Aopen+head%3Arelease%2Fv${{ inputs.version }}) to update \`main\`." >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.packaging.outcome }}" != success ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**The store packaging files weren't added** (see the step's log): add them to the release branch by hand (packaging/README.md)." >> $GITHUB_STEP_SUMMARY
+          fi

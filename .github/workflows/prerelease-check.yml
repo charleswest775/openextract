@@ -1,7 +1,7 @@
 name: Pre-release check
 
-# Run this by hand from the Actions tab before cutting a release: release.yml always tags
-# and publishes, so it can't be used as a dry run.
+# release.yml runs this on the new tag, alongside the signed builds, and publishes only if it
+# passes. Run it by hand from the Actions tab to check main or a branch at any time.
 #
 # On Linux, macOS and Windows it builds the engine and the app the way release.yml does,
 # but unsigned and unpublished, then
@@ -23,6 +23,19 @@ on:
       items:
         description: 'Public corpus items to fetch and test (comma-separated)'
         required: false
+        default: 'pub-hickman-13.3.1,pub-hickman-13.4.1,pub-hickman-15.3.1,pub-hickman-16.1.2,pub-hickman-17.3,pub-fcsc25-16.0'
+  # From release.yml. The defaults match workflow_dispatch's above; keep them in step.
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Tag to check out and test (release.yml passes the new release tag)'
+        type: string
+        default: ''
+      ios_backup_core_ref:
+        type: string
+        default: 'master'
+      items:
+        type: string
         default: 'pub-hickman-13.3.1,pub-hickman-13.4.1,pub-hickman-15.3.1,pub-hickman-16.1.2,pub-hickman-17.3,pub-fcsc25-16.0'
 
 permissions:
@@ -52,9 +65,14 @@ jobs:
     env:
       PYTHONUTF8: '1'
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # Inside the checkout, so the public backups' cache below has the same path on every
+      # system. Every corpus command (fetch, the tests, scripts/e2e/backups.py) reads it.
+      OPENEXTRACT_CORPUS_CACHE: ${{ github.workspace }}/.corpus-cache
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || '' }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -79,6 +97,9 @@ jobs:
           git clone --depth=1 --branch "$REF" \
             https://github.com/charleswest775/ios-backup-core.git \
             "$GITHUB_WORKSPACE/../ios-backup-core"
+
+      - name: Cache the generated backups' photos
+        uses: ./.github/actions/backupgen-media
 
       - name: Install Python dependencies and PyInstaller
         working-directory: python
@@ -105,13 +126,54 @@ jobs:
       - name: Package (unpacked, no publish)
         run: npx electron-builder --dir --publish never
 
-      - name: Fetch public backups
-        id: fetch
+      # The public backups (about 5 GB) come from their publishers' sites: usually 2 to 5
+      # minutes, sometimes far longer (18 on 2026-11-13). One copy of the downloads, shared
+      # by Linux, macOS and Windows, is kept in the Actions cache: the Linux job saves it on
+      # main, and every run restores it (branches can read main's caches). A cache shared
+      # between systems needs the same relative path on each, hence a folder in the checkout
+      # (Windows keeps the home folder on another drive). The key covers the chosen items'
+      # download details in corpus/manifest.json, parsed so line endings don't change it;
+      # fetch re-downloads anything the restored copy lacks or that no longer matches its hash.
+      - name: Choose the public backups
+        id: corpus
         env:
           ITEMS: ${{ inputs.items }}
         run: |
           # The end-to-end run needs pub-hickman-15.3.1 whatever the item list says.
-          python -m corpus.fetch fetch $(echo "$ITEMS,pub-hickman-15.3.1" | tr ',' '\n' | sort -u)
+          items=$(echo "$ITEMS,pub-hickman-15.3.1" | tr ',' '\n' | sed '/^$/d' | sort -u | tr '\n' ' ')
+          hash=$(python - $items <<'EOF'
+          import hashlib, json, sys
+          fetch = {item["key"]: item["fetch"] for item in json.load(open("corpus/manifest.json", encoding="utf-8"))["items"]}
+          chosen = {key: fetch[key] for key in sorted(sys.argv[1:])}
+          print(hashlib.sha256(json.dumps(chosen, sort_keys=True).encode()).hexdigest()[:16])
+          EOF
+          )
+          echo "Items: $items"
+          echo "items=$items" >> "$GITHUB_OUTPUT"
+          echo "key=corpus-public-$hash" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the public backups' downloads
+        id: corpus-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .corpus-cache/pub-*/download
+          key: ${{ steps.corpus.outputs.key }}
+          restore-keys: corpus-public-
+          enableCrossOsArchive: true
+
+      - name: Fetch public backups
+        id: fetch
+        env:
+          ITEMS: ${{ steps.corpus.outputs.items }}
+        run: python -m corpus.fetch fetch $ITEMS
+
+      - name: Save the public backups' downloads
+        if: matrix.os == 'ubuntu-latest' && github.ref == 'refs/heads/main' && steps.corpus-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .corpus-cache/pub-*/download
+          key: ${{ steps.corpus.outputs.key }}
+          enableCrossOsArchive: true
 
       - name: Corpus, packaged engine (public + generated)
         env:

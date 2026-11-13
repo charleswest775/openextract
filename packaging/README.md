@@ -14,11 +14,16 @@ Nothing here is published by itself.
 The whole release plan, including the stores and download sites outside this repo, is in
 [`RELEASING.md`](../RELEASING.md). For the packages here:
 
-1. Add `winget/<new version>/` (copy the last folder) and change the version,
-   URL, `InstallerSha256` and `ReleaseDate`. The checksum is on the release
-   page next to the `.exe`.
-2. In `chocolatey/`, change the version in `openextract.nuspec`, and the URL
-   and checksum in `tools/chocolateyinstall.ps1`.
+1. The Release workflow writes them after publishing (`scripts/release-files.mjs`)
+   and they reach `main` in the sync PR: `winget/<new version>/` (from the last
+   folder, with the new version, URL, `InstallerSha256` and `ReleaseDate`), the
+   version, URL and checksum in `chocolatey/`, and in `flathub/` the `.deb`
+   source, its `sha256` and a `<release>` in the metainfo. The metainfo's text
+   is the opening paragraph of the version's CHANGELOG section, or its bullets.
+2. If the run's summary says it couldn't, make the same changes by hand on
+   `release/vX.Y.Z` before merging the sync PR. The checksums are on the
+   release page next to each file, or
+   `gh api repos/charleswest775/openextract/releases/tags/vX.Y.Z --jq '.assets[] | "\(.name) \(.digest)"'`.
 3. The Windows stores workflow downloads the installer, checks the checksum,
    installs it silently, lists any unsigned files, and test-installs the
    Chocolatey package.
@@ -47,10 +52,11 @@ app, and looks for blocks in the CodeIntegrity event log.
 **If it fails,** the release stays a draft. The job summary lists unsigned
 files and blocked loads, and the `app-control-…` artifact has the engine's
 stderr, the event list and the policy. Usually something new in the engine
-or the app isn't being signed: a file type outside `win.signExts`, or code
-unpacked at run time. A DLL that keeps someone else's signature fails too,
-though Smart App Control would accept it; electron-builder re-signs every
-`.exe`, `.dll` and `.pyd` with ours, so that means one slipped past it.
+or the app isn't being signed, such as code unpacked at run time. A DLL
+that keeps someone else's signature fails too, though Smart App Control
+would accept it: every PE file is re-signed with ours (`build/sign-windows.js`
+signs the DLLs, `.pyd` files and any other non-`.exe` PE file in one batch;
+electron-builder signs the `.exe` files), so that means one slipped past.
 Fix the build and release again (delete the draft and its tag first).
 
 If the step "Check the policy blocks the canary" fails, the policy itself
