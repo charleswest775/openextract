@@ -21,6 +21,20 @@
 
 const KNOWN_FIXES = [
   {
+    id: 'backups-fail-in-0-15-0',
+    title: "OpenExtract 0.15.0 can't make backups",
+    area: 'backup',
+    seen: ['pymobiledevice3 is not installed. Run: pip install pymobiledevice3'],
+    // python/device_backup.py in 0.15.0: pymobiledevice3 11.54 imports pyimg4 on its way to a
+    // backup, pyimg4 reads its own package metadata, and the engine was built without it, so every
+    // backup failed and the import error was reported as pymobiledevice3 missing (OE-50, OE-51,
+    // OE-54). Installing pymobiledevice3 doesn't reach the app's own copy. The next version collects
+    // the metadata (scripts/bundle-engine.mjs) and no longer says this, hence `when`.
+    match: /pymobiledevice3 is not installed/,
+    when: /App: OpenExtract 0\.15\.0\b/,
+    text: "OpenExtract 0.15.0 can't make backups: a part it needs was left out when this version was built, so every backup stops at once and says pymobiledevice3 is not installed. Installing pymobiledevice3 yourself won't help, because OpenExtract uses its own copy. The next version fixes it. Until then, OpenExtract still opens backups normally, so make the backup with Finder on a Mac, or with Apple Devices or iTunes on Windows, then open it in OpenExtract. On Linux, the command pymobiledevice3 backup2 backup --full ~/iphone-backup makes one in that folder.",
+  },
+  {
     id: 'ios6-photos-stop-engine',
     title: 'Backups made by iOS 6 stop OpenExtract',
     area: 'open',
