@@ -167,6 +167,9 @@ export default {
       const buttons = await app.eval(() => [...document.querySelectorAll('button')].map(b => b.textContent.trim()));
       const albumMismatch = Object.entries(albums).filter(([a, n]) => !buttons.includes(`${a}${n}`));
       check('every album is listed with its photo count', albumMismatch.length === 0 && buttons.includes(`All Photos${key.photos.length}`), { albumMismatch });
+      // Favorites: the favorites All Photos lists (nothing in the made-up backups is hidden).
+      const favorites = key.photos.filter(p => p.favorite && !p.trashed).length;
+      check(`Favorites is listed with its ${favorites} photos`, buttons.includes(`Favorites${favorites}`), buttons.find(b => b.startsWith('Favorites')));
       const grid = await timed('photos grid paged to the end', () => app.eval(async () => {
         const g = [...document.querySelectorAll('div.grid')].find(g => g.querySelector('.aspect-square'));
         if (!g) return { tiles: 0 };
