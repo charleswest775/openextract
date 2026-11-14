@@ -8,6 +8,7 @@ import { initUpdater } from './updater';
 import { exportMessagesPdf, PdfExportMethod, removeStaleStagingDirs } from './pdfExport';
 import { FeedbackRecorder } from './feedback';
 import { FeedbackReports } from './feedbackReports';
+import { installFolderFor, installFolderWarning, isInsideFolder, resolveReal } from './installFolder';
 
 // Extensions that start a program or script when opened, on Windows, macOS or Linux.
 // shell:openPath refuses these: it opens media and documents from a backup, and a
@@ -230,6 +231,59 @@ function getPythonArgs(): string[] {
   return [];
 }
 
+// ── Never saving inside the program folder ──────────────────────────────────
+// Every update deletes the folder OpenExtract is installed in, and anything saved
+// inside it (installFolder.ts has the details). Development builds run from the
+// repo and electron's own folder, which no update touches, so they're not checked.
+
+function insideInstallFolder(chosen: string): boolean {
+  if (isDev) return false;
+  try {
+    const installFolder = resolveReal(installFolderFor(app.getPath('exe')));
+    return isInsideFolder(resolveReal(chosen), installFolder);
+  } catch {
+    return false; // can't tell where we're installed: don't stand in the way of a save
+  }
+}
+
+function documentsFolder(): string | undefined {
+  try {
+    return app.getPath('documents');
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Runs a folder or file picker until the choice is outside the program folder.
+ * A choice inside it gets a short explanation, then the picker again, opened at
+ * `retryIn(choice)` so the same click doesn't land in the same place. Null when
+ * the user cancels either one.
+ */
+async function pickOutsideInstallFolder(
+  pick: (retryIn?: string) => Promise<string | null | undefined>,
+  retryIn: (chosen: string) => string | undefined,
+): Promise<string | null> {
+  let startIn: string | undefined;
+  for (;;) {
+    const chosen = await pick(startIn);
+    if (!chosen) return null;
+    if (!insideInstallFolder(chosen)) return chosen;
+    const { message, detail } = installFolderWarning();
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      message,
+      detail,
+      buttons: ['Choose another folder', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    });
+    if (response !== 0) return null;
+    startIn = retryIn(chosen);
+  }
+}
+
 // ── Keeping the computer awake during a backup ──────────────────────────────
 // A big backup runs for hours while nobody touches the computer. Windows 11 laptops
 // sleep after 3 minutes idle on battery and 5 plugged in, Macs on battery soon after
@@ -395,6 +449,8 @@ app.whenReady().then(async () => {
   });
 
   // ── Native dialogs ──────────────────────────────────────────────────────
+  // Open a backup folder only reads, so it isn't checked against the program folder:
+  // a backup that's already in there must stay openable, so its data can be saved elsewhere.
   ipcMain.handle('dialog:selectFolder', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openDirectory'],
@@ -453,21 +509,38 @@ app.whenReady().then(async () => {
     applyTextSize();
   });
 
+  // Back up my iPhone and every export save through these two, so neither accepts a
+  // place inside the program folder, which every update deletes (see installFolder.ts).
   ipcMain.handle('dialog:saveFolder', async () => {
-    const result = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openDirectory', 'createDirectory'],
-      title: 'Choose Export Location',
-    });
-    return result.canceled ? null : result.filePaths[0];
+    return pickOutsideInstallFolder(
+      async (retryIn) => {
+        const result = await dialog.showOpenDialog(mainWindow, {
+          properties: ['openDirectory', 'createDirectory'],
+          title: 'Choose Export Location',
+          ...(retryIn ? { defaultPath: retryIn } : {}),
+        });
+        return result.canceled ? null : result.filePaths[0];
+      },
+      () => documentsFolder(),
+    );
   });
 
   ipcMain.handle('dialog:saveFile', async (_event: any, options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => {
-    const result = await dialog.showSaveDialog(mainWindow, {
-      title: options.title || 'Save File',
-      defaultPath: options.defaultPath,
-      filters: options.filters,
-    });
-    return result.canceled ? null : result.filePath;
+    return pickOutsideInstallFolder(
+      async (retryIn) => {
+        const result = await dialog.showSaveDialog(mainWindow, {
+          title: options.title || 'Save File',
+          defaultPath: retryIn ?? options.defaultPath,
+          filters: options.filters,
+        });
+        return result.canceled ? null : result.filePath;
+      },
+      // Keep the name they typed, in Documents.
+      (chosen) => {
+        const documents = documentsFolder();
+        return documents ? path.join(documents, path.basename(chosen)) : undefined;
+      },
+    );
   });
 
   ipcMain.handle('fs:writeFile', async (_event: any, filePath: string, content: string) => {

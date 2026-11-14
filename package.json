@@ -1,6 +1,6 @@
 {
   "name": "openextract",
-  "version": "0.14.0",
+  "version": "0.15.1",
   "description": "Free, open-source iPhone backup extractor",
   "main": "dist-electron/main.js",
   "author": "OpenExtract Contributors",
@@ -69,6 +69,7 @@
       "repo": "openextract",
       "releaseType": "release"
     },
+    "afterPack": "build/sign-windows.js",
     "afterSign": "build/notarize.js",
     "mac": {
       "hardenedRuntime": true,
@@ -84,10 +85,6 @@
     },
     "win": {
       "target": "nsis",
-      "signExts": [
-        ".dll",
-        ".pyd"
-      ],
       "azureSignOptions": {
         "publisherName": "Charles West",
         "endpoint": "https://eus.codesigning.azure.net/",

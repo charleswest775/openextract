@@ -90,10 +90,21 @@ export async function launch(target, { profile, extraArgs = [], env = {} } = {})
   // Links the app opens in the browser are recorded instead (globalThis.__opened, read with
   // App.opened()): a real browser would open on the tester's screen, and on Linux the one it
   // starts keeps the app from closing, so the run hangs.
-  await app.evaluate(({ shell }) => {
-    globalThis.__opened = [];
-    shell.openExternal = async url => { globalThis.__opened.push(['external', url]); };
-  });
+  // Right after launch the main process can still swap its execution context, and an
+  // evaluate that lands then fails with "Execution context was destroyed" (seen on GitHub's
+  // macOS runners on the first launch of a run). Wait a moment and try again.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await app.evaluate(({ shell }) => {
+        globalThis.__opened = [];
+        shell.openExternal = async url => { globalThis.__opened.push(['external', url]); };
+      });
+      break;
+    } catch (e) {
+      if (attempt >= 10 || !/Execution context was destroyed/.test(String(e?.message))) throw e;
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+  }
   const page = await app.firstWindow();
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));

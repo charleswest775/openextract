@@ -40,6 +40,35 @@ export default {
       const opened = await app.waitFor(t => !document.querySelector('[id^="result-"]') && document.body.innerText.includes(t), msg.text.slice(0, 60), 15_000);
       check('Enter opens the message in its conversation', !!opened, (await app.text()).slice(0, 300));
 
+      // A WhatsApp message (when the backup has WhatsApp), by words found nowhere else in the
+      // backup, opens in its WhatsApp chat.
+      const plain = /^[\w\s,.'!?-]+$/;
+      const elsewhere = [...key.messages.map(m => m.text), ...key.notes.map(n => `${n.title} ${n.text}`),
+        ...key.browser_history.map(v => `${v.title} ${v.url}`), ...key.contacts.map(c => `${c.first} ${c.last} ${c.organization}`)]
+        .map(t => (t || '').toLowerCase());
+      const waPick = (key.whatsapp?.messages ?? []).filter(m => m.kind === 'text' && plain.test(m.text) && m.text.split(' ').length >= 6)
+        .map(m => ({ m, phrase: m.text.split(' ').slice(1, 5).join(' ') }))
+        .find(({ m, phrase }) => {
+          const words = phrase.toLowerCase().split(/\s+/);
+          return !elsewhere.some(t => words.every(w => t.includes(w)))
+            && key.whatsapp.messages.filter(o => o !== m && words.every(w => (o.text || '').toLowerCase().includes(w))).length === 0;
+        });
+      if (key.whatsapp) {
+        await app.home();
+        if (check('the answer key has a WhatsApp message to look for', !!waPick)) {
+          const s5 = await search(waPick.phrase);
+          const waChips = await app.eval(() => Object.fromEntries([...document.querySelectorAll('button[aria-pressed]')]
+            .map(c => c.textContent.trim().match(/^(.+?)([\d,]+)$/)).filter(Boolean).map(m => [m[1], Number(m[2].replace(/,/g, ''))])));
+          check(`"${waPick.phrase}" finds its WhatsApp message`, s5.settled && waChips.WhatsApp === 1, waChips);
+          await box().focus();
+          await app.page.keyboard.press('ArrowDown');
+          await app.page.keyboard.press('Enter');
+          const inChat = await app.waitFor(t => !document.querySelector('[id^="result-"]') && document.body.innerText.includes(t)
+            && /\d+ chats?/.test(document.body.innerText), waPick.m.text.slice(0, 60), 15_000);
+          check('Enter opens it in its WhatsApp chat', !!inChat, (await app.text()).slice(0, 300));
+        }
+      }
+
       // Accents: "Lucia" finds Lucía.
       await app.home();
       const s2 = await search('lucia navarro');

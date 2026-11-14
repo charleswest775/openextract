@@ -4,7 +4,8 @@ import {
 } from '../shared/Icons';
 import { gatherPeople } from '../people/gather';
 import { plural } from '../../lib/saveData';
-import { DATA_SECTIONS, whatsappUnreadable, type ExploreContext, type Icon, type Tab } from './sections';
+import { podcastsHomeLine } from '../../lib/podcasts';
+import { DATA_SECTIONS, podcastsUnreadable, whatsappUnreadable, type ExploreContext, type Icon, type Tab } from './sections';
 
 function monthYear(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -68,6 +69,8 @@ export default function BackupHome({ ctx, onSearch }: { ctx: ExploreContext; onS
       : overview.whatsapp_status === 'error'
         ? "Couldn't be read: open it to see why"
         : overview.total_whatsapp_chats ? plural(overview.total_whatsapp_chats, 'chat') : 'Chats, groups and calls';
+    // Podcasts' too: the shows followed, or that it couldn't be read
+    lines.podcasts = podcastsHomeLine(overview);
   }
 
   const tiles: Tile[] = [
@@ -76,6 +79,7 @@ export default function BackupHome({ ctx, onSearch }: { ctx: ExploreContext; onS
       value: s.id === 'people' ? (peopleCount || undefined)
         // An unreadable WhatsApp has no number to show, only why
         : s.id === 'whatsapp' && whatsappUnreadable(overview) ? undefined
+        : s.id === 'podcasts' && podcastsUnreadable(overview) ? undefined
         : s.count && overview ? s.count(overview) : undefined,
       line: lines[s.id] ?? '',
     })),
@@ -92,9 +96,9 @@ export default function BackupHome({ ctx, onSearch }: { ctx: ExploreContext; onS
       default: return '';
     }
   };
-  // WhatsApp isn't listed as missing: most iPhones don't have it, so a backup without it lacks nothing
+  // WhatsApp and Podcasts aren't listed as missing: many iPhones don't use them, so a backup without them lacks nothing
   const missing = overview
-    ? DATA_SECTIONS.filter(s => s.id !== 'people' && s.id !== 'whatsapp' && !has(s.id) && (s.id !== 'browser_history' || !hasBrowserHistory))
+    ? DATA_SECTIONS.filter(s => s.id !== 'people' && s.id !== 'whatsapp' && s.id !== 'podcasts' && !has(s.id) && (s.id !== 'browser_history' || !hasBrowserHistory))
     : [];
 
   const tasks: { icon: Icon; label: string; tab: Tab }[] = [

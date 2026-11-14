@@ -244,6 +244,13 @@ function uninstallEntry() {
 async function windows() {
   setSuite('windows');
   updateMetadata('latest.yml');
+  // Updates fetch their own copy of the installer, so the release's download counts tell them
+  // from new installs (scripts/update-feed.mjs). Releases before v0.15.0 don't have one.
+  const feed = path.join(DIR, 'latest.yml');
+  if (fs.existsSync(feed)) {
+    check('latest.yml points updates at OpenExtract-Update-<version>.exe',
+      new RegExp(`^path: OpenExtract-Update-${VERSION.replace(/\./g, '\\.')}\\.exe\r?$`, 'm').test(fs.readFileSync(feed, 'utf-8')));
+  }
   const installer = find(DIR, /^OpenExtract[- ]Setup[- ][\d.]+\.exe$/);
   if (!check('an NSIS installer was built', !!installer, files(DIR))) return;
   // Settings from an earlier run must survive upgrades and uninstalls.

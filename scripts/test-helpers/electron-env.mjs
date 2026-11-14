@@ -229,15 +229,28 @@ export function createElectron({
     },
   };
 
-  const dialogResults = { open: { canceled: true, filePaths: [] }, save: { canceled: true, filePath: '' } };
+  // What each dialog answers. An array is a queue, one answer per call, the last one repeating.
+  const dialogResults = {
+    open: { canceled: true, filePaths: [] },
+    save: { canceled: true, filePath: '' },
+    messageBox: { response: 0 },
+  };
+  const answer = key => {
+    const r = dialogResults[key];
+    return Array.isArray(r) ? (r.length > 1 ? r.shift() : r[0]) : r;
+  };
   const dialog = {
     async showOpenDialog(win, options) {
       record('dialog.showOpenDialog', win, options);
-      return dialogResults.open;
+      return answer('open');
     },
     async showSaveDialog(win, options) {
       record('dialog.showSaveDialog', win, options);
-      return dialogResults.save;
+      return answer('save');
+    },
+    async showMessageBox(win, options) {
+      record('dialog.showMessageBox', win, options);
+      return answer('messageBox');
     },
   };
 

@@ -136,17 +136,8 @@ jobs:
             "$GITHUB_WORKSPACE/../ios-backup-core"
 
       # Maren's 170 public-domain photos come from Wikimedia Commons on first use (~140 MB).
-      - name: Key for the generated backups' photos
-        id: media
-        run: |
-          echo "BACKUPGEN_MEDIA_CACHE=$RUNNER_TEMP/backupgen-media" >> "$GITHUB_ENV"
-          echo "key=backupgen-media-${{ runner.os }}-$(python -c "import hashlib, glob; print(hashlib.sha256(b''.join(open(f, 'rb').read() for f in sorted(glob.glob('../ios-backup-core/backupgen/personas/*/photos.json')))).hexdigest()[:16])")" >> "$GITHUB_OUTPUT"
-
       - name: Cache the generated backups' photos
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.BACKUPGEN_MEDIA_CACHE }}
-          key: ${{ steps.media.outputs.key }}
+        uses: ./.github/actions/backupgen-media
 
       # Run from python/ so pip resolves `-e ../../ios-backup-core` the same
       # way it does locally (README tells devs to `cd python` first).
@@ -209,17 +200,8 @@ jobs:
           (cd python && pip install -r requirements.txt)
           echo "OPENEXTRACT_PYTHON=$(python -c 'import sys; print(sys.executable)')" >> "$GITHUB_ENV"
 
-      - name: Key for the generated backups' photos
-        id: media
-        run: |
-          echo "BACKUPGEN_MEDIA_CACHE=$RUNNER_TEMP/backupgen-media" >> "$GITHUB_ENV"
-          echo "key=backupgen-media-${{ runner.os }}-$(python -c "import hashlib, glob; print(hashlib.sha256(b''.join(open(f, 'rb').read() for f in sorted(glob.glob('../ios-backup-core/backupgen/personas/*/photos.json')))).hexdigest()[:16])")" >> "$GITHUB_OUTPUT"
-
       - name: Cache the generated backups' photos
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.BACKUPGEN_MEDIA_CACHE }}
-          key: ${{ steps.media.outputs.key }}
+        uses: ./.github/actions/backupgen-media
 
       - name: Generate the test backups
         run: python scripts/e2e/backups.py e2e-backups.json

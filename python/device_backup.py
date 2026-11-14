@@ -217,6 +217,23 @@ _APPLE_DEVICES_DID_NOT_START = (
 )
 
 
+# pymobiledevice3, or something it imports, didn't load. Only a source checkout can be missing
+# pymobiledevice3 itself, and there the pip hint is right. Anything else is a broken install or
+# engine build that pip can't fix: 0.15.0 told everyone to install pymobiledevice3 when its own
+# copy couldn't load pyimg4 (OE-50, OE-51, OE-54). The traceback stays in the engine log.
+_DEVICE_CODE_DID_NOT_LOAD = (
+    "OpenExtract couldn't load the part it uses to talk to your iPhone, so it can't make a "
+    "backup. Install the latest version from openextract.app, then try again."
+)
+
+
+def _device_code_import_error(e: ImportError) -> RuntimeError:
+    """The error to show when importing pymobiledevice3 fails."""
+    if e.name == "pymobiledevice3" and not getattr(sys, "frozen", False):
+        return RuntimeError("pymobiledevice3 is not installed. Run: pip install pymobiledevice3")
+    return RuntimeError(_DEVICE_CODE_DID_NOT_LOAD)
+
+
 # "Trust This Computer?" Every pairing request carries a newly generated certificate chain,
 # and the iPhone asks again for each new one. pymobiledevice3 pairs as a side effect of
 # connecting and gives up as soon as the iPhone is locked or asking for its passcode, so
@@ -461,10 +478,8 @@ class DeviceBackupManager:
         try:
             from pymobiledevice3.usbmux import list_devices
             from pymobiledevice3.lockdown import create_using_usbmux
-        except ImportError:
-            raise RuntimeError(
-                "pymobiledevice3 is not installed. Run: pip install pymobiledevice3"
-            )
+        except ImportError as e:
+            raise _device_code_import_error(e) from e
 
         devices = []
         seen_udids: set = set()
@@ -683,10 +698,8 @@ class DeviceBackupManager:
                 NotEnoughDiskSpaceError,
                 PasswordRequiredError,
             )
-        except ImportError:
-            raise RuntimeError(
-                "pymobiledevice3 is not installed. Run: pip install pymobiledevice3"
-            )
+        except ImportError as e:
+            raise _device_code_import_error(e) from e
 
         os.makedirs(output_dir, exist_ok=True)
 

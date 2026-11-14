@@ -4,6 +4,7 @@
  */
 import { exportMessagesPdf, saveFolder, sidecarCall } from './ipc';
 import { chatName } from './whatsapp';
+import type { PodcastExportResult, PodcastSaveFormat } from '../types/podcasts';
 
 /** What a finished save reports in its notice. */
 export interface SaveResult {
@@ -230,5 +231,24 @@ export async function saveWhatsAppChats(
     title: `Saved ${plural(result.message_count, 'WhatsApp message')}`,
     detail: `${plural(chats.length, 'chat')} in ${plural(result.files.length, 'file')}`,
     path: result.files.length === 1 ? result.files[0] : outputDir,
+  };
+}
+
+// ── Podcasts ───────────────────────────────────────────────────────────────────
+
+/**
+ * Save the podcasts into a folder the person picks: the followed shows as a
+ * subscription list another podcast app imports (OPML), or every show and
+ * episode as spreadsheets. The engine writes the files and never overwrites
+ * one; nothing to save comes back as { error, empty_reason } and is reported.
+ */
+export async function savePodcasts(udid: string, format: PodcastSaveFormat): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const result = checkEngineResult(await sidecarCall<PodcastExportResult>('export_podcasts', { udid, output_dir: outputDir, format }));
+  return {
+    title: `Saved ${plural(result.count ?? 0, 'podcast')}`,
+    detail: format === 'opml' ? 'Subscription list for another podcast app' : 'Spreadsheets of the shows and their episodes',
+    path: result.path ?? result.files?.[0] ?? outputDir,
   };
 }

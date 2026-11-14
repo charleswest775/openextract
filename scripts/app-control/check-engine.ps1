@@ -69,7 +69,7 @@ try {
   if ($opened.status -ne 'open') { throw "open_backup returned '$($opened.status)', not 'open'" }
 
   # Read from each part, so the engine loads what each one needs.
-  foreach ($method in 'list_conversations', 'list_whatsapp_chats', 'list_contacts', 'list_calls', 'list_notes', 'list_voicemails', 'list_albums') {
+  foreach ($method in 'list_conversations', 'list_whatsapp_chats', 'list_podcasts', 'list_contacts', 'list_calls', 'list_notes', 'list_voicemails', 'list_albums') {
     $result = Invoke-Engine $method @{ udid = $udid } -TimeoutSec 300
     if ($result.error) { throw "$method returned an error: $($result.error)" }
   }

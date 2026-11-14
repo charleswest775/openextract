@@ -80,6 +80,9 @@ jobs:
         with:
           ref: ${{ inputs.ios_backup_core_ref || 'master' }}
 
+      - name: Cache the generated backups' photos
+        uses: ./.github/actions/backupgen-media
+
       # Before the policy is on: this Python and its packages aren't ours, so it blocks them.
       - name: Generate the encrypted Maren backup
         id: backup

@@ -85,3 +85,35 @@ test('the message matches the engine', () => {
   const said = engine.match(/^UNFINISHED = \(\n((?:\s+"[^"]*"\n)+)\)/m)[1];
   assert.equal(said.split('\n').map(l => l.trim().replace(/^"|"$/g, '')).join(''), UNFINISHED_MESSAGE);
 });
+
+// A recent backup whose folder was moved, renamed or deleted, or is on a drive that isn't
+// plugged in (OE-40). The engine says so behind a prefix, and the home screen offers Find it.
+test("a backup that isn't where it was gets its words without the prefix or the title's sentence", () => {
+  const { backupMissingMessage } = load('src/lib/foundBackups.ts');
+  assert.equal(
+    backupMissingMessage("BACKUP_MISSING: OpenExtract can't find this backup. It was in E:\\Backups\\A, and that folder isn't there now."),
+    "It was in E:\\Backups\\A, and that folder isn't there now.");
+  // Worded differently some day: shown whole rather than lost.
+  assert.equal(backupMissingMessage('BACKUP_MISSING: Something new.'), 'Something new.');
+});
+
+test("each of the engine's missing-backup messages says more than the title", () => {
+  const { backupMissingMessage } = load('src/lib/foundBackups.ts');
+  const engine = fs.readFileSync(path.join(root, 'python', 'backup.py'), 'utf-8');
+  assert.match(engine, /return ValueError\(f"\{BACKUP_MISSING\} OpenExtract can't find this backup\. \{where\}"\)/);
+  assert.equal(backupMissingMessage("BACKUP_MISSING: OpenExtract can't find this backup. It isn't in the usual backup folders on this computer."),
+    "It isn't in the usual backup folders on this computer.");
+});
+
+test('any other open error is left to the usual message', () => {
+  const { backupMissingMessage } = load('src/lib/foundBackups.ts');
+  for (const error of ['Failed to decrypt backup: wrong password', 'FULL_DISK_ACCESS_REQUIRED: macOS is blocking', '', null, undefined]) {
+    assert.equal(backupMissingMessage(error), null);
+  }
+});
+
+test("the missing-backup prefix matches the engine's", () => {
+  const { BACKUP_MISSING_PREFIX } = load('src/lib/foundBackups.ts');
+  const engine = fs.readFileSync(path.join(root, 'python', 'backup.py'), 'utf-8');
+  assert.equal(engine.match(/^BACKUP_MISSING = "([^"]+)"/m)[1], BACKUP_MISSING_PREFIX);
+});

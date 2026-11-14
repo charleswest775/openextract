@@ -10,7 +10,9 @@ message recovery, a copy of Einstein's backup with a few messages moved to
 "Recently Deleted" or orphaned, which backupgen can't write. For WhatsApp,
 which backupgen doesn't write either, a copy of Einstein's backup with
 WhatsApp added and an encrypted backup holding only WhatsApp
-(whatsapp_backup.py).
+(whatsapp_backup.py). For Podcasts, likewise: a copy of Einstein's backup
+with an Apple Podcasts library added, and an encrypted backup holding only
+that library (podcasts_backup.py).
 """
 
 from __future__ import annotations
@@ -51,6 +53,7 @@ from corpus.synthetic import (  # noqa: E402
 )
 from sidecar_client import ProtocolError, SidecarClient, SidecarError  # noqa: E402
 import whatsapp_backup  # noqa: E402
+import podcasts_backup  # noqa: E402
 
 MAREN = "syn-maren-ios26-plain"
 MAREN_ENCRYPTED = "syn-maren-ios26-encrypted"
@@ -347,6 +350,14 @@ class BackupEngine(Engine):
     def notes(self) -> list[dict]:
         return self.rpc("list_notes")["notes"]
 
+    @cached_property
+    def podcasts(self) -> list[dict]:
+        return self.rpc("list_podcasts")["podcasts"]
+
+    @cached_property
+    def podcast_episodes(self) -> list[dict]:
+        return self.rpc("list_podcast_episodes")["episodes"]
+
 
 class ContractRuntime:
     """The session's engines: one per backup, started on first use and shared by every test."""
@@ -357,6 +368,7 @@ class ContractRuntime:
         self._failures: dict[str, str] = {}
         self._recovery_plan: Optional[RecoveryPlan] = None
         self._whatsapp_plans: dict[str, WhatsAppPlan] = {}
+        self._podcast_plans: dict[str, PodcastPlan] = {}
 
     def _get(self, name: str, start: Callable[[], Engine]) -> Engine:
         if name in self._failures:  # don't wait for a hung engine again in every test
@@ -425,6 +437,36 @@ class ContractRuntime:
         """An engine with a WhatsApp backup open (see whatsapp_backup.py); ``.plan`` says what's in it."""
         plan = self.whatsapp_plan(encrypted)
         name = "whatsapp-encrypted" if encrypted else "whatsapp"
+        engine = self._get(name, lambda: BackupEngine(name, plan.backup_dir, plan.udid, plan.password))
+        engine.plan = plan
+        return engine
+
+    def podcast_plan(self, encrypted: bool = False) -> "PodcastPlan":
+        """The Podcasts backup (a copy of Einstein's, or an encrypted one), built on first use."""
+        key = "encrypted" if encrypted else "plain"
+        if key not in self._podcast_plans:
+            problem = podcasts_backup.library_problem()
+            if problem:
+                skip_or_fail(f"no Podcasts test backup: {problem}")
+            folder = self._tmp_factory.mktemp(f"podcasts-{key}")
+            scenario = podcasts_backup.build(folder / "parts")
+            if encrypted:
+                if backupgen_root() is None:
+                    skip_or_fail("no encrypted Podcasts test backup: ios-backup-core's backupgen wasn't found; "
+                                 "set OPENEXTRACT_IOS_BACKUP_CORE")
+                backup_dir = podcasts_backup.make_encrypted(folder, scenario)
+                plan = PodcastPlan(backup_dir, podcasts_backup.ENCRYPTED_UDID, podcasts_backup.PASSWORD, scenario)
+            else:
+                _, source = generated_backup(EINSTEIN)
+                backup_dir = podcasts_backup.make_einstein_copy(source, folder / podcasts_backup.PLAIN_UDID, scenario)
+                plan = PodcastPlan(backup_dir, podcasts_backup.PLAIN_UDID, None, scenario)
+            self._podcast_plans[key] = plan
+        return self._podcast_plans[key]
+
+    def podcasts(self, encrypted: bool = False) -> BackupEngine:
+        """An engine with a Podcasts backup open (see podcasts_backup.py); ``.plan`` says what's in it."""
+        plan = self.podcast_plan(encrypted)
+        name = "podcasts-encrypted" if encrypted else "podcasts"
         engine = self._get(name, lambda: BackupEngine(name, plan.backup_dir, plan.udid, plan.password))
         engine.plan = plan
         return engine
@@ -548,6 +590,16 @@ class WhatsAppPlan:
     udid: str
     password: Optional[str]
     scenario: "whatsapp_backup.Scenario"
+
+
+# ── A backup with Podcasts ───────────────────────────────────────────────────
+
+@dataclass
+class PodcastPlan:
+    backup_dir: Path
+    udid: str
+    password: Optional[str]
+    scenario: "podcasts_backup.Scenario"
 
 
 # ── Small checks ─────────────────────────────────────────────────────────────

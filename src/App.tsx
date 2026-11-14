@@ -6,6 +6,7 @@ import BackupFlow from './components/backup/BackupFlow';
 import PasswordDialog from './components/shared/PasswordDialog';
 import BackupChooserDialog from './components/shared/BackupChooserDialog';
 import type { RecentSession } from './lib/appState';
+import { backupMissingMessage } from './lib/foundBackups';
 import FullDiskAccessDialog, { FULL_DISK_ACCESS_PREFIX } from './components/shared/FullDiskAccessDialog';
 import UpdateNotice from './components/shared/UpdateNotice';
 import SharePrompt from './components/shared/SharePrompt';
@@ -77,6 +78,35 @@ export default function App() {
     }
   }, [backup]);
 
+  // "Open a backup folder" on the home screen, and Find it on a backup that isn't
+  // where it was. Opening it again saves its new folder in the recent list.
+  const browseForBackup = useCallback(async () => {
+    setOpenError(null);
+    const path = await window.openextract.selectFolder();
+    if (!path) return;
+    try {
+      const found = await backup.listBackups(path, true);
+      if (found.length === 0) {
+        setOpenError(`No iPhone backups found in ${path}. Pick the parent folder that contains a UDID-named subfolder (e.g. MobileSync/Backup).`);
+        return;
+      }
+      if (found.length > 1) {
+        // Several backups in the picked folder — let the user choose
+        // rather than silently opening whichever one is listed first (#81).
+        setBrowseChoices({ folder: path, backups: found });
+        return;
+      }
+      const b = found[0];
+      await openAndNavigate(b.udid, undefined, b.backup_dir, undefined, b);
+    } catch (e: any) {
+      setOpenError(e?.message || 'Failed to read backup folder.');
+    }
+  }, [backup, openAndNavigate]);
+
+  // A backup that isn't where it was (moved, or on a drive that isn't plugged in): its
+  // words, shown with Find it. null for any other error.
+  const missingBackup = backupMissingMessage(openError);
+
   const handlePasswordSubmit = useCallback(async (password: string) => {
     if (!pendingOpen) return;
     setUnlocking(true);
@@ -114,28 +144,7 @@ export default function App() {
             await openAndNavigate(b.udid, undefined, b.backup_dir, undefined, b);
           }}
           onCreateBackup={() => setScreen('create-backup')}
-          onBrowseForBackup={async () => {
-            setOpenError(null);
-            const path = await window.openextract.selectFolder();
-            if (!path) return;
-            try {
-              const found = await backup.listBackups(path, true);
-              if (found.length === 0) {
-                setOpenError(`No iPhone backups found in ${path}. Pick the parent folder that contains a UDID-named subfolder (e.g. MobileSync/Backup).`);
-                return;
-              }
-              if (found.length > 1) {
-                // Several backups in the picked folder — let the user choose
-                // rather than silently opening whichever one is listed first (#81).
-                setBrowseChoices({ folder: path, backups: found });
-                return;
-              }
-              const b = found[0];
-              await openAndNavigate(b.udid, undefined, b.backup_dir, undefined, b);
-            } catch (e: any) {
-              setOpenError(e?.message || 'Failed to read backup folder.');
-            }
-          }}
+          onBrowseForBackup={browseForBackup}
         />
       )}
 
@@ -195,9 +204,16 @@ export default function App() {
             style={{ background: 'var(--error)' }}
           >!</span>
           <div className="flex-1 min-w-0">
-            <div className="font-medium mb-0.5">Couldn't open backup</div>
-            <div className="text-xs text-text-secondary break-words">{openError}</div>
-            <ReportProblemButton error={openError} area="open_backup" className="mt-1.5" />
+            <div className="font-medium mb-0.5">{missingBackup ? "Can't find this backup" : "Couldn't open backup"}</div>
+            <div className="text-xs text-text-secondary break-words">{missingBackup ?? openError}</div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+              {missingBackup && (
+                <button type="button" onClick={browseForBackup} className="text-xs font-medium text-accent hover:underline">
+                  Find it
+                </button>
+              )}
+              <ReportProblemButton error={openError} area="open_backup" />
+            </div>
           </div>
           <button
             onClick={() => setOpenError(null)}

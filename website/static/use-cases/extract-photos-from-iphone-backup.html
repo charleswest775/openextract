@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Extract photos from an iPhone backup, free — OpenExtract</title>
+  <meta name="description" content="Save every photo and video in an iPhone backup to your PC or Mac as the original files, in folders by month with their real dates. Free, open source." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/extract-photos-from-iphone-backup" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/extract-photos-from-iphone-backup" />
+  <meta property="og:title" content="Extract photos from an iPhone backup, free" />
+  <meta property="og:description" content="Open an iPhone backup and save its whole camera roll as the original files, sorted by month." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Extract photos from an iPhone backup, free",
+    "description": "Save every photo and video in an iPhone backup to your PC or Mac as the original files, in folders by month with their real dates. Free, open source.",
+    "url": "https://www.openextract.app/use-cases/extract-photos-from-iphone-backup",
+    "datePublished": "2026-11-12",
+    "dateModified": "2026-11-12",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/home-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Do I need an encrypted backup for photos?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. The camera roll is in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Why are some of my photos missing?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "With iCloud Photos on, and especially with Optimize iPhone Storage, many full-size photos live only in iCloud, so the iPhone's backup doesn't have them. OpenExtract counts only the photos that are in the backup and says how many more are only in iCloud. Those you download from iCloud instead."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Are the photos the original quality?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract copies the files as they are in the backup, so photos keep their format, resolution and EXIF details such as the camera and, where the phone recorded it, the place. HEIC photos stay HEIC."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Will the dates be right?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. The photos go into a folder for each month (for example 2025/07), and every saved file gets the date it was taken as its file date, so Finder, File Explorer and photo apps sort them in the order you took them."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I save one album?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Not yet. You can browse each album in the app, but Save all saves every photo and video in the backup."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it work without iCloud?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract reads a backup saved on your own Mac or PC, so you don't need iCloud, an Apple ID sign-in or the phone itself once the backup exists. It can't read an iCloud backup."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does anything get uploaded?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. It goes online only when you let it: to check for a new version, if you allow it (you can turn that off in Settings); to send a problem report or a thank-you, when you click Send; and on Windows, to install Apple's free Apple Devices app from Microsoft, if you ask it to, for backing up an iPhone. Nothing from inside your backup goes with any of them."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it really free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. The code is on GitHub."
+        }
+      }
+    ]
+  }
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 4 min</div>
+    <h1>Extract photos<br />from an <span class="it">iPhone backup</span>.</h1>
+    <p class="page-head__lede">Open the backup in OpenExtract, a free app, and save every photo and video in it to your Windows PC or Mac in one go: the original files, in a folder for each month, each dated the day it was taken. No iCloud, no account, and an ordinary backup is enough.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <p>An iPhone backup made by Finder, iTunes or the Apple Devices app holds the phone's camera roll, but you can't just open it: the files are renamed to long strings of letters and numbers, with no names, folders or dates you'd recognise. That matters most when the phone is lost, broken or wiped and the backup is all that's left, or when you'd rather not restore a whole phone just to get the pictures. Most of the tools that come up when you search for this are paid apps. OpenExtract does it for free, with no trial and no limit on how many photos you save, and it reads everything on your own computer.</p>
+      <figure class="screen">
+        <a class="screen__frame" href="/img/screens/photos-2000.webp">
+          <img src="/img/screens/photos-1000.webp" srcset="/img/screens/photos-1000.webp 1000w, /img/screens/photos-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 720px" width="1000" height="625" loading="lazy" decoding="async" alt="The Photos screen in OpenExtract, opened on a made-up sample backup: a grid of landscape photos with favorites starred and the backup's albums listed alongside." />
+        </a>
+        <figcaption><strong>Photos, opened from a backup</strong>A made-up sample backup in OpenExtract. <a href="/screenshots">See every screen</a>.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>Install OpenExtract</h2>
+        <p>Download it for <a href="/download/windows">Windows</a> or <a href="/download/mac">Mac</a> (Apple Silicon) and install it. The Windows installer is signed by Charles West, the developer; if SmartScreen shows a notice for a new app, choose More info, then Run anyway.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>Open the backup, or make one</h2>
+        <p>Already backed up with Finder, iTunes or the Apple Devices app? OpenExtract lists the backups it finds on the computer on its start screen, or you can choose <strong>Open a backup folder</strong>. Here's <a href="/use-cases/where-are-iphone-backups-stored">where iPhone backups are stored</a>. If the backup is encrypted, type its password.</p>
+        <p>No backup yet? Click <strong>Back up my iPhone</strong>, connect the phone with a cable, tap <strong>Trust</strong> on it and enter its passcode if it asks, then choose a folder with room for your photos and start. Photos are in ordinary backups, so encryption is up to you.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>Look through the photos</h2>
+        <p>Click <strong>Photos</strong> on the backup's home page. The grid shows every photo and video in the backup, with favorites starred and the phone's albums listed alongside. Click a photo to see it full size, or use the menu at the top to show only photos, videos, Live Photos or screenshots.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Save them all</h2>
+        <p>Click <strong>Save all</strong> and choose a folder. OpenExtract copies every photo and video in the backup into it, in a folder for each year and month (<code>2025/07</code>, <code>2025/08</code> and so on), and shows how far it has got: "Saving 1,234 of 5,678 photos and videos…". A big library takes a while, especially from an encrypted backup. When it's done, it says how many were saved, and how many are only in iCloud.</p>
+        <p>The same save is under <strong>Save to this computer</strong> on the backup's home page, next to messages, contacts and the rest; from there the photos go into a <code>Photos</code> folder.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">05</div>
+      <div>
+        <h2>Open them anywhere</h2>
+        <p>Each file has the date it was taken as its file date, so Finder, File Explorer and photo apps sort them in the order you took them. Photos keep their EXIF details, such as the camera and, where the phone recorded it, the place.</p>
+        <p>Recent iPhones take photos as HEIC. Macs open them. On Windows, if a photo won't open, install Microsoft's HEIF Image Extensions from the Microsoft Store.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>What it can't do</h2>
+      <ul>
+        <li><strong>Photos that are only in iCloud.</strong> With iCloud Photos on, and especially with Optimize iPhone Storage, many full-size photos aren't on the phone, so they aren't in its backup. OpenExtract says how many; download those from iCloud instead.</li>
+        <li><strong>The moving part of Live Photos.</strong> A Live Photo is saved as its still photo, without the short video.</li>
+        <li><strong>One album at a time.</strong> You can browse albums, but Save all saves the whole backup.</li>
+        <li><strong>It only has what the backup has.</strong> Photos taken after the backup was made aren't in it. Make a new backup first if you want today's camera roll.</li>
+        <li><strong>No iCloud backups.</strong> It works from a backup on your computer, not from iCloud or an iCloud backup.</li>
+      </ul>
+      <h2>Common questions</h2>
+      <p><strong>Do I need an encrypted backup for photos?</strong> No. The camera roll is in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it.</p>
+      <p><strong>Why are some of my photos missing?</strong> With iCloud Photos on, and especially with Optimize iPhone Storage, many full-size photos live only in iCloud, so the iPhone&#x27;s backup doesn&#x27;t have them. OpenExtract counts only the photos that are in the backup and says how many more are only in iCloud. Those you download from iCloud instead.</p>
+      <p><strong>Are the photos the original quality?</strong> Yes. OpenExtract copies the files as they are in the backup, so photos keep their format, resolution and EXIF details such as the camera and, where the phone recorded it, the place. HEIC photos stay HEIC.</p>
+      <p><strong>Will the dates be right?</strong> Yes. The photos go into a folder for each month (for example 2025/07), and every saved file gets the date it was taken as its file date, so Finder, File Explorer and photo apps sort them in the order you took them.</p>
+      <p><strong>Can I save one album?</strong> Not yet. You can browse each album in the app, but Save all saves every photo and video in the backup.</p>
+      <p><strong>Does it work without iCloud?</strong> Yes. OpenExtract reads a backup saved on your own Mac or PC, so you don&#x27;t need iCloud, an Apple ID sign-in or the phone itself once the backup exists. It can&#x27;t read an iCloud backup.</p>
+      <p><strong>Does anything get uploaded?</strong> No. OpenExtract reads the backup on your own computer and doesn&#x27;t send it anywhere. It goes online only when you let it: to check for a new version, if you allow it (you can turn that off in Settings); to send a problem report or a thank-you, when you click Send; and on Windows, to install Apple&#x27;s free Apple Devices app from Microsoft, if you ask it to, for backing up an iPhone. Nothing from inside your backup goes with any of them.</p>
+      <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Windows · Mac · Linux</div>
+        <h3>Your photos,<br /><span class="it">in folders you keep.</span></h3>
+        <p>Free, open source, and the backup never leaves your computer.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/use-cases/where-are-iphone-backups-stored">Where are iPhone backups stored? →</a>
+        <a class="uc-related__link" href="/use-cases/view-iphone-backup-on-windows">View an iPhone backup on Windows →</a>
+        <a class="uc-related__link" href="/use-cases/keep-messages-iphone-to-android">Moving from iPhone to Android? Keep your messages →</a>
+        <a class="uc-related__link" href="/use-cases/export-iphone-data">Export everything else from your iPhone →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Your iPhone photos, saved on your computer.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/support">Support OpenExtract</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # OpenExtract
 
-A free, open-source iPhone backup extractor for Windows, Mac and Linux: read and save the messages, WhatsApp chats, photos, voicemails, calls, contacts and notes in an iPhone or iPad backup.
+A free, open-source iPhone backup extractor for Windows, Mac and Linux: read and save the messages, WhatsApp chats, photos, voicemails, calls, contacts, notes and podcasts in an iPhone or iPad backup.
 
 **[Download for Windows, Mac or Linux](https://www.openextract.app/?ref=gh-readme#download)** · **[openextract.app](https://www.openextract.app/?ref=gh-readme)**
 
@@ -9,7 +9,7 @@ A free, open-source iPhone backup extractor for Windows, Mac and Linux: read and
 
 **No cloud. No subscriptions. Your data stays on your computer.**
 
-[![The home page of a sample iPhone backup in OpenExtract: tiles with counts of messages, WhatsApp messages, photos, people, address book cards, calls, notes and voicemails, plus web history, timeline and year, under a search box for the whole backup.](website/static/img/screens/home-1000.webp)](website/static/img/screens/home-2000.webp)
+[![The home page of a sample iPhone backup in OpenExtract: tiles with counts of messages, WhatsApp messages, photos, people, address book cards, calls, notes, voicemails and podcasts, plus web history, timeline and year, under a search box for the whole backup.](website/static/img/screens/home-1000.webp)](website/static/img/screens/home-2000.webp)
 
 ## Features
 
@@ -22,6 +22,7 @@ A free, open-source iPhone backup extractor for Windows, Mac and Linux: read and
 - 📋 **Calls** — View calls with contact name resolution
 - 👤 **Address book** — Browse and export your saved contact cards
 - 📝 **Notes** — Read and export your iOS notes
+- 🎙️ **Podcasts** — The shows you follow and every episode you played; save your subscriptions as OPML for another podcast app, or everything as a spreadsheet ([guide](https://www.openextract.app/use-cases/export-podcasts-from-iphone-backup?ref=gh-readme))
 - 🔒 **Encrypted Backups** — Full support for password-protected backups
 - 📤 **Export** — Save conversations as PDF, HTML, CSV, or plain text
 
@@ -124,6 +125,10 @@ These use a made-up test backup, so none of the people or messages are real. Cli
     <td width="50%" valign="top">
       <a href="website/static/img/screens/details-2000.webp"><img src="website/static/img/screens/details-1000.webp" width="100%" alt="Backup details: counts of messages, photos, address book cards, calls, notes and voicemails, messages sent and received, the top conversations and photo stats."></a>
       <br><b>Backup details</b>: what the backup holds, who you message most, and when.
+    </td>
+    <td width="50%" valign="top">
+      <a href="website/static/img/screens/podcasts-2000.webp"><img src="website/static/img/screens/podcasts-1000.webp" width="100%" alt="The Podcasts screen with a show open: whether it's followed, its feed address, and the episodes listened to, each marked played, in progress, saved or downloaded, with buttons to get the audio or open the episode page."></a>
+      <br><b>Podcasts</b>: the shows you follow and every episode you played. Save your subscriptions for another podcast app.
     </td>
   </tr>
 </table>
@@ -232,6 +237,7 @@ openextract/
 │   ├── contacts.py    # Address book parsing
 │   ├── photos.py      # Photo/video extraction
 │   ├── voicemail.py   # Voicemail extraction
+│   ├── podcasts.py    # Podcasts (shows, listening history, OPML/CSV)
 │   ├── calls.py       # Call history parsing
 │   └── notes.py       # Notes extraction
 └── scripts/           # Build scripts
@@ -252,7 +258,7 @@ Output will be in the `release/` directory.
 
 ## Privacy
 
-OpenExtract runs 100% locally. Your backup data never leaves your computer. The source code is fully auditable — that's the point of being open source.
+OpenExtract reads your backup entirely on your computer, and your backup data never leaves it. The app goes online only to check for updates, if you allow it, and to send a problem report when you click Send (and on Windows, to install Apple Devices if you ask it to). The source code is fully auditable — that's the point of being open source.
 
 The only network request the app makes is an update check: it asks GitHub for the latest release's version file. It asks you once before checking automatically, you can turn it off in Settings, and it never sends anything about you or your backups. Updates download only when you click Update.
 

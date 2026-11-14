@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Export podcasts from an iPhone backup, free — OpenExtract</title>
+  <meta name="description" content="Save the Apple Podcasts shows you follow from an iPhone backup as an OPML file for another podcast app, and your listening history as a spreadsheet. Free." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/export-podcasts-from-iphone-backup" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/export-podcasts-from-iphone-backup" />
+  <meta property="og:title" content="Export podcasts from an iPhone backup, free" />
+  <meta property="og:description" content="Open an iPhone backup and save the podcasts you follow as an OPML file for another podcast app, with your listening history as a spreadsheet." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Export podcasts from an iPhone backup",
+    "description": "Save the Apple Podcasts shows you follow from an iPhone backup as an OPML file for another podcast app, and your listening history as a spreadsheet. Free.",
+    "url": "https://www.openextract.app/use-cases/export-podcasts-from-iphone-backup",
+    "inLanguage": "en",
+    "datePublished": "2026-11-12",
+    "dateModified": "2026-11-12",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/home-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Can I move my podcast subscriptions to another app?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Click Save on the Podcasts screen and choose Podcast subscriptions (OPML). That saves the shows you follow as one file, which most podcast apps can import, Overcast and Pocket Casts among them. Look for an import or OPML option in the other app's settings. Only shows with a feed address can go in the file."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I get the episodes I downloaded on my iPhone?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Not from the backup. Apple leaves the Podcasts app's downloads out of iPhone backups, so no backup has any episode audio, even for episodes that were downloaded on the phone. Each episode in OpenExtract has a Get audio button instead: it opens the episode in your browser, from where the podcast publishes it, so you can play it or save it from there."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it show my listening history?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Listening history lists every episode played on the iPhone, most recent first, with its show and, where the iPhone recorded it, when it was last played. An episode counts as listened to when the iPhone recorded a play: a play count, a last-played date, or a place part way through."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Why doesn't it count every episode Apple Podcasts marks as played?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "When you follow a show, Apple Podcasts marks its whole back catalogue as played, including episodes you never heard. OpenExtract leaves those out, so the history shows what you actually listened to. Choose All episodes on a show to see the rest."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do I need an encrypted backup?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. The Podcasts library is in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it, and the password stays on your computer."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it read Spotify, Overcast or Pocket Casts?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. It reads Apple's Podcasts app only. Shows you follow in other podcast apps aren't read."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it read my podcasts from iCloud?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. It reads what was on the iPhone when the backup was made, not what Apple Podcasts syncs through iCloud. Make a new backup if you want today's library."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which versions of iOS does it read?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "It's been checked on backups from iOS 13, 16, 17 and 26, and versions in between should read the same way. If OpenExtract can't read the Podcasts library in a backup, the Podcasts screen says so and has a button to report the problem."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does anything get uploaded?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. It goes online only when you let it: to check for a new version, if you allow it (you can turn that off in Settings); to send a problem report or a thank-you, when you click Send; and on Windows, to install Apple's free Apple Devices app from Microsoft, if you ask it to, for backing up an iPhone. Nothing from inside your backup goes with any of them. The Get audio, Episode page and Website buttons open your own browser; the app itself fetches nothing, which is also why show artwork isn't shown."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it really free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. The code is on GitHub."
+        }
+      }
+    ]
+  }
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 4 min</div>
+    <h1>Export <span class="it">podcasts</span><br />from an iPhone backup.</h1>
+    <p class="page-head__lede">Back up the iPhone to your Windows PC or Mac, open the backup in OpenExtract, a free app, and see the shows you followed in Apple Podcasts and every episode you played. Save your subscriptions as an OPML file that most podcast apps can import, or everything as a spreadsheet. Nothing is uploaded.</p>
+    <p class="alt-disclosure">OpenExtract is an independent open-source app. It isn't made by Apple and has no connection to it.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <p>Apple Podcasts on the iPhone has no way to save the shows you follow as a file. If you want to move to another podcast app, keep a list of what you followed, or find an episode you heard last year, there's nowhere on the phone to get that out. And if you didn't have iCloud sync turned on, or the phone is gone, a backup may be the only place your library and listening history are still kept.</p>
+      <p>There's another way in. When you back up an iPhone to a computer, the Podcasts app's library goes into that backup: the shows you follow, the ones you played without following or stopped following, and a record of what you listened to. OpenExtract reads it from there, in its own Podcasts section, and saves it as files you keep. It's free, with no trial and no limit on how much you save.</p>
+      <figure class="screen">
+        <a class="screen__frame" href="/img/screens/podcasts-2000.webp">
+          <img src="/img/screens/podcasts-1000.webp" srcset="/img/screens/podcasts-1000.webp 1000w, /img/screens/podcasts-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 720px" width="1000" height="625" loading="lazy" decoding="async" alt="The Podcasts section in OpenExtract, opened on a made-up sample backup: a show called Small Kitchen Science, followed since September 2023, with 52 episodes and 6 listened to, its feed address, and episodes marked In progress, Saved, Downloaded on the iPhone and Played 2 times, each with Get audio and Episode page buttons. Listening history and the followed shows are listed down the side." />
+        </a>
+        <figcaption><strong>Podcasts, opened from a backup</strong>A made-up sample backup in OpenExtract. <a href="/screenshots">See every screen</a>.</figcaption>
+      </figure>
+
+      <h2>Who this is for</h2>
+      <ul>
+        <li><strong>Moving to another podcast app.</strong> Take the shows you follow to Overcast, Pocket Casts or most other podcast apps in one file, instead of searching for each one again.</li>
+        <li><strong>Podcasts from a phone that's gone.</strong> If the iPhone is broken, lost, sold or locked for good, a backup on a computer can still hold its podcast library.</li>
+        <li><strong>Finding an episode you heard.</strong> The listening history goes back as far as the iPhone kept it, newest first, with each episode's show and when you last played it.</li>
+        <li><strong>A record of what you listened to.</strong> A spreadsheet of every show and every episode, with play counts and dates, to keep or sort however you like.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>Install OpenExtract</h2>
+        <p>Download it for <a href="/download/windows">Windows</a> or <a href="/download/mac">Mac</a> (Apple Silicon) and install it. There's a <a href="/use-cases/iphone-backup-extractor-linux">Linux version</a> too. It's free, with no account and no trial. The Windows installer is signed by Charles West, the developer; if SmartScreen shows a notice for a new app, choose More info, then Run anyway.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>Back up the iPhone, or use a backup you have</h2>
+        <p>On OpenExtract's start screen, click <strong>Back up my iPhone</strong>, connect the phone with a cable, tap <strong>Trust</strong> on it and enter its passcode if it asks, then choose a folder and start. A backup often takes about half an hour. The Podcasts library is in ordinary and encrypted backups alike, so encryption is up to you; an encrypted backup holds more of the rest, such as call history (<a href="/blog/encrypted-backups-are-better">here's why encrypted backups are better</a>).</p>
+        <p>Already backed up with Finder on a Mac, or with the Apple Devices app or iTunes on Windows? OpenExtract lists the backups it finds on the start screen, or you can choose <strong>Open a backup folder</strong>. Here's <a href="/use-cases/where-are-iphone-backups-stored">where iPhone backups are stored</a>. A backup has the podcasts as they were on the day it was made, so make a new one if you want today's.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>Open Podcasts</h2>
+        <p>Open the backup (type its password if it's encrypted) and click <strong>Podcasts</strong> on its home page. Its tile says how many shows there are. If the Podcasts app wasn't used on the iPhone, there's no Podcasts tile. Down the side are <strong>Listening history</strong>, then the shows under <strong>Following</strong>, then any others in the library, ones you played without following or stopped following, under <strong>Not followed</strong>.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Look through your shows and history</h2>
+        <p><strong>Listening history</strong> lists every episode played on the iPhone, most recent first. Click a show to see who makes it, whether you follow it, when you added it, how many episodes it has and how many you listened to, and its feed address, which you can copy. <strong>Website</strong> opens the show's site in your browser. Under that are its episodes: <strong>Listened</strong> shows the ones you played, and <strong>All episodes</strong> shows every episode of the show, played or not.</p>
+        <p>Each episode has its date and length, and notes such as "Played once", "Played 2 times", "In progress, 16:00 in", "Saved" or "Downloaded on the iPhone". <strong>Get audio</strong> opens the episode in your browser, from where the podcast publishes it, and <strong>Episode page</strong> opens its page on the web.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">05</div>
+      <div>
+        <h2>Save your subscriptions, or everything</h2>
+        <p>Click <strong>Save</strong> at the top of the Podcasts screen. Choose <strong>Podcast subscriptions</strong> (that's the OPML file, for another podcast app) or <strong>Spreadsheet</strong>, click <strong>Save</strong> and pick a folder. Saving again never overwrites a file; the new one gets "(2)" added to its name.</p>
+        <p>To save your podcasts along with everything else, click <strong>Save to this computer</strong> on the backup's home page, then <strong>Save</strong> next to Podcasts.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>What you get</h2>
+      <ul>
+        <li><strong>Podcast subscriptions (OPML)</strong> is one file, <code>Podcasts.opml</code>, listing the shows you follow that have a feed address. Most podcast apps can import it, Overcast and Pocket Casts among them: look for an import or OPML option in the app's settings.</li>
+        <li><strong>Spreadsheet (CSV)</strong> is two files that open in Excel, Numbers or Google Sheets: <code>Podcasts.csv</code>, with every show, followed or not, and <code>Podcast episodes.csv</code>, with every episode, when it was last played, how many times it was played and how far in you got, and links to its audio and its web page.</li>
+      </ul>
+      <p>"Listened" means the iPhone recorded a play: a play count, a last-played date, or a place part way through. When you follow a show, Apple Podcasts marks its whole back catalogue as played, including episodes you never heard. OpenExtract doesn't count those, so the history is what you actually listened to.</p>
+      <figure class="screen">
+        <a class="screen__frame" href="/img/screens/podcasts-history-2000.webp">
+          <img src="/img/screens/podcasts-history-1000.webp" srcset="/img/screens/podcasts-history-1000.webp 1000w, /img/screens/podcasts-history-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 720px" width="1000" height="625" loading="lazy" decoding="async" alt="Listening history in OpenExtract, opened on a made-up sample backup: 29 episodes played on this iPhone, newest first, each with its show, when it was played and its length." />
+        </a>
+        <figcaption><strong>Listening history</strong>Every episode played on the iPhone, newest first.</figcaption>
+      </figure>
+
+      <h2>What it can't do</h2>
+      <ul>
+        <li><strong>No episode audio.</strong> Apple leaves the Podcasts app's downloads out of iPhone backups, so no backup has any episode audio, not even episodes downloaded on the phone. <strong>Get audio</strong> opens each episode in your browser from where the podcast publishes it instead.</li>
+        <li><strong>Shows with no feed address</strong> can't go into the OPML file, because another app needs the feed address to follow them. They're still in the spreadsheet.</li>
+        <li><strong>No subscriptions file if you don't follow anything.</strong> If the backup has no followed shows, the OPML choice isn't offered, but the spreadsheet still lists every show.</li>
+        <li><strong>No artwork.</strong> Show artwork isn't shown, because the app makes no network requests on its own.</li>
+        <li><strong>Only Apple Podcasts.</strong> Spotify, Overcast, Pocket Casts and other podcast apps aren't read.</li>
+        <li><strong>Not iCloud.</strong> What Apple Podcasts syncs through iCloud isn't read, only what was on the iPhone when the backup was made.</li>
+        <li><strong>It can't put shows back</strong> into Apple Podcasts on a phone. The files are a copy for your computer, and for importing into another app.</li>
+      </ul>
+
+      <h2>Common questions</h2>
+      <p><strong>Can I move my podcast subscriptions to another app?</strong> Yes. Click Save on the Podcasts screen and choose Podcast subscriptions (OPML). That saves the shows you follow as one file, which most podcast apps can import, Overcast and Pocket Casts among them. Look for an import or OPML option in the other app&#x27;s settings. Only shows with a feed address can go in the file.</p>
+      <p><strong>Can I get the episodes I downloaded on my iPhone?</strong> Not from the backup. Apple leaves the Podcasts app&#x27;s downloads out of iPhone backups, so no backup has any episode audio, even for episodes that were downloaded on the phone. Each episode in OpenExtract has a Get audio button instead: it opens the episode in your browser, from where the podcast publishes it, so you can play it or save it from there.</p>
+      <p><strong>Does it show my listening history?</strong> Yes. Listening history lists every episode played on the iPhone, most recent first, with its show and, where the iPhone recorded it, when it was last played. An episode counts as listened to when the iPhone recorded a play: a play count, a last-played date, or a place part way through.</p>
+      <p><strong>Why doesn&#x27;t it count every episode Apple Podcasts marks as played?</strong> When you follow a show, Apple Podcasts marks its whole back catalogue as played, including episodes you never heard. OpenExtract leaves those out, so the history shows what you actually listened to. Choose All episodes on a show to see the rest.</p>
+      <p><strong>Do I need an encrypted backup?</strong> No. The Podcasts library is in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it, and the password stays on your computer.</p>
+      <p><strong>Does it read Spotify, Overcast or Pocket Casts?</strong> No. It reads Apple&#x27;s Podcasts app only. Shows you follow in other podcast apps aren&#x27;t read.</p>
+      <p><strong>Does it read my podcasts from iCloud?</strong> No. It reads what was on the iPhone when the backup was made, not what Apple Podcasts syncs through iCloud. Make a new backup if you want today&#x27;s library.</p>
+      <p><strong>Which versions of iOS does it read?</strong> It&#x27;s been checked on backups from iOS 13, 16, 17 and 26, and versions in between should read the same way. If OpenExtract can&#x27;t read the Podcasts library in a backup, the Podcasts screen says so and has a button to report the problem.</p>
+      <p><strong>Does anything get uploaded?</strong> No. OpenExtract reads the backup on your own computer and doesn&#x27;t send it anywhere. It goes online only when you let it: to check for a new version, if you allow it (you can turn that off in Settings); to send a problem report or a thank-you, when you click Send; and on Windows, to install Apple's free Apple Devices app from Microsoft, if you ask it to, for backing up an iPhone. Nothing from inside your backup goes with any of them. The Get audio, Episode page and Website buttons open your own browser; the app itself fetches nothing, which is also why show artwork isn&#x27;t shown.</p>
+      <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Windows · Mac · Linux</div>
+        <h3>Your podcasts,<br /><span class="it">in files you keep.</span></h3>
+        <p>Free, open source, and the backup never leaves your computer.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/use-cases/export-iphone-data">Export everything else from your iPhone →</a>
+        <a class="uc-related__link" href="/use-cases/where-are-iphone-backups-stored">Where are iPhone backups stored? →</a>
+        <a class="uc-related__link" href="/use-cases/export-whatsapp-chats-from-iphone-backup">Export WhatsApp chats from an iPhone backup →</a>
+        <a class="uc-related__link" href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails from an iPhone backup →</a>
+        <a class="uc-related__link" href="/blog/encrypted-backups-are-better">Why encrypted backups are better →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Your podcasts, saved on your computer.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/support">Support OpenExtract</a></li>
+        <li><a href="/what-people-say">What people say</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

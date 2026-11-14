@@ -39,6 +39,7 @@ on:
       - 'python/requirements.txt'
       - 'scripts/bundle-engine.mjs'
       - 'scripts/installers/**'
+      - 'scripts/update-feed.mjs'
       - '.github/workflows/installers.yml'
 
 concurrency:
@@ -131,6 +132,13 @@ jobs:
       - name: Package (no publish)
         run: npx electron-builder --publish never
 
+      # As release.yml does: updates get their own copy of the installer, which latest.yml names.
+      # The Windows test checks latest.yml against the file it names.
+      - name: Give updates their own copy of the installer
+        if: runner.os == 'Windows'
+        shell: bash
+        run: node scripts/update-feed.mjs release "$(node -p "require('./package.json').version")"
+
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
@@ -161,7 +169,7 @@ jobs:
         run: |
           get() { d=$1; shift; mkdir -p "$d"; args=(); for p in "$@"; do args+=(--pattern "$p"); done; gh release download "$TAG" --repo "$GITHUB_REPOSITORY" "${args[@]}" --dir "$d"; }
           get packages/macOS '*-mac.zip' '*.dmg' 'latest-mac.yml'
-          get packages/Windows 'OpenExtract-Setup-*.exe' 'latest.yml'
+          get packages/Windows 'OpenExtract-Setup-*.exe' 'OpenExtract-Update-*.exe' 'latest.yml'
           get packages/Linux '*.deb' '*.AppImage' 'latest-linux.yml'
           ls -laR packages
 
@@ -235,7 +243,7 @@ jobs:
 
       # The same fetch as .github/actions/ios-backup-core, written out because this job
       # checks out the tag under test, and an older tag doesn't have that action.
-      - name: Generate the test backups
+      - name: Check out ios-backup-core (sibling for editable install)
         env:
           CORE_REF: ${{ inputs.ios_backup_core_ref || 'master' }}
         run: |
@@ -244,6 +252,24 @@ jobs:
           git -C "$core" fetch -q --depth=1 --no-tags https://github.com/charleswest775/ios-backup-core.git "$CORE_REF"
           git -C "$core" -c advice.detachedHead=false checkout -q --detach FETCH_HEAD
           echo "ios-backup-core: $CORE_REF -> $(git -C "$core" rev-parse HEAD)"
+
+      # As .github/actions/backupgen-media does (same key, so it finds CI's cache), written out
+      # here because this job checks out the tag under test, which may predate that action.
+      - name: Key for the generated backups' photos
+        id: media
+        run: |
+          echo "BACKUPGEN_MEDIA_CACHE=$RUNNER_TEMP/backupgen-media" >> "$GITHUB_ENV"
+          echo "path=$RUNNER_TEMP/backupgen-media" >> "$GITHUB_OUTPUT"
+          echo "key=backupgen-media-${{ runner.os }}-$(python -c "import hashlib, glob; print(hashlib.sha256(b''.join(open(f, 'rb').read() for f in sorted(glob.glob('../ios-backup-core/backupgen/personas/*/photos.json')))).hexdigest()[:16])")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the generated backups' photos
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.media.outputs.path }}
+          key: ${{ steps.media.outputs.key }}
+
+      - name: Generate the test backups
+        run: |
           (cd python && pip install -r requirements.txt)
           python scripts/e2e/backups.py e2e-backups.json
 

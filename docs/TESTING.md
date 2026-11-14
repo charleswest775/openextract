@@ -23,7 +23,7 @@ backup, and never put one in a screenshot, issue or log.
 | Installers | dmg and zip, NSIS installer, deb and AppImage: install, layout, signatures, launch, upgrade, uninstall, update metadata, old Linux distros | `scripts/installers` | weekly, on PRs that touch packaging, and on every release's draft before it's published |
 
 The workflows: `ci.yml` (every PR), `installers.yml` (weekly, packaging PRs, and called by
-`release.yml`), `prerelease-check.yml` (by hand before a release), `corpus-weekly.yml`,
+`release.yml`), `prerelease-check.yml` (called by `release.yml` on the new tag, or by hand), `corpus-weekly.yml`,
 `windows-app-control.yml` (Smart App Control, called by `release.yml`).
 
 ## Running them
