@@ -90,6 +90,26 @@ img { max-width: 100%; display: block; }
   padding: 10px 20px; border-radius: 999px;
   font-size: 14px; font-weight: 500;
 }
+/* "Pay it forward" on every page: always there, never moving, except one soft glow
+   a moment after the page loads (none under reduced motion). On phones it's just the heart. */
+.nav__pay {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 16px; border-radius: 999px;
+  font-size: 14px; font-weight: 500;
+  color: var(--coral); background: var(--coral-15);
+  border: 1px solid var(--coral-44);
+  animation: pay-glow 1.2s ease-in-out 0.8s 2;
+}
+.nav__pay:hover { background: var(--coral-22); }
+.nav__pay svg, .pay-heart { width: 15px; height: 15px; fill: currentColor; flex-shrink: 0; }
+@keyframes pay-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 87, 0); }
+  50% { box-shadow: 0 0 0 5px rgba(217, 119, 87, 0.22), 0 0 18px 4px rgba(217, 119, 87, 0.3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav__pay { animation: none; }
+  .pay-tier { transition: none; }
+}
 
 /* ── Atoms ──────────────────────────────────────────── */
 .pill {
@@ -432,6 +452,29 @@ img { max-width: 100%; display: block; }
 .how__num { font-family: var(--serif); font-style: italic; font-size: 80px; font-weight: 400; line-height: 1; margin-bottom: 18px; letter-spacing: -0.03em; }
 .how__step-title { font-size: 24px; font-weight: 500; letter-spacing: -0.015em; margin-bottom: 12px; }
 .how__step-desc { font-size: 15px; color: rgba(250,246,241,0.65); margin: 0; line-height: 1.6; }
+/* "And how it's paid for": the business experiment, inside the dark How it works panel */
+.how__pay { margin-top: 56px; padding-top: 48px; border-top: 1px solid rgba(250,246,241,0.14); display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px 56px; }
+.how__pay-head { grid-row: span 2; }
+.how__pay-title { font-size: 40px; letter-spacing: -0.025em; margin: 0 0 18px; font-weight: 500; line-height: 1.05; }
+.how__pay-title .it { color: var(--coral); }
+.how__pay-lede { font-size: 16px; color: rgba(250,246,241,0.7); line-height: 1.6; max-width: 520px; }
+.how__pay-rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.how__pay-rules li { display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; border-radius: 14px; background: rgba(250,246,241,0.06); border: 1px solid rgba(250,246,241,0.1); }
+.how__pay-n {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(217,119,87,0.2); color: var(--coral); font-family: var(--mono); font-size: 13px;
+}
+.how__pay-rules p { font-size: 16px; line-height: 1.5; color: rgba(250,246,241,0.7); margin: 0; }
+.how__pay-rules strong { color: var(--bg); font-weight: 600; }
+.how__pay-ctas { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; }
+.how__pay-btn {
+  display: inline-flex; align-items: center; gap: 9px; padding: 13px 22px; border-radius: 999px;
+  background: var(--coral); color: white; font-size: 15px; font-weight: 600;
+}
+.how__pay-btn svg { width: 16px; height: 16px; fill: currentColor; }
+.how__pay-btn:hover { filter: brightness(0.95); }
+.how__pay-link { color: var(--bg); font-size: 15px; border-bottom: 1px solid rgba(250,246,241,0.4); padding-bottom: 2px; }
+.how__pay-link:hover { border-bottom-color: var(--bg); }
 
 /* ── Testimonials ───────────────────────────────────── */
 .testimonials { padding: 80px 56px 48px; }
@@ -665,6 +708,8 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .step-body p 
 .final-cta__brew code { background: #f4ede0; padding: 3px 8px; border-radius: 4px; font-family: var(--mono); }
 .final-cta__brew + .final-cta__brew { margin-top: 8px; }
 .final-cta__brew a { text-decoration: underline; text-underline-offset: 3px; }
+.final-cta__pay { margin-top: 26px; font-size: 15px; color: var(--ink-soft); }
+.final-cta__pay a { color: var(--coral); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 
 /* ── How-it-works page ─────────────────────────────── */
 .steps-wrap { padding: 24px 56px 64px; max-width: 1100px; margin: 0 auto; }
@@ -1093,6 +1138,8 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .step-body p 
   /* Phones: the version pill and GitHub link push "Get it free" off the screen. GitHub stays in the footer. */
   .nav__version, .nav__gh { display: none; }
   .nav__cta { white-space: nowrap; }
+  .nav__pay { padding: 9px 11px; }
+  .nav__pay-label { display: none; }
   .footer { grid-template-columns: 1fr; gap: 24px; }
   .step-row { grid-template-columns: 1fr; }
   .uc-step { grid-template-columns: 1fr; gap: 12px; }
@@ -1103,9 +1150,98 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .step-body p 
 }
 
 /* ── Support page ─────────────────────────────────── */
+/* Support page ("Pay what it was worth"): the three rules, the amounts, paid work, the letter */
+.pay-head h1 .it { color: var(--coral); }
+.prose__inner a.support-pay:hover { filter: brightness(0.95); }
+.pay-creed { max-width: 980px; margin: 0 auto; padding: 0 56px 56px; }
+.pay-creed__list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.pay-creed__list li { display: flex; gap: 14px; align-items: flex-start; padding: 22px 22px 24px; border-top: 2px solid var(--coral); background: white; border-radius: 0 0 16px 16px; }
+.pay-creed__n {
+  flex-shrink: 0; width: 30px; height: 30px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--coral-15); color: var(--coral); font-family: var(--mono); font-size: 14px; font-weight: 500;
+}
+.pay-creed__list p { font-size: 18px; line-height: 1.45; color: var(--ink-soft); }
+.pay-creed__list strong { color: var(--ink); font-weight: 600; }
+.pay-scale-wrap { max-width: 980px; margin: 0 auto; padding: 0 56px 64px; scroll-margin-top: 90px; }
+.pay-scale__title { font-size: 32px; font-weight: 500; letter-spacing: -0.02em; margin-bottom: 18px; }
+.pay-scale { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; align-items: stretch; }
+.pay-tier {
+  position: relative; display: flex; flex-direction: column;
+  padding: 22px 20px 20px; border-radius: 18px;
+  background: white; border: 1px solid var(--line); color: var(--ink);
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+a.pay-tier:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(31, 29, 26, 0.08); border-color: var(--coral-44); }
+.pay-tier--free { background: transparent; border-style: dashed; }
+.pay-tier--suggested { border: 2px solid var(--coral); background: #fff8f3; }
+.pay-tier__flag {
+  position: absolute; top: -11px; left: 18px; padding: 3px 10px; border-radius: 999px;
+  background: var(--coral); color: white; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.pay-tier__amount { font-family: var(--serif); font-size: 46px; line-height: 1; letter-spacing: -0.01em; }
+.pay-tier__who { margin-top: 8px; font-size: 15px; font-weight: 600; }
+.pay-tier__about { margin-top: 6px; font-size: 14px; line-height: 1.5; color: var(--ink-soft); flex: 1; }
+.pay-tier__btn {
+  margin-top: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 11px 16px; border-radius: 999px; background: var(--coral); color: white; font-size: 15px; font-weight: 600;
+  white-space: nowrap;
+}
+.pay-tier:not(.pay-tier--suggested) .pay-tier__btn { background: white; color: var(--coral); border: 1px solid var(--coral-44); }
+.pay-scale__other { margin-top: 16px; font-size: 14px; color: var(--ink-soft); }
+.pay-scale__other a { color: var(--coral); font-weight: 600; }
+.pay-pro {
+  margin-top: 28px; display: flex; gap: 28px; align-items: center; justify-content: space-between;
+  padding: 24px 28px; border-radius: 18px; background: var(--sage-15); border: 1px solid var(--sage-22);
+}
+.pay-pro__title { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+.pay-pro p { font-size: 15px; line-height: 1.55; color: var(--ink-soft); max-width: 560px; }
+.pay-pro strong { color: var(--ink); }
+.pay-pro__actions { display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
+.pay-pro__btn {
+  display: inline-flex; justify-content: center; padding: 11px 18px; border-radius: 999px;
+  background: var(--ink); color: var(--bg); font-size: 14px; font-weight: 500; white-space: nowrap;
+}
+.pay-pro__btn--quiet { background: transparent; color: var(--ink); border: 1px solid var(--ink-dim); }
+.prose.pay-prose { max-width: 980px; }
+.pay-letter { font-size: 19px; line-height: 1.65; }
+.pay-letter p { margin-bottom: 18px; }
+.pay-letter__sign { font-family: var(--serif); font-style: italic; font-size: 26px; }
+.pay-again { padding: 28px 32px 12px; border-radius: 20px; background: white; border: 1px solid var(--line); margin: 8px 0 28px; }
+.pay-again h2:first-child { margin-top: 0; }
 .prose__inner a.support-pay { color: white; margin: 4px 0 4px; }
-.prose__inner a.support-pay:hover { text-decoration: none; filter: brightness(0.95); }
+.prose__inner a.support-pay:hover { text-decoration: none; }
 .prose__inner .support-note { font-size: 14px; color: var(--ink-soft); }
+
+/* Support page on smaller screens (after the rules above, so these win) */
+@media (max-width: 1024px) {
+  .pay-scale { grid-template-columns: 1fr 1fr; }
+  .pay-scale .pay-tier--free, .pay-scale .pay-tier:last-child { grid-column: 1 / -1; }
+  .pay-pro { flex-direction: column; align-items: stretch; }
+}
+@media (max-width: 720px) {
+  .pay-creed, .pay-scale-wrap { padding-left: 24px; padding-right: 24px; }
+  .pay-creed__list { grid-template-columns: 1fr; gap: 10px; }
+  .pay-creed__list li { padding: 16px 16px 18px; }
+  .pay-creed__list p { font-size: 17px; }
+  .pay-scale { gap: 12px; }
+  .pay-tier { padding: 20px 16px 16px; }
+  .pay-tier__amount { font-size: 38px; }
+  .pay-pro { padding: 20px; gap: 16px; }
+  .pay-again { padding: 22px 20px 6px; }
+  .pay-letter { font-size: 18px; }
+}
+
+/* Home "how it's paid for" on smaller screens */
+@media (max-width: 1024px) {
+  .how__pay { grid-template-columns: 1fr; }
+  .how__pay-head { grid-row: auto; }
+}
+@media (max-width: 720px) {
+  .how__pay { margin-top: 40px; padding-top: 36px; }
+  .how__pay-title { font-size: 30px; }
+  .how__pay-rules li { padding: 14px; }
+}
 
 /* ── Roundup: iMazing alternatives ────────────────── */
 .alt-disclosure { font-size: 15px; color: var(--ink-dim); margin: 18px 0 0; max-width: 720px; line-height: 1.5; }

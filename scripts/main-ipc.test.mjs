@@ -27,9 +27,9 @@ const EXPECTED_CHANNELS = [
   'add-session', 'app:get-version', 'app:relaunch', 'clipboard:writeText', 'dialog:saveFile',
   'dialog:saveFolder', 'dialog:selectFolder', 'export:pdf', 'feedback:export-check-opt-out',
   'feedback:fixed-reports', 'feedback:get-diagnostics', 'feedback:mark-announced', 'feedback:saved-email',
-  'feedback:send', 'feedback:thanks-offered', 'fs:writeFile', 'get-app-state', 'get-recent-sessions', 'increment-export-count',
+  'feedback:send', 'fs:writeFile', 'get-app-state', 'get-recent-sessions', 'increment-export-count',
   'remove-session', 'set-first-launch-completed', 'shell:openExternal', 'shell:openPath',
-  'shell:showItemInFolder', 'sidecar:call', 'text-size:get', 'text-size:set', 'updates:check',
+  'shell:showItemInFolder', 'sidecar:call', 'support:paid', 'support:snooze', 'support:status', 'text-size:get', 'text-size:set', 'updates:check',
   'updates:download', 'updates:get-state', 'updates:install', 'updates:set-auto-check',
 ];
 
@@ -755,69 +755,82 @@ describe('app state', () => {
   });
 });
 
-describe('after an export: share prompt and export check', () => {
-  test('share prompt on the first export ever, then the export check once per run', async () => {
+describe('after an export: "Pay it forward" and the export check', () => {
+  test('the introduction on the first export, the export check once per run, the short ask on every other export', async () => {
     const userData = freshDir('main-userdata');
     const run1 = await loadMain({ userData });
     assert.equal(await run1.invoke('increment-export-count', 'messages'), 1);
-    assert.deepEqual(run1.env.senderSent, [['share-prompt:show', 'messages']]);
+    assert.deepEqual(run1.env.senderSent, [['share-prompt:show', 'messages', true]]);
     assert.equal(await run1.invoke('increment-export-count', 'calls'), 2);
     assert.deepEqual(run1.env.senderSent.at(-1), ['export-check:show', 'calls', true]);
     assert.equal(await run1.invoke('increment-export-count', 'notes'), 3);
-    assert.equal(run1.env.senderSent.length, 2);
-    assert.equal(run1.readState().thanksCardShown, true);
-    assert.equal(run1.readState().stats.totalExports, 3);
+    assert.deepEqual(run1.env.senderSent.at(-1), ['share-prompt:show', 'notes', false]);
+    assert.equal(await run1.invoke('increment-export-count', 'photos'), 4);
+    assert.deepEqual(run1.env.senderSent.at(-1), ['share-prompt:show', 'photos', false]);
+    assert.equal(run1.readState().payIntroShown, true);
+    assert.equal(run1.readState().stats.totalExports, 4);
 
-    // Next run: no share prompt ever again; the export check comes back once.
+    // Next run: no introduction again; the export check comes first, then the short ask.
     const run2 = await loadMain({ userData });
-    assert.equal(await run2.invoke('increment-export-count', 42), 4);
-    assert.equal(await run2.invoke('increment-export-count', 'photos'), 5);
-    assert.deepEqual(run2.env.senderSent, [['export-check:show', undefined, true]]);
+    assert.equal(await run2.invoke('increment-export-count', 42), 5);
+    assert.equal(await run2.invoke('increment-export-count', 'photos'), 6);
+    assert.deepEqual(run2.env.senderSent, [['export-check:show', undefined, true], ['share-prompt:show', 'photos', false]]);
   });
 
-  test('"Looks right" asks for thanks once ever, and never after a thank-you was sent', async () => {
+  test('"Not now" quiets the ask until the app is opened again', async () => {
     const userData = freshDir('main-userdata');
-    const run1 = await loadMain({ userData, state: { thanksCardShown: true } });
+    const run1 = await loadMain({ userData });
     await run1.invoke('increment-export-count', 'messages');
-    assert.deepEqual(run1.env.senderSent, [['export-check:show', 'messages', true]]);
-    await run1.invoke('feedback:thanks-offered');
-    assert.equal(run1.readState().thanksFollowUpShown, true);
+    await run1.invoke('support:snooze');
+    await run1.invoke('increment-export-count', 'calls');
+    await run1.invoke('increment-export-count', 'notes');
+    // The export check still comes, but "Looks right" won't lead to the ask.
+    assert.deepEqual(run1.env.senderSent, [['share-prompt:show', 'messages', true], ['export-check:show', 'calls', false]]);
 
     const run2 = await loadMain({ userData });
-    await run2.invoke('increment-export-count', 'photos');
-    assert.deepEqual(run2.env.senderSent, [['export-check:show', 'photos', false]]);
-
-    // Someone who already sent a thank-you isn't asked, even if "Glad it worked" never showed.
-    const run3 = await loadMain({ userData: freshDir('main-userdata'), state: { thanksCardShown: true, thanksSent: true } });
-    await run3.invoke('increment-export-count', 'notes');
-    assert.deepEqual(run3.env.senderSent, [['export-check:show', 'notes', false]]);
+    await run2.invoke('increment-export-count', 'calls');
+    await run2.invoke('increment-export-count', 'notes');
+    assert.deepEqual(run2.env.senderSent, [['export-check:show', 'calls', true], ['share-prompt:show', 'notes', false]]);
   });
 
-  test('people who saw the older star-only card get the Say thanks card once, unless they already thanked', async () => {
+  test('"I\'ve paid" ends the ask for good; the export check stays', async () => {
     const userData = freshDir('main-userdata');
-    const run1 = await loadMain({ userData, state: { sharePromptShown: true, stats: { totalExports: 12 } } });
+    const run1 = await loadMain({ userData });
+    assert.deepEqual(await run1.invoke('support:status'), { paid: false, thanksSent: false });
+    await run1.invoke('support:paid');
+    assert.deepEqual(await run1.invoke('support:status'), { paid: true, thanksSent: false });
+    await run1.invoke('increment-export-count', 'messages');
     await run1.invoke('increment-export-count', 'calls');
-    assert.deepEqual(run1.env.senderSent, [['share-prompt:show', 'calls']]);
-    assert.equal(run1.readState().thanksCardShown, true);
+    assert.deepEqual(run1.env.senderSent, [['export-check:show', 'messages', false]]);
+    assert.equal(run1.readState().paidItForward, true);
+
+    const run2 = await loadMain({ userData });
+    for (let i = 0; i < 3; i++) await run2.invoke('increment-export-count', 'photos');
+    assert.deepEqual(run2.env.senderSent, [['export-check:show', 'photos', false]]);
+  });
+
+  test('people who saw the older Say thanks card, or already sent thanks, get the introduction once', async () => {
+    const userData = freshDir('main-userdata');
+    const run1 = await loadMain({ userData, state: { thanksCardShown: true, thanksFollowUpShown: true, thanksSent: true, stats: { totalExports: 12 } } });
+    assert.deepEqual(await run1.invoke('support:status'), { paid: false, thanksSent: true });
+    await run1.invoke('increment-export-count', 'calls');
+    assert.deepEqual(run1.env.senderSent, [['share-prompt:show', 'calls', true]]);
 
     const run2 = await loadMain({ userData });
     await run2.invoke('increment-export-count', 'calls');
     assert.deepEqual(run2.env.senderSent, [['export-check:show', 'calls', true]]);
-
-    const thanked = await loadMain({ userData: freshDir('main-userdata'), state: { sharePromptShown: true, thanksSent: true } });
-    await thanked.invoke('increment-export-count', 'calls');
-    assert.deepEqual(thanked.env.senderSent, [['export-check:show', 'calls', false]]);
   });
 
-  test('"Don\'t ask again" stops the export check, in this run and the next', async () => {
+  test('"Don\'t ask again" stops the export check, in this run and the next; the ask goes on', async () => {
     const userData = freshDir('main-userdata');
-    const run1 = await loadMain({ userData, state: { thanksCardShown: true } });
+    const run1 = await loadMain({ userData, state: { payIntroShown: true } });
     await run1.invoke('feedback:export-check-opt-out');
     await run1.invoke('increment-export-count', 'messages');
-    assert.deepEqual(run1.env.senderSent, []);
+    assert.deepEqual(run1.env.senderSent, [['share-prompt:show', 'messages', false]]);
     assert.equal(run1.readState().exportCheckOptOut, true);
 
     const run2 = await loadMain({ userData });
+    await run2.invoke('support:paid');
     for (let i = 0; i < 3; i++) await run2.invoke('increment-export-count', 'messages');
     assert.deepEqual(run2.env.senderSent, []);
     assert.equal(run2.readState().stats.totalExports, 4);

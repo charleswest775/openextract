@@ -13,8 +13,9 @@ export const BRIDGE = [
   'openPath', 'showInFolder', 'textSize.get', 'textSize.set', 'onNotification', 'getVersion',
   'updates.getState', 'updates.setAutoCheck', 'updates.askLater', 'updates.check', 'updates.download', 'updates.install', 'updates.onStatus',
   'getAppState', 'setFirstLaunchCompleted', 'addSession', 'removeSession', 'getRecentSessions', 'incrementExportCount',
-  'onSharePrompt', 'feedback.getDiagnostics', 'feedback.send', 'feedback.savedEmail', 'feedback.fixedReports',
-  'feedback.markAnnounced', 'feedback.onFixed', 'feedback.optOutOfExportCheck', 'feedback.thanksOffered',
+  'onSharePrompt', 'support.status', 'support.snooze', 'support.markPaid',
+  'feedback.getDiagnostics', 'feedback.send', 'feedback.savedEmail', 'feedback.fixedReports',
+  'feedback.markAnnounced', 'feedback.onFixed', 'feedback.optOutOfExportCheck',
   'feedback.onExportCheck', 'copyText',
 ];
 
@@ -106,22 +107,32 @@ export default {
       check('removeSession / getRecentSessions', (await app.api('getRecentSessions')).value.map(s => s.id).join() === 'e2e-1');
       await app.api('removeSession', 'e2e-1');
 
-      // Exports counter, share prompt (once) and the export check (once per run).
+      // Exports counter, the "Pay it forward" ask (introduction first) and the export check (once per run).
       await app.eval(() => {
         window.__share = [];
         window.__check = [];
-        window.openextract.onSharePrompt((area) => window.__share.push(area));
-        window.openextract.feedback.onExportCheck((area, offerThanks) => window.__check.push([area, offerThanks]));
+        window.openextract.onSharePrompt((area, intro) => window.__share.push([area, intro]));
+        window.openextract.feedback.onExportCheck((area, offerAsk) => window.__check.push([area, offerAsk]));
       });
       const n1 = (await app.api('incrementExportCount', 'messages')).value;
       const n2 = (await app.api('incrementExportCount', 'photos')).value;
       await app.api('incrementExportCount', 'notes');
       await sleep(300);
       const prompts = await app.eval(() => ({ share: window.__share, check: window.__check }));
-      check('incrementExportCount counts; share prompt once, export check once', n2 === n1 + 1 && prompts.share.length === 1 && prompts.check.length === 1, { n1, n2, prompts });
-      check('the share prompt and export check get the export\'s area; a fresh profile may be asked for thanks',
-        prompts.share[0] === 'messages' && prompts.check[0]?.[0] === 'photos' && prompts.check[0]?.[1] === true, prompts);
-      await app.api('feedback.thanksOffered');
+      check('incrementExportCount counts; introduction, then the export check, then the short ask',
+        n2 === n1 + 1 && prompts.share.length === 2 && prompts.check.length === 1, { n1, n2, prompts });
+      check('the ask and the export check get the export\'s area; a fresh profile is asked',
+        prompts.share[0]?.[0] === 'messages' && prompts.share[0]?.[1] === true && prompts.check[0]?.[0] === 'photos'
+        && prompts.check[0]?.[1] === true && prompts.share[1]?.[0] === 'notes' && prompts.share[1]?.[1] === false, prompts);
+      const before = (await app.api('support.status')).value;
+      await app.api('support.snooze');
+      await app.api('incrementExportCount', 'calls');
+      await app.api('support.markPaid');
+      const after = (await app.api('support.status')).value;
+      await sleep(300);
+      const quiet = await app.eval(() => window.__share.length);
+      check('support.snooze quiets the ask; support.markPaid is remembered', before?.paid === false && after?.paid === true && quiet === 2,
+        { before, after, quiet });
       await app.api('feedback.optOutOfExportCheck');
 
       // Feedback: diagnostics and the saved email are local; sending is not exercised here

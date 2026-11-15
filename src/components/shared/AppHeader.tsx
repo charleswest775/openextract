@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import SettingsDialog from './SettingsDialog';
 import { useFeedback } from './Feedback';
 import { HelpIcon, SettingsIcon } from './Icons';
+import PayItForwardButton from './PayItForwardButton';
 
 interface Props {
   showVersion?: boolean;
@@ -35,6 +36,7 @@ export default function AppHeader({ showVersion = true, showSettings = true }: P
       </div>
       {showSettings && (
         <div className="flex items-center gap-1">
+          <span className="mr-1.5"><PayItForwardButton labelClass="hidden sm:inline" /></span>
           <button
             onClick={() => openFeedback()}
             className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm text-text-secondary hover:text-text-primary hover:bg-surface transition-colors"
