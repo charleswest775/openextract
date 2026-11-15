@@ -520,7 +520,7 @@ img { max-width: 100%; display: block; }
   flex: 0 0 auto; width: 380px; min-height: var(--ribbon-card-h); padding: 26px 28px;
   display: flex; flex-direction: column;
 }
-.quote-ribbon .testimonial--short { width: 320px; }
+.quote-ribbon .testimonial--short { width: 340px; }
 .quote-ribbon .testimonial--long { width: 480px; }
 .quote-ribbon .testimonial__quote-glyph { font-size: 52px; margin-bottom: 10px; }
 .quote-ribbon .testimonial__quote { flex: 1; white-space: pre-line; font-size: 19px; margin-bottom: 18px; }
