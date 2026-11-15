@@ -472,6 +472,91 @@ img { max-width: 100%; display: block; }
 .testimonials--page { padding-top: 16px; }
 .testimonials--page .testimonials__grid { display: block; columns: 3 280px; column-gap: 20px; }
 .testimonials--page .testimonial { break-inside: avoid; margin-bottom: 20px; }
+.testimonials--quotes .testimonial:nth-child(3n+1) .testimonial__quote-glyph,
+.quote-ribbon .testimonial:nth-child(3n+1) .testimonial__quote-glyph { color: var(--coral); }
+.testimonials--quotes .testimonial:nth-child(3n+2) .testimonial__quote-glyph,
+.quote-ribbon .testimonial:nth-child(3n+2) .testimonial__quote-glyph { color: var(--sage); }
+.testimonials--quotes .testimonial:nth-child(3n) .testimonial__quote-glyph,
+.quote-ribbon .testimonial:nth-child(3n) .testimonial__quote-glyph { color: var(--plum); }
+
+/* Quote ribbon: the same quotes as a strip that drifts left in a loop (js/thanks.js, ribbon()).
+ * It pauses on hover, on focus and with its button. It stands still as a row you can scroll
+ * when the cards fit (.is-still) or the system asks for less motion. It holds one card's
+ * height while the quotes load, and cards grow wider rather than taller, so nothing jumps. */
+.quote-ribbon { --ribbon-card-h: 280px; padding: 40px 0 40px; border-top: 1px solid var(--line); }
+.quote-ribbon__head {
+  padding: 0 56px; margin: 0 0 28px;
+  display: flex; align-items: flex-end; gap: 24px 40px; flex-wrap: wrap;
+}
+.quote-ribbon__head .section-label { margin-bottom: 8px; }
+.quote-ribbon__title { font-size: 36px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.05; }
+.quote-ribbon__note { flex: 1 1 360px; max-width: 560px; font-size: 14px; line-height: 1.5; color: var(--ink-dim); }
+.quote-ribbon__note a { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+.quote-ribbon__pause {
+  margin-left: auto; visibility: hidden;
+  font: 500 13px var(--sans); color: var(--ink-soft);
+  background: none; border: 1px solid var(--line); border-radius: 99px;
+  padding: 7px 16px; cursor: pointer;
+}
+.quote-ribbon.is-ready .quote-ribbon__pause { visibility: visible; }
+.quote-ribbon__pause:hover { color: var(--ink); border-color: var(--ink-dim); }
+.quote-ribbon__viewport {
+  overflow: hidden; min-height: var(--ribbon-card-h);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 56px, #000 calc(100% - 56px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 56px, #000 calc(100% - 56px), transparent);
+}
+.quote-ribbon__track {
+  display: flex; width: max-content;
+  animation: quote-ribbon-drift var(--ribbon-seconds, 120s) linear infinite;
+}
+/* Each list ends with one gap, so two lists are exactly twice one list and -50% is one list. */
+.quote-ribbon__track > div { display: flex; align-items: stretch; gap: 20px; padding-right: 20px; }
+.quote-ribbon__track > div.is-fitting { align-items: flex-start; }
+.quote-ribbon__viewport:hover .quote-ribbon__track,
+.quote-ribbon__viewport:focus-within .quote-ribbon__track,
+.quote-ribbon.is-paused .quote-ribbon__track { animation-play-state: paused; }
+@keyframes quote-ribbon-drift { to { transform: translateX(-50%); } }
+.quote-ribbon .testimonial {
+  flex: 0 0 auto; width: 380px; min-height: var(--ribbon-card-h); padding: 26px 28px;
+  display: flex; flex-direction: column;
+}
+.quote-ribbon .testimonial--short { width: 320px; }
+.quote-ribbon .testimonial--long { width: 480px; }
+.quote-ribbon .testimonial__quote-glyph { font-size: 52px; margin-bottom: 10px; }
+.quote-ribbon .testimonial__quote { flex: 1; white-space: pre-line; font-size: 19px; margin-bottom: 18px; }
+.quote-ribbon .testimonial--short .testimonial__quote { font-size: 26px; line-height: 1.2; }
+/* Standing still: no copy, no fade at the edges, and a row you can scroll if it's wider than the screen. */
+.quote-ribbon.is-still .quote-ribbon__viewport { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
+.quote-ribbon.is-still .quote-ribbon__track { animation: none; margin: 0 auto; padding: 0 36px 0 56px; }
+.quote-ribbon.is-still .quote-ribbon__track > [aria-hidden],
+.quote-ribbon.is-still .quote-ribbon__pause { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .quote-ribbon__viewport { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
+  .quote-ribbon__track { animation: none; margin: 0 auto; padding: 0 36px 0 56px; }
+  .quote-ribbon__track > [aria-hidden], .quote-ribbon__pause { display: none; }
+}
+@media (max-width: 720px) {
+  .quote-ribbon { --ribbon-card-h: 360px; padding: 32px 0 32px; }
+  .quote-ribbon__head { padding: 0 24px; margin-bottom: 22px; gap: 14px 12px; }
+  .quote-ribbon__title { font-size: 28px; }
+  /* Pause sits beside the title; the note takes the next line. */
+  .quote-ribbon__pause { order: 1; padding: 6px 14px; }
+  .quote-ribbon__note { order: 2; flex-basis: 100%; }
+  .quote-ribbon .testimonial { width: 290px; padding: 22px 22px; }
+  .quote-ribbon .testimonial--short { width: 250px; }
+  .quote-ribbon .testimonial--long { width: min(340px, 84vw); }
+  .quote-ribbon .testimonial__quote { font-size: 17px; }
+  .quote-ribbon .testimonial--short .testimonial__quote { font-size: 22px; }
+  .quote-ribbon.is-still .quote-ribbon__track { padding: 0 4px 0 24px; }
+  .quote-ribbon__viewport {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+  }
+}
+@media (max-width: 720px) and (prefers-reduced-motion: reduce) {
+  .quote-ribbon__viewport { -webkit-mask-image: none; mask-image: none; }
+  .quote-ribbon__track { padding: 0 4px 0 24px; }
+}
 
 /* ── Privacy band ───────────────────────────────────── */
 .privacy { padding: 48px 56px 56px; }
