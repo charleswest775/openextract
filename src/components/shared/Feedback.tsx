@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Heart, MessageSquare } from 'lucide-react';
 import {
-  FEEDBACK_AREAS, FEEDBACK_KINDS, FIXES_URL, PRIVACY_URL, SITE_URL, SUPPORT_URL, formatDiagnostics, fullReport, githubIssueUrl, newReportToken,
+  FEEDBACK_AREAS, FEEDBACK_KINDS, FIXES_URL, PRIVACY_URL, SITE_URL, formatDiagnostics, fullReport, githubIssueUrl, newReportToken,
   type FeedbackArea, type FeedbackForm, type FeedbackKind, type FeedbackRequest,
 } from '../../lib/feedback';
+import { SUPPORT_PAY_URL, showAsk } from '../../lib/payItForward';
 import type { KnownFix } from '../../types';
 
 /**
@@ -162,8 +163,8 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
           passing on the link helps them find it.
         </p>
         <p className="text-xs text-text-secondary leading-relaxed mb-4">
-          OpenExtract stays free for everyone. If you'd like to chip in toward code signing and development,
-          you can, in any amount.
+          And if getting your data was worth $5 to you, please pay it forward. It keeps OpenExtract
+          free for the next person. <span className="text-text-primary">— Charles</span>
         </p>
         <div className="flex justify-end gap-2">
           <button
@@ -181,8 +182,18 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
           >
             {copied ? 'Link copied' : 'Copy link'}
           </button>
-          <button className="hearth-ghost-btn" onClick={() => window.openextract.openExternal(SUPPORT_URL)}>Chip in</button>
-          <button className="hearth-primary-btn" onClick={onClose}>Done</button>
+          <button className="hearth-ghost-btn" onClick={onClose}>Done</button>
+          <button
+            className="hearth-primary-btn"
+            onClick={() => {
+              window.openextract.openExternal(SUPPORT_PAY_URL);
+              onClose();
+              showAsk({ mode: 'header', stage: 'opened' });
+            }}
+          >
+            <Heart size={14} fill="currentColor" aria-hidden="true" />
+            Pay $5
+          </button>
         </div>
       </Shell>
     );

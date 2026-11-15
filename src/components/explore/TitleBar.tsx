@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { HelpIcon, SettingsIcon } from '../shared/Icons';
+import PayItForwardButton from '../shared/PayItForwardButton';
 
 interface Props {
   left?: ReactNode;
@@ -34,6 +35,7 @@ export default function TitleBar({ left, center, onLogo, onHelp, onSettings }: P
       )}
       {left}
       <div className="flex-1 min-w-0 flex justify-center">{center}</div>
+      <PayItForwardButton />
       <button
         onClick={onHelp}
         title="Help and feedback"

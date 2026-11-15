@@ -90,6 +90,25 @@ img { max-width: 100%; display: block; }
   padding: 10px 20px; border-radius: 999px;
   font-size: 14px; font-weight: 500;
 }
+/* "Pay it forward" on every page: always there, never moving, except one soft glow
+   a moment after the page loads (none under reduced motion). On phones it's just the heart. */
+.nav__pay {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 16px; border-radius: 999px;
+  font-size: 14px; font-weight: 500;
+  color: var(--coral); background: var(--coral-15);
+  border: 1px solid var(--coral-44);
+  animation: pay-glow 1.2s ease-in-out 0.8s 2;
+}
+.nav__pay:hover { background: var(--coral-22); }
+.nav__pay svg, .pay-heart { width: 15px; height: 15px; fill: currentColor; flex-shrink: 0; }
+@keyframes pay-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 87, 0); }
+  50% { box-shadow: 0 0 0 5px rgba(217, 119, 87, 0.22), 0 0 18px 4px rgba(217, 119, 87, 0.3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav__pay, .pay-cta__btn { animation: none; }
+}
 
 /* ── Atoms ──────────────────────────────────────────── */
 .pill {
@@ -665,6 +684,8 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .step-body p 
 .final-cta__brew code { background: #f4ede0; padding: 3px 8px; border-radius: 4px; font-family: var(--mono); }
 .final-cta__brew + .final-cta__brew { margin-top: 8px; }
 .final-cta__brew a { text-decoration: underline; text-underline-offset: 3px; }
+.final-cta__pay { margin-top: 26px; font-size: 15px; color: var(--ink-soft); }
+.final-cta__pay a { color: var(--coral); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 
 /* ── How-it-works page ─────────────────────────────── */
 .steps-wrap { padding: 24px 56px 64px; max-width: 1100px; margin: 0 auto; }
@@ -1093,6 +1114,10 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .step-body p 
   /* Phones: the version pill and GitHub link push "Get it free" off the screen. GitHub stays in the footer. */
   .nav__version, .nav__gh { display: none; }
   .nav__cta { white-space: nowrap; }
+  .nav__pay { padding: 9px 11px; }
+  .nav__pay-label { display: none; }
+  .pay-again { padding: 22px 20px 6px; }
+  .pay-letter { font-size: 18px; }
   .footer { grid-template-columns: 1fr; gap: 24px; }
   .step-row { grid-template-columns: 1fr; }
   .uc-step { grid-template-columns: 1fr; gap: 12px; }
@@ -1103,8 +1128,20 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .step-body p 
 }
 
 /* ── Support page ─────────────────────────────────── */
+/* Support page ("Pay it forward") */
+.pay-head h1 .it { color: var(--coral); }
+.pay-cta { margin-top: 28px; }
+.pay-cta__btn { font-size: 17px; padding: 18px 30px; animation: pay-glow 1.2s ease-in-out 0.8s 2; }
+.pay-cta__btn:hover, .prose__inner a.support-pay:hover { filter: brightness(0.95); }
+.pay-cta__btn .pay-heart { width: 18px; height: 18px; }
+.pay-cta__note { margin-top: 12px; font-size: 14px; color: var(--ink-soft); }
+.pay-letter { font-size: 19px; line-height: 1.65; }
+.pay-letter p { margin-bottom: 18px; }
+.pay-letter__sign { font-family: var(--serif); font-style: italic; font-size: 26px; }
+.pay-again { padding: 28px 32px 12px; border-radius: 20px; background: white; border: 1px solid var(--line); margin: 8px 0 28px; }
+.pay-again h2:first-child { margin-top: 0; }
 .prose__inner a.support-pay { color: white; margin: 4px 0 4px; }
-.prose__inner a.support-pay:hover { text-decoration: none; filter: brightness(0.95); }
+.prose__inner a.support-pay:hover { text-decoration: none; }
 .prose__inner .support-note { font-size: 14px; color: var(--ink-soft); }
 
 /* ── Roundup: iMazing alternatives ────────────────── */

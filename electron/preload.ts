@@ -72,11 +72,18 @@ contextBridge.exposeInMainWorld('openextract', {
   // `area` (e.g. 'calls') only labels the follow-up "did it come out right?" card.
   incrementExportCount: (area?: string) => ipcRenderer.invoke('increment-export-count', area),
 
-  // One-time "say thanks or tell a friend" prompt after the first successful export.
-  onSharePrompt: (callback: (area?: string) => void) => {
-    const listener = (_event: any, area?: string) => callback(area);
+  // "Pay it forward" card after an export (`intro` the first time). The main process decides when.
+  onSharePrompt: (callback: (area?: string, intro?: boolean) => void) => {
+    const listener = (_event: any, area?: string, intro?: boolean) => callback(area, intro);
     ipcRenderer.on('share-prompt:show', listener);
     return () => ipcRenderer.removeListener('share-prompt:show', listener);
+  },
+
+  // The "Pay it forward" ask. Remembered on this computer only; the app never sees payments.
+  support: {
+    status: () => ipcRenderer.invoke('support:status'),
+    snooze: () => ipcRenderer.invoke('support:snooze'),
+    markPaid: () => ipcRenderer.invoke('support:paid'),
   },
 
   // In-app feedback. A report is sent only when the user clicks Send in the form.
@@ -92,9 +99,8 @@ contextBridge.exposeInMainWorld('openextract', {
       return () => ipcRenderer.removeListener('feedback:fixed', listener);
     },
     optOutOfExportCheck: () => ipcRenderer.invoke('feedback:export-check-opt-out'),
-    thanksOffered: () => ipcRenderer.invoke('feedback:thanks-offered'),
-    onExportCheck: (callback: (area?: string, offerThanks?: boolean) => void) => {
-      const listener = (_event: any, area?: string, offerThanks?: boolean) => callback(area, offerThanks);
+    onExportCheck: (callback: (area?: string, offerAsk?: boolean) => void) => {
+      const listener = (_event: any, area?: string, offerAsk?: boolean) => callback(area, offerAsk);
       ipcRenderer.on('export-check:show', listener);
       return () => ipcRenderer.removeListener('export-check:show', listener);
     },

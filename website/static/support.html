@@ -4,14 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#faf6f1" />
-  <title>Support OpenExtract — chip in to keep it free</title>
-  <meta name="description" content="OpenExtract is free for everyone and stays that way. If it got your data back, you can chip in any amount to help pay for code signing and development." />
+  <title>Pay it forward — was OpenExtract worth $5 to you?</title>
+  <meta name="description" content="OpenExtract is free for everyone. If it got your photos, messages or contacts off your iPhone, Charles West, who makes it, asks you to pay $5 and keep it free for the next person." />
   <link rel="canonical" href="https://www.openextract.app/support" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://www.openextract.app/support" />
-  <meta property="og:title" content="Support OpenExtract" />
-  <meta property="og:description" content="Free for everyone, and it stays that way. Chip in any amount if it helped." />
+  <meta property="og:title" content="Was OpenExtract worth $5 to you?" />
+  <meta property="og:description" content="Free for everyone, with no paid tier. If it got your data back, pay it forward." />
   <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -21,6 +21,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/site.css" />
+  <noscript><style>.quote-ribbon { display: none; }</style></noscript>
 </head>
 <body>
   <nav class="nav" aria-label="Primary">
@@ -35,39 +36,64 @@
       <a href="/about">About</a>
     </div>
     <div class="nav__right">
+      <a class="nav__pay" href="/support" aria-label="Pay it forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C1 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.2 4.4 2.5h2c.7-1.3 2.2-2.5 4.4-2.5 3.7 0 5.6 3.9 4.2 7.1C19.5 16.4 12 21 12 21z"/></svg><span class="nav__pay-label">Pay it forward</span></a>
       <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
       <a class="nav__cta" href="/#download">Get it free</a>
     </div>
   </nav>
 
-  <header class="page-head">
-    <div class="page-head__eyebrow">Support</div>
-    <h1>Keep OpenExtract<br /><span class="it">free for everyone</span>.</h1>
-    <p class="page-head__lede">OpenExtract is free, and it stays free: every feature, for everyone, with no trial and no paid tier. If it got your data back and you'd like to chip in, you can, in any amount. Nothing in the app changes either way.</p>
+  <header class="page-head pay-head">
+    <div class="page-head__eyebrow">Pay it forward</div>
+    <h1>Was it worth <span class="it">$5?</span></h1>
+    <p class="page-head__lede">If OpenExtract got your photos, messages or contacts off your iPhone, I'm asking you to pay $5 for it. More if it was worth more to you.</p>
+    <div class="pay-cta">
+      <a class="btn btn--primary pay-cta__btn" href="/support/pay"><svg class="pay-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C1 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.2 4.4 2.5h2c.7-1.3 2.2-2.5 4.4-2.5 3.7 0 5.6 3.9 4.2 7.1C19.5 16.4 12 21 12 21z"/></svg>Pay $5</a>
+      <p class="pay-cta__note">Takes about a minute. No account needed. Choose any amount on the next page.</p>
+    </div>
   </header>
 
   <section class="prose">
-    <div class="prose__inner">
-      <h2 id="chip-in">Chip in</h2>
-      <p>Pay what it was worth to you, once. The payment page is run by Stripe, and you don't need an account.</p>
-      <p><a class="btn btn--primary support-pay" href="/support/pay">Chip in with Stripe →</a></p>
-      <p class="support-note">OpenExtract never sees your card details: Stripe takes the payment and emails you a receipt. OpenExtract isn't a charity, so a payment isn't tax-deductible. If you paid by mistake, use the contact details on your receipt and you'll get a refund.</p>
+    <div class="prose__inner pay-letter">
+      <p>Hi, I'm Charles West. I make OpenExtract, with help from a few contributors, and I give it away: every feature, to everyone. No trial, no paid tier, and no &ldquo;pay to export&rdquo; screen waiting at the end.</p>
+      <p>That's on purpose. When you're trying to save a parent's voicemails or ten years of texts, the last thing you need is an app that shows you everything, then charges you to keep it.</p>
+      <p>But free to you isn't free to make. OpenExtract keeps going when the people it helps pay what it was worth to them. Your $5 keeps it free for the next person: someone sitting with an old backup tonight, wondering if their photos are still in there.</p>
+      <p>Thank you for reading this, whatever you decide.</p>
+      <p class="pay-letter__sign">&mdash; Charles</p>
+    </div>
+  </section>
 
-      <h2>Where it goes</h2>
-      <ul>
-        <li><strong>Code signing.</strong> Apple's developer program and Windows code signing are what stop your Mac or PC from warning that the app might be unsafe. Both cost money every year.</li>
-        <li><strong>The website.</strong> The openextract.app domain, and the service behind the app's feedback form.</li>
-        <li><strong>Time.</strong> New kinds of data, fixes for the problems people report, and testing on real iPhones, Macs and Windows PCs.</li>
-      </ul>
-      <p>OpenExtract is made by an independent developer with help from contributors.</p>
+  <section class="quote-ribbon" data-thanks data-thanks-ribbon data-thanks-limit="12" aria-labelledby="quotes-title">
+    <div class="quote-ribbon__head">
+      <div>
+        <div class="section-label">Sent from the app</div>
+        <h2 class="quote-ribbon__title" id="quotes-title">What it <span class="it">meant to them.</span></h2>
+      </div>
+      <p class="quote-ribbon__note">Thank-yous sent from inside the app by people who gave permission to quote them. Word for word, without names. <a href="/what-people-say">Read them all &rarr;</a></p>
+      <button type="button" class="quote-ribbon__pause" data-thanks-pause>Pause</button>
+    </div>
+    <div class="quote-ribbon__viewport">
+      <div class="quote-ribbon__track">
+        <div data-thanks-list></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <div class="pay-again">
+        <h2 id="pay">Pay it forward</h2>
+        <p>$5 is the suggestion. Pay whatever it was worth to you, once.</p>
+        <p><a class="btn btn--primary support-pay" href="/support/pay"><svg class="pay-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C1 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.2 4.4 2.5h2c.7-1.3 2.2-2.5 4.4-2.5 3.7 0 5.6 3.9 4.2 7.1C19.5 16.4 12 21 12 21z"/></svg>Pay $5</a></p>
+        <p class="support-note">Not ready yet? This page is always here at <a href="/support">openextract.app/support</a>, and there's a &ldquo;Pay it forward&rdquo; button at the top of the app.</p>
+        <p class="support-note">Stripe takes the payment and emails you a receipt; OpenExtract never sees your card. OpenExtract isn't a charity, so a payment isn't tax-deductible. If you paid by mistake, use the contact details on your receipt and you'll get a refund.</p>
+      </div>
 
       <h2>Other ways to help</h2>
-      <p>These help just as much as money does:</p>
       <ul>
-        <li><strong>Say thanks</strong> from inside the app (Settings → Say thanks). Hearing that it helped is what keeps it going.</li>
+        <li><strong>Say thanks</strong> from inside the app (Settings &rarr; Say thanks). It means more than you might think.</li>
         <li><strong>Tell a friend</strong> who has an old iPhone backup, or post the link where people ask about iMazing alternatives.</li>
         <li><strong>Star it</strong> on <a href="https://github.com/charleswest775/openextract">GitHub</a>.</li>
-        <li><strong>Report a problem</strong> from the app (Settings → Report a problem), so it gets fixed for the next person.</li>
+        <li><strong>Report a problem</strong> from the app (Settings &rarr; Report a problem), so it gets fixed for the next person.</li>
       </ul>
     </div>
   </section>
@@ -126,7 +152,7 @@
       <div class="footer__col-head">Project</div>
       <ul class="footer__list">
         <li><a href="/about">About</a></li>
-        <li><a href="/support">Support OpenExtract</a></li>
+        <li><a href="/support">Pay it forward</a></li>
         <li><a href="/what-people-say">What people say</a></li>
         <li><a href="/blog">Blog</a></li>
         <li><a href="/privacy">Privacy</a></li>
@@ -135,5 +161,6 @@
       </ul>
     </div>
   </footer>
+  <script defer src="/js/thanks.js"></script>
 </body>
 </html>

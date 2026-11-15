@@ -1,22 +1,25 @@
 import type { ReactNode } from 'react';
 
 /**
- * Small card for the bottom-right notice stack (updates, the one-time share
- * prompt). App.tsx positions the stack; this only draws the card.
+ * Small card for the bottom-right notice stack (updates, the "Pay it forward"
+ * ask). App.tsx positions the stack; this only draws the card. `highlight`
+ * gives it an accent edge and one soft glow as it appears (none under
+ * reduced motion; see .notice-highlight in index.css).
  */
-export default function NoticeCard({ title, icon, onClose, children }: {
+export default function NoticeCard({ title, icon, onClose, highlight = false, children }: {
   title: string;
   icon: ReactNode;
   onClose?: () => void;
+  highlight?: boolean;
   children: ReactNode;
 }) {
   return (
     <div
       role="status"
-      className="w-[340px] px-4 py-3.5 rounded-xl"
+      className={`w-[340px] px-4 py-3.5 rounded-xl ${highlight ? 'notice-highlight' : ''}`}
       style={{
         background: 'var(--bg-surface)',
-        border: '1px solid var(--border-strong)',
+        border: `1px solid ${highlight ? 'var(--accent-line)' : 'var(--border-strong)'}`,
         boxShadow: '0 10px 28px rgba(30,26,22,0.18)',
       }}
     >
