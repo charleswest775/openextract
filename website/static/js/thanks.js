@@ -3,8 +3,6 @@
 //
 //   data-thanks-limit="3"   show at most this many (newest first); leave it out to show all
 //   [data-thanks-list]      where the cards go
-//   [data-thanks-count]     gets "16 people", the number of thank-yous so far
-//   [data-thanks-shown]     unhidden once that number is known and above zero
 //   [data-thanks-status]    gets a line when there's nothing to show (only on the full page)
 //   data-thanks-ribbon      the cards drift sideways in a loop instead of sitting in a grid;
 //                           see ribbon() below
@@ -122,15 +120,6 @@
   }
 
   function fill(block, data) {
-    var count = typeof data.thanks === 'number' ? data.thanks : 0;
-    block.querySelectorAll('[data-thanks-count]').forEach(function (el) {
-      el.textContent = count === 1 ? '1 person' : count.toLocaleString('en-US') + ' people';
-    });
-    if (count > 0) {
-      block.querySelectorAll('[data-thanks-shown]').forEach(function (el) {
-        el.hidden = false;
-      });
-    }
     var limit = parseInt(block.getAttribute('data-thanks-limit') || '0', 10);
     var quotes = limit > 0 ? data.quotes.slice(0, limit) : data.quotes;
     if (!quotes.length) {
