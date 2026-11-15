@@ -20,7 +20,7 @@
   function when(date) {
     var d = new Date(date + 'T12:00:00Z');
     if (isNaN(d)) return '';
-    return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
   }
 
   function card(q) {
