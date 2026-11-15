@@ -452,6 +452,29 @@ img { max-width: 100%; display: block; }
 .how__num { font-family: var(--serif); font-style: italic; font-size: 80px; font-weight: 400; line-height: 1; margin-bottom: 18px; letter-spacing: -0.03em; }
 .how__step-title { font-size: 24px; font-weight: 500; letter-spacing: -0.015em; margin-bottom: 12px; }
 .how__step-desc { font-size: 15px; color: rgba(250,246,241,0.65); margin: 0; line-height: 1.6; }
+/* "And how it's paid for": the business experiment, inside the dark How it works panel */
+.how__pay { margin-top: 56px; padding-top: 48px; border-top: 1px solid rgba(250,246,241,0.14); display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px 56px; }
+.how__pay-head { grid-row: span 2; }
+.how__pay-title { font-size: 40px; letter-spacing: -0.025em; margin: 0 0 18px; font-weight: 500; line-height: 1.05; }
+.how__pay-title .it { color: var(--coral); }
+.how__pay-lede { font-size: 16px; color: rgba(250,246,241,0.7); line-height: 1.6; max-width: 520px; }
+.how__pay-rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.how__pay-rules li { display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; border-radius: 14px; background: rgba(250,246,241,0.06); border: 1px solid rgba(250,246,241,0.1); }
+.how__pay-n {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(217,119,87,0.2); color: var(--coral); font-family: var(--mono); font-size: 13px;
+}
+.how__pay-rules p { font-size: 16px; line-height: 1.5; color: rgba(250,246,241,0.7); margin: 0; }
+.how__pay-rules strong { color: var(--bg); font-weight: 600; }
+.how__pay-ctas { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; }
+.how__pay-btn {
+  display: inline-flex; align-items: center; gap: 9px; padding: 13px 22px; border-radius: 999px;
+  background: var(--coral); color: white; font-size: 15px; font-weight: 600;
+}
+.how__pay-btn svg { width: 16px; height: 16px; fill: currentColor; }
+.how__pay-btn:hover { filter: brightness(0.95); }
+.how__pay-link { color: var(--bg); font-size: 15px; border-bottom: 1px solid rgba(250,246,241,0.4); padding-bottom: 2px; }
+.how__pay-link:hover { border-bottom-color: var(--bg); }
 
 /* ── Testimonials ───────────────────────────────────── */
 .testimonials { padding: 80px 56px 48px; }
@@ -1207,6 +1230,17 @@ a.pay-tier:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(31,
   .pay-pro { padding: 20px; gap: 16px; }
   .pay-again { padding: 22px 20px 6px; }
   .pay-letter { font-size: 18px; }
+}
+
+/* Home "how it's paid for" on smaller screens */
+@media (max-width: 1024px) {
+  .how__pay { grid-template-columns: 1fr; }
+  .how__pay-head { grid-row: auto; }
+}
+@media (max-width: 720px) {
+  .how__pay { margin-top: 40px; padding-top: 36px; }
+  .how__pay-title { font-size: 30px; }
+  .how__pay-rules li { padding: 14px; }
 }
 
 /* ── Roundup: iMazing alternatives ────────────────── */
