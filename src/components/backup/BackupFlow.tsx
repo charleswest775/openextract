@@ -10,6 +10,9 @@ interface DeviceInfo {
   connection_type: 'usb' | 'wifi';
   // false until the iPhone trusts this computer (backup.pair_device)
   trusted?: boolean;
+  // true when the iPhone already has a backup password (Encrypt local backup): every backup
+  // is encrypted with it, and the app can't set a new one (OE-68). null when unknown.
+  encrypts_backups?: boolean | null;
 }
 
 // backup.pair_device: 'locked' also covers the iPhone asking for its passcode after Trust.
@@ -130,8 +133,15 @@ const PHASE_LABELS: Record<BackupProgress['phase'], string> = {
 
 interface Props {
   onBack: () => void;
-  onBackupComplete?: (udid: string, backupPath: string, password?: string) => Promise<string | void> | void;
+  // existingPassword: the backup is encrypted with the password the iPhone already had.
+  onBackupComplete?: (udid: string, backupPath: string, existingPassword: boolean) => Promise<void> | void;
 }
+
+// Shown in step 3 when the iPhone already has a backup password (OE-68).
+const EXISTING_PASSWORD_NOTE =
+  "This iPhone already has a backup password, set earlier in Finder, iTunes or OpenExtract. It encrypts every backup with that password, so this backup uses it too. You'll need it to open the backup.";
+const FORGOT_PASSWORD_NOTE =
+  "Can't remember it? On the iPhone, Settings > General > Transfer or Reset iPhone > Reset > Reset All Settings removes it. That keeps your data but resets settings such as Wi-Fi passwords and wallpaper.";
 
 export default function BackupFlow({ onBack, onBackupComplete }: Props) {
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
@@ -148,12 +158,6 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
   const [progress, setProgress] = useState<BackupProgress | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
   const [backupPath, setBackupPath] = useState<string | null>(null);
-
-  const [passwordRequired, setPasswordRequired] = useState(false);
-  const [pendingOpen, setPendingOpen] = useState<{ udid: string; backupPath: string } | null>(null);
-  const [openPassword, setOpenPassword] = useState('');
-  const [openPasswordError, setOpenPasswordError] = useState<string | null>(null);
-  const [openingBackup, setOpeningBackup] = useState(false);
 
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
@@ -207,12 +211,17 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
 
   // Only one device, as on anyone's first backup: select it, so there's nothing to pick.
   // A device that has gone from the list (unplugged, then Refresh) is no longer selected.
+  // One still there is replaced by its new entry, which may now trust this computer or
+  // have a backup password.
   useEffect(() => {
     setSelectedDevice((current) => {
       if (devices.length === 1) return devices[0];
-      return current && devices.some((d) => d.udid === current.udid) ? current : null;
+      return devices.find((d) => d.udid === current?.udid) ?? null;
     });
   }, [devices]);
+
+  // The iPhone already has a backup password, so the backup uses it, asked to encrypt or not.
+  const existingPassword = selectedDevice?.encrypts_backups === true;
 
   const handleChooseDir = async () => {
     const folder = await saveFolder();
@@ -236,13 +245,13 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
     }
 
     try {
-      const result = await sidecarCall<{ success: boolean; backup_path: string }>(
+      const result = await sidecarCall<{ success: boolean; backup_path: string; existing_password?: boolean }>(
         'backup.start',
         {
           udid: selectedDevice.udid,
           output_dir: outputDir,
-          encrypted: useEncryption,
-          ...(useEncryption && password ? { password } : {}),
+          encrypted: useEncryption || existingPassword,
+          ...(useEncryption && !existingPassword && password ? { password } : {}),
         },
       );
       setBackupPath(result.backup_path);
@@ -262,33 +271,17 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
         unfinished: false,
       });
 
-      if (onBackupComplete) {
-        const openResult = await onBackupComplete(selectedDevice.udid, result.backup_path);
-        if (openResult === 'password_required') {
-          setPasswordRequired(true);
-          setPendingOpen({ udid: selectedDevice.udid, backupPath: result.backup_path });
-        }
-      }
+      await onBackupComplete?.(selectedDevice.udid, result.backup_path, !!result.existing_password);
     } catch (err: any) {
       setBackupError(err.message || 'Backup failed');
       setStatus('error');
-      // The device list then shows the iPhone as untrusted (and asks it to trust us),
-      // or as gone until it's plugged back in.
-      if (/^(TRUST_REQUIRED|DEVICE_DISCONNECTED):/.test(err.message ?? '')) loadDevices();
+      // The device list then shows the iPhone as untrusted (and asks it to trust us), as
+      // gone until it's plugged back in, or with the backup password a failed try set, so
+      // a retry doesn't offer to set another (OE-68).
+      loadDevices();
     } finally {
       unsubscribeRef.current?.();
       unsubscribeRef.current = null;
-    }
-  };
-
-  const handleSubmitOpenPassword = async () => {
-    if (!pendingOpen || !openPassword || !onBackupComplete) return;
-    setOpenPasswordError(null);
-    setOpeningBackup(true);
-    const result = await onBackupComplete(pendingOpen.udid, pendingOpen.backupPath, openPassword);
-    setOpeningBackup(false);
-    if (result?.startsWith('error:')) {
-      setOpenPasswordError(result.slice(6) || 'Incorrect password');
     }
   };
 
@@ -297,15 +290,11 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
     setProgress(null);
     setBackupError(null);
     setBackupPath(null);
-    setPasswordRequired(false);
-    setPendingOpen(null);
-    setOpenPassword('');
-    setOpenPasswordError(null);
-    setOpeningBackup(false);
   };
 
   const selectedTrusted = devices.find((d) => d.udid === selectedDevice?.udid)?.trusted !== false;
-  const canStart = selectedDevice !== null && selectedTrusted && outputDir !== '' && (!useEncryption || password !== '') && status === 'idle';
+  const canStart = selectedDevice !== null && selectedTrusted && outputDir !== ''
+    && (!useEncryption || existingPassword || password !== '') && status === 'idle';
 
   return (
     <div className="h-screen flex flex-col bg-base">
@@ -422,12 +411,12 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
           {/* Step 3: Encryption */}
           <section className="mb-6">
             <h3 className="text-sm font-medium text-gray-900 mb-2">3. Encryption</h3>
-            <label className="flex items-center gap-2 cursor-pointer select-none">
+            <label className={`flex items-center gap-2 select-none ${existingPassword ? '' : 'cursor-pointer'}`}>
               <input
                 type="checkbox"
-                checked={useEncryption}
+                checked={useEncryption || existingPassword}
                 onChange={(e) => setUseEncryption(e.target.checked)}
-                disabled={status === 'running'}
+                disabled={status === 'running' || existingPassword}
                 className="w-4 h-4 rounded accent-[var(--accent)]"
               />
               <span className="text-sm text-gray-700">Encrypt backup</span>
@@ -436,7 +425,12 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
             <p className="text-xs text-text-tertiary mt-1 ml-6">
               Encrypted backups include Health data, saved passwords, and Wi-Fi credentials.
             </p>
-            {useEncryption && (
+            {existingPassword ? (
+              <div className="mt-3 ml-6 p-3 rounded-lg bg-accent-wash/50 border border-accent-line text-xs" data-existing-password>
+                <p className="text-gray-700">{EXISTING_PASSWORD_NOTE}</p>
+                <p className="text-text-tertiary mt-1.5">{FORGOT_PASSWORD_NOTE}</p>
+              </div>
+            ) : useEncryption && (
               <div className="mt-3 ml-6 relative w-80">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -485,7 +479,7 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
 
           {/* Success */}
           {status === 'success' && (
-            <div className="mb-6 space-y-3">
+            <div className="mb-6">
               <div className="p-4 rounded-lg bg-green-50 border border-green-200 flex items-start gap-3">
                 <svg className="text-green-500 flex-shrink-0 mt-0.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                 <div>
@@ -493,35 +487,6 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                   <p className="text-xs text-gray-500 mt-0.5 break-all">{backupPath}</p>
                 </div>
               </div>
-              {passwordRequired && (
-                <div className="p-4 rounded-lg bg-accent-wash/50 border border-accent-line">
-                  <div className="flex items-center gap-2 mb-2">
-                    <LockIcon className="text-accent" size={18} />
-                    <p className="text-sm font-medium text-gray-900">Backup is encrypted</p>
-                  </div>
-                  <p className="text-xs text-gray-500 mb-3">Enter the password you set when enabling encrypted backups.</p>
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      value={openPassword}
-                      onChange={(e) => setOpenPassword(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSubmitOpenPassword()}
-                      placeholder="Backup password"
-                      disabled={openingBackup}
-                      autoFocus
-                      className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 focus:outline-none focus:border-accent disabled:opacity-50"
-                    />
-                    <button
-                      onClick={handleSubmitOpenPassword}
-                      disabled={!openPassword || openingBackup}
-                      className="px-4 py-2 bg-accent text-white rounded-md text-sm font-medium hover:bg-accent-hover disabled:opacity-40 transition-colors"
-                    >
-                      {openingBackup ? 'Unlocking...' : 'Unlock'}
-                    </button>
-                  </div>
-                  {openPasswordError && <p className="mt-2 text-xs text-red-500">{openPasswordError}</p>}
-                </div>
-              )}
             </div>
           )}
 

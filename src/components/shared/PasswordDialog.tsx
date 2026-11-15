@@ -4,13 +4,15 @@ import OrganicLoader from './OrganicLoader';
 
 interface Props {
   deviceName?: string;
+  // Said instead of "Enter the password you set when creating the backup."
+  hint?: string;
   error?: string | null;
   loading?: boolean;
   onSubmit: (password: string) => void;
   onCancel: () => void;
 }
 
-export default function PasswordDialog({ deviceName, error, loading, onSubmit, onCancel }: Props) {
+export default function PasswordDialog({ deviceName, hint, error, loading, onSubmit, onCancel }: Props) {
   const [password, setPassword] = useState('');
 
   return (
@@ -29,7 +31,7 @@ export default function PasswordDialog({ deviceName, error, loading, onSubmit, o
         </div>
 
         <p className="text-sm text-text-secondary mb-4">
-          This backup is encrypted. Enter the password you set when creating the backup.
+          {hint ?? 'This backup is encrypted. Enter the password you set when creating the backup.'}
         </p>
 
         <form

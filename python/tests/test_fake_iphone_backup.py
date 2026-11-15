@@ -77,7 +77,7 @@ def test_full_backup(out):
     run = run_backup(phone, out)
 
     assert run.error is None
-    assert run.result == {"success": True, "backup_path": str(run.backup_dir)}
+    assert run.result == {"success": True, "backup_path": str(run.backup_dir), "existing_password": False}
 
     # Every file where the iPhone put it, at its full size; Snapshot gone.
     expected = _expected_files(phone.plan)
@@ -484,6 +484,34 @@ def test_encrypted_backup_after_a_failed_try(out):
 
     assert run.error is None, run.error
     assert phone.will_encrypt
+    assert [c["NewPassword"] for c in phone.password_changes] == ["correct horse"]
+    assert run.result["existing_password"] is False
+
+
+def test_a_retry_with_a_different_password_keeps_the_first(out):
+    # OE-68: the first try set a backup password on the iPhone and then failed. A second try
+    # with another password can't change it, so the backup is encrypted with the first one,
+    # and the app is told so it asks for that one.
+    first_phone = FakeIPhone(drop_after_bytes=6 * MiB)
+    first = run_backup(first_phone, out, encrypted=True, password="first password")
+    assert first.error is not None
+    assert first_phone.will_encrypt
+
+    phone = FakeIPhone(will_encrypt=True)
+    run = run_backup(phone, out, encrypted=True, password="second password")
+
+    assert run.error is None, run.error
+    assert phone.password_changes == []
+    assert run.result["existing_password"] is True
+
+
+def test_unencrypted_backup_of_an_iphone_with_a_backup_password(out):
+    phone = FakeIPhone(will_encrypt=True)
+    run = run_backup(phone, out)
+
+    assert run.error is None, run.error
+    assert phone.password_changes == []
+    assert run.result["existing_password"] is True
 
 
 @pytest.mark.xfail(strict=True, reason=(
