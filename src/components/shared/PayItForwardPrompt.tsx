@@ -106,31 +106,33 @@ export default function PayItForwardPrompt() {
       )}
       <p className="text-xs text-text-secondary leading-relaxed mb-3">
         {worth} {introduce ? 'It takes a minute, and it' : 'It'} keeps OpenExtract free for the next person.
-        {!introduce && <span className="text-text-primary"> — Charles</span>}
+        {!introduce && <span className="text-text-primary whitespace-nowrap"> — Charles</span>}
       </p>
       <div className="flex flex-wrap justify-end gap-2">
         <button className="hearth-ghost-btn" onClick={snooze}>Not now</button>
-        {!status.thanksSent && (
-          <button
-            className="hearth-ghost-btn"
-            onClick={() => {
-              snooze();
-              openFeedback({ kind: 'thanks', area: request.area ?? 'export' });
-            }}
-          >
-            Say thanks
-          </button>
-        )}
         <button className="hearth-primary-btn inline-flex items-center gap-1.5" onClick={pay}>
           <Heart size={14} fill="currentColor" aria-hidden="true" />
           Pay $5
         </button>
       </div>
-      {!status.paid && (
-        <div className="flex justify-end mt-2">
-          <button className="text-[11px] text-text-tertiary hover:text-text-primary hover:underline" onClick={markPaid}>
-            Already paid? Stop asking
-          </button>
+      {(!status.thanksSent || !status.paid) && (
+        <div className="flex flex-wrap justify-end gap-x-3 gap-y-1 mt-2.5 text-[11px] text-text-tertiary">
+          {!status.thanksSent && (
+            <button
+              className="hover:text-text-primary hover:underline"
+              onClick={() => {
+                snooze();
+                openFeedback({ kind: 'thanks', area: request.area ?? 'export' });
+              }}
+            >
+              Say thanks
+            </button>
+          )}
+          {!status.paid && (
+            <button className="hover:text-text-primary hover:underline" onClick={markPaid}>
+              Already paid? Stop asking
+            </button>
+          )}
         </div>
       )}
     </NoticeCard>
