@@ -153,6 +153,20 @@ test('every page with a quotes block loads js/thanks.js, and the script adds quo
   assert.ok(!/innerHTML|insertAdjacentHTML|outerHTML/.test(js), 'quotes must be added with textContent');
 });
 
+test('every part of the app either has a plain caption on quote cards or deliberately has none', () => {
+  const js = fs.readFileSync(path.join(site, 'js', 'thanks.js'), 'utf8');
+  const literal = js.match(/var DOING = (\{[\s\S]*?\});/);
+  assert.ok(literal, 'thanks.js should define DOING');
+  const doing = new Function(`return ${literal[1]}`)();
+  const noCaption = ['The app in general', 'Backup details', 'People', 'Timeline', 'Year'];
+  for (const { label } of Object.values(feedback.AREAS)) {
+    assert.ok(label in doing || noCaption.includes(label), `"${label}" needs a caption in DOING (js/thanks.js) or a place in noCaption here`);
+  }
+  for (const label of Object.keys(doing)) {
+    assert.ok(Object.values(feedback.AREAS).some(a => a.label === label), `DOING has "${label}", which isn't a part of the app`);
+  }
+});
+
 test('the What people say page is in the sitemap and the privacy page explains the check', () => {
   assert.ok(fs.readFileSync(path.join(site, 'sitemap.xml'), 'utf8').includes('https://www.openextract.app/what-people-say</loc>'));
   const privacy = fs.readFileSync(path.join(site, 'privacy.html'), 'utf8');
