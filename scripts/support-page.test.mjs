@@ -39,9 +39,9 @@ test('/support/pay redirects to a live Stripe payment link', () => {
 });
 
 test('every amount on the support page has a /support/pay/... redirect to a live Stripe link', () => {
-  // $5, $25, $100 and the paid-work rates each get their own path, so each can point at its own
-  // fixed-price Stripe link without touching the page. Until those links exist they all go to the
-  // pay-what-you-want link.
+  // $5, $25, $100 and the paid-work rates each get their own path, so each points at its own Stripe
+  // link and a link can change without touching the page. $5 shares the pay-what-you-want link
+  // (it opens at $5); the others are fixed-price links of their own.
   const page = read(`${site}/support.html`);
   const paths = [...new Set([...page.matchAll(/href="(\/support\/pay\/[^"]+)"/g)].map(m => m[1]))];
   assert.deepEqual(paths.sort(), ['/support/pay/100', '/support/pay/25', '/support/pay/5', '/support/pay/case', '/support/pay/year']);
@@ -52,6 +52,10 @@ test('every amount on the support page has a /support/pay/... redirect to a live
     assert.equal(r.permanent, false, `${p} is temporary`);
     assert.match(r.destination, /^https:\/\/buy\.stripe\.com\/(?!test_)[A-Za-z0-9]+$/, `${p} → ${r.destination}`);
   }
+  const dest = p => redirects.find(x => x.source === p).destination;
+  assert.equal(dest('/support/pay/5'), dest('/support/pay'), '$5 opens the pay-what-you-want link');
+  const fixed = ['/support/pay/25', '/support/pay/100', '/support/pay/case', '/support/pay/year'].map(dest);
+  assert.equal(new Set([...fixed, dest('/support/pay')]).size, 5, 'each fixed amount has its own link');
 });
 
 test('every page footer links to the support page', () => {

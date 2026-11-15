@@ -30,32 +30,32 @@
     },
     {
       "source": "/support/pay",
-      "destination": "https://buy.stripe.com/6oUcN5eYMfeebeR5n62wU00",
+      "destination": "https://buy.stripe.com/7sY00j9Es3vw0Ad16Q2wU01",
       "permanent": false
     },
     {
       "source": "/support/pay/5",
-      "destination": "https://buy.stripe.com/6oUcN5eYMfeebeR5n62wU00",
+      "destination": "https://buy.stripe.com/7sY00j9Es3vw0Ad16Q2wU01",
       "permanent": false
     },
     {
       "source": "/support/pay/25",
-      "destination": "https://buy.stripe.com/6oUcN5eYMfeebeR5n62wU00",
+      "destination": "https://buy.stripe.com/28E00jdUId66er3dTC2wU02",
       "permanent": false
     },
     {
       "source": "/support/pay/100",
-      "destination": "https://buy.stripe.com/6oUcN5eYMfeebeR5n62wU00",
+      "destination": "https://buy.stripe.com/dRmcN58Aogii3Mp16Q2wU03",
       "permanent": false
     },
     {
       "source": "/support/pay/case",
-      "destination": "https://buy.stripe.com/6oUcN5eYMfeebeR5n62wU00",
+      "destination": "https://buy.stripe.com/8x26oHcQEeaaer32aU2wU04",
       "permanent": false
     },
     {
       "source": "/support/pay/year",
-      "destination": "https://buy.stripe.com/6oUcN5eYMfeebeR5n62wU00",
+      "destination": "https://buy.stripe.com/5kQ28r8Ao0jk3Mp5n62wU05",
       "permanent": false
     },
     {
