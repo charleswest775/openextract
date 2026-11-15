@@ -23,7 +23,13 @@ interface PendingOpen {
   deviceName?: string;
   session?: RecentSession;
   backupInfo?: BackupInfo;
+  // Said instead of the password dialog's usual words.
+  hint?: string;
 }
+
+// A backup just made of an iPhone that already had a backup password (OE-68).
+const EXISTING_PASSWORD_HINT =
+  "This iPhone already had a backup password, so this backup uses that one, not a new one. It's the password set when this iPhone first made an encrypted backup, in Finder, iTunes or OpenExtract.";
 
 function sessionFromInfo(info: BackupInfo, existing?: RecentSession): RecentSession {
   return existing ?? {
@@ -54,12 +60,13 @@ export default function App() {
     backupDir: string | undefined,
     session: RecentSession | undefined,
     backupInfo: BackupInfo | undefined,
+    passwordHint?: string,
   ) => {
     setOpenError(null);
     const result = await backup.openBackup(udid, password, backupDir);
 
     if (result.status === 'password_required') {
-      setPendingOpen({ udid, backupDir, deviceName: session?.name ?? backupInfo?.device_name, session, backupInfo });
+      setPendingOpen({ udid, backupDir, deviceName: session?.name ?? backupInfo?.device_name, session, backupInfo, hint: passwordHint });
       return;
     }
 
@@ -169,9 +176,9 @@ export default function App() {
       {screen === 'create-backup' && (
         <BackupFlow
           onBack={() => setScreen('home')}
-          onBackupComplete={async (udid, backupPath) => {
-            await openAndNavigate(udid, undefined, backupPath, undefined, undefined);
-            return 'open';
+          onBackupComplete={async (udid, backupPath, existingPassword) => {
+            await openAndNavigate(udid, undefined, backupPath, undefined, undefined,
+              existingPassword ? EXISTING_PASSWORD_HINT : undefined);
           }}
         />
       )}
@@ -238,6 +245,7 @@ export default function App() {
       {pendingOpen && (
         <PasswordDialog
           deviceName={pendingOpen.deviceName}
+          hint={pendingOpen.hint}
           error={passwordError}
           loading={unlocking}
           onSubmit={handlePasswordSubmit}

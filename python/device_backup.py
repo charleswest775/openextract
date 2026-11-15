@@ -457,9 +457,13 @@ class DeviceBackupManager:
         """
         Detect all connected iPhone/iPad devices via USB and Wi-Fi.
 
-        Returns a list of device dicts: { udid, name, ios_version, connection_type, trusted }.
-        A device that doesn't trust this computer yet is listed with trusted=False, and
-        searching doesn't ask it to: pair_device does.
+        Returns a list of device dicts: { udid, name, ios_version, connection_type, trusted,
+        encrypts_backups }. A device that doesn't trust this computer yet is listed with
+        trusted=False, and searching doesn't ask it to: pair_device does.
+
+        encrypts_backups is True when the iPhone already has a backup password (its "Encrypt
+        local backup" setting), so every backup uses that password and the app can't set a new
+        one (OE-68). None when it couldn't be read: not trusted yet, or found over Wi-Fi by RSD.
 
         Two discovery paths are used:
 
@@ -512,12 +516,19 @@ class DeviceBackupManager:
                         # usbmuxd exposes connection_type as "USB" or "Network"
                         conn_raw = getattr(dev, "connection_type", "USB").upper()
                         conn_type = "wifi" if conn_raw in ("NETWORK", "WIFI") else "usb"
+                        encrypts_backups = None
+                        if lockdown.paired:
+                            try:
+                                encrypts_backups = await _will_encrypt(lockdown)
+                            except Exception as e:
+                                _dev_log(f"couldn't read whether {udid} encrypts its backups: {e!r}")
                         devices.append({
                             "udid": udid,
                             "name": lockdown.display_name or udid,
                             "ios_version": lockdown.product_version or "",
                             "connection_type": conn_type,
                             "trusted": bool(lockdown.paired),
+                            "encrypts_backups": encrypts_backups,
                         })
                     finally:
                         await lockdown.close()
@@ -559,6 +570,7 @@ class DeviceBackupManager:
                                 "connection_type": "wifi",
                                 # RSD only connects with an existing pairing.
                                 "trusted": True,
+                                "encrypts_backups": None,
                             })
                     except Exception:
                         pass
@@ -687,7 +699,10 @@ class DeviceBackupManager:
                             bytes_done=<bytes received so far>).
                             Called repeatedly during the backup.  Safe to call from
                             the same thread — this method is synchronous.
-        :returns:           { "success": True, "backup_path": <resolved dir> }
+        :returns:           { "success": True, "backup_path": <resolved dir>,
+                              "existing_password": <bool> }. existing_password is True when
+                            the iPhone already had a backup password, so the backup is
+                            encrypted with that one, not with *password* (OE-68).
         """
         try:
             from pymobiledevice3.lockdown import create_using_usbmux
@@ -718,6 +733,9 @@ class DeviceBackupManager:
         phone_used_bytes = 0
         # The latest try's marker (backup_status.BackupTry), once the backup request is sent.
         backup_attempt: list = [None]
+        # Whether the iPhone already had a backup password when this backup started (OE-68).
+        # Read once: a retry after the backup lock was busy would find the one this backup set.
+        existing_password: list = [None]
 
         def _tracked_notify(phase: str, pct: int, fd: int, ft: int) -> None:
             """Emit a progress notification, enforcing monotone progress."""
@@ -808,7 +826,16 @@ class DeviceBackupManager:
             _tracked_notify("waiting", 0, 0, 0)
 
             if encrypted:
-                await self._configure_encryption_async(lockdown, password or "", output_dir)
+                already = await self._configure_encryption_async(lockdown, password or "", output_dir)
+            else:
+                # The iPhone encrypts every backup once it has a backup password, asked or not.
+                try:
+                    already = await _will_encrypt(lockdown)
+                except Exception as e:
+                    _dev_log(f"couldn't read whether the iPhone encrypts its backups: {e!r}")
+                    already = False
+            if existing_password[0] is None:
+                existing_password[0] = already
 
             def _on_passcode_prompt() -> None:
                 nonlocal passcode_asked
@@ -945,7 +972,8 @@ class DeviceBackupManager:
             raise RuntimeError(message) from e
         actual_backup_path = self._resolve_backup_path(output_dir, udid)
         _dev_log(f"backup complete. output_dir={output_dir!r} resolved={actual_backup_path!r}")
-        return {"success": True, "backup_path": actual_backup_path}
+        return {"success": True, "backup_path": actual_backup_path,
+                "existing_password": bool(existing_password[0])}
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
@@ -1006,13 +1034,16 @@ class DeviceBackupManager:
 
     async def _configure_encryption_async(
         self, lockdown, password: str, backup_directory: str
-    ) -> None:
+    ) -> bool:
         """
-        Enable encrypted backups on the device if not already active.
+        Enable encrypted backups on the device if not already active. Returns True when they
+        already were: the iPhone then keeps its existing backup password and *password* isn't
+        used (OE-68), so the app must ask for the old one to open the backup.
 
         If encryption is already enabled we skip change_password entirely —
         calling it would open a second MobileBackup2 connection, causing iOS
         to show an extra passcode prompt before the backup even starts.
+        Changing the password would also need the old one.
 
         Raises RuntimeError with a PASSCODE_REQUIRED prefix if iOS terminates
         the connection while waiting for the user to enter their passcode.
@@ -1027,7 +1058,7 @@ class DeviceBackupManager:
         print(f"[encryption] WillEncrypt={already_encrypted}", file=sys.stderr, flush=True)
         if already_encrypted:
             print("[encryption] already enabled, skipping change_password", file=sys.stderr, flush=True)
-            return
+            return True
 
         # Every backup try leaves an empty Manifest.plist until it finishes (pymobiledevice3
         # writes one first). Turning encryption on makes the iPhone read it, and an empty one fails
@@ -1068,3 +1099,4 @@ class DeviceBackupManager:
         print(f"[encryption] post-change WillEncrypt={will_encrypt_now}", file=sys.stderr, flush=True)
         if not will_encrypt_now:
             print("[encryption] WARNING: WillEncrypt still False after change_password", file=sys.stderr, flush=True)
+        return False
