@@ -9,11 +9,19 @@
 //   [data-thanks-pause]     a ribbon's pause button
 //
 // A block marked `hidden` stays hidden until it has at least one quote, so pages never show
-// an empty box. A ribbon is the exception: it shows (empty, at its final height) as soon as
-// this script runs, and hides again if no quotes come. Quotes are added as text, never as HTML.
+// an empty box. A ribbon is the exception: it isn't marked hidden, so its space (one card's
+// height) is there from the first layout and nothing jumps when the quotes arrive. This script
+// hides it if no quotes come, and a <noscript> style on the page hides it without JavaScript.
+// Quotes are added as text, never as HTML.
 (function () {
   var blocks = document.querySelectorAll('[data-thanks]');
-  if (!blocks.length || !window.fetch) return;
+  if (!blocks.length) return;
+  if (!window.fetch) {
+    blocks.forEach(function (block) {
+      if (block.hasAttribute('data-thanks-ribbon')) block.hidden = true;
+    });
+    return;
+  }
 
   function when(date) {
     var d = new Date(date + 'T12:00:00Z');
@@ -53,8 +61,8 @@
   // can scroll, when the cards fit on screen or the visitor's system asks for less motion.
   // Hovering it, tapping a card, focusing inside it or the pause button stops it.
   //
-  // A ribbon is shown before the quotes arrive, at the height of one card (--ribbon-card-h in
-  // site.css), so the page under it doesn't jump when they do. A card whose words don't fit in
+  // A ribbon is on the page before the quotes arrive, at the height of one card (--ribbon-card-h
+  // in site.css), so the page under it doesn't jump when they do. A card whose words don't fit in
   // that height gets wider instead of taller, up to a limit.
   function isRibbon(block) {
     return block.hasAttribute('data-thanks-ribbon');
@@ -137,10 +145,6 @@
     block.hidden = false;
     if (isRibbon(block)) ribbon(block);
   }
-
-  blocks.forEach(function (block) {
-    if (isRibbon(block)) block.hidden = false;
-  });
 
   fetch('/api/thanks', { headers: { Accept: 'application/json' } })
     .then(function (r) {
