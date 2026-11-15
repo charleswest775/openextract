@@ -192,8 +192,21 @@ def test_photos_match_answer_key(ctx):
 def test_albums_match_answer_key(ctx):
     _, shown = _photos(ctx)
     want = Counter(title for p in shown for title in p["albums"])
-    got = {a["title"]: a["asset_count"] for a in ctx.albums_result.get("albums", []) if a["id"] != "__all__"}
+    # Leaves out All Photos, Favorites and Hidden (ids starting with "__"), which the app
+    # adds and which the next test checks.
+    got = {a["title"]: a["asset_count"] for a in ctx.albums_result.get("albums", []) if not a["id"].startswith("__")}
     assert got == dict(want)
+
+
+def test_favorites_and_hidden_match_answer_key(ctx):
+    """Favorites is every favourite outside Recently Deleted; Hidden is empty, since the generator never hides a photo."""
+    _, shown = _photos(ctx)
+    smart = {a["id"]: a["asset_count"] for a in ctx.albums_result.get("albums", [])
+             if a["id"] in ("__favorites__", "__hidden__")}
+    if not smart:
+        pytest.skip("this engine doesn't list Favorites and Hidden")
+    want = {"__favorites__": sum(1 for p in shown if p["favorite"]), "__hidden__": 0}
+    assert smart == {key: want[key] for key in smart}
 
 
 def test_unlocated_photos_have_no_coordinates(ctx):

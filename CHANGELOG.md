@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Photos: Favorites and Hidden are listed under All Photos, and albums sit inside the folders you made on the iPhone, in the same order as on the phone. Folders open and close in the sidebar. With an album, Favorites or Hidden on screen, the save button saves just those photos (Save album, Save favorites, Save hidden); Save all on All Photos still saves every photo, hidden ones included. As on the iPhone, Favorites leaves out photos you've hidden (#215)
+
+### Fixed
+- Photos: the count next to All Photos no longer changes to the count of whichever album is open, and three albums Photos keeps for itself ("progress-sync" and two more) no longer appear as empty albums
+
 ## [0.15.1] - 2026-11-13
 
 ### Fixed

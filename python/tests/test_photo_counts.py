@@ -14,7 +14,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from photos import PhotoExtractor  # noqa: E402
+from photos import SMART_ALBUMS, PhotoExtractor  # noqa: E402
 from stats import StatsComputer  # noqa: E402
 
 ALBUM = "10"
@@ -45,6 +45,8 @@ DETAILS = {
     8: (0, 1, -180, -180, 0),       # favorite
 }
 NO_DETAILS = (0, 0, -180, -180, 0)  # a photo with no location
+# Hidden: a video in the backup, and a photo only in iCloud.
+HIDDEN_ASSETS = {2, 9}
 
 
 def _path(directory: str, filename: str) -> str:
@@ -92,7 +94,7 @@ def _write_photos_db(path: str) -> None:
         CREATE TABLE ZASSET (Z_PK INTEGER PRIMARY KEY, ZUUID VARCHAR, ZDIRECTORY VARCHAR,
                              ZFILENAME VARCHAR, ZKIND INTEGER, ZDATECREATED TIMESTAMP,
                              ZTRASHEDSTATE INTEGER, ZFAVORITE INTEGER, ZLATITUDE FLOAT,
-                             ZLONGITUDE FLOAT, ZDURATION FLOAT);
+                             ZLONGITUDE FLOAT, ZDURATION FLOAT, ZHIDDEN INTEGER);
         CREATE TABLE ZGENERICALBUM (Z_PK INTEGER PRIMARY KEY, ZTITLE VARCHAR, ZKIND INTEGER);
         CREATE TABLE Z_PRIMARYKEY (Z_ENT INTEGER PRIMARY KEY, Z_NAME VARCHAR, Z_SUPER INTEGER, Z_MAX INTEGER);
         CREATE TABLE Z_33ASSETS (Z_33ALBUMS INTEGER, Z_3ASSETS INTEGER, Z_FOK_3ASSETS INTEGER);
@@ -101,8 +103,9 @@ def _write_photos_db(path: str) -> None:
     )
     conn.executemany(
         "INSERT INTO ZASSET (Z_PK, ZUUID, ZDIRECTORY, ZFILENAME, ZDATECREATED, ZTRASHEDSTATE,"
-        " ZKIND, ZFAVORITE, ZLATITUDE, ZLONGITUDE, ZDURATION) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [(pk, f"UUID-{pk}", d, f, 700000000 + pk, t, *DETAILS.get(pk, NO_DETAILS)) for pk, d, f, t, _ in ASSETS],
+        " ZKIND, ZFAVORITE, ZLATITUDE, ZLONGITUDE, ZDURATION, ZHIDDEN) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [(pk, f"UUID-{pk}", d, f, 700000000 + pk, t, *DETAILS.get(pk, NO_DETAILS), int(pk in HIDDEN_ASSETS))
+         for pk, d, f, t, _ in ASSETS],
     )
     conn.execute("INSERT INTO ZGENERICALBUM VALUES (?, 'Yellowstone', 2)", (int(ALBUM),))
     conn.execute("INSERT INTO ZGENERICALBUM VALUES (?, 'Empty', 2)", (int(EMPTY_ALBUM),))
@@ -156,6 +159,34 @@ class _PhotoCountTests:
         albums = {a["id"]: a for a in self.extractor.list_albums(self.backup)["albums"]}
         self.assertEqual((albums["__all__"]["asset_count"], albums["__all__"]["in_backup"]), (8, 3))
         self.assertEqual((albums[ALBUM]["asset_count"], albums[ALBUM]["in_backup"]), (4, 3))
+
+    @unittest.skipUnless(SMART_ALBUMS, "needs ios-backup-core with Favorites and Hidden")
+    def test_favorites_and_hidden_say_how_many_photos_are_in_the_backup(self):
+        albums = {a["id"]: a for a in self.extractor.list_albums(self.backup)["albums"]}
+        # Favorites: 4 (only in iCloud) and 8; 3 is trashed. Hidden: 2, and 9 (only in iCloud).
+        self.assertEqual((albums["__favorites__"]["asset_count"], albums["__favorites__"]["in_backup"]), (2, 1))
+        self.assertEqual((albums["__hidden__"]["asset_count"], albums["__hidden__"]["in_backup"]), (2, 1))
+
+    @unittest.skipUnless(SMART_ALBUMS, "needs ios-backup-core with Favorites and Hidden")
+    def test_favorites_and_hidden_counts_are_what_paging_returns(self):
+        photos, page = _page_through(self.extractor, self.backup, album_id="__favorites__")
+        self.assertEqual([p["uuid"] for p in photos], ["UUID-8"])
+        self.assertEqual((page["total"], page["in_backup"], page["not_in_backup"]), (2, 1, 1))
+        photos, page = _page_through(self.extractor, self.backup, album_id="__hidden__")
+        self.assertEqual([p["uuid"] for p in photos], ["UUID-2"])
+        self.assertEqual((page["total"], page["in_backup"], page["not_in_backup"]), (2, 1, 1))
+
+    def test_export_saves_only_the_chosen_album(self):
+        out = os.path.join(self._tmp.name, "album")
+        result = self.extractor.export_photos(self.backup, out, {"album_id": ALBUM})
+        self.assertEqual((result["exported"], result["errors"], result["not_in_backup"]), (3, 0, 1))
+        self.assertEqual(sum(len(files) for _, _, files in os.walk(out)), 3)
+
+    @unittest.skipUnless(SMART_ALBUMS, "needs ios-backup-core with Favorites and Hidden")
+    def test_export_saves_hidden_photos_on_their_own(self):
+        out = os.path.join(self._tmp.name, "hidden")
+        result = self.extractor.export_photos(self.backup, out, {"album_id": "__hidden__"})
+        self.assertEqual((result["exported"], result["errors"], result["not_in_backup"]), (1, 0, 1))
 
     def test_manifest_is_read_once_per_backup(self):
         self.extractor.list_photos(self.backup, offset=0, limit=1)
