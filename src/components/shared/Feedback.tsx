@@ -163,8 +163,8 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
           passing on the link helps them find it.
         </p>
         <p className="text-xs text-text-secondary leading-relaxed mb-4">
-          And if getting your data was worth $5 to you, please pay it forward. It keeps OpenExtract
-          free for the next person. <span className="text-text-primary">— Charles</span>
+          And if it was worth something to you and you can afford it, pay what it was worth. If you
+          can't, your thank-you is plenty. <span className="text-text-primary whitespace-nowrap">— Charles</span>
         </p>
         <div className="flex justify-end gap-2">
           <button

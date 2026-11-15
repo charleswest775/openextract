@@ -38,6 +38,22 @@ test('/support/pay redirects to a live Stripe payment link', () => {
     `${pay.destination} isn't a live Stripe payment link`);
 });
 
+test('every amount on the support page has a /support/pay/... redirect to a live Stripe link', () => {
+  // $5, $25, $100 and the paid-work rates each get their own path, so each can point at its own
+  // fixed-price Stripe link without touching the page. Until those links exist they all go to the
+  // pay-what-you-want link.
+  const page = read(`${site}/support.html`);
+  const paths = [...new Set([...page.matchAll(/href="(\/support\/pay\/[^"]+)"/g)].map(m => m[1]))];
+  assert.deepEqual(paths.sort(), ['/support/pay/100', '/support/pay/25', '/support/pay/5', '/support/pay/case', '/support/pay/year']);
+  const { redirects } = JSON.parse(read(`${site}/vercel.json`));
+  for (const p of paths) {
+    const r = redirects.find(x => x.source === p);
+    assert.ok(r, `vercel.json has a ${p} redirect`);
+    assert.equal(r.permanent, false, `${p} is temporary`);
+    assert.match(r.destination, /^https:\/\/buy\.stripe\.com\/(?!test_)[A-Za-z0-9]+$/, `${p} → ${r.destination}`);
+  }
+});
+
 test('every page footer links to the support page', () => {
   const withFooter = pages.filter(f => read(`${site}/${f}`).includes('<li><a href="/about">About</a></li>'));
   assert.ok(withFooter.length > 10);

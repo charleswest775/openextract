@@ -12,6 +12,8 @@ import type { FeedbackArea } from './feedback';
 
 /** Goes straight to the payment page (vercel.json redirects it to Stripe). */
 export const SUPPORT_PAY_URL = 'https://www.openextract.app/support/pay';
+/** The site's amounts: $0 if money's tight, $5, $25, $100, and rates for paid work. */
+export const SUPPORT_AMOUNTS_URL = 'https://www.openextract.app/support#pay';
 
 /** Which wording the card uses. */
 export type AskMode =
