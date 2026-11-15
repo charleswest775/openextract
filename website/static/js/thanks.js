@@ -15,29 +15,6 @@
   var blocks = document.querySelectorAll('[data-thanks]');
   if (!blocks.length || !window.fetch) return;
 
-  // What the sender was doing, from the part of the app the thank-you was sent from (the
-  // Say thanks form's "Part of the app", which starts on the screen they were on). The app's
-  // own screen names mean little to someone who hasn't used it, so each becomes a plain
-  // caption. Areas that say nothing about what they did (The app in general, Timeline, Year,
-  // People, Backup details) and any new ones get no caption, only the date.
-  // The labels are AREAS in api/_lib/feedback.js.
-  var DOING = {
-    Messages: 'Getting back text messages',
-    WhatsApp: 'Getting back WhatsApp chats',
-    Photos: 'Getting back photos',
-    'Address book': 'Getting back contacts',
-    Calls: 'Getting back call history',
-    Notes: 'Getting back notes',
-    Voicemail: 'Getting back voicemails',
-    Podcasts: 'Getting back podcast subscriptions',
-    'Web history': 'Getting back web history',
-    'Recovering deleted messages': 'Recovering deleted messages',
-    'Making a backup': 'Backing up an iPhone',
-    'Opening a backup': 'Opening an iPhone backup',
-    Search: 'Searching an iPhone backup',
-    Exporting: 'Saving data from an iPhone backup',
-  };
-
   function when(date) {
     var d = new Date(date + 'T12:00:00Z');
     if (isNaN(d)) return '';
@@ -59,8 +36,9 @@
     quote.textContent = q.text;
     var foot = document.createElement('div');
     foot.className = 'testimonial__loc';
-    var parts = [];
-    if (Object.prototype.hasOwnProperty.call(DOING, q.area)) parts.push(DOING[q.area]);
+    // The part of the app it was sent from (q.area) isn't shown: the app's screen names mean
+    // little to someone who hasn't used it.
+    var parts = ['Sent from within the app'];
     if (when(q.date)) parts.push(when(q.date));
     foot.textContent = parts.join(' · ');
     article.appendChild(glyph);
