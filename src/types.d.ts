@@ -53,7 +53,7 @@ declare global {
       support: {
         /** `paid`: the person said they paid. `thanksSent`: a thank-you went out from this computer. */
         status: () => Promise<{ paid: boolean; thanksSent: boolean }>;
-        /** "Not now": no more asks after exports until the app is opened again. */
+        /** The card was dismissed (its × or Say thanks): no more asks after exports until the app is opened again. */
         snooze: () => Promise<void>;
         /** "I've paid" / "Already paid? Stop asking": no more asks after exports, ever. */
         markPaid: () => Promise<void>;

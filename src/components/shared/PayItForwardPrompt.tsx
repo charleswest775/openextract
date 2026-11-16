@@ -11,12 +11,14 @@ type Stage = 'ask' | 'opened' | 'paid';
  * "Pay it forward": Charles asks for $5 from people OpenExtract helped.
  *
  * The main process sends it after exports (electron/main.ts decides: the intro the
- * first time, then after every export unless "Not now" was picked in this run or the
+ * first time, then after every export unless the card was dismissed in this run or the
  * person said they paid); the header button, Settings and the thank-you screen show
  * it through showAsk(). It never blocks anything and never shows before an export
- * finishes. Nothing here talks to the network: "Pay $5" opens the site's payment
- * redirect in the browser, and "I've paid" / "Not now" are remembered on this
- * computer only (the app can't see payments, so "I've paid" is taken on trust).
+ * finishes. Its two buttons are "Say thanks" (the in-app thank-you note, for people
+ * who can't pay) and "Pay $5"; the × dismisses it. Nothing here talks to the network:
+ * "Pay $5" opens the site's payment redirect in the browser, and "I've paid" and
+ * dismissing are remembered on this computer only (the app can't see payments, so
+ * "I've paid" is taken on trust).
  */
 export default function PayItForwardPrompt() {
   const [request, setRequest] = useState<AskRequest | null>(null);
@@ -25,10 +27,17 @@ export default function PayItForwardPrompt() {
   const { openFeedback } = useFeedback();
 
   useEffect(() => {
+    // Status first, so the card opens with its final buttons: once a thank-you went out
+    // from this computer, Say thanks isn't offered again.
     const show = (r: AskRequest) => {
-      setRequest(r);
-      setStage(r.stage ?? 'ask');
-      window.openextract?.support?.status?.().then(setStatus).catch(() => {});
+      const open = (s?: { paid: boolean; thanksSent: boolean }) => {
+        if (s) setStatus(s);
+        setRequest(r);
+        setStage(r.stage ?? 'ask');
+      };
+      const status = window.openextract?.support?.status?.();
+      if (status) status.then(open, () => open());
+      else open();
     };
     const offIpc = window.openextract?.onSharePrompt?.((a, intro) => {
       const known = FEEDBACK_AREAS.some(x => x.id === a);
@@ -44,10 +53,14 @@ export default function PayItForwardPrompt() {
   if (!request) return null;
 
   const { noun, plural } = whatWasSaved(request.area);
-  // "Not now", the ×, Say thanks and Close all mean "not this time": no more asks until the app is opened again.
+  // The ×, Say thanks and Close all mean "not this time": no more asks until the app is opened again.
   const snooze = () => {
     window.openextract?.support?.snooze?.();
     setRequest(null);
+  };
+  const sayThanks = () => {
+    snooze();
+    openFeedback({ kind: 'thanks', area: request.area ?? 'export' });
   };
   const pay = (url = SUPPORT_PAY_URL) => {
     window.openextract.openExternal(url);
@@ -95,50 +108,40 @@ export default function PayItForwardPrompt() {
   const introduce = request.mode === 'intro' || request.mode === 'header';
   const what = request.mode === 'header'
     ? 'If it got your photos, messages or contacts off your iPhone'
-    : `If getting your ${noun} off your iPhone was worth something to you`;
-  // The idea in one card: pay what it was worth, only if you can; if you can't, it's yours.
-  const ask = introduce
-    ? `${what} and you can afford it, pay what it was worth. $5 is a good start. If you can't, it's yours.`
-    : `If getting your ${noun} off your iPhone was worth $5 to you and you can afford it, please pay it forward. If you can't, it's yours.`;
+    : `If getting your ${noun} off your iPhone helped`;
+  // Free first, then the ask: pay what it's worth, only if you can; if you can't, say thanks.
+  // Once a thank-you went out, the card doesn't ask for another one.
+  const canThank = !status.thanksSent;
+  const ask = `${what}, pay what it's worth to you, but only if you can. `
+    + (canThank ? "If you can't pay, say thank you instead." : "If you can't, it's yours.");
 
   return (
     <NoticeCard title={title} icon={<Heart size={16} fill="currentColor" />} onClose={snooze} highlight>
       {introduce && (
         <p className="text-xs text-text-secondary leading-relaxed mb-2">
-          Hi, I'm Charles. I give OpenExtract to everyone, and ask one thing:
+          Hi, I'm Charles. OpenExtract is free for everyone, no strings.
         </p>
       )}
       <p className="text-xs text-text-secondary leading-relaxed mb-3">
-        {ask}
+        {introduce ? ask : `OpenExtract is free, no strings. ${ask}`}
         {!introduce && <span className="text-text-primary whitespace-nowrap"> — Charles</span>}
       </p>
       <div className="flex flex-wrap justify-end gap-2">
-        <button className="hearth-ghost-btn" onClick={snooze}>Not now</button>
+        {canThank && <button className="hearth-ghost-btn" onClick={sayThanks}>Say thanks</button>}
         <button className="hearth-primary-btn inline-flex items-center gap-1.5" onClick={() => pay()}>
           <Heart size={14} fill="currentColor" aria-hidden="true" />
           Pay $5
         </button>
       </div>
       <div className="flex flex-wrap justify-end gap-x-3 gap-y-1 mt-2.5 text-[11px] text-text-tertiary">
-          <button className="hover:text-text-primary hover:underline" onClick={() => pay(SUPPORT_AMOUNTS_URL)}>
-            Other amounts
+        <button className="hover:text-text-primary hover:underline" onClick={() => pay(SUPPORT_AMOUNTS_URL)}>
+          Other amounts
+        </button>
+        {!status.paid && (
+          <button className="hover:text-text-primary hover:underline" onClick={markPaid}>
+            Already paid? Stop asking
           </button>
-          {!status.thanksSent && (
-            <button
-              className="hover:text-text-primary hover:underline"
-              onClick={() => {
-                snooze();
-                openFeedback({ kind: 'thanks', area: request.area ?? 'export' });
-              }}
-            >
-              Say thanks
-            </button>
-          )}
-          {!status.paid && (
-            <button className="hover:text-text-primary hover:underline" onClick={markPaid}>
-              Already paid? Stop asking
-            </button>
-          )}
+        )}
       </div>
     </NoticeCard>
   );
