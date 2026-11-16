@@ -130,7 +130,7 @@ const FEEDBACK_CHECK_DELAY_MS = 15_000;
 
 // The export check shows at most once per run, and never on the same export as the ask.
 let exportCheckShownThisRun = false;
-// "Not now" on the "Pay it forward" card: no more asks after exports until the app is opened again.
+// The "Pay it forward" card was dismissed (its × or Say thanks): no more asks after exports until the app is opened again.
 let askSnoozedThisRun = false;
 
 // Settings > Text size scales the whole window, so layouts keep their proportions.
@@ -641,7 +641,7 @@ app.whenReady().then(async () => {
     //  - Once per run: "Did this export come out right?", which catches exports that finish
     //    without an error but come out empty or wrong. "Looks right" leads to the ask.
     //  - Every other export: the shorter ask.
-    // "Not now" quiets the ask until the app is opened again; "I've paid" ends it.
+    // Dismissing the ask quiets it until the app is opened again; "I've paid" ends it.
     const exportArea = typeof area === 'string' ? area : undefined;
     const paid = store.get('paidItForward', false) === true;
     if (!paid && !store.get('payIntroShown', false)) {

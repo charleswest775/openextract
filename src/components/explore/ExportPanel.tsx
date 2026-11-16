@@ -33,7 +33,7 @@ interface KindInfo {
   icon: typeof LinesIcon;
   count?: (o: BackupStatsOverview) => number;
   /** What you get, with the count when it's known. */
-  what: (n: number | null) => string;
+  what: (n: number | null, o: BackupStatsOverview | null) => string;
   formats: SaveFormat[];
   /** What the Save dialog calls it, when lower-casing the label won't do ("WhatsApp" is a name). */
   title?: string;
@@ -52,8 +52,14 @@ const KINDS: KindInfo[] = [
     title: 'WhatsApp chats',
   },
   {
-    id: 'photos', label: 'Photos & videos', icon: CameraIcon, count: o => o.photos_in_backup,
-    what: n => `${n != null ? plural(n, 'photo or video', 'photos and videos') : 'Every photo and video'}, as the original files`,
+    // Every photo, hidden ones too: a complete copy, although All Photos leaves hidden ones out.
+    id: 'photos', label: 'Photos & videos', icon: CameraIcon,
+    count: o => o.photos_in_backup + (o.hidden_photos_in_backup ?? 0),
+    what: (n, o) => {
+      const hidden = o?.hidden_photos_in_backup ?? 0;
+      const which = n != null ? plural(n, 'photo or video', 'photos and videos') : 'Every photo and video';
+      return `${which}${hidden > 0 ? `, including ${hidden.toLocaleString()} hidden` : ''}, as the original files`;
+    },
     formats: [FORMATS.originals],
   },
   {
@@ -190,6 +196,8 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
             format: 'original', jpeg_quality: 90,
             folder_structure: 'flat', export_originals_if_edited: true,
             include_metadata_sidecar: false,
+            // Every photo, hidden ones too (python/photos.py LIBRARY); All Photos leaves them out.
+            album_id: '__library__',
           },
         }));
         return { title: 'Saved photos and videos', detail: photoExportSummary(result), path: outputDir + '/Photos' };
@@ -230,7 +238,7 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
                 </span>
                 <div className="flex-1 min-w-0">
                   <div className="text-base font-medium text-text-primary">{kind.label}</div>
-                  <div className="text-sm text-text-secondary">{kind.what(n)}</div>
+                  <div className="text-sm text-text-secondary">{kind.what(n, overview ?? null)}</div>
                   {kind.id === 'photos' && photoProgress ? (
                     <SaveProgress
                       className="mt-1.5"

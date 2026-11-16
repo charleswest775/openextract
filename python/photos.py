@@ -46,7 +46,26 @@ try:  # Favorites and Hidden (ios-backup-core from November 2026); without them,
     SMART_ALBUMS: tuple = (FAVORITES, HIDDEN)
 except ImportError:
     smart_album_where = None
+    HIDDEN = None
     SMART_ALBUMS = ()
+
+# list_photos' album_id for every photo, hidden ones too: what Save to this computer saves.
+# All Photos (no album_id) leaves hidden photos out, as the iPhone does.
+LIBRARY = "__library__"
+try:  # ios-backup-core with All Photos leaving hidden photos out; older ones list them there.
+    from ios_backup_core.extractors.photos import LIBRARY as _CORE_LIBRARY
+except ImportError:
+    _CORE_LIBRARY = None
+
+
+def not_hidden_filter(columns: set) -> str:
+    """An asset-table condition that leaves out hidden photos, as All Photos does; "1 = 1" when it doesn't.
+
+    For the counts that describe All Photos: the Overview's Photos card and the Year view.
+    """
+    if _CORE_LIBRARY is None or "ZHIDDEN" not in columns:
+        return "1 = 1"
+    return "COALESCE(ZHIDDEN, 0) = 0"
 
 HAS_HEIF = False
 try:
@@ -198,12 +217,14 @@ class PhotoExtractor:
         ``in_backup`` is how many photos the pages hold in all, and
         ``not_in_backup`` how many library rows have no file in the backup.
         """
-        result = self._inner.list_photos(backup, offset, limit, album_id)
+        # An older ios-backup-core has no LIBRARY, and its All Photos already holds every photo.
+        core_album_id = None if album_id == LIBRARY and _CORE_LIBRARY is None else album_id
+        result = self._inner.list_photos(backup, offset, limit, core_album_id)
 
         # If the library returned nothing because Photos.sqlite is unavailable
         # (older iOS, corrupted backup), fall back to direct DCIM enumeration.
         # An empty album is just empty: the DCIM scan can't filter by album.
-        whole_library = not album_id or album_id == "__all__"
+        whole_library = not album_id or album_id in ("__all__", LIBRARY)
         if result.get("source") == "unavailable" or (
             whole_library and not result.get("photos") and result.get("total", 0) == 0
         ):
@@ -246,8 +267,20 @@ class PhotoExtractor:
         page = self.list_photos(backup, 0, 1)
         return page.get("in_backup", page.get("total", 0))
 
+    def hidden_in_backup(self, backup) -> int:
+        """How many hidden photos and videos the backup has a file for: the Hidden album's count.
+
+        All Photos leaves them out, so Save to this computer, which saves them too,
+        adds this to library_in_backup. 0 when the library records no hidden photos
+        or can't be counted.
+        """
+        counts = self._in_backup_counts(backup)
+        if counts is None or HIDDEN is None or _CORE_LIBRARY is None:
+            return 0
+        return counts["smart"].get(HIDDEN, 0)
+
     def ids_in_backup(self, backup) -> Optional[frozenset]:
-        """Z_PKs of the assets whose original is in the backup, trashed ones too.
+        """Z_PKs of the assets whose original is in the backup, trashed and hidden ones too.
 
         For the Overview's Photos card, so it describes the photos list_photos
         lists. None when Photos.sqlite can't be counted (list_photos then lists
@@ -417,6 +450,8 @@ class PhotoExtractor:
             return None
         if album_id in counts["smart"]:
             return counts["smart"][album_id]
+        if album_id == LIBRARY:
+            return counts["library"] + self.hidden_in_backup(backup)
         # Same choice as the library's list_photos: an album it can't filter by
         # (no album junction table, "__all__") lists the whole library.
         if album_id and album_id != "__all__" and counts["has_albums"]:
@@ -430,8 +465,8 @@ class PhotoExtractor:
         """In-backup counts for the library and each album, computed once per backup.
 
         Mirrors the library's list_photos filters, so each count equals what
-        paging through that listing returns: the library view leaves out
-        trashed assets, an album view lists every asset joined to the album.
+        paging through that listing returns: the library view (All Photos) leaves
+        out trashed and hidden assets, an album view lists every asset joined to the album.
         Returns ``{"library": n, "albums": {album id: n}, "smart": {Favorites or
         Hidden id: n}, "has_albums": bool, "present": Z_PKs in the backup}``, or
         None when Photos.sqlite can't be read (list_photos then reports only ``total``).
@@ -454,16 +489,18 @@ class PhotoExtractor:
         assets = asset_table(conn)
         columns = {col[1] for col in conn.execute(f"PRAGMA table_info('{assets}')")}
         trashed = "ZTRASHEDSTATE" if "ZTRASHEDSTATE" in columns else "0"
+        # Only an ios-backup-core whose All Photos leaves hidden photos out (it has LIBRARY).
+        hidden = "COALESCE(ZHIDDEN, 0)" if "ZHIDDEN" in columns and _CORE_LIBRARY else "0"
         present: set = set()
         library = 0
-        for pk, directory, filename, is_trashed in conn.execute(
-            f"SELECT Z_PK, ZDIRECTORY, ZFILENAME, {trashed} FROM {assets}"
+        for pk, directory, filename, is_trashed, is_hidden in conn.execute(
+            f"SELECT Z_PK, ZDIRECTORY, ZFILENAME, {trashed}, {hidden} FROM {assets}"
         ):
             rel = _build_dcim_path(directory, filename) if directory and filename else None
             if self._file_hash_for(backup, rel, filename or "") is None:
                 continue
             present.add(pk)
-            if is_trashed == 0:
+            if is_trashed == 0 and is_hidden == 0:
                 library += 1
 
         albums: dict = {}
@@ -680,8 +717,9 @@ class PhotoExtractor:
           folder_structure (str)            - "flat" | "by_date"
           include_metadata_sidecar (bool)   - default False
           album_id (str)                    - save what list_photos lists for this album
-                                              (an album, Favorites or Hidden); default
-                                              the whole library
+                                              (an album, Favorites or Hidden, or LIBRARY
+                                              for every photo with the hidden ones);
+                                              default All Photos, without hidden photos
 
         on_progress(done, total, failed) is told how far the save has got, a few
         times a second at most (see export_progress.py).

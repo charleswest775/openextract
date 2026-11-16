@@ -777,7 +777,7 @@ describe('after an export: "Pay it forward" and the export check', () => {
     assert.deepEqual(run2.env.senderSent, [['export-check:show', undefined, true], ['share-prompt:show', 'photos', false]]);
   });
 
-  test('"Not now" quiets the ask until the app is opened again', async () => {
+  test('dismissing the ask (its × or Say thanks) quiets it until the app is opened again', async () => {
     const userData = freshDir('main-userdata');
     const run1 = await loadMain({ userData });
     await run1.invoke('increment-export-count', 'messages');

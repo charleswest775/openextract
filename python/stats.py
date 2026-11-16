@@ -130,6 +130,12 @@ class StatsComputer:
         except Exception as e:
             overview["photos_in_backup"] = overview["total_photos"] + overview["total_videos"]
             errors.append(f"photos in backup: {e}")
+        # Hidden photos aren't in All Photos or the counts above; Save to this computer saves them too.
+        try:
+            overview["hidden_photos_in_backup"] = self._photos().hidden_in_backup(backup)
+        except Exception as e:
+            overview["hidden_photos_in_backup"] = 0
+            errors.append(f"hidden photos in backup: {e}")
         overview["total_contacts"] = contact_count
         overview["total_calls"] = call_stats.get("total", 0)
         overview["total_notes"] = note_stats.get("total", 0)
@@ -370,7 +376,7 @@ class StatsComputer:
 
         try:
             c = conn.cursor()
-            from photos import asset_table
+            from photos import asset_table, not_hidden_filter
             assets = asset_table(c)
 
             # Check which columns exist
@@ -380,7 +386,9 @@ class StatsComputer:
             def column(name: str) -> str:
                 return name if name in columns else "NULL"
 
-            trash_filter = "WHERE ZTRASHEDSTATE = 0" if "ZTRASHEDSTATE" in columns else ""
+            # All Photos: not in Recently Deleted, and not hidden (as on the iPhone).
+            live = "ZTRASHEDSTATE = 0" if "ZTRASHEDSTATE" in columns else "1 = 1"
+            trash_filter = f"WHERE {live} AND {not_hidden_filter(columns)}"
 
             # The card describes the photos the Photos screen lists: the ones
             # whose original is in the backup, not those only in iCloud (#106).
