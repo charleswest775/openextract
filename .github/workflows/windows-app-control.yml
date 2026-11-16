@@ -32,6 +32,10 @@ on:
         description: Or, an artifact of the calling run that holds a signed installer
         type: string
         default: ''
+      ios_backup_core_ref:
+        description: ios-backup-core branch, tag or full commit SHA to make the test backup with (blank = master). release.yml passes the commit it built.
+        type: string
+        default: ''
   workflow_dispatch:
     inputs:
       tag:
@@ -71,9 +75,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Clone ios-backup-core
-        shell: bash
-        run: git clone --depth=1 https://github.com/charleswest775/ios-backup-core.git "$GITHUB_WORKSPACE/../ios-backup-core"
+      - name: Check out ios-backup-core
+        uses: ./.github/actions/ios-backup-core
+        with:
+          ref: ${{ inputs.ios_backup_core_ref || 'master' }}
 
       - name: Cache the generated backups' photos
         uses: ./.github/actions/backupgen-media

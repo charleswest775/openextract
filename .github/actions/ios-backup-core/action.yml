@@ -1,0 +1,42 @@
+name: Check out ios-backup-core
+description: >
+  Checks out ios-backup-core beside this repo, at ../ios-backup-core, where
+  python/requirements.txt's `-e ../../ios-backup-core` expects it, and reports the commit.
+  Unlike `git clone --branch`, the ref may be a full commit SHA, which is how release.yml
+  gives every job the same commit.
+
+inputs:
+  ref:
+    description: A branch, a tag, or a full 40-character commit SHA. Required, so that a missing SHA fails instead of quietly building master.
+    required: true
+
+outputs:
+  sha:
+    description: The commit checked out
+    value: ${{ steps.checkout.outputs.sha }}
+
+runs:
+  using: composite
+  steps:
+    - id: checkout
+      shell: bash
+      env:
+        REF: ${{ inputs.ref }}
+      run: |
+        if [ -z "$REF" ]; then
+          echo "::error::No ios-backup-core ref given"
+          exit 1
+        fi
+        DEST="$GITHUB_WORKSPACE/../ios-backup-core"
+        git init -q "$DEST"
+        git -C "$DEST" remote add origin https://github.com/charleswest775/ios-backup-core.git
+        # GitHub serves any commit by SHA, so one shallow fetch covers branches, tags and SHAs.
+        git -C "$DEST" fetch -q --depth=1 --no-tags origin "$REF"
+        git -C "$DEST" -c advice.detachedHead=false checkout -q --detach FETCH_HEAD
+        SHA=$(git -C "$DEST" rev-parse HEAD)
+        if [[ "$REF" =~ ^[0-9a-f]{40}$ && "$SHA" != "$REF" ]]; then
+          echo "::error::Asked for ios-backup-core $REF but got $SHA"
+          exit 1
+        fi
+        echo "ios-backup-core: $REF -> $SHA"
+        echo "sha=$SHA" >> "$GITHUB_OUTPUT"
