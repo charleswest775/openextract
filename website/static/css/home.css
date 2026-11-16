@@ -196,12 +196,10 @@ html.has-lightbox { overflow: hidden; }
 .tour__cap { margin: 6px 0 0; max-width: 62ch; font-size: 16px; line-height: 1.5; color: #c4c8ce; }
 .tour__cap .demo__saves { display: block; margin-top: 2px; font-size: 14px; }
 
-/* ── Statement + words ── */
+/* ── What it gets back: big words ── */
 .statement { padding: 13vmin 0 12vmin; }
-.statement__p { font: 700 48px/1.3 var(--sans); letter-spacing: -0.03em; max-width: 1020px; text-wrap: pretty; }
 .eyebrow { font: 700 12px/1 var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-ink); }
 .eyebrow--hi { color: var(--accent-hi); }
-.statement .eyebrow { margin-top: 10vmin; }
 .words { list-style: none; padding: 0; margin-top: 22px; display: flex; flex-wrap: wrap; gap: 0 0.5em; }
 .words li { font: 700 72px/1.12 var(--sans); letter-spacing: -0.035em; }
 .words li::after { content: "."; color: var(--dim); }
@@ -408,8 +406,6 @@ html.has-lightbox { overflow: hidden; }
   .tour__name { font-size: 15px; }
   .tour__cap { font-size: 14px; }
   .statement { padding: 64px 0 56px; }
-  .statement__p { font-size: 28px; line-height: 1.3; letter-spacing: -0.025em; }
-  .statement .eyebrow { margin-top: 56px; }
   .words li { font-size: 38px; line-height: 1.18; }
   .words__note { font-size: 16px; }
   .band { padding: 64px 0; }
