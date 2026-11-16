@@ -1,6 +1,8 @@
 # OpenExtract
 
-A free, open-source iPhone backup extractor for Windows, Mac and Linux: read and save the messages, WhatsApp chats, photos, voicemails, calls, contacts, notes and podcasts in an iPhone or iPad backup.
+OpenExtract is a free, open-source iPhone backup extractor for Windows, Mac and Linux. It opens iPhone backups on your computer, encrypted or not, and saves the texts, WhatsApp chats, photos, contacts, call history, notes and voicemails in them. Free, no strings attached: MIT licensed, no account, no limits, and your backup never leaves your computer.
+
+Made by an independent developer with help from contributors.
 
 **[Download for Windows, Mac or Linux](https://www.openextract.app/?ref=gh-readme#download)** · **[openextract.app](https://www.openextract.app/?ref=gh-readme)**
 

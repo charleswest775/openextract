@@ -1,8 +1,10 @@
 # OpenExtract
 
-> OpenExtract is a free, open-source desktop app that reads the iPhone backups stored on your own computer and saves what's in them: text messages and iMessages, WhatsApp chats, photos and videos, contacts, call history, notes, voicemails, podcasts and browser history. It can also make a new backup of an iPhone connected by cable. It runs on Windows, macOS (Apple Silicon only) and Linux. It is MIT licensed, has no paid tier and needs no account.
+> OpenExtract is a free, open-source iPhone backup extractor for Windows, Mac and Linux. It opens iPhone backups on your computer, encrypted or not, and saves the texts, WhatsApp chats, photos, contacts, call history, notes and voicemails in them. Free, no strings attached: MIT licensed, no account, no limits, and your backup never leaves your computer.
 
-OpenExtract is made by Charles West, an independent developer, with help from contributors. The source code is public at https://github.com/charleswest775/openextract, and the latest version and its release notes are at https://github.com/charleswest775/openextract/releases/latest.
+It also reads podcasts and Safari and Firefox history, and it can make a new backup of an iPhone connected by cable. The Mac version runs on Apple Silicon (M1 and later) only.
+
+OpenExtract is made by Charles West, an independent developer, with help from contributors. Other, unrelated projects also use the name OpenExtract, among them a research paper on arXiv; this file is about the iPhone backup app at https://www.openextract.app. The source code is public at https://github.com/charleswest775/openextract, and the latest version and its release notes are at https://github.com/charleswest775/openextract/releases/latest.
 
 ## Facts
 
@@ -67,3 +69,10 @@ OpenExtract is made by Charles West, an independent developer, with help from co
 - [Support OpenExtract](https://www.openextract.app/support)
 - [Blog](https://www.openextract.app/blog)
 - [Downloads on GitHub](https://github.com/charleswest775/openextract/releases/latest)
+
+## Listings elsewhere
+
+- [GitHub repository](https://github.com/charleswest775/openextract)
+- [AlternativeTo](https://alternativeto.net/software/openextract/about/)
+- [SourceForge](https://sourceforge.net/projects/openextract/)
+- [Chocolatey (Windows)](https://community.chocolatey.org/packages/openextract)
