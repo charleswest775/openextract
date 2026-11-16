@@ -396,9 +396,16 @@ def case_list_albums(ctx):
     everything = next(a for a in albums if a["id"] == "__all__")
     assert everything["asset_count"] == everything["in_backup"] == len(m.expected["photos"])
     expected = Counter(name for photo in m.expected["photos"] for name in photo["albums"])
-    assert {a["title"]: a["asset_count"] for a in albums if a["id"] != "__all__"} == dict(expected)
+    assert {a["title"]: a["asset_count"] for a in albums if not a["id"].startswith("__")} == dict(expected)
     for album in albums:
         assert album["in_backup"] == album["asset_count"]  # every photo's original is in this backup
+    # Favorites and Hidden follow All Photos when the engine has them (nothing in maren is hidden).
+    smart = {a["id"]: a["asset_count"] for a in albums if a["id"] in ("__favorites__", "__hidden__")}
+    if smart:
+        favorites = sum(1 for p in m.expected["photos"] if p["favorite"] and not p["trashed"])
+        assert [a["id"] for a in albums[:3]] == ["__all__", "__favorites__", "__hidden__"]
+        assert smart == {"__favorites__": favorites, "__hidden__": 0}
+        assert all(a["parent_id"] is None for a in albums)  # maren's albums aren't in folders
 
 
 @contract("list_photos")
@@ -414,10 +421,14 @@ def case_list_photos(ctx):
         assert photo["file_hash"] and photo["kind"] in ("photo", "video", "live_photo")
     rest = m.rpc("list_photos", offset=100, limit=100)["photos"]
     assert sorted(p["filename"] for p in page["photos"] + rest) == expected
-    album = next(a for a in m.rpc("list_albums")["albums"] if a["id"] != "__all__")
+    album = next(a for a in m.rpc("list_albums")["albums"] if not a["id"].startswith("__"))
     in_album = m.rpc("list_photos", offset=0, limit=500, album_id=album["id"])
     assert in_album["total"] == len(in_album["photos"]) == album["asset_count"]
     assert all(album["id"] in p["album_ids"] for p in in_album["photos"])
+    favorites = m.rpc("list_photos", offset=0, limit=500, album_id="__favorites__")
+    if favorites.get("source") == "photos_sqlite":  # an engine without Favorites can't filter by it
+        assert all(p["favorite"] for p in favorites["photos"])
+        assert favorites["total"] == sum(1 for p in m.expected["photos"] if p["favorite"] and not p["trashed"])
 
 
 @contract("get_photo_thumbnail")

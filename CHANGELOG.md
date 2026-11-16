@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Pay it forward: OpenExtract stays free, and now asks plainly for $5 from people it helped. After an export, a note from Charles asks whether getting your photos, messages or contacts off your iPhone was worth $5; "Pay $5" opens the payment page in your browser. "Not now" stops the asks until you next open the app, and "I've paid" stops them for good. A "Pay it forward" button sits at the top of every screen and glows briefly after an export (it stays still if your system is set to reduce motion). It replaces the one-time "Say thanks" card; Say thanks is still on the new card and in Settings. Nothing is sent: what you picked stays on your computer, and the app can't see payments
+- Photos: Favorites and Hidden are listed under All Photos, and albums sit inside the folders you made on the iPhone, in the same order as on the phone. Folders open and close in the sidebar. With an album, Favorites or Hidden on screen, the save button saves just those photos (Save album, Save favorites, Save hidden); Save all on All Photos still saves every photo, hidden ones included. As on the iPhone, Favorites leaves out photos you've hidden (#215)
+
+### Fixed
+- Photos: the count next to All Photos no longer changes to the count of whichever album is open, and three albums Photos keeps for itself ("progress-sync" and two more) no longer appear as empty albums
+- Back up my iPhone: when the iPhone already has a backup password, set earlier in Finder, iTunes or OpenExtract, the app says so and doesn't ask for a new one. An iPhone keeps that first password and encrypts every backup with it until it's removed, but the app used to ask for a new password and then not use it, so opening the backup afterwards said the password you'd just typed was wrong. Encrypt now stays ticked for such an iPhone, the note says how to remove a password you've forgotten, and the unlock dialog after the backup asks for the earlier password (OE-68)
+- Voicemail: when the list couldn't open voicemails the home screen had just counted, it showed SQLite's "unable to open database file". Now a file that went away while the backup was open (removed by a temp-folder clean-up, or on a drive that went to sleep) is found again, Voicemail tries the backup's own copy before giving up, and if it still can't open them it says to check that the drive with the backup is still connected (OE-77)
+
 ## [0.15.1] - 2026-11-13
 
 ### Fixed

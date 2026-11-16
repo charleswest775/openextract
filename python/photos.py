@@ -41,6 +41,13 @@ from ios_backup_core.extractors.photos import (
     _build_dcim_path,
 )
 
+try:  # Favorites and Hidden (ios-backup-core from November 2026); without them, only albums.
+    from ios_backup_core.extractors.photos import FAVORITES, HIDDEN, smart_album_where
+    SMART_ALBUMS: tuple = (FAVORITES, HIDDEN)
+except ImportError:
+    smart_album_where = None
+    SMART_ALBUMS = ()
+
 HAS_HEIF = False
 try:
     from PIL import Image
@@ -176,6 +183,8 @@ class PhotoExtractor:
         def in_backup(album: dict) -> int:
             if album["id"] == "__all__":
                 return counts["library"]
+            if album["id"] in counts["smart"]:
+                return counts["smart"][album["id"]]
             return counts["albums"].get(album["id"], 0)
 
         return {**result, "albums": [{**a, "in_backup": in_backup(a)} for a in result["albums"]]}
@@ -406,6 +415,8 @@ class PhotoExtractor:
         counts = self._in_backup_counts(backup)
         if counts is None:
             return None
+        if album_id in counts["smart"]:
+            return counts["smart"][album_id]
         # Same choice as the library's list_photos: an album it can't filter by
         # (no album junction table, "__all__") lists the whole library.
         if album_id and album_id != "__all__" and counts["has_albums"]:
@@ -421,9 +432,9 @@ class PhotoExtractor:
         Mirrors the library's list_photos filters, so each count equals what
         paging through that listing returns: the library view leaves out
         trashed assets, an album view lists every asset joined to the album.
-        Returns ``{"library": n, "albums": {album id: n}, "has_albums": bool,
-        "present": Z_PKs in the backup}``, or None when Photos.sqlite can't be
-        read (list_photos then reports only ``total``).
+        Returns ``{"library": n, "albums": {album id: n}, "smart": {Favorites or
+        Hidden id: n}, "has_albums": bool, "present": Z_PKs in the backup}``, or
+        None when Photos.sqlite can't be read (list_photos then reports only ``total``).
         """
         if backup in self._in_backup_cache:
             return self._in_backup_cache[backup]
@@ -463,7 +474,15 @@ class PhotoExtractor:
             ):
                 if asset in present:
                     albums[str(album)] = albums.get(str(album), 0) + 1
-        return {"library": library, "albums": albums, "has_albums": bool(junc_table),
+
+        # Favorites and Hidden, with the library's own filters, so these counts match their listings too.
+        smart: dict = {}
+        for album_id in SMART_ALBUMS:
+            where = smart_album_where(columns, album_id)
+            smart[album_id] = sum(
+                1 for (pk,) in conn.execute(f"SELECT Z_PK FROM {assets} WHERE {where}") if pk in present
+            )
+        return {"library": library, "albums": albums, "smart": smart, "has_albums": bool(junc_table),
                 "present": frozenset(present)}
 
     def _list_photos_from_dcim(self, backup, offset: int, limit: int) -> dict:
@@ -660,6 +679,9 @@ class PhotoExtractor:
           jpeg_quality (int)                - 60-100, default 90
           folder_structure (str)            - "flat" | "by_date"
           include_metadata_sidecar (bool)   - default False
+          album_id (str)                    - save what list_photos lists for this album
+                                              (an album, Favorites or Hidden); default
+                                              the whole library
 
         on_progress(done, total, failed) is told how far the save has got, a few
         times a second at most (see export_progress.py).
@@ -674,6 +696,7 @@ class PhotoExtractor:
         jpeg_quality = max(60, min(100, int(options.get("jpeg_quality", 90))))
         folder_structure = options.get("folder_structure", "flat")
         include_sidecar = options.get("include_metadata_sidecar", False)
+        album_id = options.get("album_id") or None
 
         os.makedirs(output_dir, exist_ok=True)
 
@@ -682,7 +705,7 @@ class PhotoExtractor:
         offset = 0
         batch = 200
         while True:
-            result = self.list_photos(backup, offset=offset, limit=batch)
+            result = self.list_photos(backup, offset=offset, limit=batch, album_id=album_id)
             all_photos.extend(result["photos"])
             if offset + batch >= result["total"]:
                 break

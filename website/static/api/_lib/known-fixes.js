@@ -78,8 +78,10 @@ const KNOWN_FIXES = [
     // The engine says "Failed to decrypt backup: Failed to decrypt keys: incorrect passphrase?";
     // the rest is how people put it. Not "passcode": that's the iPhone's own lock. "Forgot" only
     // counts right before "my/the (backup) password", so a forgotten Wi-Fi or Apple ID password doesn't.
+    // OE-68: OpenExtract 0.15.1 and earlier let you type a new password for an iPhone that already
+    // had one, and the backup still used the old one.
     match: /(?:incorrect|wrong) pass(?:word|phrase)|pass(?:word|phrase) (?:is |was )?(?:incorrect|wrong)|\b(?:forg[eo]t(?:ten)?|lost|(?:(?:can|don|couldn)['’]?t|cannot|do not) remember) (?:the |my |our |this )?(?:backup |encryption |encrypted backup )?pass(?:word|phrase)\b/i,
-    text: "An encrypted backup uses the password you chose for backups in Finder or iTunes. It isn't your iPhone passcode or your Apple Account password. If you can't remember it, it can't be recovered, but you can remove it on the iPhone: Settings > General > Transfer or Reset iPhone > Reset > Reset All Settings. That keeps your data but resets settings such as Wi-Fi passwords and wallpaper. Then make a new encrypted backup with a new password.",
+    text: "An encrypted backup uses the password set the first time this iPhone made an encrypted backup, in Finder, iTunes or OpenExtract. A password typed for a later backup doesn't replace it: the iPhone keeps the first one. It isn't your iPhone passcode or your Apple Account password. If you can't remember it, it can't be recovered, but you can remove it on the iPhone: Settings > General > Transfer or Reset iPhone > Reset > Reset All Settings. That keeps your data but resets settings such as Wi-Fi passwords and wallpaper. Then make a new encrypted backup with a new password.",
   },
   {
     id: 'mac-full-disk-access',

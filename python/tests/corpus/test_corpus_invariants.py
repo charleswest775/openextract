@@ -31,6 +31,9 @@ VOICEMAIL = ("HomeDomain", "Library/Voicemail/voicemail.db")
 SAFARI = ("HomeDomain", "Library/Safari/History.db")
 WHATSAPP = ("AppDomainGroup-group.net.whatsapp.WhatsApp.shared", "ChatStorage.sqlite")
 PODCASTS = ("AppDomainGroup-243LU875E5.groups.com.apple.podcasts", "Documents/MTLibrary.sqlite")
+# ZGENERICALBUM kinds the Photos app keeps for itself and never shows: the progress-sync,
+# progress-ota-restore and progress-fs-import albums, and the library's root folders.
+PHOTOS_INTERNAL_ALBUM_KINDS = {3571, 3572, 3573, 3998, 3999}
 
 EARLIEST = datetime(2007, 6, 29, tzinfo=timezone.utc)  # first iPhone
 ATTACHMENT_SAMPLE = 200
@@ -402,13 +405,29 @@ def test_photo_details_agree_with_list(ctx):
 
 
 def test_albums_match_photos_db(ctx):
+    """Every album the Photos app shows is listed, and the albums it keeps for itself aren't.
+
+    Shown means titled, outside Recently Deleted and not one of PHOTOS_INTERNAL_ALBUM_KINDS.
+    An album in a deleted folder still shows (at the top level).
+    """
     ctx.require_open()
-    rows = ctx.raw.query(*PHOTOS, "SELECT ZTITLE FROM ZGENERICALBUM WHERE ZTITLE IS NOT NULL")
+    rows = ctx.raw.query(*PHOTOS, "SELECT * FROM ZGENERICALBUM WHERE ZTITLE IS NOT NULL")
     if rows is None:
         pytest.skip("no Photos.sqlite in this backup")
+
+    def internal(row):
+        return "ZKIND" in row.keys() and row["ZKIND"] in PHOTOS_INTERNAL_ALBUM_KINDS
+
+    def deleted(row):
+        return "ZTRASHEDSTATE" in row.keys() and bool(row["ZTRASHEDSTATE"])
+
+    shown = {r["ZTITLE"] for r in rows if not internal(r) and not deleted(r)}
+    hidden = {r["ZTITLE"] for r in rows if internal(r)} - shown
     titles = {a.get("title") for a in ctx.albums_result.get("albums", [])}
-    missing = sorted({r["ZTITLE"] for r in rows} - titles)
-    assert not missing, f"{len(missing)} album(s) in Photos.sqlite missing from list_albums"
+    missing = sorted(shown - titles)
+    assert not missing, f"{len(missing)} album(s) in Photos.sqlite missing from list_albums: {_sample(missing)}"
+    listed = sorted(hidden & titles)
+    assert not listed, f"Photos' own albums are listed: {_sample(listed)}"
 
 
 def test_every_voicemail_listed(ctx):

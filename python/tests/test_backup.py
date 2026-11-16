@@ -107,6 +107,15 @@ def _make_lockdown_mock(udid="abc-123", name="iPhone 15", ios_version="17.4", pa
     return m
 
 
+def _will_encrypt_values(will_encrypt):
+    """A lockdown get_value whose iPhone has (or hasn't) a backup password (WillEncrypt)."""
+    async def get_value(domain=None, key=None):
+        if domain == "com.apple.mobile.backup" and key == "WillEncrypt":
+            return will_encrypt
+        raise _stub.exceptions.MissingValueError("MissingValue")
+    return AsyncMock(side_effect=get_value)
+
+
 def _make_usbmux_device(serial="abc-123", connection_type="USB"):
     m = MagicMock()
     m.serial = serial
@@ -259,6 +268,42 @@ class TestListDevices(unittest.TestCase):
         self.assertEqual(result["devices"][0]["trusted"], False)
         self.assertEqual(create.await_args.kwargs.get("autopair"), False)
         lockdown.close.assert_awaited_once()
+        # Not trusted yet, so the iPhone can't say whether it has a backup password.
+        self.assertIsNone(result["devices"][0]["encrypts_backups"])
+        lockdown.get_value.assert_not_awaited()
+
+    def _list_one(self, lockdown):
+        with (
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock,
+                  return_value=[_make_usbmux_device("DEV-1", "USB")]),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
+            patch("pymobiledevice3.remote.utils.get_rsds", return_value=[]),
+        ):
+            return self.manager.list_devices()["devices"]
+
+    def test_iphone_with_a_backup_password_says_so(self):
+        """OE-68: the app must know the iPhone already has a backup password before the backup."""
+        lockdown = _make_lockdown_mock("DEV-1")
+        lockdown.get_value = _will_encrypt_values(True)
+        self.assertIs(self._list_one(lockdown)[0]["encrypts_backups"], True)
+
+    def test_iphone_without_a_backup_password(self):
+        lockdown = _make_lockdown_mock("DEV-1")
+        lockdown.get_value = _will_encrypt_values(False)
+        self.assertIs(self._list_one(lockdown)[0]["encrypts_backups"], False)
+
+    def test_iphone_never_asked_for_encryption_has_no_backup_password(self):
+        """No WillEncrypt value at all (OE-12) means no backup password."""
+        lockdown = _make_lockdown_mock("DEV-1")
+        lockdown.get_value = AsyncMock(side_effect=_stub.exceptions.MissingValueError("MissingValue"))
+        self.assertIs(self._list_one(lockdown)[0]["encrypts_backups"], False)
+
+    def test_unreadable_encryption_setting_still_lists_the_iphone(self):
+        lockdown = _make_lockdown_mock("DEV-1")
+        lockdown.get_value = AsyncMock(side_effect=RuntimeError("lockdown said no"))
+        devices = self._list_one(lockdown)
+        self.assertEqual([d["udid"] for d in devices], ["DEV-1"])
+        self.assertIsNone(devices[0]["encrypts_backups"])
 
     def test_no_device_service_is_a_setup_step(self):
         """Without usbmuxd (on Windows: no Apple Devices or iTunes) the error says so, with its own prefix."""
@@ -661,6 +706,45 @@ class TestStartBackup(unittest.TestCase):
         self.assertTrue(result["success"])
         mb2.change_password.assert_awaited_once_with(backup_directory="/tmp/test_enc_backup", old="", new="s3cr3t")
         mb2.backup.assert_awaited_once()
+        self.assertIs(result["existing_password"], False)
+
+    def _backup_iphone_with_password(self, will_encrypt, encrypted, password):
+        lockdown = _make_lockdown_mock()
+        lockdown.get_value = _will_encrypt_values(will_encrypt)
+        mb2 = self._make_mb2_mock()
+        with (
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
+            patch("pymobiledevice3.services.mobilebackup2.Mobilebackup2Service", return_value=mb2),
+        ):
+            result = self.manager.start_backup(
+                udid="abc-123", output_dir="/tmp/test_enc_backup", encrypted=encrypted,
+                password=password, notify=self.notify,
+            )
+        return result, mb2
+
+    def test_iphone_with_a_backup_password_keeps_it(self):
+        """OE-68: the iPhone already has a backup password, so the new one isn't set, and the
+        result says the backup is encrypted with the existing one."""
+        result, mb2 = self._backup_iphone_with_password(True, encrypted=True, password="new one")
+        self.assertTrue(result["success"])
+        mb2.change_password.assert_not_awaited()
+        mb2.backup.assert_awaited_once()
+        self.assertIs(result["existing_password"], True)
+
+    def test_new_backup_password_is_not_an_existing_one(self):
+        result, mb2 = self._backup_iphone_with_password(False, encrypted=True, password="new one")
+        mb2.change_password.assert_awaited_once_with(backup_directory="/tmp/test_enc_backup", old="", new="new one")
+        self.assertIs(result["existing_password"], False)
+
+    def test_unencrypted_backup_of_an_iphone_with_a_backup_password(self):
+        """Unticking Encrypt doesn't help: the iPhone encrypts with its password anyway."""
+        result, mb2 = self._backup_iphone_with_password(True, encrypted=False, password=None)
+        mb2.change_password.assert_not_awaited()
+        self.assertIs(result["existing_password"], True)
+
+    def test_unencrypted_backup_without_a_backup_password(self):
+        result, _ = self._backup_iphone_with_password(False, encrypted=False, password=None)
+        self.assertIs(result["existing_password"], False)
 
     def test_backup_error_propagates(self):
         """Exceptions from the backup service should propagate to the caller."""
