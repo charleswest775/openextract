@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from photos import _CORE_LIBRARY  # noqa: E402
 from year_counts import YearCounter, _Person  # noqa: E402
 
 _APPLE_EPOCH = datetime(2001, 1, 1, tzinfo=timezone.utc)
@@ -192,6 +193,22 @@ class TestWhatCounts(_Base):
         ])])
         self.photos._inner._open_photos_db.side_effect = lambda _: sqlite3.connect(path)
         self.photos.ids_in_backup.return_value = frozenset({1, 2, 3, 5})
+        result = self._counts(_FakeBackup({}), 2024)
+        self.assertEqual(sum(d["photo"] for d in result["days"].values()), 2)
+
+    @unittest.skipUnless(_CORE_LIBRARY, "needs ios-backup-core whose All Photos leaves hidden photos out")
+    def test_photos_leave_out_hidden_ones_as_all_photos_does(self):
+        when = _apple(_utc(2024, 5, 5, 12))
+        path = self._db("Photos.sqlite", """
+            CREATE TABLE ZASSET (Z_PK INTEGER PRIMARY KEY, ZDATECREATED TIMESTAMP, ZTRASHEDSTATE INTEGER,
+                                 ZHIDDEN INTEGER);
+        """, [("INSERT INTO ZASSET VALUES (?, ?, ?, ?)", [
+            (1, when, 0, 0),
+            (2, when, 0, 1),     # hidden
+            (3, when, 0, None),  # not recorded either way: not hidden
+        ])])
+        self.photos._inner._open_photos_db.side_effect = lambda _: sqlite3.connect(path)
+        self.photos.ids_in_backup.return_value = frozenset({1, 2, 3})
         result = self._counts(_FakeBackup({}), 2024)
         self.assertEqual(sum(d["photo"] for d in result["days"].values()), 2)
 
