@@ -12,6 +12,12 @@
       ]
     }
   ],
+  "rewrites": [
+    {
+      "source": "/download/:platform(mac|windows|linux|linux-appimage)/file",
+      "destination": "/api/download?platform=:platform"
+    }
+  ],
   "redirects": [
     {
       "source": "/img/screens/overview-:file",
@@ -56,26 +62,6 @@
     {
       "source": "/support/pay/year",
       "destination": "https://buy.stripe.com/5kQ28r8Ao0jk3Mp5n62wU05",
-      "permanent": false
-    },
-    {
-      "source": "/download/mac/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.16.0/OpenExtract-0.16.0-arm64.dmg",
-      "permanent": false
-    },
-    {
-      "source": "/download/windows/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.16.0/OpenExtract-Setup-0.16.0.exe",
-      "permanent": false
-    },
-    {
-      "source": "/download/linux/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.16.0/openextract_0.16.0_amd64.deb",
-      "permanent": false
-    },
-    {
-      "source": "/download/linux-appimage/file",
-      "destination": "https://github.com/charleswest775/openextract/releases/download/v0.16.0/OpenExtract-0.16.0.AppImage",
       "permanent": false
     },
     {

@@ -323,7 +323,7 @@
           <a class="os__card" href="/download/windows" data-dl="windows"><span class="os__name">Windows</span><span class="os__meta">Windows 10 and 11 · 134 MB</span><span class="os__go">Download</span></a>
           <a class="os__card" href="/download/linux" data-dl="linux"><span class="os__name">Linux</span><span class="os__meta">Ubuntu, Debian · 147 MB</span><span class="os__go">Download</span></a>
         </div>
-        <p class="final__alt">v0.16.0 · Free, no strings attached · Other Linux: <a href="/download/linux-appimage">AppImage</a> (<a href="/use-cases/iphone-backup-extractor-linux">Linux guide</a>) · <a href="https://github.com/charleswest775/openextract/releases/latest">All files and release notes</a></p>
+        <p class="final__alt"><span class="latest-version">v0.16.0</span> · Free, no strings attached · Other Linux: <a href="/download/linux-appimage">AppImage</a> (<a href="/use-cases/iphone-backup-extractor-linux">Linux guide</a>) · <a href="https://github.com/charleswest775/openextract/releases/latest">All files and release notes</a></p>
       </div>
     </section>
   </main>
@@ -411,6 +411,22 @@
     </div>
   </div>
 
+  <script>
+    // The written version is the one this page was last released with (release.yml updates it).
+    // The download links already give the newest release (api/_lib/download.js), so show its
+    // number too, once /api/latest answers.
+    (function () {
+      var labels = document.querySelectorAll('.latest-version');
+      if (!labels.length || !window.fetch) return;
+      fetch('/api/latest')
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (latest) {
+          if (!latest || !/^\d+\.\d+\.\d+$/.test(latest.version)) return;
+          for (var i = 0; i < labels.length; i++) labels[i].textContent = 'v' + latest.version;
+        })
+        .catch(function () {});
+    })();
+  </script>
   <script src="/js/home.js" defer></script>
 </body>
 </html>
