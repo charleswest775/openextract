@@ -179,12 +179,14 @@
           <h2 class="h2">What people <em>wrote back.</em></h2>
           <p class="voices__note">Word for word, from people who ticked "OK to quote". No names. <a href="/what-people-say">Read them all</a></p>
         </div>
-        <div class="voices__nav">
-          <button type="button" data-voices-prev aria-label="Previous notes">&larr;</button>
-          <button type="button" data-voices-next aria-label="More notes">&rarr;</button>
+        <button type="button" class="voices__pause" data-voices-pause>Pause</button>
+      </div>
+      <!-- The notes drift sideways in a loop: the list, then a copy the keyboard and screen readers skip -->
+      <div class="voices__viewport" role="region" tabindex="0" aria-label="Thank-you notes">
+        <div class="voices__track">
+          <div class="voices__list" data-voices-list></div>
         </div>
       </div>
-      <div class="voices__track" data-voices-track tabindex="0" aria-label="Thank-you notes"></div>
     </section>
 
     <!-- Everything it gets back, as big words -->

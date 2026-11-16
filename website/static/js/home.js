@@ -359,9 +359,12 @@
   render();
 
   // ── Real thank-you notes, sent from the app by people who allowed quoting ──
+  // They drift left in a loop, about 40 pixels a second, slow enough to read a card as it goes
+  // by. Hovering, tapping a card, focusing the row or Pause stops them. They stand still as a
+  // row you can scroll when every card fits, or when the system asks for less motion (home.css).
   var voices = document.querySelector('[data-voices]');
-  var track = document.querySelector('[data-voices-track]');
-  if (voices && window.fetch) {
+  var list = document.querySelector('[data-voices-list]');
+  if (voices && list && window.fetch) {
     fetch('/api/thanks').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
       var quotes = (data && data.quotes) || [];
       if (!quotes.length) return;
@@ -378,12 +381,41 @@
         d.textContent = 'Sent from the app' + (isNaN(when) ? '' : ' · ' + when.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }));
         card.appendChild(t);
         card.appendChild(d);
-        track.appendChild(card);
+        list.appendChild(card);
       });
       voices.hidden = false;
+      drift();
     }).catch(function () {});
-    function step(dir) { track.scrollBy({ left: dir * Math.min(track.clientWidth * 0.8, 460), behavior: 'smooth' }); }
-    document.querySelector('[data-voices-prev]').addEventListener('click', function () { step(-1); });
-    document.querySelector('[data-voices-next]').addEventListener('click', function () { step(1); });
+  }
+
+  function drift() {
+    var track = list.parentNode;
+    var viewport = track.parentNode;
+    var copy = list.cloneNode(true);
+    copy.removeAttribute('data-voices-list');
+    copy.setAttribute('aria-hidden', 'true');
+    copy.setAttribute('inert', '');
+    track.appendChild(copy);
+
+    var pause = voices.querySelector('[data-voices-pause]');
+    pause.addEventListener('click', function () {
+      var paused = voices.classList.toggle('is-paused');
+      pause.textContent = paused ? 'Play' : 'Pause';
+    });
+
+    function measure() {
+      var width = list.offsetWidth;
+      var room = viewport.clientWidth - parseFloat(getComputedStyle(viewport).paddingLeft);
+      voices.classList.toggle('is-still', width <= room);
+      track.style.setProperty('--voices-seconds', Math.max(20, Math.round(width / 40)) + 's');
+    }
+    measure();
+    voices.classList.add('is-ready');
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(measure);
+    var timer;
+    window.addEventListener('resize', function () {
+      clearTimeout(timer);
+      timer = setTimeout(measure, 150);
+    });
   }
 })();

@@ -241,13 +241,32 @@ html.has-lightbox { overflow: hidden; }
 /* Voices */
 .voices__head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
 .voices__note { margin-top: 14px; font-size: 16px; color: var(--ink-2); }
-.voices__nav { display: flex; gap: 10px; }
-.voices__nav button { all: unset; cursor: pointer; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; border: 1px solid #d3cdc4; background: #fff; font-size: 18px; transition: background 0.15s, color 0.15s; }
-.voices__nav button:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
-.voices__nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.voices__track { display: flex; gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; margin-top: 44px; padding: 4px max(var(--pad), calc((100vw - var(--wrap)) / 2)) 8px; scroll-padding-left: max(var(--pad), calc((100vw - var(--wrap)) / 2)); }
-.voices__track::-webkit-scrollbar { display: none; }
-.voice { flex: 0 0 auto; width: min(400px, 82vw); scroll-snap-align: start; background: #fff; border-radius: 16px; padding: 30px 30px 26px; display: flex; flex-direction: column; justify-content: space-between; gap: 26px; box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04), 0 20px 40px -30px rgba(20, 22, 26, 0.3); }
+.voices__pause { all: unset; cursor: pointer; flex: none; padding: 11px 22px; border-radius: 999px; border: 1px solid #d3cdc4; background: #fff; font-size: 15px; font-weight: 600; visibility: hidden; transition: background 0.15s, color 0.15s; }
+.voices.is-ready .voices__pause { visibility: visible; }
+.voices__pause:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
+.voices__pause:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The track holds the list and an identical copy, and moves left by exactly one list (half
+   the track), so the loop has no seam. The viewport's left padding lines the first card up
+   with the text above; cards drift out through it to the edge of the screen. */
+.voices__viewport { margin-top: 44px; overflow: hidden; padding: 4px 0 8px max(var(--pad), calc((100vw - var(--wrap)) / 2)); scrollbar-width: none; -webkit-mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent); mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent); }
+.voices__viewport::-webkit-scrollbar { display: none; }
+.voices__viewport:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.voices__track { display: flex; width: max-content; animation: voices-drift var(--voices-seconds, 120s) linear infinite; }
+.voices__list { display: flex; gap: 20px; padding-right: 20px; }
+.voices__viewport:hover .voices__track,
+.voices__viewport:focus-within .voices__track,
+.voices.is-paused .voices__track { animation-play-state: paused; }
+@keyframes voices-drift { to { transform: translateX(-50%); } }
+/* Standing still, as a row you can scroll: when every card fits, or the system asks for less motion. */
+.voices.is-still .voices__viewport { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
+.voices.is-still .voices__track { animation: none; }
+.voices.is-still .voices__list[aria-hidden], .voices.is-still .voices__pause { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .voices__viewport { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
+  .voices__track { animation: none; }
+  .voices__list[aria-hidden], .voices__pause { display: none; }
+}
+.voice { flex: 0 0 auto; width: min(400px, 82vw); background: #fff; border-radius: 16px; padding: 30px 30px 26px; display: flex; flex-direction: column; justify-content: space-between; gap: 26px; box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04), 0 20px 40px -30px rgba(20, 22, 26, 0.3); }
 .voice q { quotes: "\201C" "\201D"; font: 600 20px/1.45 var(--sans); letter-spacing: -0.012em; }
 .voice--long { width: min(480px, 86vw); }
 .voice--long q { font-size: 17px; font-weight: 500; line-height: 1.55; }
@@ -418,9 +437,10 @@ html.has-lightbox { overflow: hidden; }
   .row__text p:not(.eyebrow) { font-size: 17px; }
   .log { padding: 6px 18px 10px; }
   .log__row { font-size: 15px; padding: 15px 0; }
-  .voices__head { align-items: flex-start; }
-  .voices__nav { display: none; }
-  .voices__track { margin-top: 28px; gap: 14px; align-items: flex-start; }
+  .voices__head { flex-direction: column; align-items: flex-start; gap: 18px; }
+  .voices__pause { padding: 8px 18px; font-size: 14px; }
+  .voices__viewport { margin-top: 28px; }
+  .voices__list { gap: 14px; padding-right: 14px; align-items: flex-start; }
   .voice { padding: 24px 22px 20px; }
   .price__h { font-size: 40px; }
   .price__lead { font-size: 18px; }
