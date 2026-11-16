@@ -438,3 +438,7 @@ html.has-lightbox { overflow: hidden; }
   .os { grid-template-columns: minmax(0, 1fr); margin-top: 36px; gap: 12px; }
   .os__card { padding: 20px; }
 }
+/* "Click Save" steps: the screen with its Save button ringed, and a close-up as the thumbnail. */
+.lb-ring { position: absolute; border-radius: 10px; box-shadow: 0 0 0 3px var(--accent), 0 0 0 9999px rgba(28, 24, 20, 0.28); animation: save-dim 0.3s ease-out; }
+.flow__thumb--button img { object-fit: cover; object-position: right center; }
+.lb-screen { overflow: hidden; border-radius: 10px; }

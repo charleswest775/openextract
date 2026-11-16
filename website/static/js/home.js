@@ -61,44 +61,104 @@
   // How saving works, per screen: the real Save window, the files it really made from the
   // sample backup, and the one ask the app makes afterwards. Small steps under the
   // screenshot; a step opens large in a pop-up.
-  var SAVE_BOX = { messages: [496, 222, 448, 456], 'address-book': [496, 307, 448, 287], notes: [496, 307, 448, 287] };
+  var SAVE_BOX = { messages: [496, 222, 448, 456], whatsapp: [496, 222, 448, 456], 'people-list': [496, 270, 448, 361],
+    'address-book': [496, 307, 448, 287], notes: [496, 307, 448, 287], timeline: [496, 270, 448, 361] };
+  // Screens that save straight to a folder: where their Save button sits.
+  var SAVE_BTN = { photos: [1305, 64, 111, 39], calls: [1324, 64, 92, 39], voicemail: [1305, 64, 111, 39], 'web-history': [1305, 64, 111, 39] };
+  var H_ = '/img/home/';
+  function pick(screen, button, formats) {
+    return { label: 'Pick a format', kind: 'dialog', screen: screen, thumb: H_ + 'save-' + screen + '-600.webp', img: H_ + 'save-' + screen + '-900.webp',
+      title: 'Click ' + button + ', then pick a format', cap: formats.cap, alt: formats.alt };
+  }
+  function press(screen, button, cap) {
+    return { label: 'Click ' + button, kind: 'button', screen: screen, thumb: H_ + 'btn-' + screen + '-480.webp',
+      title: 'Click ' + button + ', then choose a folder', cap: cap,
+      alt: 'The ' + button + ' button at the top right of the screen.' };
+  }
+  function file(label, key, title, cap, alt) {
+    return { label: label, kind: 'shot', thumb: H_ + 'file-' + key + '-1200.webp', img: H_ + 'file-' + key + '-2000.webp', title: title, cap: cap, alt: alt };
+  }
+  var ASK = { label: 'Then one ask', kind: 'card', thumb: H_ + 'pay-ask-680.webp', img: H_ + 'pay-ask-680.webp',
+    title: 'Then the app asks, once',
+    cap: 'Only after your file is saved. If it was worth something to you and you can afford it, pay what it’s worth. If you can’t, it’s yours. “Not now” means not now.',
+    alt: 'The card after saving: Your messages are saved. Hi, I’m Charles. I give OpenExtract to everyone, and ask one thing: if getting your messages off your iPhone was worth something to you and you can afford it, pay what it was worth. $5 is a good start. If you can’t, it’s yours. Buttons: Not now, Pay $5.' };
   var FLOWS = {
     messages: [
-      { label: 'Pick a format', kind: 'dialog', screen: 'messages', thumb: '/img/home/save-messages-600.webp',
-        img: '/img/home/save-messages-900.webp',
-        title: 'Click Save conversation, then pick a format',
-        cap: 'A web page, a PDF to read or print, a spreadsheet or plain text. Then you choose where it goes on your computer.',
-        alt: 'The Save window for a conversation with Karin Lindqvist: web page, readable document (PDF), spreadsheet (CSV) or plain text.' },
-      { label: 'Get a PDF', kind: 'pages', thumb: '/img/home/file-messages-pdf-p19-900.webp',
-        imgs: ['/img/home/file-messages-pdf-p1-900.webp', '/img/home/file-messages-pdf-p19-900.webp'],
+      pick('messages', 'Save conversation', { cap: 'A web page, a PDF to read or print, a spreadsheet or plain text. Then you choose where it goes on your computer.',
+        alt: 'The Save window for a conversation with Karin Lindqvist: web page, readable document (PDF), spreadsheet (CSV) or plain text.' }),
+      { label: 'Get a PDF', kind: 'pages', thumb: H_ + 'file-messages-pdf-p19-900.webp',
+        imgs: [H_ + 'file-messages-pdf-p1-900.webp', H_ + 'file-messages-pdf-p19-900.webp'],
         title: 'The PDF it saves',
         cap: 'Every message and photo in the conversation, with names, dates and times. 20 pages that open anywhere and print well. These are two of them.',
         alts: ['Page 1 of the saved PDF: the start of the conversation with Karin, in message bubbles with dates and times.',
           'Page 19 of the saved PDF: the photo of Diablo Lake and the messages around it.'] },
-      { label: 'Or a web page', kind: 'shot', thumb: '/img/home/file-messages-web-1200.webp',
-        img: '/img/home/file-messages-web-2000.webp',
+      { label: 'Or a web page', kind: 'shot', thumb: H_ + 'file-messages-web-1200.webp', img: H_ + 'file-messages-web-2000.webp',
         title: 'Or the web page it saves',
         cap: 'The same conversation as a page that opens in any browser, with the photos saved in a folder beside it.',
         alt: 'The saved web page open in a browser, with the Diablo Lake photo in the conversation.' },
-      { label: 'Then one ask', kind: 'card', thumb: '/img/home/pay-ask-680.webp',
-        img: '/img/home/pay-ask-680.webp',
-        title: 'Then the app asks, once',
-        cap: 'Only after your file is saved. If it was worth something to you and you can afford it, pay what it’s worth. If you can’t, it’s yours. “Not now” means not now.',
-        alt: 'The card after saving: Your messages are saved. Hi, I’m Charles. I give OpenExtract to everyone, and ask one thing: if getting your messages off your iPhone was worth something to you and you can afford it, pay what it was worth. $5 is a good start. If you can’t, it’s yours. Buttons: Not now, Pay $5.' }
+      ASK
+    ],
+    whatsapp: [
+      pick('whatsapp', 'Save chat', { cap: 'A web page, a PDF, a spreadsheet or plain text. Then you choose where it goes.',
+        alt: 'The Save window for a WhatsApp chat with Lucía Navarro: web page, readable document (PDF), spreadsheet (CSV) or plain text.' }),
+      { label: 'Get a PDF', kind: 'pages', thumb: H_ + 'file-whatsapp-pdf-p2-900.webp',
+        imgs: [H_ + 'file-whatsapp-pdf-p2-900.webp', H_ + 'file-whatsapp-pdf-p4-900.webp'],
+        title: 'The PDF it saves',
+        cap: 'Photos, calls and voice messages in order, with names and times. Two of its four pages.',
+        alts: ['A page of the saved WhatsApp PDF: a photo of Crater Lake, replies, a voice message and a video call.',
+          'Another page: photos of a rose garden, a missed call, a voice message and an outgoing call.'] },
+      file('Or a web page', 'whatsapp-web', 'Or the web page it saves',
+        'The same chat in any browser. Voice messages play right in the page, and the photos are saved beside it.',
+        'The saved WhatsApp web page: a photo of Crater Lake and a voice message with a play button.')
+    ],
+    photos: [
+      press('photos', 'Save all', 'Or pick an album first to save just that one. You choose the folder; nothing is uploaded.'),
+      file('The originals', 'photos', 'The original photos, in folders by year and month',
+        'All 170 photos and videos, copied as the original files. This folder is August 2025.',
+        'A folder of the saved photos: 2025, then 08, with 24 of its 45 photos shown by file name, from IMG_0068.JPG on.')
+    ],
+    'people-list': [
+      pick('people-list', 'Save everything', { cap: 'Everything with one person, as a web page, a spreadsheet or Markdown.',
+        alt: 'The Save window for everything with Theo Navarro: web page, spreadsheet (CSV) or Markdown.' }),
+      file('Get the page', 'people-web', 'Everything with Theo, on one page',
+        'Texts, WhatsApp, calls and voicemails with one person, in date order: 301 entries.',
+        'The saved web page for Theo Navarro: messages and a call, newest first, grouped by day.')
     ],
     'address-book': [
-      { label: 'Pick a format', kind: 'dialog', screen: 'address-book', thumb: '/img/home/save-address-book-600.webp',
-        img: '/img/home/save-address-book-900.webp',
-        title: 'Click Save contacts, then pick a format',
-        cap: 'Contact cards import into Contacts, Outlook or Google. The spreadsheet opens in Excel, Numbers or Google Sheets.',
-        alt: 'The Save contacts window: contact cards (vCard) or a spreadsheet (CSV).' }
+      pick('address-book', 'Save contacts', { cap: 'Contact cards import into Contacts, Outlook or Google. The spreadsheet opens in Excel, Numbers or Google Sheets.',
+        alt: 'The Save contacts window: contact cards (vCard) or a spreadsheet (CSV).' }),
+      file('Get a spreadsheet', 'contacts', 'The spreadsheet it saves',
+        'Contacts.csv: names, companies, phone numbers, email addresses and notes for all 45 cards.',
+        'Contacts.csv: rows of contacts with name, organization, phone numbers, email addresses and notes.')
+    ],
+    calls: [
+      press('calls', 'Save', 'You choose the folder. All 166 calls go into one spreadsheet.'),
+      file('Get a spreadsheet', 'calls', 'The spreadsheet it saves',
+        'call_history.csv: when, who, which way, answered or missed, and for how long.',
+        'call_history.csv: rows of calls with date, contact name, number, direction, status and duration.')
     ],
     notes: [
-      { label: 'Pick a format', kind: 'dialog', screen: 'notes', thumb: '/img/home/save-notes-600.webp',
-        img: '/img/home/save-notes-900.webp',
-        title: 'Click Save note, then pick a format',
-        cap: 'Keep a note as a PDF to read or print, or as plain text for any editor.',
-        alt: 'The Save window for the note "Groceries": readable document (PDF) or plain text.' }
+      pick('notes', 'Save note', { cap: 'Keep a note as a PDF to read or print, or as plain text for any editor.',
+        alt: 'The Save window for the note "Groceries": readable document (PDF) or plain text.' })
+    ],
+    voicemail: [
+      press('voicemail', 'Save all', 'You choose the folder. Or save one voicemail from its own row.'),
+      file('The audio files', 'voicemail', 'One audio file per voicemail',
+        'Named by who called and when, plus a spreadsheet of them all.',
+        'The saved Voicemail folder: nine audio files named by caller and date, with lengths and sizes, and voicemails.csv.')
+    ],
+    'web-history': [
+      press('web-history', 'Save all', 'You choose the folder. Every visit goes into one spreadsheet.'),
+      file('Get a spreadsheet', 'web-history', 'The spreadsheet it saves',
+        'browser_history_export.csv: when, which browser, the page title, its address and how often it was visited.',
+        'browser_history_export.csv: rows of visits with date, browser, address, page title, site and visit count.')
+    ],
+    timeline: [
+      pick('timeline', 'Save', { cap: 'Everything in the timeline, filtered the way you had it, as a web page, a spreadsheet or Markdown.',
+        alt: 'The Save window for 2,028 events from the Timeline: web page, spreadsheet (CSV) or Markdown.' }),
+      file('Get the page', 'timeline-web', 'The timeline, on one page',
+        'Messages, calls and web visits in date order, grouped by day.',
+        'The saved timeline web page: messages and Safari visits grouped by day, newest first.')
     ]
   };
 
@@ -202,6 +262,17 @@
       dim.appendChild(dlg);
       scr.appendChild(dim);
       boxBody.appendChild(scr);
+    } else if (st.kind === 'button') {
+      var scr2 = el('div', 'lb-screen');
+      var base2 = el('img');
+      base2.src = src(st.screen, 2000);
+      base2.alt = st.alt;
+      scr2.appendChild(base2);
+      var b = SAVE_BTN[st.screen];
+      var ring = el('span', 'lb-ring');
+      ring.setAttribute('style', 'left:' + (b[0] / W * 100) + '%;top:' + (b[1] / H * 100) + '%;width:' + (b[2] / W * 100) + '%;height:' + (b[3] / H * 100) + '%');
+      scr2.appendChild(ring);
+      boxBody.appendChild(scr2);
     } else if (st.kind === 'pages') {
       st.imgs.forEach(function (u, i) {
         var pg = el('img', 'lb-page');
