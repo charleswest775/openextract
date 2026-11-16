@@ -41,7 +41,7 @@ button { font: inherit; color: inherit; }
 .foot__small { margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--dark-line); }
 .product__more { margin-top: 18px; text-align: center; font-size: 15px; }
 .product__more a { color: var(--ink-2); }
-.top__pay { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; background: #fdeee8; color: var(--accent-ink); font-size: 14px; font-weight: 600; text-decoration: none; }
+.top__pay { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; background: #fdeee8; color: var(--accent-ink); font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
 .top__pay svg { width: 15px; height: 15px; fill: var(--accent); }
 .top__pay:hover { background: #fbe0d5; }
 .skip { position: absolute; left: -999px; top: 8px; background: var(--ink); color: #fff; padding: 8px 12px; border-radius: 8px; z-index: 100; }
@@ -74,7 +74,7 @@ em { font-style: normal; color: var(--dim); }
 .brand { display: inline-flex; align-items: center; gap: 10px; font: 700 18px/1 var(--sans); letter-spacing: -0.02em; text-decoration: none; }
 .brand img { border-radius: 7px; }
 .top__nav { display: flex; gap: 28px; margin-left: 12px; }
-.top__nav a, .top__gh { font-size: 15px; color: var(--ink-2); text-decoration: none; }
+.top__nav a, .top__gh { font-size: 15px; color: var(--ink-2); text-decoration: none; white-space: nowrap; }
 .top__nav a:hover, .top__gh:hover { color: var(--ink); }
 .top__end { margin-left: auto; display: flex; align-items: center; gap: 22px; }
 
