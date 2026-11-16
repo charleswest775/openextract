@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - Photos: the count next to All Photos no longer changes to the count of whichever album is open, and three albums Photos keeps for itself ("progress-sync" and two more) no longer appear as empty albums
 - Back up my iPhone: when the iPhone already has a backup password, set earlier in Finder, iTunes or OpenExtract, the app says so and doesn't ask for a new one. An iPhone keeps that first password and encrypts every backup with it until it's removed, but the app used to ask for a new password and then not use it, so opening the backup afterwards said the password you'd just typed was wrong. Encrypt now stays ticked for such an iPhone, the note says how to remove a password you've forgotten, and the unlock dialog after the backup asks for the earlier password (OE-68)
+- Voicemail: when the list couldn't open voicemails the home screen had just counted, it showed SQLite's "unable to open database file". Now a file that went away while the backup was open (removed by a temp-folder clean-up, or on a drive that went to sleep) is found again, Voicemail tries the backup's own copy before giving up, and if it still can't open them it says to check that the drive with the backup is still connected (OE-77)
 
 ## [0.15.1] - 2026-11-13
 
