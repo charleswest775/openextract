@@ -153,14 +153,18 @@
             </div>
             <div class="demo__screen">
               <img data-demo-img src="/img/home/home-1200.webp" srcset="/img/home/home-1200.webp 1200w, /img/home/home-2000.webp 2000w" sizes="(max-width: 1000px) calc(100vw - 32px), 960px" width="1440" height="900" alt="OpenExtract's home screen for a sample backup: tiles for 1,410 messages, 88 WhatsApp messages, 170 photos, 53 people, 45 contacts, 166 calls, 25 notes and 9 voicemails, plus web history, a timeline and a year view." />
-              <div class="demo__file" data-demo-file hidden></div>
-              <div class="demo__save" data-demo-save hidden><img alt="" width="900" height="916" sizes="(max-width: 760px) 50vw, 400px" /></div>
             </div>
           </figure>
-          <div class="tour__text" aria-live="polite">
-            <div class="views" role="group" aria-label="What to show for this screen" data-demo-views hidden></div>
-            <p class="tour__name" data-demo-name>Home screen</p>
-            <p class="tour__cap"><span data-demo-cap>Everything in the backup at a glance. Pick a screen above to look around.</span> <span class="demo__saves" data-demo-saves></span></p>
+          <div class="tour">
+            <div class="tour__text" aria-live="polite">
+              <p class="tour__name" data-demo-name>Home screen</p>
+              <p class="tour__cap"><span data-demo-cap>Everything in the backup at a glance. Pick a screen above to look around.</span> <span class="demo__saves" data-demo-saves></span></p>
+            </div>
+            <div class="flow" data-demo-flow hidden>
+              <p class="flow__head">How saving works <span>Click a step to see it</span></p>
+              <ol class="flow__steps" data-demo-flow-steps></ol>
+              <p class="flow__note">Notice what's missing: no paywall, no &ldquo;upgrade to save&rdquo;, no trial limit. At any step.</p>
+            </div>
           </div>
         </div>
         <p class="product__more"><a href="/screenshots">See every screen, full size &rarr;</a></p>
@@ -388,6 +392,23 @@
       <p class="foot__small">Made by Charles West, with help from contributors. Not affiliated with Apple.</p>
     </div>
   </footer>
+
+  <!-- One step of a workflow, large -->
+  <div class="lightbox" data-lightbox hidden role="dialog" aria-modal="true" aria-labelledby="lightbox-title">
+    <div class="lightbox__panel">
+      <button type="button" class="lightbox__close" data-lightbox-close aria-label="Close">&times;</button>
+      <div class="lightbox__body" data-lightbox-body></div>
+      <div class="lightbox__foot">
+        <button type="button" class="lightbox__arrow" data-lightbox-prev aria-label="Previous step">&larr;</button>
+        <div class="lightbox__text">
+          <p class="lightbox__step" data-lightbox-step></p>
+          <p class="lightbox__title" id="lightbox-title" data-lightbox-title></p>
+          <p class="lightbox__cap" data-lightbox-cap></p>
+        </div>
+        <button type="button" class="lightbox__arrow" data-lightbox-next aria-label="Next step">&rarr;</button>
+      </div>
+    </div>
+  </div>
 
   <script src="/js/home.js" defer></script>
 </body>

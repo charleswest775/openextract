@@ -126,14 +126,8 @@ em { font-style: normal; color: var(--dim); }
 @media (prefers-reduced-motion: reduce) { .demo__screen img { transition: none; } }
 .demo__screen img.is-swapping { opacity: 0.25; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(212, 83, 42, 0.5); } 100% { box-shadow: 0 0 0 14px rgba(212, 83, 42, 0); } }
-/* The app's Save window over a dimmed screen, as the app shows it. */
-.demo__save { position: absolute; inset: 0; background: rgba(28, 24, 20, 0.34); animation: save-dim 0.2s ease-out; }
-.demo__save[hidden] { display: none; }
-.demo__save { --save-scale: 1.25; }
-.demo__save img { position: absolute; left: calc(var(--cx) * 1%); top: calc(var(--cy) * 1%); width: calc(var(--w) * var(--save-scale) * 1%); height: auto; transform: translate(-50%, -50%); filter: drop-shadow(0 18px 36px rgba(0, 0, 0, 0.32)); animation: save-pop 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
 @keyframes save-dim { from { opacity: 0; } }
 @keyframes save-pop { from { opacity: 0; transform: translate(-50%, calc(-50% + 10px)) scale(0.96); } }
-@media (prefers-reduced-motion: reduce) { .demo__save, .demo__save img { animation: none; } }
 /* The screenshots sit on their own dark stage, so they read as pictures of the app, not as this page. */
 .stage { border-radius: 28px; padding: 22px 28px 26px; background: radial-gradient(80% 55% at 50% 0%, #3a2b24 0%, rgba(58, 43, 36, 0) 75%), var(--dark); }
 .stage__tag { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; font: 500 13px/1 var(--sans); color: var(--dark-dim); }
@@ -145,29 +139,61 @@ em { font-style: normal; color: var(--dim); }
 .pills button:hover { color: #fff; border-color: #5b6068; }
 .pills button[aria-pressed="true"] { background: #fff; border-color: #fff; color: var(--ink); }
 .pills button:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 2px; }
-.stage .tour__text { margin-top: 16px; }
-/* Screen, Save window and the files it makes: a small switch under the caption. */
-.views { display: inline-flex; gap: 2px; margin: 0 0 12px; padding: 3px; border-radius: 999px; background: var(--dark-2); border: 1px solid var(--dark-line); }
-.views[hidden] { display: none; }
-.views button { all: unset; cursor: pointer; font: 500 13px/1 var(--sans); color: #c4c8ce; padding: 8px 14px; border-radius: 999px; transition: background 0.15s, color 0.15s; }
-.views button:hover { color: #fff; }
-.views button[aria-pressed="true"] { background: #fff; color: var(--ink); }
-.views button:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 2px; }
-/* A saved file, opened: PDF pages on a desk, or the web page full size. */
-.demo__file { position: absolute; inset: 0; overflow: hidden; animation: save-dim 0.2s ease-out; }
-.demo__file[hidden] { display: none; }
-.demo__file--pdf { background: #e6e3de; }
-.demo__file--web img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
-.desk { position: absolute; inset: 0; }
-.desk .paper { position: absolute; top: 50%; left: 50%; height: 88%; width: auto; background: #fff; box-shadow: 0 24px 48px -16px rgba(30, 24, 18, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.05); animation: paper-in 0.3s ease-out both; }
-.desk .paper--front { animation-delay: 0.06s; }
+
 @keyframes paper-in { from { opacity: 0; translate: 0 14px; } }
-.desk .paper--back { transform: translate(-92%, -52%) rotate(-3deg); }
-.desk .paper--front { transform: translate(-12%, -48%) rotate(2deg); }
-.tour__text { text-align: center; }
+/* Under the screenshot: what the screen is, and how saving works as small steps. */
+.tour { max-width: 960px; margin: 18px auto 0; display: flex; flex-wrap: wrap; gap: 20px 40px; align-items: flex-start; justify-content: space-between; }
+.tour__text { flex: 1 1 300px; text-align: left; }
+.flow { flex: 0 1 auto; }
+.flow[hidden] { display: none; }
+.flow__head { font: 600 12px/1 var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: #fff; }
+.flow__head span { margin-left: 8px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--dark-dim); }
+.flow__steps { display: flex; gap: 26px; margin: 12px 0 0; padding: 0; list-style: none; }
+.flow__step { position: relative; }
+.flow__step + .flow__step::before { content: "\2192"; position: absolute; left: -20px; top: 30px; color: var(--dark-dim); font-size: 14px; }
+.flow__btn { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 8px; width: 124px; }
+.flow__thumb { display: block; height: 72px; border-radius: 10px; overflow: hidden; background: #fbf6f1; border: 1px solid var(--dark-line); transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s; }
+.flow__thumb img { width: 100%; height: 100%; display: block; }
+.flow__thumb--dialog img, .flow__thumb--card img { object-fit: contain; padding: 6px; box-sizing: border-box; }
+.flow__thumb--pages { background: #e6e3de; }
+.flow__thumb--pages img, .flow__thumb--shot img { object-fit: cover; object-position: top; }
+.flow__thumb--pages img { width: 64%; margin: 8px auto 0; box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.35); }
+.flow__btn:hover .flow__thumb, .flow__btn:focus-visible .flow__thumb { transform: translateY(-2px); border-color: #fff; box-shadow: 0 12px 24px -12px rgba(0, 0, 0, 0.8); }
+.flow__btn:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 4px; border-radius: 10px; }
+.flow__label { display: flex; align-items: center; gap: 7px; font-size: 13px; line-height: 1.25; color: #e8e9eb; }
+.flow__n { flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--dark-2); border: 1px solid var(--dark-line); font: 700 11px/16px var(--sans); text-align: center; color: #fff; }
+.flow__note { margin-top: 14px; display: flex; align-items: center; gap: 8px; font-size: 14px; color: #c4c8ce; }
+.flow__note::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 0 4px rgba(74, 222, 128, 0.15); }
+/* The pop-up: one step, large. */
+html.has-lightbox { overflow: hidden; }
+.lightbox { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(12, 12, 14, 0.78); animation: save-dim 0.2s ease-out; }
+.lightbox[hidden] { display: none; }
+.lightbox__panel { position: relative; width: min(1100px, 100%); max-height: calc(100vh - 48px); display: flex; flex-direction: column; overflow: hidden; border-radius: 20px; background: var(--dark); border: 1px solid var(--dark-line); box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.7); animation: lb-pop 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+@keyframes lb-pop { from { opacity: 0; transform: translateY(12px) scale(0.97); } }
+@media (prefers-reduced-motion: reduce) { .lightbox, .lightbox__panel { animation: none; } }
+.lightbox__close { all: unset; position: absolute; top: 12px; right: 12px; z-index: 2; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; font-size: 24px; line-height: 1; color: #fff; background: rgba(20, 20, 22, 0.7); }
+.lightbox__close:hover { background: #000; }
+.lightbox__close:focus-visible, .lightbox__arrow:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 2px; }
+.lightbox__body { flex: 1 1 auto; min-height: min(56vh, 540px); display: flex; align-items: center; justify-content: center; gap: 20px; padding: 28px; background: #e6e3de; }
+.lb-screen { position: relative; width: min(100%, calc((100vh - 280px) * 1.6)); aspect-ratio: 1440 / 900; }
+.lb-screen > img { display: block; width: 100%; height: 100%; border-radius: 10px; box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.5); }
+.lb-screen__dim { position: absolute; inset: 0; border-radius: 10px; background: rgba(28, 24, 20, 0.34); }
+.lb-screen__dialog { position: absolute; height: auto; transform: translate(-50%, -50%); filter: drop-shadow(0 18px 36px rgba(0, 0, 0, 0.32)); }
+.lb-page { height: min(calc(100vh - 300px), 640px); width: auto; background: #fff; box-shadow: 0 24px 48px -16px rgba(30, 24, 18, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.05); }
+.lb-shot { width: min(100%, calc((100vh - 280px) * 1.6)); height: auto; border-radius: 10px; box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.5); }
+.lb-card { width: min(440px, 90%); height: auto; border-radius: 14px; box-shadow: 0 24px 48px -16px rgba(60, 40, 20, 0.4); }
+.lightbox__foot { display: grid; grid-template-columns: 44px 1fr 44px; gap: 16px; align-items: center; padding: 18px 22px 22px; }
+.lightbox__arrow { all: unset; box-sizing: border-box; cursor: pointer; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--dark-2); border: 1px solid var(--dark-line); font-size: 18px; }
+.lightbox__arrow:hover:not(:disabled) { background: #fff; color: var(--ink); }
+.lightbox__arrow:disabled { opacity: 0.3; cursor: default; }
+.lightbox__arrow[hidden] { display: grid; visibility: hidden; }
+.lightbox__text { text-align: center; }
+.lightbox__step { font: 600 12px/1 var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent-hi); }
+.lightbox__title { margin-top: 8px; font: 600 20px/1.3 var(--sans); color: #fff; }
+.lightbox__cap { margin: 6px auto 0; max-width: 62ch; font-size: 15px; line-height: 1.5; color: #c4c8ce; }
+.tour__text { text-align: left; }
 .tour__name { font: 600 17px/1.3 var(--sans); color: #fff; }
-.tour__cap { margin: 6px auto 0; max-width: 62ch; font-size: 16px; line-height: 1.5; color: #c4c8ce; }
-.demo__saves { color: var(--dark-dim); }
+.tour__cap { margin: 6px 0 0; max-width: 62ch; font-size: 16px; line-height: 1.5; color: #c4c8ce; }
 .tour__cap .demo__saves { display: block; margin-top: 2px; font-size: 14px; }
 
 /* ── Statement + words ── */
@@ -319,6 +345,21 @@ em { font-style: normal; color: var(--dim); }
   .words li { font-size: 60px; }
 }
 @media (max-width: 760px) {
+  .tour { margin-top: 14px; gap: 18px; }
+  .flow { width: 100%; }
+  .flow__steps { gap: 18px; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; }
+  .flow__steps::-webkit-scrollbar { display: none; }
+  .flow__step + .flow__step::before { left: -14px; }
+  .flow__btn { width: 92px; }
+  .flow__thumb { height: 60px; }
+  .flow__label { font-size: 12px; }
+  .lightbox { padding: 10px; }
+  .lightbox__body { padding: 14px; gap: 10px; min-height: 0; }
+  .lb-page { width: 47%; height: auto; }
+  .lightbox__foot { grid-template-columns: 38px 1fr 38px; gap: 10px; padding: 14px 12px 16px; }
+  .lightbox__arrow { width: 38px; height: 38px; }
+  .lightbox__title { font-size: 17px; }
+  .lightbox__cap { font-size: 14px; }
   .hero__kicker { font-size: 11px; margin-bottom: 14px; }
   .pay { margin-top: 36px; }
   .pay__h { font-size: 22px; }
@@ -357,12 +398,10 @@ em { font-style: normal; color: var(--dim); }
   .demo__lights i { width: 9px; height: 9px; }
   .demo__lights { gap: 6px; left: 12px; }
   .demo__title { font-size: 12px; padding: 0 76px 0 60px; }
-  .demo__save { --save-scale: 1.7; }
   .pills { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; margin: 0 -10px 12px; padding: 2px 10px; }
   .pills::-webkit-scrollbar { display: none; }
   .pills button { flex: none; font-size: 13px; padding: 8px 12px; }
   .stage .tour__text { margin-top: 14px; }
-  .views button { font-size: 12px; padding: 7px 10px; }
   .stage { border-radius: 18px; padding: 14px 10px 16px; margin: 0 -8px; }
   .stage__tag { margin: 2px 4px 12px; font-size: 12px; }
   .stage__tag span { font-size: 10px; padding: 5px 7px; }

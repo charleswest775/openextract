@@ -58,34 +58,49 @@
   var HOME = { id: 'home', name: 'Home screen', cap: 'Everything in the backup at a glance. Pick a screen above to look around.', saves: '',
     alt: document.querySelector('[data-demo-img]').alt };
 
-  // The Save window each screen opens, cut from the real app at the same size and place.
-  // box: where the window sits on the 1440 × 900 screen.
-  var SAVES = {
-    messages: { box: [496, 222, 448, 456], name: 'Saving a conversation',
-      cap: 'Pick how you want it: a web page, a PDF to read or print, a spreadsheet or plain text. Then choose where it goes on your computer.',
-      alt: 'The Save window for a conversation with Karin Lindqvist: web page, readable document (PDF), spreadsheet (CSV) or plain text.' },
-    'address-book': { box: [496, 307, 448, 287], name: 'Saving contacts',
-      cap: 'Contact cards import into Contacts, Outlook or Google. The spreadsheet opens in Excel, Numbers or Google Sheets.',
-      alt: 'The Save contacts window: contact cards (vCard) or a spreadsheet (CSV).' },
-    notes: { box: [496, 307, 448, 287], name: 'Saving a note',
-      cap: 'Keep a note as a PDF to read or print, or as plain text for any editor.',
-      alt: 'The Save window for the note "Groceries": readable document (PDF) or plain text.' }
-  };
-
-  // Real files the app saved from the sample backup: what you end up with.
-  var FILES = {
-    messages: {
-      pdf: { name: 'The PDF it saves', title: 'Karin Lindqvist, Jul 5 2024 - Jun 21 2026.pdf',
-        cap: 'Every message and photo in the conversation, with names, dates and times. 20 pages that open anywhere and print well.',
-        pages: ['/img/home/file-messages-pdf-p1-900.webp', '/img/home/file-messages-pdf-p19-900.webp'],
-        alt: ['Page 1 of the saved PDF: the start of the conversation with Karin, in message bubbles with dates and times.',
+  // How saving works, per screen: the real Save window, the files it really made from the
+  // sample backup, and the one ask the app makes afterwards. Small steps under the
+  // screenshot; a step opens large in a pop-up.
+  var SAVE_BOX = { messages: [496, 222, 448, 456], 'address-book': [496, 307, 448, 287], notes: [496, 307, 448, 287] };
+  var FLOWS = {
+    messages: [
+      { label: 'Pick a format', kind: 'dialog', screen: 'messages', thumb: '/img/home/save-messages-600.webp',
+        img: '/img/home/save-messages-900.webp',
+        title: 'Click Save conversation, then pick a format',
+        cap: 'A web page, a PDF to read or print, a spreadsheet or plain text. Then you choose where it goes on your computer.',
+        alt: 'The Save window for a conversation with Karin Lindqvist: web page, readable document (PDF), spreadsheet (CSV) or plain text.' },
+      { label: 'Get a PDF', kind: 'pages', thumb: '/img/home/file-messages-pdf-p19-900.webp',
+        imgs: ['/img/home/file-messages-pdf-p1-900.webp', '/img/home/file-messages-pdf-p19-900.webp'],
+        title: 'The PDF it saves',
+        cap: 'Every message and photo in the conversation, with names, dates and times. 20 pages that open anywhere and print well. These are two of them.',
+        alts: ['Page 1 of the saved PDF: the start of the conversation with Karin, in message bubbles with dates and times.',
           'Page 19 of the saved PDF: the photo of Diablo Lake and the messages around it.'] },
-      web: { name: 'The web page it saves', title: 'Karin Lindqvist, Jul 5 2024 - Jun 21 2026.html',
+      { label: 'Or a web page', kind: 'shot', thumb: '/img/home/file-messages-web-1200.webp',
+        img: '/img/home/file-messages-web-2000.webp',
+        title: 'Or the web page it saves',
         cap: 'The same conversation as a page that opens in any browser, with the photos saved in a folder beside it.',
-        img: 'file-messages-web', alt: 'The saved web page open in a browser, with the Diablo Lake photo in the conversation.' }
-    }
+        alt: 'The saved web page open in a browser, with the Diablo Lake photo in the conversation.' },
+      { label: 'Then one ask', kind: 'card', thumb: '/img/home/pay-ask-680.webp',
+        img: '/img/home/pay-ask-680.webp',
+        title: 'Then the app asks, once',
+        cap: 'Only after your file is saved. If it was worth something to you and you can afford it, pay what it’s worth. If you can’t, it’s yours. “Not now” means not now.',
+        alt: 'The card after saving: Your messages are saved. Hi, I’m Charles. I give OpenExtract to everyone, and ask one thing: if getting your messages off your iPhone was worth something to you and you can afford it, pay what it was worth. $5 is a good start. If you can’t, it’s yours. Buttons: Not now, Pay $5.' }
+    ],
+    'address-book': [
+      { label: 'Pick a format', kind: 'dialog', screen: 'address-book', thumb: '/img/home/save-address-book-600.webp',
+        img: '/img/home/save-address-book-900.webp',
+        title: 'Click Save contacts, then pick a format',
+        cap: 'Contact cards import into Contacts, Outlook or Google. The spreadsheet opens in Excel, Numbers or Google Sheets.',
+        alt: 'The Save contacts window: contact cards (vCard) or a spreadsheet (CSV).' }
+    ],
+    notes: [
+      { label: 'Pick a format', kind: 'dialog', screen: 'notes', thumb: '/img/home/save-notes-600.webp',
+        img: '/img/home/save-notes-900.webp',
+        title: 'Click Save note, then pick a format',
+        cap: 'Keep a note as a PDF to read or print, or as plain text for any editor.',
+        alt: 'The Save window for the note "Groceries": readable document (PDF) or plain text.' }
+    ]
   };
-  var VIEW_LABELS = { app: 'In the app', save: 'Save window', pdf: 'PDF', web: 'Web page' };
 
   var img = document.querySelector('[data-demo-img]');
   var cap = document.querySelector('[data-demo-cap]');
@@ -93,109 +108,55 @@
   var title = document.querySelector('[data-demo-title]');
   var nameEl = document.querySelector('[data-demo-name]');
   var pills = document.querySelector('[data-demo-pills]');
-  var viewsEl = document.querySelector('[data-demo-views]');
-  var layer = document.querySelector('[data-demo-save]');
-  var layerImg = layer.querySelector('img');
-  var fileLayer = document.querySelector('[data-demo-file]');
+  var flowEl = document.querySelector('[data-demo-flow]');
+  var stepsEl = document.querySelector('[data-demo-flow-steps]');
   var current = 'home';
-  var view = 'app';
 
   function src(id, w) { return '/img/home/' + id + '-' + w + '.webp'; }
   function preload(id) { var i = new Image(); i.src = src(id, 1200); }
-  function preloadUrl(u) { var i = new Image(); i.src = u; }
-  function preloadViews(id) {
-    if (SAVES[id]) preloadUrl('/img/home/save-' + id + '-900.webp');
-    var f = FILES[id] || {};
-    Object.keys(f).forEach(function (k) { (f[k].pages || [src(f[k].img, 1200)]).forEach(preloadUrl); });
-  }
-
-  // The views one screen has: the screen itself, its Save window, and the files it makes.
-  function viewsFor(id) {
-    var v = [];
-    if (SAVES[id] || FILES[id]) v.push('app');
-    if (SAVES[id]) v.push('save');
-    Object.keys(FILES[id] || {}).forEach(function (k) { v.push(k); });
-    return v;
-  }
+  function el(tag, cls) { var e = document.createElement(tag); if (cls) e.className = cls; return e; }
 
   function render() {
     var s = find(current) || HOME;
-    var sv = SAVES[current];
-    var file = (FILES[current] || {})[view];
-
-    // The Save window, over a dimmed screen, like the app shows it.
-    if (view === 'save' && sv) {
-      layerImg.src = '/img/home/save-' + current + '-900.webp';
-      layerImg.srcset = '/img/home/save-' + current + '-600.webp 600w, /img/home/save-' + current + '-900.webp 900w';
-      layerImg.alt = sv.alt;
-      // Centred where the app puts it; CSS decides how much larger than life to draw it.
-      layerImg.setAttribute('style', '--cx:' + ((sv.box[0] + sv.box[2] / 2) / W * 100) + ';--cy:' + ((sv.box[1] + sv.box[3] / 2) / H * 100) + ';--w:' + (sv.box[2] / W * 100));
-      layer.hidden = false;
-    } else {
-      layer.hidden = true;
-    }
-
-    // A saved file, opened the way you would on your computer.
-    fileLayer.innerHTML = '';
-    if (file) {
-      if (file.pages) {
-        var desk = document.createElement('div');
-        desk.className = 'desk';
-        file.pages.forEach(function (u, i) {
-          var pg = document.createElement('img');
-          pg.className = 'paper paper--' + (i === 0 ? 'back' : 'front');
-          pg.src = u;
-          pg.alt = file.alt[i];
-          desk.appendChild(pg);
-        });
-        fileLayer.appendChild(desk);
-        fileLayer.className = 'demo__file demo__file--pdf';
-      } else {
-        var shot = document.createElement('img');
-        shot.src = src(file.img, 1200);
-        shot.srcset = src(file.img, 1200) + ' 1200w, ' + src(file.img, 2000) + ' 2000w';
-        shot.alt = file.alt;
-        fileLayer.appendChild(shot);
-        fileLayer.className = 'demo__file demo__file--web';
-      }
-      fileLayer.hidden = false;
-    } else {
-      fileLayer.hidden = true;
-    }
-
-    var named = view === 'save' && sv ? sv : file || s;
-    nameEl.textContent = named.name;
-    cap.textContent = named.cap;
-    saves.textContent = view === 'app' && s.saves ? 'Saves as ' + s.saves : '';
-    title.textContent = file ? file.title : current === 'home' ? "OpenExtract · Maren's iPhone (sample)" : "OpenExtract · Maren's iPhone › " + s.name;
-
-    // The view switch under the caption, for screens that have more to show.
-    var vs = viewsFor(current);
-    viewsEl.innerHTML = '';
-    viewsEl.hidden = vs.length < 2;
-    vs.forEach(function (v) {
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.textContent = VIEW_LABELS[v];
-      b.setAttribute('aria-pressed', v === view ? 'true' : 'false');
-      b.addEventListener('click', function () { setView(v); });
-      viewsEl.appendChild(b);
-    });
+    nameEl.textContent = s.name;
+    cap.textContent = s.cap;
+    saves.textContent = s.saves ? 'Saves as ' + s.saves : '';
+    title.textContent = current === 'home' ? "OpenExtract · Maren's iPhone (sample)" : "OpenExtract · Maren's iPhone › " + s.name;
     Array.prototype.forEach.call(pills.children, function (p) { p.setAttribute('aria-pressed', p.getAttribute('data-id') === current ? 'true' : 'false'); });
+
+    // The workflow strip: small numbered steps, each opens large.
+    var flow = FLOWS[current];
+    stepsEl.innerHTML = '';
+    flowEl.hidden = !flow;
+    (flow || []).forEach(function (st, i) {
+      var li = el('li', 'flow__step');
+      var b = el('button', 'flow__btn');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'Step ' + (i + 1) + ': ' + st.title + '. Opens larger.');
+      var fig = el('span', 'flow__thumb flow__thumb--' + st.kind);
+      var t = el('img');
+      t.src = st.thumb;
+      t.alt = '';
+      t.loading = 'lazy';
+      fig.appendChild(t);
+      var lab = el('span', 'flow__label');
+      var n = el('span', 'flow__n');
+      n.textContent = String(i + 1);
+      lab.appendChild(n);
+      lab.appendChild(document.createTextNode(st.label));
+      b.appendChild(fig);
+      b.appendChild(lab);
+      b.addEventListener('click', function () { openBox(current, i, b); });
+      li.appendChild(b);
+      stepsEl.appendChild(li);
+    });
   }
 
   function find(id) { for (var i = 0; i < SCREENS.length; i++) if (SCREENS[i].id === id) return SCREENS[i]; return null; }
 
-  function setView(v) {
-    view = viewsFor(current).indexOf(v) >= 0 ? v : 'app';
-    render();
-  }
-
   function open(id) {
-    if (id === current) { setView('app'); return; }
+    if (id === current) return;
     current = id;
-    view = 'app';
-    preloadViews(id);
     var s = find(id) || HOME;
     img.classList.add('is-swapping');
     var next = new Image();
@@ -210,6 +171,101 @@
     render();
   }
 
+  // ── The pop-up: one step, large, with arrows to the next ──
+  var box = document.querySelector('[data-lightbox]');
+  var boxBody = box.querySelector('[data-lightbox-body]');
+  var boxTitle = box.querySelector('[data-lightbox-title]');
+  var boxCap = box.querySelector('[data-lightbox-cap]');
+  var boxStep = box.querySelector('[data-lightbox-step]');
+  var boxPrev = box.querySelector('[data-lightbox-prev]');
+  var boxNext = box.querySelector('[data-lightbox-next]');
+  var boxFlow = null, boxIndex = 0, boxOpener = null;
+
+  function showStep() {
+    var flow = FLOWS[boxFlow];
+    var st = flow[boxIndex];
+    boxBody.innerHTML = '';
+    boxBody.className = 'lightbox__body lightbox__body--' + st.kind;
+    if (st.kind === 'dialog') {
+      // The Save window over the dimmed screen, where the app puts it.
+      var scr = el('div', 'lb-screen');
+      var base = el('img');
+      base.src = src(st.screen, 2000);
+      base.alt = '';
+      scr.appendChild(base);
+      var dim = el('div', 'lb-screen__dim');
+      var dlg = el('img', 'lb-screen__dialog');
+      var r = SAVE_BOX[st.screen];
+      dlg.src = st.img;
+      dlg.alt = st.alt;
+      dlg.setAttribute('style', 'left:' + ((r[0] + r[2] / 2) / W * 100) + '%;top:' + ((r[1] + r[3] / 2) / H * 100) + '%;width:' + (r[2] / W * 100 * 1.25) + '%');
+      dim.appendChild(dlg);
+      scr.appendChild(dim);
+      boxBody.appendChild(scr);
+    } else if (st.kind === 'pages') {
+      st.imgs.forEach(function (u, i) {
+        var pg = el('img', 'lb-page');
+        pg.src = u;
+        pg.alt = st.alts[i];
+        boxBody.appendChild(pg);
+      });
+    } else {
+      var one = el('img', 'lb-' + st.kind);
+      one.src = st.img;
+      one.alt = st.alt;
+      boxBody.appendChild(one);
+    }
+    boxTitle.textContent = st.title;
+    boxCap.textContent = st.cap;
+    boxStep.textContent = flow.length > 1 ? 'Step ' + (boxIndex + 1) + ' of ' + flow.length : 'How saving works';
+    boxPrev.hidden = boxNext.hidden = flow.length < 2;
+    boxPrev.disabled = boxIndex === 0;
+    boxNext.disabled = boxIndex === flow.length - 1;
+  }
+
+  function openBox(flowId, i, opener) {
+    boxFlow = flowId;
+    boxIndex = i;
+    boxOpener = opener || null;
+    showStep();
+    box.hidden = false;
+    document.documentElement.classList.add('has-lightbox');
+    box.querySelector('[data-lightbox-close]').focus();
+  }
+
+  function closeBox() {
+    box.hidden = true;
+    document.documentElement.classList.remove('has-lightbox');
+    if (boxOpener) boxOpener.focus();
+  }
+
+  function stepBox(dir) {
+    var n = boxIndex + dir;
+    if (n < 0 || n >= FLOWS[boxFlow].length) return;
+    boxIndex = n;
+    showStep();
+  }
+
+  box.querySelector('[data-lightbox-close]').addEventListener('click', closeBox);
+  boxPrev.addEventListener('click', function () { stepBox(-1); });
+  boxNext.addEventListener('click', function () { stepBox(1); });
+  // Clicking the dark area around the panel closes it.
+  box.addEventListener('click', function (e) { if (e.target === box) closeBox(); });
+  document.addEventListener('keydown', function (e) {
+    if (box.hidden) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeBox(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); stepBox(1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); stepBox(-1); }
+    else if (e.key === 'Tab') {
+      // Keep focus inside the pop-up while it's open.
+      var f = [].filter.call(box.querySelectorAll('button'), function (b) { return !b.hidden && !b.disabled; });
+      if (!f.length) return;
+      var first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+
   // The screen picker above the screenshot. The screenshot itself isn't clickable:
   // it's a picture of the app, and pretending otherwise only disappoints.
   [{ id: 'home', name: 'Home' }].concat(SCREENS).forEach(function (sc) {
@@ -220,9 +276,6 @@
     b.addEventListener('click', function () { open(sc.id); });
     b.addEventListener('mouseenter', function () { if (sc.id !== 'home') preload(sc.id); }, { once: true });
     pills.appendChild(b);
-  });
-  document.querySelector('[data-demo-stage]').addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && view !== 'app') { e.preventDefault(); setView('app'); }
   });
   // The big words further down open their screen here.
   document.querySelectorAll('[data-open]').forEach(function (b) {
