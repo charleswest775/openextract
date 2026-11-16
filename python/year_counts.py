@@ -25,7 +25,7 @@ from ios_backup_core.db import connect_readonly, get_database
 from ios_backup_core.text import _type_from_bundle_id
 
 from messages import NANOSECOND_THRESHOLD
-from photos import asset_table
+from photos import asset_table, not_hidden_filter
 
 # The Timeline's entry types.
 ALL_TYPES = ("message", "call", "photo", "voicemail", "note", "browser")
@@ -294,14 +294,15 @@ class YearCounter:
             conn.close()
 
     def _photo_counts(self, backup) -> dict:
-        # The rows list_photos lists with a date: not trashed, original in the backup.
+        # The rows list_photos lists for All Photos with a date: not trashed, not hidden,
+        # original in the backup.
         conn = self._photos._inner._open_photos_db(backup)
         if conn is None:
             return {}
         try:
             assets = asset_table(conn)
             columns = {r[1] for r in conn.execute(f"PRAGMA table_info('{assets}')")}
-            where = ["ZDATECREATED IS NOT NULL"]
+            where = ["ZDATECREATED IS NOT NULL", not_hidden_filter(columns)]
             params: list = []
             if "ZTRASHEDSTATE" in columns:
                 where.append("ZTRASHEDSTATE = 0")

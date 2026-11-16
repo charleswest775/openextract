@@ -324,12 +324,15 @@ def _has_photo_assets(ctx) -> bool:
 
 
 def _photo_rows(ctx):
-    """Non-trashed assets as (uuid, has_date, original_in_backup)."""
+    """All Photos' assets as (uuid, has_date, original_in_backup): not trashed, and not hidden, as on the iPhone."""
     conn = ctx.raw.connect(*PHOTOS)
     if conn is None:
         pytest.skip("no Photos.sqlite in this backup")
     table = _asset_table(ctx.raw, conn)
-    where = "WHERE ZTRASHEDSTATE = 0" if "ZTRASHEDSTATE" in ctx.raw.columns(conn, table) else ""
+    columns = ctx.raw.columns(conn, table)
+    conditions = [c for c, column in (("ZTRASHEDSTATE = 0", "ZTRASHEDSTATE"), ("COALESCE(ZHIDDEN, 0) = 0", "ZHIDDEN"))
+                  if column in columns]
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     rows = conn.execute(f"SELECT ZUUID, ZDATECREATED, ZDIRECTORY, ZFILENAME FROM {table} {where}").fetchall()
     conn.close()
     out = []

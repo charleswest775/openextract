@@ -25,8 +25,12 @@ export interface BackupStatsOverview {
   // Rows in the Photos library, including ones only in iCloud (#106).
   total_photos: number;
   total_videos: number;
-  // Photos and videos the backup has a file for: the Photos screen's count.
+  // Photos and videos the backup has a file for: the Photos screen's count (All Photos,
+  // which leaves out hidden photos, as the iPhone does).
   photos_in_backup: number;
+  // Hidden photos and videos the backup has a file for. Save to this computer saves them
+  // as well; older engines don't send it.
+  hidden_photos_in_backup?: number;
   total_contacts: number;
   total_calls: number;
   total_notes: number;

@@ -14,7 +14,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from photos import SMART_ALBUMS, PhotoExtractor  # noqa: E402
+from photos import LIBRARY, SMART_ALBUMS, PhotoExtractor  # noqa: E402
 from stats import StatsComputer  # noqa: E402
 
 ALBUM = "10"
@@ -38,14 +38,16 @@ ALBUM_ASSETS = [1, 3, 4, 8]
 # What the Overview's Photos card counts, for the assets that have any:
 # Z_PK → (ZKIND, ZFAVORITE, ZLATITUDE, ZLONGITUDE, ZDURATION).
 DETAILS = {
-    2: (1, 0, 44.6, -110.5, 12.5),  # a video with a location
+    1: (1, 0, 44.6, -110.5, 20.0),  # a video with a location
+    2: (1, 0, 44.6, -110.5, 12.5),  # a hidden video with a location
     3: (0, 1, 44.6, -110.5, 0),     # trashed favorite
     4: (0, 1, 44.6, -110.5, 0),     # favorite with a location, only in iCloud
     5: (1, 0, -180, -180, 30.0),    # video, only in iCloud
     8: (0, 1, -180, -180, 0),       # favorite
 }
 NO_DETAILS = (0, 0, -180, -180, 0)  # a photo with no location
-# Hidden: a video in the backup, and a photo only in iCloud.
+# Hidden: a video in the backup, and a photo only in iCloud. All Photos leaves them out,
+# as the iPhone does; they're under Hidden, and Save to this computer saves them too.
 HIDDEN_ASSETS = {2, 9}
 
 
@@ -139,10 +141,15 @@ class _PhotoCountTests:
 
     def test_library_count_is_what_paging_returns(self):
         photos, page = _page_through(self.extractor, self.backup)
+        self.assertEqual(sorted(p["uuid"] for p in photos), ["UUID-1", "UUID-8"])
+        self.assertEqual(page["total"], 6)  # library rows, not trashed or hidden
+        self.assertEqual(page["in_backup"], 2)
+        self.assertEqual(page["not_in_backup"], 4)
+
+    def test_every_photo_with_the_hidden_ones_is_what_paging_returns(self):
+        photos, page = _page_through(self.extractor, self.backup, album_id=LIBRARY)
         self.assertEqual(sorted(p["uuid"] for p in photos), ["UUID-1", "UUID-2", "UUID-8"])
-        self.assertEqual(page["total"], 8)  # library rows, not trashed
-        self.assertEqual(page["in_backup"], 3)
-        self.assertEqual(page["not_in_backup"], 5)
+        self.assertEqual((page["total"], page["in_backup"], page["not_in_backup"]), (8, 3, 5))
 
     def test_album_count_is_what_paging_returns(self):
         # An album view lists every asset in the album, trashed ones too (as the library does).
@@ -157,7 +164,8 @@ class _PhotoCountTests:
 
     def test_albums_say_how_many_photos_are_in_the_backup(self):
         albums = {a["id"]: a for a in self.extractor.list_albums(self.backup)["albums"]}
-        self.assertEqual((albums["__all__"]["asset_count"], albums["__all__"]["in_backup"]), (8, 3))
+        self.assertEqual((albums["__all__"]["asset_count"], albums["__all__"]["in_backup"]), (6, 2))
+        self.assertNotIn(LIBRARY, albums)
         self.assertEqual((albums[ALBUM]["asset_count"], albums[ALBUM]["in_backup"]), (4, 3))
 
     @unittest.skipUnless(SMART_ALBUMS, "needs ios-backup-core with Favorites and Hidden")
@@ -200,27 +208,37 @@ class _PhotoCountTests:
     def test_export_reports_photos_not_in_the_backup(self):
         out = os.path.join(self._tmp.name, "export")
         result = self.extractor.export_photos(self.backup, out)
+        self.assertEqual((result["exported"], result["errors"], result["not_in_backup"]), (2, 0, 4))
+
+    def test_save_to_this_computer_saves_hidden_photos_too(self):
+        # ExportPanel saves LIBRARY: All Photos and Hidden together.
+        out = os.path.join(self._tmp.name, "everything")
+        result = self.extractor.export_photos(self.backup, out, {"album_id": LIBRARY})
         self.assertEqual((result["exported"], result["errors"], result["not_in_backup"]), (3, 0, 5))
+        self.assertEqual(sum(len(files) for _, _, files in os.walk(out)), 3)
 
     def test_overview_tile_counts_what_the_photos_screen_shows(self):
         # The tile showed library rows (8 here; 6,000 for the reporter, with about 300 in the backup).
         overview = StatsComputer(self.extractor).compute(self.backup, {})["overview"]
-        self.assertEqual(overview["photos_in_backup"], 3)
-        self.assertEqual(overview["total_photos"] + overview["total_videos"], 8)
+        self.assertEqual(overview["photos_in_backup"], 2)
+        self.assertEqual(overview["total_photos"] + overview["total_videos"], 6)
+        # Not in that count, as on the iPhone, but Save to this computer adds it.
+        self.assertEqual(overview["hidden_photos_in_backup"], 1)
 
     def test_overview_card_describes_the_photos_in_the_backup(self):
         # It described every library row, next to a tile that counts only these 3.
         stats = StatsComputer(self.extractor).compute(self.backup, {})
         photos = stats["photos"]
-        self.assertEqual(photos["by_kind"], {"photo": 2, "video": 1})
+        # All Photos: 1 and 8. The hidden video (2) isn't counted.
+        self.assertEqual(photos["by_kind"], {"photo": 1, "video": 1})
         self.assertEqual((photos["total_favorites"], photos["with_location"]), (1, 1))
-        self.assertEqual(photos["total_video_duration_seconds"], 12.5)
+        self.assertEqual(photos["total_video_duration_seconds"], 20.0)
         listed, _ = _page_through(self.extractor, self.backup)
         dates = sorted(p["date_created"] for p in listed)
         self.assertEqual((photos["earliest_date"], photos["latest_date"]), (dates[0], dates[-1]))
         # Library rows, as before; the card says how many of them are only in iCloud.
-        self.assertEqual((photos["total_photos"], photos["total_videos"]), (6, 2))
-        self.assertEqual((stats["overview"]["total_photos"], stats["overview"]["total_videos"]), (6, 2))
+        self.assertEqual((photos["total_photos"], photos["total_videos"]), (4, 2))
+        self.assertEqual((stats["overview"]["total_photos"], stats["overview"]["total_videos"]), (4, 2))
 
     def test_overview_card_is_empty_when_every_photo_is_only_in_icloud(self):
         self.backup.files.clear()
@@ -232,9 +250,10 @@ class _PhotoCountTests:
              photos["earliest_date"], photos["latest_date"]),
             (0, 0, 0.0, None, None),
         )
-        # The card still shows, to say all 8 are only in iCloud.
+        # The card still shows, to say all 6 are only in iCloud.
         overview = stats["overview"]
-        self.assertEqual((overview["photos_in_backup"], overview["total_photos"] + overview["total_videos"]), (0, 8))
+        self.assertEqual((overview["photos_in_backup"], overview["total_photos"] + overview["total_videos"]), (0, 6))
+        self.assertEqual(overview["hidden_photos_in_backup"], 0)
 
 
 class TestPhotoCountsUnencrypted(_PhotoCountTests, unittest.TestCase):
@@ -242,7 +261,7 @@ class TestPhotoCountsUnencrypted(_PhotoCountTests, unittest.TestCase):
 
     def test_photos_are_addressed_by_file_id(self):
         photos, _ = _page_through(self.extractor, self.backup)
-        self.assertEqual({p["file_hash"] for p in photos}, {f"{pk:02d}" + "0" * 38 for pk in (1, 2, 8)})
+        self.assertEqual({p["file_hash"] for p in photos}, {f"{pk:02d}" + "0" * 38 for pk in (1, 8)})
 
 
 class TestPhotoCountsEncrypted(_PhotoCountTests, unittest.TestCase):
@@ -256,7 +275,6 @@ class TestPhotoCountsEncrypted(_PhotoCountTests, unittest.TestCase):
             {p["file_hash"] for p in photos},
             {
                 "dcim:Media/DCIM/100APPLE/IMG_0001.HEIC",
-                "dcim:Media/DCIM/100APPLE/IMG_0002.HEIC",
                 "dcim:Media/PhotoData/CPLAssets/group79/IMG_0100.JPG",
             },
         )
