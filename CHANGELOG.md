@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - Photos: the count next to All Photos no longer changes to the count of whichever album is open, and three albums Photos keeps for itself ("progress-sync" and two more) no longer appear as empty albums
+- Back up my iPhone: when the iPhone already has a backup password, set earlier in Finder, iTunes or OpenExtract, the app says so and doesn't ask for a new one. An iPhone keeps that first password and encrypts every backup with it until it's removed, but the app used to ask for a new password and then not use it, so opening the backup afterwards said the password you'd just typed was wrong. Encrypt now stays ticked for such an iPhone, the note says how to remove a password you've forgotten, and the unlock dialog after the backup asks for the earlier password (OE-68)
 
 ## [0.15.1] - 2026-11-13
 
