@@ -83,12 +83,12 @@ These use a made-up test backup, so none of the people or messages are real. Cli
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <a href="website/static/img/screens/photos-2000.webp"><img src="website/static/img/screens/photos-1000.webp" width="100%" alt="The Photos screen: a grid of landscape photos with favorites starred and the backup's albums listed alongside."></a>
-      <br><b>Photos</b>: the whole camera roll, with favorites starred.
+      <a href="website/static/img/screens/photos-2000.webp"><img src="website/static/img/screens/photos-1000.webp" width="100%" alt="The Photos screen: All Photos, Favorites and Hidden at the top of the sidebar, then the albums, with the National parks folder open, beside a grid of landscape photos."></a>
+      <br><b>Photos</b>: the whole camera roll, with Favorites, Hidden and your albums in the folders you made.
     </td>
     <td width="50%" valign="top">
-      <a href="website/static/img/screens/album-2000.webp"><img src="website/static/img/screens/album-1000.webp" width="100%" alt="An album open, showing photos of hot springs, bison and waterfalls."></a>
-      <br><b>Albums</b>: the albums made on the phone, kept as they were.
+      <a href="website/static/img/screens/album-2000.webp"><img src="website/static/img/screens/album-1000.webp" width="100%" alt="An album inside a folder, open with Save album at the top: photos of hot springs, bison and waterfalls."></a>
+      <br><b>Albums</b>: each album in the folder you made for it; Save album saves just that one.
     </td>
   </tr>
   <tr>

@@ -17,7 +17,7 @@ OpenExtract is made by Charles West, an independent developer, with help from co
 - What it reads from a backup:
   - Messages: SMS, MMS and iMessage, including group chats and the photos sent in them.
   - WhatsApp, in a section of its own: chats, groups and broadcast lists in the order messages arrived, with replies, reactions, photos, videos, voice messages, documents, stickers, shared and live locations, deleted-message notices, starred messages and calls (calls from WhatsApp 2.24 on). Photos and files WhatsApp didn't keep on the iPhone aren't in the backup and are labelled "not in this backup". WhatsApp messages also appear in the timeline, the search and each person's page. Checked on public test backups from WhatsApp 2.20 to 2.24 (iOS 13 to 17).
-  - Photos and videos from the camera roll, in their original formats (such as HEIC, JPEG and MOV), with your albums.
+  - Photos and videos from the camera roll, in their original formats (such as HEIC, JPEG and MOV), with your albums inside the folders you made, Favorites and Hidden. Save everything, or just one album, the favorites or the hidden photos. As on the iPhone, hidden photos are listed only under Hidden; saving the whole backup includes them. Photos in Recently Deleted aren't shown.
   - Contacts (the address book).
   - Call history. Apple puts call history only in encrypted backups.
   - Notes from Apple Notes.
