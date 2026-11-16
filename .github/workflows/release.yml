@@ -586,6 +586,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ASSETS=$(gh release view "v${{ inputs.version }}" --json assets --jq '.assets[].name')
+          # Read into a variable first: a failing command in < <(...) would go unnoticed, and an
+          # empty list would pass without checking anything.
+          FILES=$(node website/static/api/_lib/download.js "${{ inputs.version }}")
+          if [ "$(grep -c . <<< "$FILES")" -lt 4 ]; then
+            echo "::error::website/static/api/_lib/download.js listed fewer than 4 download files: $FILES"
+            exit 1
+          fi
           FAILED=0
           while read -r PLATFORM NAME; do
             if grep -qxF "$NAME" <<< "$ASSETS"; then
@@ -594,7 +601,7 @@ jobs:
               echo "::error::/download/$PLATFORM/file would give $NAME, which v${{ inputs.version }} does not have"
               FAILED=1
             fi
-          done < <(node website/static/api/_lib/download.js "${{ inputs.version }}")
+          done <<< "$FILES"
           exit $FAILED
 
       - name: Publish release (remove draft)
@@ -606,24 +613,29 @@ jobs:
       # The live site's download links should give this release now. Each try adds its own
       # query, so the edge cache can't answer with an earlier lookup. Only a warning if not:
       # the release is already out, and the links fall back to GitHub's release page.
+      # A time limit of its own, so a slow site can't run into the job's timeout: that would
+      # stop the packaging files and the sync PR below, and continue-on-error doesn't cover it.
       - name: Check openextract.app's download links give the new version
         continue-on-error: true
+        timeout-minutes: 4
         env:
           VERSION: ${{ inputs.version }}
         run: |
+          FILES=$(node website/static/api/_lib/download.js "$VERSION")
+          [ "$(grep -c . <<< "$FILES")" -ge 4 ] || { echo "::warning::download.js listed no download files"; exit 1; }
           links_ok() {
             local ok=0 location
             while read -r PLATFORM NAME; do
-              location=$(curl -sS -o /dev/null -w '%{redirect_url}' "https://www.openextract.app/download/$PLATFORM/file?check=$GITHUB_RUN_ID-$1" || true)
-              location=${location%%\?*} # a vercel.json redirect passes the query on
+              location=$(curl -sS --max-time 15 -o /dev/null -w '%{redirect_url}' "https://www.openextract.app/download/$PLATFORM/file?check=$GITHUB_RUN_ID-$1" || true)
+              location=${location%%\?*} # drop any query a redirect carried on
               echo "/download/$PLATFORM/file -> ${location:-no redirect}"
               [[ "$location" == */releases/download/v$VERSION/$NAME ]] || ok=1
-            done < <(node website/static/api/_lib/download.js "$VERSION")
+            done <<< "$FILES"
             return $ok
           }
           for try in 1 2 3 4 5 6; do
             links_ok "$try" && exit 0
-            sleep 20
+            [ "$try" -lt 6 ] && sleep 20
           done
           echo "::warning::openextract.app's download links don't give v$VERSION yet. Check them (RELEASING.md, step 3)."
           exit 1
