@@ -45,11 +45,24 @@ export default {
       const r = await app.openBackup(b.dir, b.password);
       if (!check('backup opens', r.opened, r)) return;
       const tiles = await app.homeTiles();
-      let shareSeen = false;
+      let shareSeen = null;
+      let thanksOpened = null;
       let exportCheckSeen = 0;
       const prompts = async () => {
         const t = await app.text();
-        if (/star|tell a friend|share/i.test(t) && /OpenExtract/.test(t)) shareSeen = true;
+        // The "Pay it forward" card: its buttons, in order. The first time, Say thanks opens the
+        // thank-you note (and, like the ×, quiets the ask for the rest of the run); Escape closes it.
+        const card = await app.eval(() => {
+          const pay = [...document.querySelectorAll('.fixed button')].find(b => b.textContent.trim() === 'Pay $5');
+          const box = pay?.closest('[role=status]');
+          return box ? [...box.querySelectorAll('.hearth-ghost-btn, .hearth-primary-btn')].map(b => b.textContent.trim()) : null;
+        });
+        if (card && !shareSeen) {
+          shareSeen = card;
+          await app.eval(() => [...document.querySelectorAll('.fixed button')].find(b => b.textContent.trim() === 'Say thanks')?.click());
+          thanksOpened = await app.waitFor(() => document.getElementById('feedback-title')?.textContent, null, 5_000);
+          await app.eval(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+        }
         if (/Did that come out right/i.test(t)) exportCheckSeen++;
         await app.eval(() => [...document.querySelectorAll('button')].filter(b => /^(Not now|Close|Dismiss|No thanks|×)$/.test(b.textContent.trim()) && b.closest('.fixed')).forEach(b => b.click()));
       };
@@ -137,7 +150,8 @@ export default {
           await prompts();
         }
       }
-      check('the share prompt showed after the first export', shareSeen);
+      check('the "Pay it forward" card showed after the first export, with Say thanks and Pay $5', shareSeen?.join() === 'Say thanks,Pay $5', shareSeen);
+      check('Say thanks on that card opens the thank-you note', thanksOpened === 'Say thanks', thanksOpened);
       check('"Did this export come out right?" showed at most once', exportCheckSeen <= 1, exportCheckSeen);
 
       // ── One conversation, every format, and saving twice keeps both files ──

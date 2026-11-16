@@ -117,8 +117,15 @@ test('each download page sends the browser on to its platform\'s link', () => {
 
 test('the home page asks /api/latest for the version label', () => {
   const page = fs.readFileSync(path.join(site, 'index.html'), 'utf8');
-  assert.match(page, /<span class="nav__version">v\d+\.\d+\.\d+<\/span>/, 'a written version for when the request fails');
+  assert.match(page, /<span class="latest-version">v\d+\.\d+\.\d+<\/span>/, 'a written version for when the request fails');
   assert.match(page, /fetch\('\/api\/latest'\)/);
+  assert.match(page, /querySelectorAll\('\.latest-version'\)/, 'the script updates the same label');
+});
+
+test('release.yml updates the label the home page has', () => {
+  // A redesign that drops or renames the label would leave every release's written version stale.
+  const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'release.yml'), 'utf8');
+  assert.match(workflow, /<span class=\\"latest-version\\">v\[\^<\]\*<\/span>/, 'preflight\'s sed finds the label');
 });
 
 test('the command line lists each platform\'s file for release.yml to check', () => {

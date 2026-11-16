@@ -76,7 +76,7 @@ class ExportPhotosProgressTests(unittest.TestCase):
                 f.write(b"\xff\xd8\xff")
             self.sources[photo["file_hash"]] = path
         self.extractor = PhotoExtractor()
-        self.extractor.list_photos = lambda backup, offset=0, limit=100: {
+        self.extractor.list_photos = lambda backup, offset=0, limit=100, album_id=None: {
             "photos": self.photos[offset:offset + limit], "total": len(self.photos),
         }
         self.extractor._resolve_file = lambda backup, file_hash: self.sources.get(file_hash)

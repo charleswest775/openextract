@@ -65,6 +65,12 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.16.0" date="2026-11-16">
+      <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.16.0</url>
+      <description>
+        <p>OpenExtract stays free for everyone, no strings. After an export, a Pay it forward note from Charles asks you to pay what it's worth to you, but only if you can. It has a Pay $5 button, and if you can't, Say thanks lets you send a thank-you note instead. Photos now lists Favorites, Hidden and the album folders you made on the phone. As on the iPhone, All Photos and Favorites leave out photos you've hidden: they're under Hidden. Save to this computer still saves every photo and video, hidden ones included. Back up my iPhone no longer asks for a new password when the iPhone already has a backup password.</p>
+      </description>
+    </release>
     <release version="0.15.1" date="2026-11-13">
       <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.15.1</url>
       <description>

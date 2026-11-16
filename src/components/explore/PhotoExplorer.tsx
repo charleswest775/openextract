@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { sidecarCall, saveFolder } from '../../lib/ipc';
-import { CameraIcon } from '../shared/Icons';
+import { CameraIcon, ChevronRightIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
 import {
   allOnlyInIcloud, moreOnlyInIcloud, photoExportSummary, photoSaveFailures, photoSaveProgress, PhotoExportResult,
@@ -14,6 +14,9 @@ import { useExportProgress } from '../../hooks/useExportProgress';
 import { checkEngineResult, plural } from '../../lib/saveData';
 import { TimelinePhotoLightbox } from '../timeline/TimelineEntryCard';
 import type { TimelineEntry } from '../../types/timeline';
+import {
+  albumCount, AlbumNode, hasSidebar, isFolder, PhotoAlbum, photoSidebar, saveLabel, savedTitle,
+} from '../../lib/photoAlbums';
 
 interface PhotoAsset {
   uuid: string;
@@ -35,13 +38,6 @@ interface PhotoPage {
   total: number;
   in_backup?: number;
   not_in_backup?: number;
-}
-
-interface PhotoAlbum {
-  id: string;
-  title: string;
-  asset_count: number;
-  in_backup?: number;
 }
 
 const BATCH_SIZE = 100;
@@ -70,6 +66,8 @@ export default function PhotoExplorer({ udid, open }: Props) {
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const [failedThumbs, setFailedThumbs] = useState<Set<string>>(new Set());
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
+  // Folders open in the sidebar; they start closed, as on the phone.
+  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
   const [total, setTotal] = useState(0);
   const [inBackup, setInBackup] = useState<number | null>(null);
   const [notInBackup, setNotInBackup] = useState(0);
@@ -90,6 +88,9 @@ export default function PhotoExplorer({ udid, open }: Props) {
 
   useEffect(() => {
     mountedRef.current = true;
+    // Another backup's albums have other ids: start again from All Photos.
+    setSelectedAlbum(null);
+    setOpenFolders(new Set());
     loadAlbums();
     loadPhotos(0);
     return () => { mountedRef.current = false; };
@@ -98,8 +99,7 @@ export default function PhotoExplorer({ udid, open }: Props) {
   async function loadAlbums() {
     try {
       const result = await sidecarCall<{ albums: PhotoAlbum[] }>('list_albums', { udid });
-      // The list starts with its own "All Photos", so skip the backup's album of that name
-      if (mountedRef.current) setAlbums(result.albums.filter(a => a.title.trim().toLowerCase() !== 'all photos'));
+      if (mountedRef.current) setAlbums(result.albums);
     } catch {
       // Non-critical
     }
@@ -254,9 +254,11 @@ export default function PhotoExplorer({ udid, open }: Props) {
           folder_structure: 'by_date',
           export_originals_if_edited: true,
           include_metadata_sidecar: false,
+          // The album, Favorites or Hidden on screen; nothing for All Photos.
+          album_id: selectedAlbum ?? undefined,
         },
       }));
-      return { title: 'Saved photos and videos', detail: photoExportSummary(result), path: outputDir };
+      return { title: savedTitle(selectedAlbum, albums), detail: photoExportSummary(result), path: outputDir };
     });
   }
 
@@ -286,6 +288,54 @@ export default function PhotoExplorer({ udid, open }: Props) {
   // What the header counts: photos the backup has, falling back to library
   // rows for an engine that doesn't report in_backup.
   const shownCount = inBackup ?? total;
+
+  const sidebar = photoSidebar(albums);
+  // All Photos counts what the grid shows while it's open (the DCIM scan, when Photos.sqlite
+  // lists nothing), else the engine's count, so it doesn't change with the album picked.
+  const allPhotosCount = selectedAlbum === null ? shownCount : sidebar.allPhotos && albumCount(sidebar.allPhotos);
+
+  function toggleFolder(id: string) {
+    setOpenFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function sidebarItem(album: PhotoAlbum, depth = 0) {
+    return (
+      <SidebarButton
+        key={album.id}
+        title={album.title}
+        count={albumCount(album)}
+        depth={depth}
+        selected={selectedAlbum === album.id}
+        onClick={() => handleAlbumSelect(album.id)}
+      />
+    );
+  }
+
+  function albumTree(nodes: AlbumNode[], depth: number): JSX.Element[] {
+    return nodes.flatMap(({ album, children }) => {
+      if (!isFolder(album)) return [sidebarItem(album, depth)];
+      const open = openFolders.has(album.id);
+      return [
+        <button
+          key={album.id}
+          onClick={() => toggleFolder(album.id)}
+          aria-expanded={open}
+          title={album.title}
+          className="w-full py-2 pr-3 rounded-lg text-left text-sm flex items-center gap-1 hover:bg-surface"
+          style={{ paddingLeft: 4 + depth * 12 }}
+        >
+          <ChevronRightIcon size={14} className={`flex-shrink-0 text-text-tertiary transition-transform ${open ? 'rotate-90' : ''}`} />
+          <span className="truncate">{album.title}</span>
+        </button>,
+        ...(open ? albumTree(children, depth + 1) : []),
+      ];
+    });
+  }
 
   const filteredPhotos = photos.filter(p => {
     if (kindFilter !== 'all' && p.kind !== kindFilter) return false;
@@ -321,7 +371,7 @@ export default function PhotoExplorer({ udid, open }: Props) {
               <option value="live_photo">Live Photos</option>
               <option value="screenshot">Screenshots</option>
             </select>
-            <SaveButton onClick={handleSave} busy={busy} disabled={shownCount === 0} label="Save all" />
+            <SaveButton onClick={handleSave} busy={busy} disabled={shownCount === 0} label={saveLabel(selectedAlbum)} />
           </>
         }
       />
@@ -339,32 +389,20 @@ export default function PhotoExplorer({ udid, open }: Props) {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Album sidebar */}
-        {albums.length > 0 && (
-          <div className="w-[220px] flex-shrink-0 border-r border-rule overflow-y-auto py-2 px-2">
-            <button
+        {hasSidebar(sidebar) && (
+          <nav aria-label="Albums" className="w-[240px] flex-shrink-0 border-r border-rule overflow-y-auto py-2 px-2">
+            <SidebarButton
+              title="All Photos"
+              count={allPhotosCount || undefined}
+              selected={selectedAlbum === null}
               onClick={() => handleAlbumSelect(null)}
-              aria-current={selectedAlbum === null ? 'true' : undefined}
-              className={`w-full px-3 py-2 rounded-lg text-left text-sm flex justify-between ${
-                selectedAlbum === null ? 'bg-accent-wash font-medium' : 'hover:bg-surface'
-              }`}
-            >
-              <span>All Photos</span>
-              {shownCount > 0 && <span className="text-xs text-text-tertiary flex-shrink-0 ml-1">{shownCount}</span>}
-            </button>
-            {albums.map((album) => (
-              <button
-                key={album.id}
-                onClick={() => handleAlbumSelect(album.id)}
-                aria-current={selectedAlbum === album.id ? 'true' : undefined}
-                className={`w-full px-3 py-2 rounded-lg text-left text-sm flex justify-between ${
-                  selectedAlbum === album.id ? 'bg-accent-wash font-medium' : 'hover:bg-surface'
-                }`}
-              >
-                <span className="truncate">{album.title}</span>
-                <span className="text-xs text-text-tertiary flex-shrink-0 ml-1">{album.in_backup ?? album.asset_count}</span>
-              </button>
-            ))}
-          </div>
+            />
+            {sidebar.smart.map(album => sidebarItem(album))}
+            {sidebar.albums.length > 0 && <SidebarHeading>Albums</SidebarHeading>}
+            {albumTree(sidebar.albums, 0)}
+            {sidebar.shared.length > 0 && <SidebarHeading>Shared albums</SidebarHeading>}
+            {sidebar.shared.map(album => sidebarItem(album))}
+          </nav>
         )}
 
         {/* Photo grid */}
@@ -454,5 +492,35 @@ export default function PhotoExplorer({ udid, open }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+function SidebarHeading({ children }: { children: string }) {
+  return <h3 className="px-3 pt-4 pb-1 text-xs uppercase tracking-wide text-text-tertiary font-medium">{children}</h3>;
+}
+
+interface SidebarButtonProps {
+  title: string;
+  count?: number;
+  depth?: number;
+  selected: boolean;
+  onClick: () => void;
+}
+
+function SidebarButton({ title, count, depth = 0, selected, onClick }: SidebarButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      aria-current={selected ? 'true' : undefined}
+      className={`w-full py-2 pr-3 rounded-lg text-left text-sm flex justify-between ${
+        selected ? 'bg-accent-wash font-medium' : 'hover:bg-surface'
+      }`}
+      // Inside a folder, one step in from the folder's name (which starts past its arrow, at 22).
+      style={{ paddingLeft: depth > 0 ? 22 + depth * 12 : 12 }}
+      title={title}
+    >
+      <span className="truncate">{title}</span>
+      {count !== undefined && <span className="text-xs text-text-tertiary flex-shrink-0 ml-1">{count}</span>}
+    </button>
   );
 }

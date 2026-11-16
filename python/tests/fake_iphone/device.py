@@ -93,6 +93,8 @@ class FakeIPhone:
         }
         self.apps = ["com.example.notes"]
         self.will_encrypt = will_encrypt
+        # Every ChangePassword request the computer sent (OldPassword, NewPassword, ...).
+        self.password_changes: list[dict] = []
         self.paired = paired
         self.locked = locked
         self.drop_after_bytes = drop_after_bytes

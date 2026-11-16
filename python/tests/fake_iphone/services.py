@@ -120,6 +120,7 @@ class MobileBackup2(Service):
                 return
 
     def change_password(self, request: dict) -> None:
+        self.phone.password_changes.append(dict(request))
         # The iPhone reads the backup's Manifest.plist to re-key it. A 0-byte one, which every
         # backup try leaves until it finishes, fails with MBErrorDomain/205 (OE-6;
         # libimobiledevice #1582). A missing one is a new backup.

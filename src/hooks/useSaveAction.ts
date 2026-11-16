@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { useNotice } from '../components/shared/Notices';
 import type { FeedbackArea } from '../lib/feedback';
 import type { SaveResult } from '../lib/saveData';
+import { announceExport } from '../lib/payItForward';
 
 /**
  * Runs a save and reports how it went with an in-app notice. The save resolves
@@ -17,6 +18,7 @@ export function useSaveAction(area: FeedbackArea) {
       const result = await save();
       if (!result) return;
       window.openextract.incrementExportCount(area);
+      announceExport();
       notify({ kind: 'success', ...result });
     } catch (err: any) {
       notify({ kind: 'error', title: "Couldn't save", detail: err?.message || String(err), area });

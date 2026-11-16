@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-16
+
+OpenExtract stays free for everyone, no strings. After an export, a Pay it forward note from Charles asks you to pay what it's worth to you, but only if you can. It has a Pay $5 button, and if you can't, Say thanks lets you send a thank-you note instead. Photos now lists Favorites, Hidden and the album folders you made on the phone. As on the iPhone, All Photos and Favorites leave out photos you've hidden: they're under Hidden. Save to this computer still saves every photo and video, hidden ones included. Back up my iPhone no longer asks for a new password when the iPhone already has a backup password.
+
+### Added
+- Pay it forward: OpenExtract stays free, and now asks plainly for $5 from people it helped. After an export, a note from Charles says the app is free, no strings, and asks you to pay what it's worth to you, but only if you can. It has two buttons: "Pay $5" opens the payment page in your browser, and "Say thanks" opens a short thank-you note to send instead if you can't pay. Closing the note (its ×) stops the asks until you next open the app, and "I've paid" stops them for good. A "Pay it forward" button sits at the top of every screen and glows briefly after an export (it stays still if your system is set to reduce motion). It replaces the one-time "Say thanks" card; Say thanks is also still in Settings. Nothing is sent: what you picked stays on your computer, and the app can't see payments
+- Photos: Favorites and Hidden are listed under All Photos, and albums sit inside the folders you made on the iPhone, in the same order as on the phone. Folders open and close in the sidebar. With an album, Favorites or Hidden on screen, the save button saves just those photos (Save album, Save favorites, Save hidden). As on the iPhone, All Photos and Favorites leave out photos you've hidden: they're under Hidden, and the home screen, the Timeline and the Year view don't count them. Save to this computer still saves every photo and video, hidden ones included, and says how many of them are hidden (#215)
+
+### Fixed
+- Photos: the count next to All Photos no longer changes to the count of whichever album is open, and three albums Photos keeps for itself ("progress-sync" and two more) no longer appear as empty albums
+- Back up my iPhone: when the iPhone already has a backup password, set earlier in Finder, iTunes or OpenExtract, the app says so and doesn't ask for a new one. An iPhone keeps that first password and encrypts every backup with it until it's removed, but the app used to ask for a new password and then not use it, so opening the backup afterwards said the password you'd just typed was wrong. Encrypt now stays ticked for such an iPhone, the note says how to remove a password you've forgotten, and the unlock dialog after the backup asks for the earlier password (OE-68)
+- Voicemail: when the list couldn't open voicemails the home screen had just counted, it showed SQLite's "unable to open database file". Now a file that went away while the backup was open (removed by a temp-folder clean-up, or on a drive that went to sleep) is found again, Voicemail tries the backup's own copy before giving up, and if it still can't open them it says to check that the drive with the backup is still connected (OE-77)
+
 ## [0.15.1] - 2026-11-13
 
 ### Fixed

@@ -47,8 +47,17 @@ declare global {
       getRecentSessions: () => Promise<RecentSession[]>;
       /** `area` (e.g. 'calls') labels the follow-up "did it come out right?" card. */
       incrementExportCount: (area?: string) => Promise<number>;
-      /** Called once, after the first successful export (or the next one, after the older star-only card), to show the share prompt. Returns a cleanup function. */
-      onSharePrompt: (callback: (area?: string) => void) => () => void;
+      /** Shows the "Pay it forward" card after an export; `intro` the first time. Returns a cleanup function. */
+      onSharePrompt: (callback: (area?: string, intro?: boolean) => void) => () => void;
+      /** The "Pay it forward" ask. Kept on this computer; the app never sees payments. */
+      support: {
+        /** `paid`: the person said they paid. `thanksSent`: a thank-you went out from this computer. */
+        status: () => Promise<{ paid: boolean; thanksSent: boolean }>;
+        /** The card was dismissed (its × or Say thanks): no more asks after exports until the app is opened again. */
+        snooze: () => Promise<void>;
+        /** "I've paid" / "Already paid? Stop asking": no more asks after exports, ever. */
+        markPaid: () => Promise<void>;
+      };
       feedback: {
         /** Scrubbed facts for the feedback form (no backup content, paths or names). */
         getDiagnostics: (reportedError?: string) => Promise<FeedbackDiagnostics>;
@@ -62,13 +71,11 @@ declare global {
         /** A follow-up check found a fix. Returns a cleanup function. */
         onFixed: (callback: () => void) => () => void;
         optOutOfExportCheck: () => Promise<void>;
-        /** "Glad it worked" was shown after "Looks right"; it isn't shown again. */
-        thanksOffered: () => Promise<void>;
         /**
-         * Shown at most once per run after an export. `offerThanks` says whether
-         * "Looks right" may ask for a thank-you. Returns a cleanup function.
+         * Shown at most once per run after an export. `offerAsk` says whether
+         * "Looks right" leads to the "Pay it forward" card. Returns a cleanup function.
          */
-        onExportCheck: (callback: (area?: string, offerThanks?: boolean) => void) => () => void;
+        onExportCheck: (callback: (area?: string, offerAsk?: boolean) => void) => () => void;
       };
       /** Copy text to the system clipboard. */
       copyText: (text: string) => Promise<void>;

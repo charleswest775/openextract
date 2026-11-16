@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="msvalidate.01" content="30F718C34B6BBA41A92CCFA6881CB5EE" />
-  <meta name="theme-color" content="#faf6f1" />
+  <meta name="theme-color" content="#ffffff" />
   <title>OpenExtract — Free, open-source iPhone backup extractor</title>
-  <meta name="description" content="Free, open-source iPhone backup extractor for Windows, Mac and Linux. Save texts, WhatsApp chats, photos, voicemails and contacts. Nothing is uploaded." />
+  <meta name="description" content="Free, open-source iPhone backup extractor for Windows, Mac and Linux. Save texts, WhatsApp chats, photos, voicemails and contacts, with no limits. Nothing is uploaded." />
   <link rel="canonical" href="https://www.openextract.app/" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="author" content="OpenExtract" />
@@ -15,7 +15,7 @@
   <meta property="og:site_name" content="OpenExtract" />
   <meta property="og:url" content="https://www.openextract.app/" />
   <meta property="og:title" content="OpenExtract — Free, open-source iPhone backup extractor" />
-  <meta property="og:description" content="Free, open-source iPhone backup extractor. Recover messages, WhatsApp chats, photos, voicemails, and contacts from any backup — encrypted or not. 100% local." />
+  <meta property="og:description" content="Get everything off your iPhone, free: messages, WhatsApp chats, photos, voicemails and contacts, saved as files you keep. No trial, no limits, no account. Open source, and nothing is uploaded." />
   <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -24,12 +24,13 @@
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="OpenExtract — Free, open-source iPhone backup extractor" />
-  <meta name="twitter:description" content="Recover messages, WhatsApp chats, photos, contacts from iPhone backups — encrypted or not. Free, MIT-licensed, 100% local." />
+  <meta name="twitter:description" content="Get everything off your iPhone, free: messages, WhatsApp chats, photos, voicemails and contacts. No trial, no limits, no account. Open source." />
   <meta name="twitter:image" content="https://www.openextract.app/img/og-image.png" />
   <meta name="twitter:image:alt" content="OpenExtract, free iPhone backup extractor: read and save the messages, photos and voicemails in any iPhone backup. Windows, Mac and Linux. Open source, MIT." />
 
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <link rel="apple-touch-icon" href="/img/home/icon-180.png" />
 
   <script type="application/ld+json">
   {
@@ -37,7 +38,7 @@
     "@type": "SoftwareApplication",
     "name": "OpenExtract",
     "alternateName": "openextract",
-    "description": "Free, open-source desktop application that reads iPhone backups made by iTunes or Finder, encrypted or not, and saves the messages, WhatsApp chats, photos and videos, contacts, call history, notes, voicemails, podcasts and Safari and Firefox history in them. Runs 100% locally.",
+    "description": "Free, open-source desktop application that backs up an iPhone over USB, or reads a backup made by Finder, iTunes or Apple Devices, encrypted or not, and saves the messages, WhatsApp chats, photos and videos, contacts, call history, notes, voicemails, podcasts and Safari and Firefox history in it. No limits on what you can save. Runs 100% locally.",
     "applicationCategory": "UtilityApplication",
     "applicationSubCategory": "DataExtraction",
     "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
@@ -53,6 +54,7 @@
       "WhatsApp chat extraction, with photos, voice messages and calls",
       "Photo and video recovery with EXIF preserved",
       "Encrypted backup support",
+      "Backs up an iPhone over USB",
       "Call history export",
       "Contacts export",
       "Notes export",
@@ -76,516 +78,355 @@
 
   <script defer src="/_vercel/insights/script.js"></script>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/site.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/home.css" />
 </head>
 <body>
-  <nav class="nav nav--home" aria-label="Primary">
-    <a href="/" class="nav__brand">
-      <div class="nav__logo" aria-hidden="true">o</div>
-      <span class="nav__wordmark">OpenExtract</span>
-      <span class="nav__version">v0.15.1</span>
-    </a>
-    <div class="nav__links">
-      <a href="/how-it-works">How it works</a>
-      <a href="/vs-imazing">vs iMazing</a>
-      <a href="/blog">Blog</a>
-      <a href="/about">About</a>
-    </div>
-    <div class="nav__right">
-      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
-      <a class="nav__cta" href="#download">Get it free</a>
-    </div>
-  </nav>
+  <a class="skip" href="#main">Skip to content</a>
 
-  <section class="hero">
-    <div>
-      <span class="pill"><span class="pill__dot"></span>Open source · Windows, Mac &amp; Linux · No cloud</span>
-      <h1>
-        Free iPhone<br />
-        backup <span class="it it--coral">extractor.</span>
-      </h1>
-      <p class="hero__voice">Your memories are still in there.</p>
-      <p class="hero__sub">Pull the messages, photos, and voicemails out of any old iPhone backup — right on your own laptop. Nothing uploaded, nothing paid, nothing to sign up for.</p>
-      <div class="hero__ctas">
-        <a class="btn btn--primary" href="/download/mac">Download for Mac<span>· 146 MB</span></a>
-        <a class="btn btn--ghost" href="#download">Windows &amp; Linux →</a>
-      </div>
-      <div class="hero__social">
-        <div class="hero__avatars" aria-hidden="true">
-          <div class="hero__avatar" style="background: var(--coral);"></div>
-          <div class="hero__avatar" style="background: var(--sage);"></div>
-          <div class="hero__avatar" style="background: var(--butter);"></div>
-          <div class="hero__avatar" style="background: var(--plum);"></div>
-        </div>
-        <span>10,000+ downloads and counting</span>
+  <header class="top">
+    <div class="wrap top__in">
+      <a class="brand" href="/" aria-label="OpenExtract, home"><img src="/img/home/icon-64.png" width="28" height="28" alt="" />OpenExtract</a>
+      <nav class="top__nav" aria-label="Sections">
+        <a href="#inside">Look inside</a>
+        <a href="#privacy">Privacy</a>
+        <a href="#price">Price (Free)</a>
+        <a href="#questions">Questions</a>
+        <a href="/guides">Guides</a>
+      </nav>
+      <div class="top__end">
+        <a class="top__pay" href="/support"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C1 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.2 4.4 2.5h2c.7-1.3 2.2-2.5 4.4-2.5 3.7 0 5.6 3.9 4.2 7.1C19.5 16.4 12 21 12 21z"/></svg><span>Pay it forward</span></a>
+        <a class="top__gh" href="https://github.com/charleswest775/openextract">GitHub</a>
+        <a class="btn btn--sm" href="#download">Download <span class="btn__free">— free</span></a>
       </div>
     </div>
+  </header>
 
-    <div class="hero-visual" aria-hidden="true">
-      <div class="phone">
-        <div class="phone__screen">
-          <div class="phone__notch"></div>
-          <div class="phone__time">
-            <div class="phone__time-big">2:47</div>
-            <div class="phone__time-date">Friday, June 16</div>
-          </div>
-          <div class="phone__stack">
-            <div class="phone__tile">💬 Messages · Mom</div>
-            <div class="phone__tile">📷 Photos · Hawaii 2019</div>
-            <div class="phone__tile">📝 Notes · Nana's recipes</div>
-          </div>
-        </div>
-      </div>
+  <main id="main">
 
-      <div class="recovered">
-        <div class="recovered__head">
-          <div class="recovered__check">✓</div>
-          <div>
-            <div class="recovered__title">Recovered from your backup</div>
-            <div class="recovered__sub">iPhone 11 · Backup from Mar 2022</div>
-          </div>
-        </div>
-        <div class="recovered__rows">
-          <div class="recovered__row">
-            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--coral);"></span><span class="recovered__label">Messages</span></div>
-            <span class="recovered__num">4,218</span>
-          </div>
-          <div class="recovered__row">
-            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--sage);"></span><span class="recovered__label">WhatsApp</span></div>
-            <span class="recovered__num">2,906</span>
-          </div>
-          <div class="recovered__row">
-            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--butter);"></span><span class="recovered__label">Photos &amp; Videos</span></div>
-            <span class="recovered__num">8,472</span>
-          </div>
-          <div class="recovered__row">
-            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--plum);"></span><span class="recovered__label">Voicemails</span></div>
-            <span class="recovered__num">23</span>
-          </div>
-          <div class="recovered__row">
-            <div class="recovered__row-left"><span class="recovered__dot" style="background: var(--coral);"></span><span class="recovered__label">Contacts</span></div>
-            <span class="recovered__num">341</span>
-          </div>
-        </div>
-        <button class="recovered__btn">Save everything →</button>
-      </div>
+    <!-- Hero: free, front and center -->
+    <section class="hero" id="top">
+      <div class="wrap hero__in">
+        <a class="chip" href="https://github.com/charleswest775/openextract">13,500+ downloads · Open source on GitHub <span aria-hidden="true">&rarr;</span></a>
+        <h1 class="hero__h1"><span class="hero__kicker">The free, open-source iPhone backup extractor</span> Get everything off your iPhone. <mark>Free.</mark></h1>
+        <p class="hero__sub">Texts, photos, WhatsApp chats and voicemails, saved from your iPhone to your computer as files you keep. Phone lost or broken? It works from an old backup too.</p>
 
-      <div class="photo-card">
-        <div>
-          <div class="photo-card__title">Hawaii, 2019</div>
-          <div class="photo-card__meta">IMG_4421.HEIC</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="features">
-    <div class="features__head">
-      <div>
-        <div class="section-label">What you can recover</div>
-        <h2 class="features__title">Everything your phone <span class="it">remembers</span>.</h2>
-      </div>
-      <div class="features__lede">If iOS kept it, a backup kept it too. We just hand it back to you, organized and saved as files you can actually open.</div>
-    </div>
-    <div class="features__grid">
-      <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--coral-22);">💬</div>
-        <div>
-          <div class="feature-card__title">Text messages</div>
-          <p class="feature-card__desc">Every iMessage and SMS, complete with photos and voice notes. Read them here or print the whole thread as a PDF.</p>
-        </div>
-        <div class="feature-card__ex">34,118 messages · 127 conversations</div>
-      </article>
-      <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--sage-22);">🗨️</div>
-        <div>
-          <div class="feature-card__title">WhatsApp chats</div>
-          <p class="feature-card__desc">Chats and groups with their photos, voice messages, replies and calls, in the order they arrived. Save one chat or all of them as a PDF or a web page.</p>
-        </div>
-        <div class="feature-card__ex">6,530 messages · 41 chats</div>
-      </article>
-      <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--butter-22);">📷</div>
-        <div>
-          <div class="feature-card__title">Photos &amp; videos</div>
-          <p class="feature-card__desc">All your camera roll, with original quality and the date, time, and place they were taken.</p>
-        </div>
-        <div class="feature-card__ex">8,472 photos · 412 videos</div>
-      </article>
-      <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--plum-22);">🎙️</div>
-        <div>
-          <div class="feature-card__title">Voicemails</div>
-          <p class="feature-card__desc">Listen to voicemails you thought you'd lost — including from people who aren't around to leave new ones.</p>
-        </div>
-        <div class="feature-card__ex">23 voicemails recovered</div>
-      </article>
-      <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--coral-22);">👤</div>
-        <div>
-          <div class="feature-card__title">Contacts</div>
-          <p class="feature-card__desc">The address book: names, phone numbers, email addresses and notes. Save it as a vCard to import somewhere else.</p>
-        </div>
-        <div class="feature-card__ex">341 contacts · vCard ready</div>
-      </article>
-      <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--sage-22);">📝</div>
-        <div>
-          <div class="feature-card__title">Notes</div>
-          <p class="feature-card__desc">Everything in Apple Notes, from shopping lists to recipes to that novel you started.</p>
-        </div>
-        <div class="feature-card__ex">218 notes · text or PDF</div>
-      </article>
-      <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--butter-22);">📞</div>
-        <div>
-          <div class="feature-card__title">Call history</div>
-          <p class="feature-card__desc">Who you called, when, and for how long. Simple spreadsheet you can search.</p>
-        </div>
-        <div class="feature-card__ex">2,841 calls logged</div>
-      </article>
-      <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--plum-22);">🌐</div>
-        <div>
-          <div class="feature-card__title">Web history</div>
-          <p class="feature-card__desc">The pages visited in Safari and Firefox, and the sites you went back to most. Safari's history is in encrypted backups.</p>
-        </div>
-        <div class="feature-card__ex">5,906 visits · 312 sites</div>
-      </article>
-      <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--coral-22);">🎧</div>
-        <div>
-          <div class="feature-card__title">Podcasts</div>
-          <p class="feature-card__desc">The shows you follow and every episode you played. Save your subscriptions to move them to another podcast app (<a href="/use-cases/export-podcasts-from-iphone-backup">how</a>).</p>
-        </div>
-        <div class="feature-card__ex">214 episodes played · 18 shows</div>
-      </article>
-      <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--sage-22);">🔎</div>
-        <div>
-          <div class="feature-card__title">Timeline &amp; search</div>
-          <p class="feature-card__desc">Everything in the backup in one list by date, and one box that searches texts, WhatsApp, notes, calls and more at once.</p>
-        </div>
-        <div class="feature-card__ex">Filter by person, type or date</div>
-      </article>
-      <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--butter-22);">👥</div>
-        <div>
-          <div class="feature-card__title">People</div>
-          <p class="feature-card__desc">Everyone you were in touch with, with your texts, WhatsApp chats, calls and voicemails to and from them together.</p>
-        </div>
-        <div class="feature-card__ex">One page per person</div>
-      </article>
-      <article class="feature-card">
-        <div class="feature-card__icon" style="background: var(--plum-22);">📅</div>
-        <div>
-          <div class="feature-card__title">Year</div>
-          <p class="feature-card__desc">A whole year at a glance, one square per day. Click a day to see what happened.</p>
-        </div>
-        <div class="feature-card__ex">365 days · busier days darker</div>
-      </article>
-    </div>
-  </section>
-
-  <section class="screens">
-    <div class="screens__head">
-      <div>
-        <div class="section-label">A look inside</div>
-        <h2 class="screens__title">See what's <span class="it">in there</span>.</h2>
-      </div>
-      <div class="screens__lede">Real screens from OpenExtract, opened on a sample backup. Maren isn't a real person, and her photos are public domain.</div>
-    </div>
-    <figure class="screen">
-      <a class="screen__frame" href="/img/screens/home-2000.webp">
-        <img src="/img/screens/home-1000.webp" srcset="/img/screens/home-1000.webp 1000w, /img/screens/home-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), calc(100vw - 112px)" width="1000" height="625" loading="lazy" decoding="async" alt="The home page for Maren's iPhone: tiles for 1,410 messages, 88 WhatsApp messages in 6 chats, 170 photos, 53 people, 45 address book cards, 166 calls, 25 notes, 9 voicemails and 8 podcasts, plus Web history, Timeline and Year, under a search box that runs across the top." />
-      </a>
-    </figure>
-    <div class="screens__grid">
-      <figure class="screen">
-        <a class="screen__frame" href="/img/screens/search-2000.webp">
-          <img src="/img/screens/search-1000.webp" srcset="/img/screens/search-1000.webp 1000w, /img/screens/search-2000.webp 2000w" sizes="(max-width: 1024px) calc(100vw - 112px), 33vw" width="1000" height="625" loading="lazy" decoding="async" alt="Search results for &ldquo;bread&rdquo; across the whole backup: notes, messages and web pages, with the first note previewed and every match highlighted." />
-        </a>
-        <figcaption><strong>Search</strong>One box searches messages, WhatsApp, notes, calls, voicemail and more.</figcaption>
-      </figure>
-      <figure class="screen">
-        <a class="screen__frame" href="/img/screens/messages-2000.webp">
-          <img src="/img/screens/messages-1000.webp" srcset="/img/screens/messages-1000.webp 1000w, /img/screens/messages-2000.webp 2000w" sizes="(max-width: 1024px) calc(100vw - 112px), 33vw" width="1000" height="625" loading="lazy" decoding="async" alt="A text conversation with Maren's mom, including a photo of Diablo Lake sent in the thread." />
-        </a>
-        <figcaption><strong>Messages</strong>Every conversation, with the photos sent in it.</figcaption>
-      </figure>
-      <figure class="screen">
-        <a class="screen__frame" href="/img/screens/photos-2000.webp">
-          <img src="/img/screens/photos-1000.webp" srcset="/img/screens/photos-1000.webp 1000w, /img/screens/photos-2000.webp 2000w" sizes="(max-width: 1024px) calc(100vw - 112px), 33vw" width="1000" height="625" loading="lazy" decoding="async" alt="The Photos screen: a grid of landscape photos with favorites starred and the backup's albums listed alongside." />
-        </a>
-        <figcaption><strong>Photos</strong>The whole camera roll, sorted into the albums you made.</figcaption>
-      </figure>
-    </div>
-    <a class="screens__more" href="/screenshots">See all 20 screens →</a>
-  </section>
-
-  <section class="how">
-    <div class="how__head">
-      <div>
-        <div class="how__eyebrow">How it works</div>
-        <h2 class="how__title">Four steps. <span class="it" style="color: var(--butter);">No phone needed.</span></h2>
-      </div>
-      <div class="how__lede">Works even if your phone is broken, lost, or long gone. All you need is a backup somewhere on a computer.</div>
-    </div>
-    <div class="how__grid">
-      <div>
-        <div class="how__num" style="color: var(--coral);">01</div>
-        <div class="how__step-title">Find or create your backup</div>
-        <p class="how__step-desc">If you've ever plugged an iPhone into this computer, a backup is probably already on it and OpenExtract finds it automatically. If not, plug in your phone and make one — Finder on Mac, iTunes on Windows.</p>
-      </div>
-      <div>
-        <div class="how__num" style="color: var(--butter);">02</div>
-        <div class="how__step-title">Unlock if needed</div>
-        <p class="how__step-desc">Encrypted backups need the password you set. OpenExtract handles this on your laptop; the password never leaves it.</p>
-      </div>
-      <div>
-        <div class="how__num" style="color: var(--sage);">03</div>
-        <div class="how__step-title">Browse what's in there</div>
-        <p class="how__step-desc">Messages, WhatsApp, photos, contacts, calls, notes, voicemail and podcasts on one page. Search texts, WhatsApp, notes, calls and more from one box. Nothing you click changes the backup.</p>
-      </div>
-      <div>
-        <div class="how__num" style="color: var(--plum);">04</div>
-        <div class="how__step-title">Save what you want</div>
-        <p class="how__step-desc">Text threads as PDF, photos as originals, and the rest as everyday files, in a folder you choose.</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="testimonials testimonials--usecases">
-    <div class="section-label">Use cases</div>
-    <h2>What people<br /><span class="it">come here for.</span></h2>
-    <div class="testimonials__grid">
-      <article class="testimonial">
-        <div class="testimonial__name">Keeping a loved one's voicemails</div>
-        <p class="testimonial__quote">A phone can stay locked for good after someone dies, but a backup on their computer can still hold their saved voicemails. OpenExtract plays them and saves the audio.</p>
-        <div class="testimonial__loc"><a href="/blog/recovering-voicemails-from-loved-ones">How it works &rarr;</a></div>
-      </article>
-      <article class="testimonial">
-        <div class="testimonial__name">Photos from a broken phone</div>
-        <p class="testimonial__quote">If the phone is cracked or gone, an old iTunes or Finder backup may still have the camera roll. OpenExtract pulls the originals back out, albums included.</p>
-        <div class="testimonial__loc"><a href="/use-cases/export-iphone-data">Export your iPhone data &rarr;</a></div>
-      </article>
-      <article class="testimonial">
-        <div class="testimonial__name">Keeping your texts when you switch</div>
-        <p class="testimonial__quote">Moving to Android doesn't have to mean losing years of messages. Back up the iPhone once, then keep every thread on your computer.</p>
-        <div class="testimonial__loc"><a href="/blog/switching-to-android-with-your-data">Switching to Android &rarr;</a></div>
-      </article>
-    </div>
-  </section>
-
-  <section class="testimonials testimonials--quotes" data-thanks data-thanks-limit="3" hidden>
-    <div class="section-label">Sent from the app</div>
-    <h2>In their<br /><span class="it">own words.</span></h2>
-    <div class="testimonials__grid" data-thanks-list></div>
-    <p class="testimonials__note">Thank-yous sent from inside OpenExtract by people who said it was OK to quote them. Word for word, without names. <a href="/what-people-say">Read them all →</a></p>
-  </section>
-
-  <section class="uc-related home-blog">
-    <div class="uc-related__inner">
-      <div class="uc-related__head">From the blog</div>
-      <div class="uc-related__grid">
-        <a class="uc-related__link" href="/blog/what-is-in-an-iphone-backup">What's actually in an iPhone backup →</a>
-        <a class="uc-related__link" href="/blog/encrypted-backups-are-better">Encrypted backups are better, actually →</a>
-        <a class="uc-related__link" href="/blog/recovering-voicemails-from-loved-ones">Recovering voicemails from people who have passed →</a>
-        <a class="uc-related__link" href="/blog/switching-to-android-with-your-data">Switching to Android without losing your iPhone data →</a>
-        <a class="uc-related__link" href="/blog/open-source-trust-model">What "open source" actually means for a tool like this →</a>
-        <a class="uc-related__link" href="/blog/the-journal-you-never-meant-to-keep">The journal you never meant to keep →</a>
-        <a class="uc-related__link" href="/guides">Step-by-step iPhone backup guides →</a>
-      </div>
-    </div>
-  </section>
-
-  <section class="privacy">
-    <div class="privacy__inner">
-      <div>
-        <div class="privacy__eyebrow">A plain-English promise</div>
-        <h3>Your data doesn't leave<br />your laptop. <span class="it">Ever.</span></h3>
-        <p class="privacy__body">OpenExtract is open source — anyone can read the code. There's no account, and it doesn't know who you are. It goes online for only two things: to check for a newer version, if you say yes, and to send a feedback report when you click Send. Nothing from your backup goes with either. We made it this way on purpose.</p>
-      </div>
-      <div class="privacy__readout">
-        <div class="privacy__readout-row">
-          <div class="privacy__readout-k">// network activity</div>
-          <div class="privacy__readout-v">update checks you allow, feedback you send.</div>
-        </div>
-        <div class="privacy__readout-row">
-          <div class="privacy__readout-k">// accounts required</div>
-          <div class="privacy__readout-v">none.</div>
-        </div>
-        <div class="privacy__readout-row">
-          <div class="privacy__readout-k">// analytics collected</div>
-          <div class="privacy__readout-v">none.</div>
-        </div>
-        <div class="privacy__readout-row">
-          <div class="privacy__readout-k">// cost</div>
-          <div class="privacy__readout-v">$0. No paid tier.</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="faq">
-    <div>
-      <div class="section-label">FAQ</div>
-      <h2>Questions people<br />ask <span class="it">all the time</span>.</h2>
-      <p class="faq__intro">Can't find yours? There's a real human in the <a href="https://github.com/charleswest775/openextract/discussions">GitHub discussions</a> who'll answer.</p>
-    </div>
-    <div>
-      <details class="qa" open>
-        <summary>Does OpenExtract work if my phone is broken?</summary>
-        <p>Yes. You don't need the phone at all — just a backup sitting on a computer you own. Any iTunes or Finder backup will do, even years-old ones.</p>
-      </details>
-      <details class="qa">
-        <summary>Is it really free? What's the catch?</summary>
-        <p>No catch. It's MIT-licensed open source, built in the open by an independent developer. There's no account, no trial, no paid tier and nothing to upgrade to. It's free, with no strings attached. The code is public on GitHub if you want to verify. Coming from iMazing? Here's what the <a href="/use-cases/free-imazing-alternative">free iMazing alternative</a> covers, and <a href="/vs-imazing">where iMazing still wins</a>.</p>
-      </details>
-      <details class="qa">
-        <summary>Can it read encrypted backups?</summary>
-        <p>Yes, as long as you know the password. Encrypted backups actually contain more data (saved passwords, Safari history), so they're usually the better choice when you have the option.</p>
-      </details>
-      <details class="qa">
-        <summary>What formats can I export to?</summary>
-        <p>Messages and WhatsApp chats as PDF, HTML, CSV, or plain text (here&rsquo;s <a href="/use-cases/export-whatsapp-chats-from-iphone-backup">how to export WhatsApp chats</a>). Photos as originals (HEIC, JPEG, MOV). Contacts as vCard or CSV. Podcast subscriptions as OPML, which most podcast apps import (<a href="/use-cases/export-podcasts-from-iphone-backup">how to move your podcasts</a>). Each time you save, you choose where the files go.</p>
-      </details>
-      <details class="qa">
-        <summary>Will Apple know I'm using this?</summary>
-        <p>No. OpenExtract only reads files that are already on your computer. It never talks to Apple's servers or your iCloud.</p>
-      </details>
-    </div>
-  </section>
-
-  <section id="download" class="final-cta">
-    <div class="final-cta__inner">
-      <div class="final-cta__blob-a" aria-hidden="true"></div>
-      <div class="final-cta__blob-b" aria-hidden="true"></div>
-      <div class="final-cta__content">
-        <div class="section-label">Ready when you are</div>
-        <h2>Get your <span class="it it--coral">memories</span> back.</h2>
-        <p class="final-cta__lede">Download OpenExtract, point it at a backup, and see what's in there. Takes about two minutes.</p>
-        <div class="final-cta__grid">
-          <a class="dl-card dl-card--primary" href="/download/mac">
-            <div class="dl-card__os">Download for macOS</div>
-            <div class="dl-card__meta">146 MB · Apple Silicon</div>
+        <div class="dl3" role="group" aria-label="Download OpenExtract">
+          <a class="dl3__btn" href="/download/mac" data-dl="mac">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+            <span><b>Download for Mac</b><small>Apple Silicon · 155 MB</small></span>
           </a>
-          <a class="dl-card" href="/download/windows">
-            <div class="dl-card__os">Download for Windows</div>
-            <div class="dl-card__meta">126 MB · 10 &amp; 11</div>
+          <a class="dl3__btn" href="/download/windows" data-dl="windows">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+            <span><b>Download for Windows</b><small>Windows 10 and 11 · 134 MB</small></span>
           </a>
-          <a class="dl-card" href="/download/linux">
-            <div class="dl-card__os">Download for Linux</div>
-            <div class="dl-card__meta">Ubuntu &amp; Debian · .deb</div>
+          <a class="dl3__btn" href="/download/linux" data-dl="linux">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+            <span><b>Download for Linux</b><small>Ubuntu, Debian · 147 MB</small></span>
           </a>
         </div>
-        <div class="final-cta__brew">Other Linux: get the <a href="/download/linux-appimage">AppImage</a>. It needs FUSE 2 (the <code>libfuse2</code> package). More in the <a href="/use-cases/iphone-backup-extractor-linux">Linux guide</a>.</div>
-      </div>
-    </div>
-  </section>
 
-  <footer class="footer">
-    <div>
-      <div class="footer__brand">
-        <div class="footer__logo" aria-hidden="true">o</div>
-        <span class="footer__wordmark">OpenExtract</span>
+        <ul class="nostrings" aria-label="No strings attached">
+          <li>No trial</li><li>No limits</li><li>No account</li><li>No ads</li><li>No paywall</li>
+        </ul>
+        <p class="hero__pay">Pay what it's worth to you, but only if you can. <a href="#price">How that works</a></p>
       </div>
-      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
-    </div>
-    <div>
-      <div class="footer__col-head">Product</div>
-      <ul class="footer__list">
-        <li><a href="/how-it-works">How it works</a></li>
-        <li><a href="/screenshots">Screenshots</a></li>
-        <li><a href="#download">Download</a></li>
-      </ul>
-    </div>
-    <div>
-      <div class="footer__col-head">Use cases</div>
-      <ul class="footer__list">
-        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
-        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
-        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
-        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
-        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
-      </ul>
-    </div>
-    <div>
-      <div class="footer__col-head">Guides</div>
-      <ul class="footer__list">
-        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
-        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
-        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
-        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
-        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
-        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
-        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
-        <li><a href="/guides">All guides</a></li>
-        <li><a href="/fixes">Fixes for common problems</a></li>
-      </ul>
-    </div>
-    <div>
-      <div class="footer__col-head">Compare</div>
-      <ul class="footer__list">
-        <li><a href="/vs-imazing">vs iMazing</a></li>
-        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
-        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
-        <li><a href="/vs-reincubate">vs Reincubate</a></li>
-        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
-      </ul>
-    </div>
-    <div>
-      <div class="footer__col-head">Project</div>
-      <ul class="footer__list">
-        <li><a href="/about">About</a></li>
-        <li><a href="/support">Support OpenExtract</a></li>
-        <li><a href="/what-people-say">What people say</a></li>
-        <li><a href="/blog">Blog</a></li>
-        <li><a href="/privacy">Privacy</a></li>
-        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
-        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
-      </ul>
+    </section>
+
+    <!-- The real app: screenshots on their own stage, a picker above, nothing clickable inside -->
+    <section class="product" id="inside" aria-label="Look inside the app">
+      <div class="wrap product__head">
+        <p class="eyebrow">See it before you download it</p>
+        <h2 class="h2">This is what the app looks like. <em>Look around.</em></h2>
+        <p class="product__sub">Real screenshots of OpenExtract, opened on a sample backup of a made-up person. Pick a screen to see it.</p>
+      </div>
+      <div class="wrap wrap--wide">
+        <div class="stage" data-demo-stage>
+          <p class="stage__tag"><span>Screenshots</span> Sample backup · made-up person</p>
+          <div class="pills" role="toolbar" aria-label="Pick a screen to see" data-demo-pills></div>
+          <figure class="demo" data-demo>
+            <div class="demo__bar">
+              <span class="demo__lights" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="demo__title" data-demo-title>OpenExtract · Maren's iPhone (sample)</span>
+            </div>
+            <div class="demo__screen">
+              <img data-demo-img src="/img/home/home-1200.webp" srcset="/img/home/home-1200.webp 1200w, /img/home/home-2000.webp 2000w" sizes="(max-width: 1000px) calc(100vw - 32px), 960px" width="1440" height="900" alt="OpenExtract's home screen for a sample backup: tiles for 1,410 messages, 88 WhatsApp messages, 170 photos, 53 people, 45 contacts, 166 calls, 25 notes and 9 voicemails, plus web history, a timeline and a year view." />
+            </div>
+          </figure>
+          <div class="tour">
+            <div class="tour__text" aria-live="polite">
+              <p class="tour__name" data-demo-name>Home screen</p>
+              <p class="tour__cap"><span data-demo-cap>Everything in the backup at a glance. Pick a screen above to look around.</span> <span class="demo__saves" data-demo-saves></span></p>
+            </div>
+            <div class="flow" data-demo-flow hidden>
+              <p class="flow__head">How saving works <span>Click a step to see it</span></p>
+              <ol class="flow__steps" data-demo-flow-steps></ol>
+              <p class="flow__note">Notice what's missing: no paywall, no &ldquo;upgrade to save&rdquo;, no trial limit. At any step.</p>
+            </div>
+          </div>
+        </div>
+        <p class="product__more"><a href="/screenshots">See every screen, full size &rarr;</a></p>
+      </div>
+    </section>
+
+    <!-- Real thank-yous, sent from the app by people who allowed quoting -->
+    <section class="band band--sand voices" data-voices hidden>
+      <div class="wrap voices__head">
+        <div>
+          <p class="eyebrow">Sent from the app</p>
+          <h2 class="h2">What people <em>wrote back.</em></h2>
+          <p class="voices__note">Word for word, from people who ticked "OK to quote". No names. <a href="/what-people-say">Read them all</a></p>
+        </div>
+        <button type="button" class="voices__pause" data-voices-pause>Pause</button>
+      </div>
+      <!-- The notes drift sideways in a loop: the list, then a copy the keyboard and screen readers skip -->
+      <div class="voices__viewport" role="region" tabindex="0" aria-label="Thank-you notes">
+        <div class="voices__track">
+          <div class="voices__list" data-voices-list></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Everything it gets back, as big words -->
+    <section class="statement">
+      <div class="wrap">
+        <p class="eyebrow">What it gets back</p>
+        <ul class="words" aria-label="What OpenExtract saves">
+          <li><button type="button" data-open="messages">Messages</button></li>
+          <li><button type="button" data-open="photos">Photos</button></li>
+          <li><button type="button" data-open="whatsapp">WhatsApp</button></li>
+          <li><button type="button" data-open="voicemail">Voicemail</button></li>
+          <li><button type="button" data-open="address-book">Contacts</button></li>
+          <li><button type="button" data-open="notes">Notes</button></li>
+          <li><button type="button" data-open="calls">Calls</button></li>
+          <li><button type="button" data-open="web-history">Safari history</button></li>
+        </ul>
+        <p class="words__note">Saved as PDF, web page, spreadsheet or text, with photos and videos in their original quality. Podcasts too. Click a word to see it in the app.</p>
+      </div>
+    </section>
+
+    <!-- Privacy, on dark -->
+    <section class="band band--dark privacy" id="privacy">
+      <div class="wrap">
+        <h2 class="privacy__h">Private by design. <span class="dim">It can't share what it never&nbsp;sends.</span></h2>
+        <div class="privacy__grid">
+          <div class="privacy__col">
+            <h3>It stays on your computer</h3>
+            <p>OpenExtract reads the backup right where it is. There's no cloud, no sign-in and no analytics, and it doesn't know who you are.</p>
+            <p>The password for an encrypted backup stays on your computer too. It never talks to Apple or iCloud.</p>
+          </div>
+          <div class="privacy__col">
+            <h3>Open source, so you can check</h3>
+            <p>You don't have to take anyone's word for what it does with your data. Every line of OpenExtract is public, for anyone to read.</p>
+            <p>Each download is built from that code on GitHub's servers, in the open. The Mac and Windows versions are signed, so your computer can tell nothing was changed along the way.</p>
+            <a class="more more--hi" href="https://github.com/charleswest775/openextract">Read the code on GitHub <span aria-hidden="true">&rarr;</span></a>
+          </div>
+          <div class="log" role="table" aria-label="Everything OpenExtract sends over the internet">
+            <p class="log__head" role="caption">Everything OpenExtract sends over the internet</p>
+            <div class="log__row" role="row"><span role="cell">Your messages and photos</span><b role="cell" class="no">Never</b></div>
+            <div class="log__row" role="row"><span role="cell">Your backup password</span><b role="cell" class="no">Never</b></div>
+            <div class="log__row" role="row"><span role="cell">Who you are</span><b role="cell" class="no">Never</b></div>
+            <div class="log__row" role="row"><span role="cell">Update check</span><b role="cell">Only if you allow it</b></div>
+            <div class="log__row" role="row"><span role="cell">Feedback</span><b role="cell">Only what you write and send</b></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- How it's paid for -->
+    <section class="band price" id="price">
+      <div class="wrap">
+        <p class="eyebrow">How it's paid for</p>
+        <h2 class="price__h">Free, with no strings attached. <span class="dim">Pay what it's worth to you, but only if you&nbsp;can.</span></h2>
+        <p class="price__lead">Most iPhone backup tools let you look, then limit what you can save until you pay. OpenExtract has no limits. You put in the time to download it and back up your phone, and you get the results, not a paywall.</p>
+
+        <div class="pay">
+          <div class="pay__how">
+            <h3 class="pay__h">How paying works</h3>
+            <ol class="pay__steps">
+              <li><b>Use all of it first.</b> Every feature works from the start. Nothing is locked, and there's no license key.</li>
+              <li><b>The app asks after it works.</b> Once you've saved something, a small card asks if it was worth something to you. If you can't pay, you can say thank you instead. Close it, and it won't ask again until you next open the app.</li>
+              <li><b>You decide what it was worth.</b> If you can afford it, $5 is a good start.</li>
+              <li><b>It's on trust.</b> The app can't see payments. Tell it you've paid and it stops asking. That's all.</li>
+            </ol>
+            <dl class="amounts">
+              <div><dt>$0</dt><dd>If you can't pay, it's yours. Every feature, for good.</dd></div>
+              <div><dt>$5</dt><dd>Suggested, if getting your things back was worth it and you can afford it.</dd></div>
+              <div><dt>$25+</dt><dd>If it saved you hours, or a lot of worry. Paying more covers someone who can't.</dd></div>
+            </dl>
+          </div>
+          <figure class="pay__shots">
+            <div class="pay__card pay__card--ask">
+              <p class="pay__label">After you save something</p>
+              <img src="/img/home/pay-ask-680.webp" width="680" height="499" loading="lazy" alt="The card OpenExtract shows after saving: Your messages are saved. Hi, I'm Charles. OpenExtract is free for everyone, no strings. If getting your messages off your iPhone helped, pay what it's worth to you, but only if you can. If you can't pay, say thank you instead. Buttons: Say thanks, Pay $5. Links: Other amounts, Already paid? Stop asking." />
+            </div>
+            <div class="pay__card pay__card--thanks">
+              <p class="pay__label">If you tell it you've paid</p>
+              <img src="/img/home/pay-thanks-680.webp" width="680" height="363" loading="lazy" alt="The card after Already paid? Stop asking: Thank you, truly. You just helped keep OpenExtract free for someone who can't pay. I won't ask again. Charles." />
+            </div>
+            <figcaption>Real screenshots of the app. The only place it asks.</figcaption>
+          </figure>
+        </div>
+
+        <div class="work">
+          <div class="work__text">
+            <p class="eyebrow">Using it for work</p>
+            <h3 class="work__h">For clients, cases and receipts.</h3>
+            <p>If OpenExtract is part of paid work, like a legal case or recovering a client's phone, the fair price is $50 a case or $200 a year. You get a receipt you can bill to your client.</p>
+            <p>It's on trust here too. The app works the same either way, with nothing to unlock and no license to check.</p>
+          </div>
+          <dl class="work__prices">
+            <div><dt>$50</dt><dd>One case</dd></div>
+            <div><dt>$200</dt><dd>A year of cases</dd></div>
+          </dl>
+        </div>
+
+        <p class="price__where">Pay from the Pay it forward button in the app, or any time on the <a href="/support">Pay it forward page</a>.</p>
+
+        <blockquote class="note">
+          <p>&ldquo;I&rsquo;d rather you pay what it was worth to you than set a price that leaves some people out.&rdquo;</p>
+          <footer><img src="/img/home/icon-64.png" width="32" height="32" alt="" /><span><b>Charles West</b> makes OpenExtract, with help from contributors. <a href="/support">Why it works this way</a></span></footer>
+        </blockquote>
+      </div>
+    </section>
+
+    <!-- Questions -->
+    <section class="band band--sand faq" id="questions">
+      <div class="wrap faq__grid">
+        <div>
+          <p class="eyebrow">Questions</p>
+          <h2 class="h2">Asked <em>all the time.</em></h2>
+          <p class="faq__more">Something else? Ask on <a href="https://github.com/charleswest775/openextract/discussions">GitHub</a> or from the Help button in the app. Stuck? See <a href="/fixes">fixes for common problems</a>.</p>
+        </div>
+        <div class="faq__list">
+          <details open><summary>My phone is broken. Can I still get my things back?</summary><p>Yes. OpenExtract doesn't need the phone, only a backup on a computer. Any backup from Finder, iTunes or Apple Devices will do, even one that's years old. No backup yet? Plug in the iPhone and OpenExtract makes one.</p></details>
+          <details><summary>I only back up to iCloud. Does it work?</summary><p>Yes, if you have the phone. Plug it into your computer once and OpenExtract makes a backup there, then opens it. It can't open backups stored in iCloud.</p></details>
+          <details><summary>Does it work with encrypted backups?</summary><p>Yes, if you know the password. Encrypted backups are usually the better kind: they also hold Safari history and other things a plain backup leaves out.</p></details>
+          <details><summary>Is it really free? What's the catch?</summary><p>Yes, with no strings attached. Every feature is free: no trial, no limit on what you can save, and nothing to upgrade to. If it helped you, pay what it's worth to you, but only if you can. Nothing changes either way.</p></details>
+          <details><summary>What can I save, and as what?</summary><p>Texts and WhatsApp chats as PDF, web page, spreadsheet or plain text (here's <a href="/use-cases/export-whatsapp-chats-from-iphone-backup">how to export WhatsApp chats</a>). Photos and videos as the originals. Contacts as vCard or CSV. Voicemails as audio. Notes as text or PDF. Calls as a spreadsheet. Podcast subscriptions as OPML, which most podcast apps import (<a href="/use-cases/export-podcasts-from-iphone-backup">how to move your podcasts</a>).</p></details>
+          <details><summary>Coming from iMazing?</summary><p>Here's what the <a href="/use-cases/free-imazing-alternative">free iMazing alternative</a> covers, and <a href="/vs-imazing">where iMazing still wins</a>.</p></details>
+          <details><summary>Will Apple know I'm using it?</summary><p>No. OpenExtract only works with your computer and the iPhone you plug into it. It never talks to Apple or iCloud.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <!-- Final call: download -->
+    <section class="band band--dark final" id="download">
+      <div class="wrap final__in">
+        <p class="eyebrow eyebrow--hi">Download</p>
+        <h2 class="final__h"><span class="dim">More than 13,500 people have downloaded OpenExtract.</span> <span class="final__turn">Today, it's your&nbsp;turn.</span></h2>
+        <div class="os">
+          <a class="os__card" href="/download/mac" data-dl="mac"><span class="os__name">Mac</span><span class="os__meta">Apple Silicon · 155 MB</span><span class="os__go">Download</span></a>
+          <a class="os__card" href="/download/windows" data-dl="windows"><span class="os__name">Windows</span><span class="os__meta">Windows 10 and 11 · 134 MB</span><span class="os__go">Download</span></a>
+          <a class="os__card" href="/download/linux" data-dl="linux"><span class="os__name">Linux</span><span class="os__meta">Ubuntu, Debian · 147 MB</span><span class="os__go">Download</span></a>
+        </div>
+        <p class="final__alt"><span class="latest-version">v0.16.0</span> · Free, no strings attached · Other Linux: <a href="/download/linux-appimage">AppImage</a> (<a href="/use-cases/iphone-backup-extractor-linux">Linux guide</a>) · <a href="https://github.com/charleswest775/openextract/releases/latest">All files and release notes</a></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <div class="foot__cols">
+        <div class="foot__about">
+          <a class="brand brand--light" href="/"><img src="/img/home/icon-64.png" width="24" height="24" alt="" />OpenExtract</a>
+          <p>Get everything off your iPhone. Free, open source and MIT licensed.</p>
+        </div>
+        <nav aria-label="Product">
+          <p class="foot__head">Product</p>
+          <a href="/how-it-works">How it works</a>
+          <a href="/screenshots">Screenshots</a>
+          <a href="#download">Download</a>
+          <a href="https://github.com/charleswest775/openextract/releases">Release notes</a>
+        </nav>
+        <nav aria-label="Use cases">
+          <p class="foot__head">Use cases</p>
+          <a href="/use-cases/export-iphone-messages">Get texts off iPhone</a>
+          <a href="/use-cases/export-iphone-data">Export iPhone data</a>
+          <a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a>
+          <a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a>
+          <a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a>
+        </nav>
+        <nav aria-label="Guides">
+          <p class="foot__head">Guides</p>
+          <a href="/use-cases/print-text-messages-for-court">Print texts for court</a>
+          <a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a>
+          <a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a>
+          <a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a>
+          <a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a>
+          <a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a>
+          <a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a>
+          <a href="/guides">All guides</a>
+          <a href="/fixes">Fixes for common problems</a>
+        </nav>
+        <nav aria-label="Compare">
+          <p class="foot__head">Compare</p>
+          <a href="/vs-imazing">vs iMazing</a>
+          <a href="/vs-iexplorer">vs iExplorer</a>
+          <a href="/vs-ibackup-viewer">vs iBackup Viewer</a>
+          <a href="/vs-reincubate">vs Reincubate</a>
+          <a href="/imazing-alternatives">All iMazing alternatives</a>
+        </nav>
+        <nav aria-label="From the blog">
+          <p class="foot__head">Blog</p>
+          <a href="/blog/what-is-in-an-iphone-backup">What's in an iPhone backup</a>
+          <a href="/blog/encrypted-backups-are-better">Encrypted backups are better</a>
+          <a href="/blog/recovering-voicemails-from-loved-ones">Voicemails from loved ones</a>
+          <a href="/blog/switching-to-android-with-your-data">Switching to Android</a>
+          <a href="/blog/open-source-trust-model">What open source means here</a>
+          <a href="/blog/the-journal-you-never-meant-to-keep">The journal you never meant to keep</a>
+          <a href="/blog">All posts</a>
+        </nav>
+        <nav aria-label="Project">
+          <p class="foot__head">Project</p>
+          <a href="/about">About</a>
+          <a href="/support">Pay it forward</a>
+          <a href="/what-people-say">What people say</a>
+          <a href="/privacy">Privacy</a>
+          <a href="https://github.com/charleswest775/openextract">GitHub</a>
+          <a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a>
+        </nav>
+      </div>
+      <p class="foot__small">Made by Charles West, with help from contributors. Not affiliated with Apple.</p>
     </div>
   </footer>
+
+  <!-- One step of a workflow, large -->
+  <div class="lightbox" data-lightbox hidden role="dialog" aria-modal="true" aria-labelledby="lightbox-title">
+    <div class="lightbox__panel">
+      <button type="button" class="lightbox__close" data-lightbox-close aria-label="Close">&times;</button>
+      <div class="lightbox__body" data-lightbox-body></div>
+      <div class="lightbox__foot">
+        <button type="button" class="lightbox__arrow" data-lightbox-prev aria-label="Previous step">&larr;</button>
+        <div class="lightbox__text">
+          <p class="lightbox__step" data-lightbox-step></p>
+          <p class="lightbox__title" id="lightbox-title" data-lightbox-title></p>
+          <p class="lightbox__cap" data-lightbox-cap></p>
+        </div>
+        <button type="button" class="lightbox__arrow" data-lightbox-next aria-label="Next step">&rarr;</button>
+      </div>
+    </div>
+  </div>
+
   <script>
-    // Lead with the visitor's own OS: Windows and Linux get their own download first.
-    // Mac stays the default for macOS, phones and anything we can't tell.
+    // The written version is the one this page was last released with (release.yml updates it).
+    // The download links already give the newest release (api/_lib/download.js), so show its
+    // number too, once /api/latest answers.
     (function () {
-      var platform = ((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '').toLowerCase();
-      var android = /android/i.test(navigator.userAgent);
-      var os = /^win/.test(platform) ? 'windows' : (/linux/.test(platform) && !android) ? 'linux' : null;
-      if (!os) return;
-      var card = document.querySelector('.dl-card[href="/download/' + os + '"]');
-      var hero = document.querySelector('.hero__ctas .btn--primary');
-      var others = document.querySelector('.hero__ctas .btn--ghost');
-      if (!card || !hero || !others) return;
-      // The cards hold the sizes, so they stay the one place to update them.
-      var meta = card.querySelector('.dl-card__meta').textContent.split(' · ');
-      var note = document.createElement('span');
-      note.textContent = '· ' + (os === 'windows' ? meta[0] : meta[meta.length - 1]);
-      hero.href = card.getAttribute('href');
-      hero.textContent = os === 'windows' ? 'Download for Windows' : 'Download for Linux';
-      hero.appendChild(note);
-      others.textContent = os === 'windows' ? 'Mac & Linux →' : 'Mac & Windows →';
-      document.querySelector('.dl-card--primary').classList.remove('dl-card--primary');
-      card.classList.add('dl-card--primary');
-    })();
-    // The label in the nav is the version this page was last released with. The download
-    // links already give the newest release (api/_lib/download.js), so show its number too.
-    (function () {
-      var label = document.querySelector('.nav__version');
-      if (!label || !window.fetch) return;
+      var labels = document.querySelectorAll('.latest-version');
+      if (!labels.length || !window.fetch) return;
       fetch('/api/latest')
         .then(function (res) { return res.ok ? res.json() : null; })
         .then(function (latest) {
-          if (latest && /^\d+\.\d+\.\d+$/.test(latest.version)) label.textContent = 'v' + latest.version;
+          if (!latest || !/^\d+\.\d+\.\d+$/.test(latest.version)) return;
+          for (var i = 0; i < labels.length; i++) labels[i].textContent = 'v' + latest.version;
         })
         .catch(function () {});
     })();
   </script>
-  <script defer src="/js/thanks.js"></script>
+  <script src="/js/home.js" defer></script>
 </body>
 </html>

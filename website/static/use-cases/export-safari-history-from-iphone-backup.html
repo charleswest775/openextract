@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Safari history from an iPhone backup, free — OpenExtract</title>
+  <meta name="description" content="See the pages visited in Safari and Firefox in an iPhone backup on your PC or Mac, and save the history as a CSV spreadsheet. Free and open source." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/export-safari-history-from-iphone-backup" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/export-safari-history-from-iphone-backup" />
+  <meta property="og:title" content="Safari history from an iPhone backup, free" />
+  <meta property="og:description" content="Open an encrypted iPhone backup and see or save its Safari and Firefox history." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "Safari history from an iPhone backup, free",
+  "description": "See the pages visited in Safari and Firefox in an iPhone backup on your PC or Mac, and save the history as a CSV spreadsheet. Free and open source.",
+  "url": "https://www.openextract.app/use-cases/export-safari-history-from-iphone-backup",
+  "datePublished": "2026-11-16",
+  "dateModified": "2026-11-16",
+  "image": "https://www.openextract.app/img/og-image.png",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "OpenExtract",
+    "url": "https://www.openextract.app/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "OpenExtract",
+    "url": "https://www.openextract.app/",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://www.openextract.app/img/logo.png"
+    }
+  },
+  "about": {
+    "@type": "SoftwareApplication",
+    "name": "OpenExtract",
+    "applicationCategory": "UtilityApplication",
+    "applicationSubCategory": "DataExtraction",
+    "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+    "url": "https://www.openextract.app/",
+    "screenshot": "https://www.openextract.app/img/screens/home-2000.png",
+    "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+    "license": "https://opensource.org/licenses/MIT",
+    "isAccessibleForFree": true,
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+}
+  </script>
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Why don't I see Safari history?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Apple puts Safari's history only in encrypted backups. If the backup isn't encrypted, OpenExtract has no Safari history to show, though Firefox history can still be there. Make a new backup with encryption turned on, in OpenExtract (Back up my iPhone, then Encrypt backup), Finder, iTunes or the Apple Devices app, and open that one."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does it read Chrome, Edge or Brave?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. It reads Safari and Firefox for iOS. History from Chrome, Edge, Brave and other browsers on the iPhone isn't shown."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What's in the saved file?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "One CSV spreadsheet, browser_history_export.csv, with a row per visit: the date and time (in UTC), the browser, the address, the page title, the site and, for Safari, how many times that address was visited. It opens in Excel, Numbers or Google Sheets."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Are bookmarks, open tabs or saved passwords included?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. OpenExtract reads the history of pages visited. Bookmarks, the Reading List, open tabs and saved passwords aren't shown or saved."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can it get back history I cleared?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. History you cleared in Safari or Firefox before the backup was made isn't shown, and pages opened in private browsing aren't kept in history in the first place."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I search the history?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. The search box finds pages by title, address or site, and the search on the backup's home page looks through web history along with messages, notes and the rest. Visits also appear in the timeline by date."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does anything get uploaded?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. It goes online only when you let it: to check for a new version, if you allow it (you can turn that off in Settings); to send a problem report or a thank-you, when you click Send; and on Windows, to install Apple's free Apple Devices app from Microsoft, if you ask it to, for backing up an iPhone. Nothing from inside your backup goes with any of them."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is it really free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. The code is on GitHub."
+      }
+    }
+  ]
+}
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__pay" href="/support" aria-label="Pay it forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C1 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.2 4.4 2.5h2c.7-1.3 2.2-2.5 4.4-2.5 3.7 0 5.6 3.9 4.2 7.1C19.5 16.4 12 21 12 21z"/></svg><span class="nav__pay-label">Pay it forward</span></a>
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 3 min</div>
+    <h1>Safari history<br />from an <span class="it">iPhone backup</span>.</h1>
+    <p class="page-head__lede">Open an encrypted iPhone backup in OpenExtract, a free app, see the pages visited in Safari and Firefox on your Windows PC or Mac, and save the whole history as a spreadsheet. No iCloud, no account, no export limit.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <p>An iPhone backup made by Finder, iTunes or the Apple Devices app can hold the phone's browsing history, but not in a form you can open: Safari keeps it in a database inside the backup, under a file name made of letters and numbers. You might want it to find a page you remember reading, to keep a record after the phone is lost or wiped, or to go through a family member's phone with their backup. OpenExtract reads it on your own computer, for free.</p>
+      <p>One thing first: <strong>Apple puts Safari's history only in encrypted backups.</strong> If your backup isn't encrypted, it has no Safari history to read. Step 02 shows how to make one that does.</p>
+      <figure class="screen">
+        <a class="screen__frame" href="/img/screens/web-history-2000.webp">
+          <img src="/img/screens/web-history-1000.webp" srcset="/img/screens/web-history-1000.webp 1000w, /img/screens/web-history-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 720px" width="1000" height="625" loading="lazy" decoding="async" alt="Web history in OpenExtract, opened on a made-up sample backup: 357 page visits to 48 sites, with a bar chart of the most visited sites." />
+        </a>
+        <figcaption><strong>Web history, opened from a backup</strong>A made-up sample backup in OpenExtract. <a href="/screenshots">See every screen</a>.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>Install OpenExtract</h2>
+        <p>Download it for <a href="/download/windows">Windows</a> or <a href="/download/mac">Mac</a> (Apple Silicon) and install it. The Windows installer is signed by Charles West, the developer; if SmartScreen shows a notice for a new app, choose More info, then Run anyway.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>Open an encrypted backup, or make one</h2>
+        <p>Already have an encrypted backup from Finder, iTunes or the Apple Devices app? OpenExtract lists the backups it finds on the computer on its start screen, or you can choose <strong>Open a backup folder</strong>. Here's <a href="/use-cases/where-are-iphone-backups-stored">where iPhone backups are stored</a>. Type the backup's password when it asks.</p>
+        <p>No encrypted backup yet? Click <strong>Back up my iPhone</strong>, connect the phone with a cable, tap <strong>Trust</strong> on it and enter its passcode if it asks, then tick <strong>Encrypt backup</strong> and choose a password you'll remember. If the iPhone already has a backup password, the backup is encrypted with that one. An encrypted backup also has your <a href="/use-cases/export-iphone-call-history-to-windows-pc">call history</a>, which Apple leaves out of ordinary backups too.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>See the history</h2>
+        <p>Click <strong>Web history</strong> on the backup's home page. It opens on an overview: browsing over the last 90 days, the sites visited most, the hours and days of the week you browse, and how much came from Safari and how much from Firefox. Click a site or a day to list just those visits.</p>
+        <p>The list shows each page's title and address, its site, when it was visited and in which browser, newest first. Switch between <strong>All</strong>, <strong>Safari</strong> and <strong>Firefox</strong>, or type in the search box to find pages by title, address or site. Reloads of the same page within two minutes count as one visit.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Save it as a spreadsheet</h2>
+        <p>Click <strong>Save all</strong> and choose a folder, or open <strong>Save to this computer</strong> on the backup's home page and choose <strong>Web history</strong>. Every visit goes into one CSV file with the date and time (in UTC), browser, address, page title, site and, for Safari, how many times the address was visited. It opens in Excel, Numbers or Google Sheets.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>What it can't do</h2>
+      <ul>
+        <li><strong>Safari history from an unencrypted backup.</strong> Apple leaves it out, so there's nothing to read. Make an encrypted backup instead.</li>
+        <li><strong>Other browsers.</strong> It reads Safari and Firefox for iOS. Chrome, Edge, Brave and other browsers aren't shown.</li>
+        <li><strong>Bookmarks, tabs and passwords.</strong> It reads the pages visited, not bookmarks, the Reading List, open tabs or saved passwords.</li>
+        <li><strong>Cleared or private browsing.</strong> History cleared before the backup was made isn't shown, and private browsing isn't kept in history.</li>
+        <li><strong>Only part of the list.</strong> Saving writes every visit in the backup, whatever the list is filtered to; sort or filter the spreadsheet afterwards.</li>
+        <li><strong>It only has what the backup has.</strong> Pages visited after the backup was made aren't in it. It doesn't read iCloud or an iCloud backup.</li>
+      </ul>
+      <h2>Common questions</h2>
+      <p><strong>Why don&#x27;t I see Safari history?</strong> Apple puts Safari&#x27;s history only in encrypted backups. If the backup isn&#x27;t encrypted, OpenExtract has no Safari history to show, though Firefox history can still be there. Make a new backup with encryption turned on, in OpenExtract (Back up my iPhone, then Encrypt backup), Finder, iTunes or the Apple Devices app, and open that one.</p>
+      <p><strong>Does it read Chrome, Edge or Brave?</strong> No. It reads Safari and Firefox for iOS. History from Chrome, Edge, Brave and other browsers on the iPhone isn&#x27;t shown.</p>
+      <p><strong>What&#x27;s in the saved file?</strong> One CSV spreadsheet, browser_history_export.csv, with a row per visit: the date and time (in UTC), the browser, the address, the page title, the site and, for Safari, how many times that address was visited. It opens in Excel, Numbers or Google Sheets.</p>
+      <p><strong>Are bookmarks, open tabs or saved passwords included?</strong> No. OpenExtract reads the history of pages visited. Bookmarks, the Reading List, open tabs and saved passwords aren&#x27;t shown or saved.</p>
+      <p><strong>Can it get back history I cleared?</strong> No. History you cleared in Safari or Firefox before the backup was made isn&#x27;t shown, and pages opened in private browsing aren&#x27;t kept in history in the first place.</p>
+      <p><strong>Can I search the history?</strong> Yes. The search box finds pages by title, address or site, and the search on the backup&#x27;s home page looks through web history along with messages, notes and the rest. Visits also appear in the timeline by date.</p>
+      <p><strong>Does anything get uploaded?</strong> No. OpenExtract reads the backup on your own computer and doesn&#x27;t send it anywhere. It goes online only when you let it: to check for a new version, if you allow it (you can turn that off in Settings); to send a problem report or a thank-you, when you click Send; and on Windows, to install Apple&#x27;s free Apple Devices app from Microsoft, if you ask it to, for backing up an iPhone. Nothing from inside your backup goes with any of them.</p>
+      <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Windows · Mac · Linux</div>
+        <h3>Your browsing history,<br /><span class="it">on your own computer.</span></h3>
+        <p>Free, open source, and the backup never leaves your computer.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/use-cases/where-are-iphone-backups-stored">Where are iPhone backups stored? →</a>
+        <a class="uc-related__link" href="/use-cases/view-iphone-backup-on-windows">View an iPhone backup on Windows →</a>
+        <a class="uc-related__link" href="/use-cases/export-iphone-call-history-to-windows-pc">Export iPhone call history →</a>
+        <a class="uc-related__link" href="/blog/encrypted-backups-are-better">Why encrypted backups are better →</a>
+        <a class="uc-related__link" href="/use-cases/export-iphone-data">Export everything else from your iPhone →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Your iPhone's web history, saved on your computer.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/support">Pay it forward</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

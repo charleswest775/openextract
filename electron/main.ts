@@ -107,16 +107,17 @@ const store = new JsonStore({
   updatesAutoCheck: null,
   // When "Not now" was picked on that question: the time (ms) to ask it again. 0 = ask now.
   updatesAskAfter: 0,
-  // True once the "Your file is saved" card (Say thanks, tell a friend, star) has been shown.
-  // It shows at most once. It replaced `sharePromptShown`, the flag of the older star-only
-  // card, so people who saw that one get this card once too.
-  thanksCardShown: false,
+  // True once the "Pay it forward" card has introduced Charles (the first export). Later
+  // exports get the shorter ask. It replaced `thanksCardShown` (the older "Say thanks"
+  // card), so people who saw that one get the introduction once too.
+  payIntroShown: false,
+  // True once the person says they paid ("I've paid" / "Already paid? Stop asking"). The app
+  // can't see payments, so this is on trust; it stops the asks after exports for good.
+  paidItForward: false,
   // True once the user picks "Don't ask again" on the "Did this export come out right?" card.
   exportCheckOptOut: false,
-  // True once a thank-you was sent from the feedback form; the app then stops asking for one.
+  // True once a thank-you was sent from the feedback form; the ask then drops its Say thanks button.
   thanksSent: false,
-  // True once "Looks right" on the export check led to "Glad it worked". It shows at most once.
-  thanksFollowUpShown: false,
   // Feedback reports sent from this computer (reference, random lookup code, status),
   // the email last typed into the form, and when their status was last checked.
   feedbackReports: [],
@@ -127,8 +128,10 @@ const store = new JsonStore({
 // Asks about open feedback reports this long after startup, if a check is due.
 const FEEDBACK_CHECK_DELAY_MS = 15_000;
 
-// The export check shows at most once per run, and never on the same export as the share prompt.
+// The export check shows at most once per run, and never on the same export as the ask.
 let exportCheckShownThisRun = false;
+// The "Pay it forward" card was dismissed (its × or Say thanks): no more asks after exports until the app is opened again.
+let askSnoozedThisRun = false;
 
 // Settings > Text size scales the whole window, so layouts keep their proportions.
 const TEXT_SIZE_ZOOM: Record<string, number> = { default: 1, large: 1.15, larger: 1.3 };
@@ -616,28 +619,39 @@ app.whenReady().then(async () => {
     store.set('exportCheckOptOut', true);
   });
 
-  ipcMain.handle('feedback:thanks-offered', () => {
-    store.set('thanksFollowUpShown', true);
+  // "Pay it forward": all of it stays on this computer. The app never sees payments.
+  ipcMain.handle('support:status', () => ({
+    paid: store.get('paidItForward', false) === true,
+    thanksSent: store.get('thanksSent', false) === true,
+  }));
+  ipcMain.handle('support:snooze', () => {
+    askSnoozedThisRun = true;
+  });
+  ipcMain.handle('support:paid', () => {
+    store.set('paidItForward', true);
   });
 
   ipcMain.handle('increment-export-count', (event: any, area?: string) => {
     const stats = store.get('stats', { totalExports: 0 }) as any;
     stats.totalExports = (stats.totalExports || 0) + 1;
     store.set('stats', stats);
-    // Every export calls this after it succeeds, so this is where the one-time
-    // "Your file is saved" card starts, unless a thank-you was already sent.
-    // Remembered locally; nothing is sent anywhere.
+    // Every export calls this after it succeeds, so the card after an export starts
+    // here, never before or during one. Remembered locally; nothing is sent anywhere.
+    //  - First export: "Pay it forward" with Charles's introduction.
+    //  - Once per run: "Did this export come out right?", which catches exports that finish
+    //    without an error but come out empty or wrong. "Looks right" leads to the ask.
+    //  - Every other export: the shorter ask.
+    // Dismissing the ask quiets it until the app is opened again; "I've paid" ends it.
     const exportArea = typeof area === 'string' ? area : undefined;
-    if (!store.get('thanksCardShown', false) && !store.get('thanksSent', false)) {
-      store.set('thanksCardShown', true);
-      event.sender.send('share-prompt:show', exportArea);
+    const paid = store.get('paidItForward', false) === true;
+    if (!paid && !store.get('payIntroShown', false)) {
+      store.set('payIntroShown', true);
+      event.sender.send('share-prompt:show', exportArea, true);
     } else if (!exportCheckShownThisRun && !store.get('exportCheckOptOut', false)) {
-      // "Did this export come out right?" catches exports that finish without
-      // an error but come out empty or wrong. The answer stays on this computer.
-      // "Looks right" may ask for a thank-you, once ever, and never after one was sent.
       exportCheckShownThisRun = true;
-      const offerThanks = !store.get('thanksSent', false) && !store.get('thanksFollowUpShown', false);
-      event.sender.send('export-check:show', exportArea, offerThanks);
+      event.sender.send('export-check:show', exportArea, !paid && !askSnoozedThisRun);
+    } else if (!paid && !askSnoozedThisRun) {
+      event.sender.send('share-prompt:show', exportArea, false);
     }
     return stats.totalExports;
   });
