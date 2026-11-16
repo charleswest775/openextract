@@ -406,6 +406,7 @@ html.has-lightbox { overflow: hidden; }
   .dl3__btn { justify-content: flex-start; padding: 14px 18px; }
   .dl3__btn.is-mine { order: -1; }
   .nostrings { display: grid; grid-template-columns: repeat(2, auto); justify-content: center; gap: 10px 28px; font-size: 15px; margin-top: 22px; }
+  .nostrings li:last-child:nth-child(odd) { grid-column: 1 / -1; justify-self: center; }
   .hero__pay { font-size: 15px; }
   .product__head { margin-bottom: 22px; }
   .product__sub { font-size: 16px; }
