@@ -97,7 +97,7 @@ em { font-style: normal; color: var(--dim); }
 .dl3__btn svg { flex: none; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .dl3__btn span { display: flex; flex-direction: column; gap: 4px; }
 .dl3__btn b { font: 600 17px/1.15 var(--sans); letter-spacing: -0.01em; }
-.dl3__btn small { font-size: 13px; color: #7a7f87; }
+.dl3__btn small { font-size: 13px; color: #62676f; }
 .dl3__btn.is-mine { background: var(--ink); border-color: var(--ink); color: #fff; }
 .dl3__btn.is-mine small { color: #b9bdc4; }
 .dl3__btn.is-mine:hover { background: #000; }
@@ -195,6 +195,9 @@ html.has-lightbox { overflow: hidden; }
 .tour__name { font: 600 17px/1.3 var(--sans); color: #fff; }
 .tour__cap { margin: 6px 0 0; max-width: 62ch; font-size: 16px; line-height: 1.5; color: #c4c8ce; }
 .tour__cap .demo__saves { display: block; margin-top: 2px; font-size: 14px; }
+.tour__guide { margin-top: 8px; font-size: 14px; }
+.tour__guide a { color: var(--accent-hi); text-decoration: none; font-weight: 600; }
+.tour__guide a:hover { text-decoration: underline; }
 
 /* ── What it gets back: big words ── */
 .statement { padding: 13vmin 0 12vmin; }
@@ -272,7 +275,7 @@ html.has-lightbox { overflow: hidden; }
 .voice--long q { font-size: 17px; font-weight: 500; line-height: 1.55; }
 .voice--short { width: min(300px, 70vw); }
 .voice--short q { font-size: 26px; line-height: 1.3; letter-spacing: -0.02em; }
-.voice small { font-size: 13px; color: var(--dim); }
+.voice small { font-size: 13px; color: #62676f; }
 
 /* Price */
 .price { padding-bottom: 13vmin; }

@@ -69,7 +69,8 @@ test('every page footer links to the support page', () => {
 test('the home page top bar has "Pay it forward", next to GitHub', () => {
   // The home page has its own design (css/home.css), so it isn't caught by the shared top-bar check below.
   const html = read(`${site}/index.html`);
-  assert.match(html, /<a class="top__pay" href="\/support"><svg[^>]*aria-hidden="true">.*?<\/svg><span>Pay it forward<\/span><\/a>\s*<a class="top__gh"/);
+  // aria-label: on a phone the words are hidden and only the heart shows, so the link needs its own name.
+  assert.match(html, /<a class="top__pay" href="\/support" aria-label="Pay it forward"><svg[^>]*aria-hidden="true">.*?<\/svg><span>Pay it forward<\/span><\/a>\s*<a class="top__gh"/);
 });
 
 test('every page with the top bar has "Pay it forward" in it, next to GitHub', () => {

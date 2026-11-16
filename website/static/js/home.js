@@ -18,31 +18,31 @@
   // Tile positions come from the real app's home screen at 1440 × 900.
   var W = 1440, H = 900;
   var SCREENS = [
-    { id: 'messages', name: 'Messages', rect: [173, 213, 260, 146], pulse: true,
+    { id: 'messages', guide: ['/use-cases/export-iphone-messages', 'Guide: get all your texts off an iPhone'], name: 'Messages', rect: [173, 213, 260, 146], pulse: true,
       cap: 'Every iMessage and text, with the photos sent in them.', saves: 'PDF · web page · CSV · text',
       alt: "A text conversation between Maren and her mom, with a photo of Diablo Lake sent in the thread." },
-    { id: 'whatsapp', name: 'WhatsApp', rect: [449, 213, 260, 146], pulse: true,
+    { id: 'whatsapp', guide: ['/use-cases/export-whatsapp-chats-from-iphone-backup', 'Guide: export WhatsApp chats from a backup'], name: 'WhatsApp', rect: [449, 213, 260, 146], pulse: true,
       cap: 'Chats and groups, with their photos, voice messages and calls.', saves: 'PDF · web page',
       alt: 'A WhatsApp chat with photos, a voice message and calls.' },
-    { id: 'photos', name: 'Photos', rect: [725, 213, 260, 146],
+    { id: 'photos', guide: ['/use-cases/extract-photos-from-iphone-backup', 'Guide: extract photos from a backup'], name: 'Photos', rect: [725, 213, 260, 146],
       cap: 'The whole camera roll in original quality, sorted into the albums you made.', saves: 'HEIC · JPEG · MOV originals',
       alt: 'The Photos screen: a grid of landscape photos with the backup’s albums listed alongside.' },
-    { id: 'people-list', name: 'People', rect: [1001, 213, 260, 146],
+    { id: 'people-list', guide: ['/use-cases/export-iphone-data', 'Guide: export everything from an iPhone backup'], name: 'People', rect: [1001, 213, 260, 146],
       cap: 'Everyone you were in touch with: texts, WhatsApp, calls and voicemails with each person, together.', saves: 'PDF per person',
       alt: 'The People screen with one person’s messages and calls in date order.' },
-    { id: 'address-book', name: 'Contacts', rect: [173, 375, 260, 146],
+    { id: 'address-book', guide: ['/use-cases/export-iphone-contacts', 'Guide: export iPhone contacts'], name: 'Contacts', rect: [173, 375, 260, 146],
       cap: 'Every contact card: names, numbers, email addresses and notes.', saves: 'vCard · CSV',
       alt: 'The Address book screen with contact cards.' },
-    { id: 'calls', name: 'Calls', rect: [449, 375, 260, 146],
+    { id: 'calls', guide: ['/use-cases/export-iphone-call-history-to-windows-pc', 'Guide: export call history'], name: 'Calls', rect: [449, 375, 260, 146],
       cap: 'Who called, when, and for how long.', saves: 'CSV',
       alt: 'The Calls screen listing calls with dates, durations and direction.' },
-    { id: 'notes', name: 'Notes', rect: [725, 375, 260, 146],
+    { id: 'notes', guide: ['/use-cases/export-notes-from-iphone-backup', 'Guide: export notes from a backup'], name: 'Notes', rect: [725, 375, 260, 146],
       cap: 'Everything in Apple Notes, from grocery lists to recipes.', saves: 'text · PDF',
       alt: 'The Notes screen with a grocery list open.' },
-    { id: 'voicemail', name: 'Voicemail', rect: [1001, 375, 260, 146], pulse: true,
+    { id: 'voicemail', guide: ['/use-cases/save-voicemails-from-iphone-backup', 'Guide: save voicemails from a backup'], name: 'Voicemail', rect: [1001, 375, 260, 146], pulse: true,
       cap: 'Saved voicemails you can play, and keep as audio files.', saves: 'audio files',
       alt: 'The Voicemail screen with a list of saved voicemails.' },
-    { id: 'web-history', name: 'Web history', rect: [173, 538, 260, 124],
+    { id: 'web-history', guide: ['/use-cases/export-safari-history-from-iphone-backup', 'Guide: Safari history from a backup'], name: 'Web history', rect: [173, 538, 260, 124],
       cap: 'The pages visited in Safari and Firefox, and the sites visited most.', saves: 'CSV',
       alt: 'The Web history screen with total visits and the most visited sites.' },
     { id: 'timeline', name: 'Timeline', rect: [449, 538, 260, 124],
@@ -55,7 +55,7 @@
       cap: 'One box searches texts, WhatsApp, notes, calls, voicemail and more. Here: “birthday”.', saves: '',
       alt: 'Search results for “birthday” across notes, messages and WhatsApp.' }
   ];
-  var HOME = { id: 'home', name: 'Home screen', cap: 'Everything in the backup at a glance. Pick a screen above to look around.', saves: '',
+  var HOME = { id: 'home', guide: ['/guides', 'Step-by-step guides for each kind of data'], name: 'Home screen', cap: 'Everything in the backup at a glance. Pick a screen above to look around.', saves: '',
     alt: document.querySelector('[data-demo-img]').alt };
 
   // How saving works, per screen: the real Save window, the files it really made from the
@@ -165,6 +165,7 @@
   var img = document.querySelector('[data-demo-img]');
   var cap = document.querySelector('[data-demo-cap]');
   var saves = document.querySelector('[data-demo-saves]');
+  var guide = document.querySelector('[data-demo-guide]');
   var title = document.querySelector('[data-demo-title]');
   var nameEl = document.querySelector('[data-demo-name]');
   var pills = document.querySelector('[data-demo-pills]');
@@ -181,6 +182,9 @@
     nameEl.textContent = s.name;
     cap.textContent = s.cap;
     saves.textContent = s.saves ? 'Saves as ' + s.saves : '';
+    // A guide for the screen on show, so the tour leads somewhere.
+    guide.parentNode.hidden = !s.guide;
+    if (s.guide) { guide.href = s.guide[0]; guide.textContent = s.guide[1] + ' \u2192'; }
     title.textContent = current === 'home' ? "OpenExtract · Maren's iPhone (sample)" : "OpenExtract · Maren's iPhone › " + s.name;
     Array.prototype.forEach.call(pills.children, function (p) { p.setAttribute('aria-pressed', p.getAttribute('data-id') === current ? 'true' : 'false'); });
 

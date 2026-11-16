@@ -105,7 +105,7 @@
         <a href="/guides">Guides</a>
       </nav>
       <div class="top__end">
-        <a class="top__pay" href="/support"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C1 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.2 4.4 2.5h2c.7-1.3 2.2-2.5 4.4-2.5 3.7 0 5.6 3.9 4.2 7.1C19.5 16.4 12 21 12 21z"/></svg><span>Pay it forward</span></a>
+        <a class="top__pay" href="/support" aria-label="Pay it forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C1 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.2 4.4 2.5h2c.7-1.3 2.2-2.5 4.4-2.5 3.7 0 5.6 3.9 4.2 7.1C19.5 16.4 12 21 12 21z"/></svg><span>Pay it forward</span></a>
         <a class="top__gh" href="https://github.com/charleswest775/openextract">GitHub</a>
         <a class="btn btn--sm" href="#download">Download <span class="btn__free">— free</span></a>
       </div>
@@ -167,6 +167,7 @@
             <div class="tour__text" aria-live="polite">
               <p class="tour__name" data-demo-name>Home screen</p>
               <p class="tour__cap"><span data-demo-cap>Everything in the backup at a glance. Pick a screen above to look around.</span> <span class="demo__saves" data-demo-saves></span></p>
+              <p class="tour__guide"><a data-demo-guide href="/guides">Step-by-step guides for each kind of data &rarr;</a></p>
             </div>
             <div class="flow" data-demo-flow hidden>
               <p class="flow__head">How saving works <span>Click a step to see it</span></p>
@@ -200,7 +201,7 @@
     <!-- Everything it gets back, as big words -->
     <section class="statement">
       <div class="wrap">
-        <p class="eyebrow">What it gets back</p>
+        <h2 class="eyebrow">What it gets back</h2>
         <ul class="words" aria-label="What OpenExtract saves">
           <li><button type="button" data-open="messages">Messages</button></li>
           <li><button type="button" data-open="photos">Photos</button></li>
@@ -310,11 +311,11 @@
           <p class="faq__more">Something else? Ask on <a href="https://github.com/charleswest775/openextract/discussions">GitHub</a> or from the Help button in the app. Stuck? See <a href="/fixes">fixes for common problems</a>.</p>
         </div>
         <div class="faq__list">
-          <details open><summary>My phone is broken. Can I still get my things back?</summary><p>Yes. OpenExtract doesn't need the phone, only a backup on a computer. Any backup from Finder, iTunes or Apple Devices will do, even one that's years old. No backup yet? Plug in the iPhone and OpenExtract makes one.</p></details>
+          <details open><summary>My phone is broken. Can I still get my things back?</summary><p>Yes. OpenExtract doesn't need the phone, only a backup on a computer. Any backup from Finder, iTunes or Apple Devices will do, even one that's years old (here's <a href="/use-cases/where-are-iphone-backups-stored">where to find it</a>). No backup yet? Plug in the iPhone and OpenExtract makes one.</p></details>
           <details><summary>I only back up to iCloud. Does it work?</summary><p>Yes, if you have the phone. Plug it into your computer once and OpenExtract makes a backup there, then opens it. It can't open backups stored in iCloud.</p></details>
           <details><summary>Does it work with encrypted backups?</summary><p>Yes, if you know the password. Encrypted backups are usually the better kind: they also hold Safari history and other things a plain backup leaves out.</p></details>
           <details><summary>Is it really free? What's the catch?</summary><p>Yes, with no strings attached. Every feature is free: no trial, no limit on what you can save, and nothing to upgrade to. If it helped you, pay what it's worth to you, but only if you can. Nothing changes either way.</p></details>
-          <details><summary>What can I save, and as what?</summary><p>Texts and WhatsApp chats as PDF, web page, spreadsheet or plain text (here's <a href="/use-cases/export-whatsapp-chats-from-iphone-backup">how to export WhatsApp chats</a>). Photos and videos as the originals. Contacts as vCard or CSV. Voicemails as audio. Notes as text or PDF. Calls as a spreadsheet. Podcast subscriptions as OPML, which most podcast apps import (<a href="/use-cases/export-podcasts-from-iphone-backup">how to move your podcasts</a>).</p></details>
+          <details><summary>What can I save, and as what?</summary><p>Texts and WhatsApp chats as PDF, web page, spreadsheet or plain text (here's how to <a href="/use-cases/export-iphone-messages">save your texts</a> and <a href="/use-cases/export-whatsapp-chats-from-iphone-backup">export WhatsApp chats</a>). <a href="/use-cases/extract-photos-from-iphone-backup">Photos and videos</a> as the originals, all of them or one album. <a href="/use-cases/export-iphone-contacts">Contacts</a> as vCard or CSV. <a href="/use-cases/save-voicemails-from-iphone-backup">Voicemails</a> as audio. <a href="/use-cases/export-notes-from-iphone-backup">Notes</a> as text or PDF. <a href="/use-cases/export-iphone-call-history-to-windows-pc">Calls</a> and <a href="/use-cases/export-safari-history-from-iphone-backup">Safari history</a> as a spreadsheet. Podcast subscriptions as OPML, which most podcast apps import (<a href="/use-cases/export-podcasts-from-iphone-backup">how to move your podcasts</a>).</p></details>
           <details><summary>Coming from iMazing?</summary><p>Here's what the <a href="/use-cases/free-imazing-alternative">free iMazing alternative</a> covers, and <a href="/vs-imazing">where iMazing still wins</a>.</p></details>
           <details><summary>Will Apple know I'm using it?</summary><p>No. OpenExtract only works with your computer and the iPhone you plug into it. It never talks to Apple or iCloud.</p></details>
         </div>
