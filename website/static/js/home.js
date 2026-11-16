@@ -80,8 +80,8 @@
   }
   var ASK = { label: 'Then one ask', kind: 'card', thumb: H_ + 'pay-ask-680.webp', img: H_ + 'pay-ask-680.webp',
     title: 'Then the app asks, once',
-    cap: 'Only after your file is saved. If it was worth something to you and you can afford it, pay what it’s worth. If you can’t, it’s yours. “Not now” means not now.',
-    alt: 'The card after saving: Your messages are saved. Hi, I’m Charles. I give OpenExtract to everyone, and ask one thing: if getting your messages off your iPhone was worth something to you and you can afford it, pay what it was worth. $5 is a good start. If you can’t, it’s yours. Buttons: Not now, Pay $5.' };
+    cap: 'Only after your file is saved. If it helped, pay what it’s worth to you, but only if you can. If you can’t pay, say thank you instead. Close it, and it won’t ask again until you next open the app.',
+    alt: 'The card after saving: Your messages are saved. Hi, I’m Charles. OpenExtract is free for everyone, no strings. If getting your messages off your iPhone helped, pay what it’s worth to you, but only if you can. If you can’t pay, say thank you instead. Buttons: Say thanks, Pay $5.' };
   var FLOWS = {
     messages: [
       pick('messages', 'Save conversation', { cap: 'A web page, a PDF to read or print, a spreadsheet or plain text. Then you choose where it goes on your computer.',
