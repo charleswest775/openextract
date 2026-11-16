@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#faf6f1" />
   <title>Extract photos from an iPhone backup, free — OpenExtract</title>
-  <meta name="description" content="Save every photo and video in an iPhone backup to your PC or Mac as the original files, in folders by month with their real dates. Free, open source." />
+  <meta name="description" content="Save the photos and videos in an iPhone backup to your PC or Mac as the original files: all of them, one album, your favorites or your hidden photos. Free." />
   <link rel="canonical" href="https://www.openextract.app/use-cases/extract-photos-from-iphone-backup" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://www.openextract.app/use-cases/extract-photos-from-iphone-backup" />
   <meta property="og:title" content="Extract photos from an iPhone backup, free" />
-  <meta property="og:description" content="Open an iPhone backup and save its whole camera roll as the original files, sorted by month." />
+  <meta property="og:description" content="Open an iPhone backup and save its camera roll, one album or the hidden photos, as the original files." />
   <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -21,10 +21,10 @@
     "@context": "https://schema.org",
     "@type": "WebPage",
     "name": "Extract photos from an iPhone backup, free",
-    "description": "Save every photo and video in an iPhone backup to your PC or Mac as the original files, in folders by month with their real dates. Free, open source.",
+    "description": "Save the photos and videos in an iPhone backup to your PC or Mac as the original files: all of them, one album, your favorites or your hidden photos. Free.",
     "url": "https://www.openextract.app/use-cases/extract-photos-from-iphone-backup",
     "datePublished": "2026-11-12",
-    "dateModified": "2026-11-12",
+    "dateModified": "2026-11-16",
     "image": "https://www.openextract.app/img/og-image.png",
     "isPartOf": {
       "@type": "WebSite",
@@ -101,7 +101,15 @@
         "name": "Can I save one album?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Not yet. You can browse each album in the app, but Save all saves every photo and video in the backup."
+          "text": "Yes. Click the album in the sidebar, then Save album, and only that album's photos and videos are saved, in folders by month like the rest. Favorites and Hidden work the same way, with Save favorites and Save hidden. Save all doesn't sort photos into albums, so to keep an album together, save it on its own into a new folder."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I get my hidden photos out of a backup?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Hiding a photo on the iPhone moves it to the Hidden album but keeps it on the phone, so it's in the backup like any other photo. OpenExtract lists those photos under Hidden and, as on the iPhone, leaves them out of All Photos and Favorites. Click Hidden, then Save hidden. Save to this computer, on the backup's home page, saves every photo and video, hidden ones included."
         }
       },
       {
@@ -157,9 +165,9 @@
   </nav>
 
   <header class="page-head">
-    <div class="page-head__eyebrow">Guide · 4 min</div>
+    <div class="page-head__eyebrow">Guide · 5 min</div>
     <h1>Extract photos<br />from an <span class="it">iPhone backup</span>.</h1>
-    <p class="page-head__lede">Open the backup in OpenExtract, a free app, and save every photo and video in it to your Windows PC or Mac in one go: the original files, in a folder for each month, each dated the day it was taken. No iCloud, no account, and an ordinary backup is enough.</p>
+    <p class="page-head__lede">Open the backup in OpenExtract, a free app, and save its photos and videos to your Windows PC or Mac: all of them in one go, or just one album, your favorites or your hidden photos. You get the original files, in a folder for each month, each dated the day it was taken. No iCloud, no account, and an ordinary backup is enough.</p>
   </header>
 
   <section class="prose">
@@ -167,7 +175,7 @@
       <p>An iPhone backup made by Finder, iTunes or the Apple Devices app holds the phone's camera roll, but you can't just open it: the files are renamed to long strings of letters and numbers, with no names, folders or dates you'd recognise. That matters most when the phone is lost, broken or wiped and the backup is all that's left, or when you'd rather not restore a whole phone just to get the pictures. Most of the tools that come up when you search for this are paid apps. OpenExtract does it for free, with no trial and no limit on how many photos you save, and it reads everything on your own computer.</p>
       <figure class="screen">
         <a class="screen__frame" href="/img/screens/photos-2000.webp">
-          <img src="/img/screens/photos-1000.webp" srcset="/img/screens/photos-1000.webp 1000w, /img/screens/photos-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 720px" width="1000" height="625" loading="lazy" decoding="async" alt="The Photos screen in OpenExtract, opened on a made-up sample backup: a grid of landscape photos with favorites starred and the backup's albums listed alongside." />
+          <img src="/img/screens/photos-1000.webp" srcset="/img/screens/photos-1000.webp 1000w, /img/screens/photos-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 720px" width="1000" height="625" loading="lazy" decoding="async" alt="The Photos screen in OpenExtract, opened on a made-up sample backup: All Photos, Favorites and Hidden at the top of the sidebar, then the albums, with the National parks folder open, beside a grid of landscape photos with favorites starred." />
         </a>
         <figcaption><strong>Photos, opened from a backup</strong>A made-up sample backup in OpenExtract. <a href="/screenshots">See every screen</a>.</figcaption>
       </figure>
@@ -194,15 +202,17 @@
       <div class="uc-step__num" style="color: var(--sage);">03</div>
       <div>
         <h2>Look through the photos</h2>
-        <p>Click <strong>Photos</strong> on the backup's home page. The grid shows every photo and video in the backup, with favorites starred and the phone's albums listed alongside. Click a photo to see it full size, or use the menu at the top to show only photos, videos, Live Photos or screenshots.</p>
+        <p>Click <strong>Photos</strong> on the backup's home page. The sidebar is laid out as on the iPhone: <strong>All Photos</strong>, <strong>Favorites</strong> and <strong>Hidden</strong>, then your albums, inside the folders you made and in the same order. Click a folder to open it. All Photos shows every photo and video in the backup except the ones you hid, which are under Hidden, as on the phone; favorites are starred.</p>
+        <p>Click a photo to see it full size, or use the menu at the top to show only photos, videos, Live Photos or screenshots.</p>
       </div>
     </div>
     <div class="uc-step">
       <div class="uc-step__num" style="color: var(--plum);">04</div>
       <div>
-        <h2>Save them all</h2>
-        <p>Click <strong>Save all</strong> and choose a folder. OpenExtract copies every photo and video in the backup into it, in a folder for each year and month (<code>2025/07</code>, <code>2025/08</code> and so on), and shows how far it has got: "Saving 1,234 of 5,678 photos and videos…". A big library takes a while, especially from an encrypted backup. When it's done, it says how many were saved, and how many are only in iCloud.</p>
-        <p>The same save is under <strong>Save to this computer</strong> on the backup's home page, next to messages, contacts and the rest; from there the photos go into a <code>Photos</code> folder.</p>
+        <h2>Save them all, or one album</h2>
+        <p>With All Photos selected, click <strong>Save all</strong> and choose a folder. OpenExtract copies the photos and videos into it, in a folder for each year and month (<code>2025/07</code>, <code>2025/08</code> and so on), and shows how far it has got: "Saving 1,234 of 5,678 photos and videos…". A big library takes a while, especially from an encrypted backup. When it's done, it says how many were saved, and how many are only in iCloud.</p>
+        <p>With an album, Favorites or Hidden selected, the button says <strong>Save album</strong>, <strong>Save favorites</strong> or <strong>Save hidden</strong> instead, and saves only those photos.</p>
+        <p>To save every photo and video in the backup, hidden ones included, use <strong>Save to this computer</strong> on the backup's home page, next to messages, contacts and the rest. It says how many of them are hidden, and the photos go into a <code>Photos</code> folder.</p>
       </div>
     </div>
     <div class="uc-step">
@@ -217,11 +227,22 @@
 
   <section class="prose">
     <div class="prose__inner">
+      <h2>One album, your favorites or your hidden photos</h2>
+      <p>Every album in the sidebar can be saved on its own. Click it, then <strong>Save album</strong>: only that album's photos and videos are saved, sorted by month like the rest. Save all doesn't sort photos into albums, so if you want an album kept together, save it on its own into a new folder. Favorites and Hidden work the same way.</p>
+      <figure class="screen">
+        <a class="screen__frame" href="/img/screens/album-2000.webp">
+          <img src="/img/screens/album-1000.webp" srcset="/img/screens/album-1000.webp 1000w, /img/screens/album-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 720px" width="1000" height="625" loading="lazy" decoding="async" alt="The Yellowstone 2025 album, inside the National parks folder, open in OpenExtract on a made-up sample backup: 45 photos of hot springs, bison and waterfalls, with Save album at the top." />
+        </a>
+        <figcaption><strong>One album, ready to save</strong>Save album saves only the 45 photos on screen.</figcaption>
+      </figure>
+      <h2 id="hidden-photos">Hidden photos</h2>
+      <p>Hiding a photo on an iPhone takes it out of your library and puts it in the Hidden album, but the photo stays on the phone, so it's in the backup like any other. OpenExtract lists those photos under <strong>Hidden</strong>; click it, then <strong>Save hidden</strong>, to save just them. As on the iPhone, they're left out of All Photos and Favorites, and out of the photo counts on the home page, the Timeline and the Year view.</p>
+      <p>It also means hidden isn't private once there's a backup: anyone who can open an ordinary backup on that computer can see those photos. Turning on <strong>Encrypt local backup</strong> in Finder, iTunes or the Apple Devices app makes backups that need their password to open. <a href="/blog/encrypted-backups-are-better">Why encrypted backups are better</a>.</p>
       <h2>What it can't do</h2>
       <ul>
         <li><strong>Photos that are only in iCloud.</strong> With iCloud Photos on, and especially with Optimize iPhone Storage, many full-size photos aren't on the phone, so they aren't in its backup. OpenExtract says how many; download those from iCloud instead.</li>
         <li><strong>The moving part of Live Photos.</strong> A Live Photo is saved as its still photo, without the short video.</li>
-        <li><strong>One album at a time.</strong> You can browse albums, but Save all saves the whole backup.</li>
+        <li><strong>Recently Deleted.</strong> Photos in the Recently Deleted album aren't shown or saved.</li>
         <li><strong>It only has what the backup has.</strong> Photos taken after the backup was made aren't in it. Make a new backup first if you want today's camera roll.</li>
         <li><strong>No iCloud backups.</strong> It works from a backup on your computer, not from iCloud or an iCloud backup.</li>
       </ul>
@@ -230,7 +251,8 @@
       <p><strong>Why are some of my photos missing?</strong> With iCloud Photos on, and especially with Optimize iPhone Storage, many full-size photos live only in iCloud, so the iPhone&#x27;s backup doesn&#x27;t have them. OpenExtract counts only the photos that are in the backup and says how many more are only in iCloud. Those you download from iCloud instead.</p>
       <p><strong>Are the photos the original quality?</strong> Yes. OpenExtract copies the files as they are in the backup, so photos keep their format, resolution and EXIF details such as the camera and, where the phone recorded it, the place. HEIC photos stay HEIC.</p>
       <p><strong>Will the dates be right?</strong> Yes. The photos go into a folder for each month (for example 2025/07), and every saved file gets the date it was taken as its file date, so Finder, File Explorer and photo apps sort them in the order you took them.</p>
-      <p><strong>Can I save one album?</strong> Not yet. You can browse each album in the app, but Save all saves every photo and video in the backup.</p>
+      <p><strong>Can I save one album?</strong> Yes. Click the album in the sidebar, then Save album, and only that album&#x27;s photos and videos are saved, in folders by month like the rest. Favorites and Hidden work the same way, with Save favorites and Save hidden. Save all doesn&#x27;t sort photos into albums, so to keep an album together, save it on its own into a new folder.</p>
+      <p><strong>Can I get my hidden photos out of a backup?</strong> Yes. Hiding a photo on the iPhone moves it to the Hidden album but keeps it on the phone, so it&#x27;s in the backup like any other photo. OpenExtract lists those photos under Hidden and, as on the iPhone, leaves them out of All Photos and Favorites. Click Hidden, then Save hidden. Save to this computer, on the backup&#x27;s home page, saves every photo and video, hidden ones included.</p>
       <p><strong>Does it work without iCloud?</strong> Yes. OpenExtract reads a backup saved on your own Mac or PC, so you don&#x27;t need iCloud, an Apple ID sign-in or the phone itself once the backup exists. It can&#x27;t read an iCloud backup.</p>
       <p><strong>Does anything get uploaded?</strong> No. OpenExtract reads the backup on your own computer and doesn&#x27;t send it anywhere. It goes online only when you let it: to check for a new version, if you allow it (you can turn that off in Settings); to send a problem report or a thank-you, when you click Send; and on Windows, to install Apple&#x27;s free Apple Devices app from Microsoft, if you ask it to, for backing up an iPhone. Nothing from inside your backup goes with any of them.</p>
       <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
