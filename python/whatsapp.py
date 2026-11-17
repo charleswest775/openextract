@@ -28,6 +28,7 @@ import html
 import io
 import mimetypes
 import os
+import plistlib
 import re
 import shutil
 import sys
@@ -74,6 +75,17 @@ NOT_IN_BACKUP = "WhatsApp is not in this backup"
 FILE_NOT_IN_BACKUP = "This file isn't in the backup"
 FILE_UNREADABLE = "This file couldn't be read from the backup"
 FILE_NOT_COPIED = "This file couldn't be copied to open it"
+
+# Why WhatsApp has nothing to show when the iPhone has WhatsApp but the backup
+# has no ChatStorage.sqlite: WhatsApp's own end-to-end encrypted chat backup
+# keeps its chats out of the iPhone's backup and only in iCloud (see
+# _app_in_backup). The app explains it instead of hiding WhatsApp.
+CHATS_LEFT_OUT = "chats_left_out"
+
+# WhatsApp itself. WhatsApp Business (net.whatsapp.WhatsAppSMB) isn't read, so
+# it doesn't count.
+_APP_ID = "net.whatsapp.WhatsApp"
+_APP_DOMAIN = f"AppDomain-{_APP_ID}"
 
 # The library's words for the same things, which get_attachment translates.
 _LIB_FILE_MISSING = "Attachment file not found in backup"
@@ -342,6 +354,7 @@ class WhatsAppExtractor:
         self._inner = _CoreWhatsAppExtractor() if _CoreWhatsAppExtractor is not None else _NoWhatsAppSupport()
         self._temp_dir: Optional[str] = None
         self._export = _WhatsAppExport(self)
+        self._app_found: dict[str, bool] = {}  # backup folder -> _app_in_backup()
         # Made once, as the engine starts: copies an earlier engine left behind
         # (decrypted, under readable names) shouldn't wait for a file to be opened.
         _remove_stale_temp_dirs()
@@ -359,12 +372,30 @@ class WhatsAppExtractor:
 
     def clear_cache(self) -> None:
         self._inner.clear_cache()
+        self._app_found.clear()
 
     def has_whatsapp(self, backup) -> dict:
-        return self._inner.has_whatsapp(backup)
+        return self._with_chats_left_out(backup, self._inner.has_whatsapp(backup))
 
     def list_conversations(self, backup, contacts: dict) -> dict:
-        return self._inner.list_conversations(backup, contacts)
+        return self._with_chats_left_out(backup, self._inner.list_conversations(backup, contacts))
+
+    def _with_chats_left_out(self, backup, result: dict) -> dict:
+        """``result``, with empty_reason "chats_left_out" when the iPhone has WhatsApp but its chats aren't in the backup.
+
+        Only the two answers that decide what the app shows (the home screen's
+        counts and the chat list) say so. Nothing else is asked for without chats.
+        """
+        if (result.get("empty_reason") != "not_in_backup" or _CoreWhatsAppExtractor is None
+                or not self._app_in_backup(backup)):
+            return result
+        return {**result, "empty_reason": CHATS_LEFT_OUT}
+
+    def _app_in_backup(self, backup) -> bool:
+        key = str(getattr(backup, "backup_dir", "") or id(backup))
+        if key not in self._app_found:
+            self._app_found[key] = _app_in_backup(backup)
+        return self._app_found[key]
 
     def get_messages(self, backup, chat_id, contacts: dict, offset=0, limit=100,
                      date_from: Optional[str] = None, date_to: Optional[str] = None) -> dict:
@@ -491,6 +522,34 @@ class WhatsAppExtractor:
         """Save several chats, one file each ("separate") or all in one ("merged"): ``{files, message_count}``."""
         return self._export.export_conversations(backup, chat_ids, conversation_names, contacts, fmt, output_dir,
                                                  mode=mode, date_from=date_from, date_to=date_to, query=query)
+
+
+def _app_in_backup(backup) -> bool:
+    """Whether the iPhone this backup came from has WhatsApp, chats or not.
+
+    Asked only when ChatStorage.sqlite isn't in the backup. With WhatsApp's
+    end-to-end encrypted chat backup turned on (WhatsApp > Settings > Chats >
+    Chat Backup), WhatsApp keeps its chats out of the iPhone's backup and only
+    in iCloud (WhatsApp-Chat-Exporter issue #84), but the backup still lists
+    the app: in Info.plist's "Installed Applications", in Manifest.plist's
+    "Applications" (both plain, even in an encrypted backup), or as files of
+    its own in Manifest.db.
+    """
+    for name, key in (("Info.plist", "Installed Applications"), ("Manifest.plist", "Applications")):
+        try:
+            with open(os.path.join(backup.backup_dir, name), "rb") as f:
+                apps = plistlib.load(f).get(key)
+        except Exception:  # missing or damaged: Manifest.db may still say
+            continue
+        if isinstance(apps, (list, dict)) and _APP_ID in apps:
+            return True
+    for domain in (_APP_DOMAIN, SHARED_DOMAIN):
+        try:
+            if backup.list_files(domain=domain):
+                return True
+        except Exception as e:
+            print(f"[whatsapp] could not list {domain}: {e}", file=sys.stderr, flush=True)
+    return False
 
 
 def _same_file(src: str, dest: str) -> bool:

@@ -17,6 +17,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import whatsapp  # noqa: E402
@@ -374,6 +375,23 @@ class TestWithoutLibrarySupport(unittest.TestCase):
         wa._inner = none
         self.assertEqual(wa.get_attachment(None, 1),
                          {"error": "WhatsApp is not in this backup", "empty_reason": "not_in_backup"})
+
+    def test_no_reason_given_for_chats_this_library_cant_read(self):
+        # Without the library's extractor the chats may well be there: telling
+        # people WhatsApp kept them out would be wrong.
+        class ListsWhatsApp:
+            backup_dir = "/nonexistent"
+
+            def list_files(self, domain=None, path_like=None):
+                return [{"hash": "0" * 40, "domain": domain, "path": "Library/Preferences/x.plist"}]
+
+        wa = WhatsAppExtractor()
+        wa._inner = _NoWhatsAppSupport()
+        with mock.patch.object(whatsapp, "_CoreWhatsAppExtractor", None):
+            self.assertEqual(wa.list_conversations(ListsWhatsApp(), {})["empty_reason"], "not_in_backup")
+            self.assertEqual(wa.has_whatsapp(ListsWhatsApp())["empty_reason"], "not_in_backup")
+        wa.clear_cache()
+        self.assertEqual(wa.list_conversations(ListsWhatsApp(), {})["empty_reason"], "chats_left_out")
 
 
 if __name__ == "__main__":

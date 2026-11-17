@@ -545,8 +545,10 @@ class StatsComputer:
     def _whatsapp_stats(self, backup) -> dict:
         """Chats and messages the WhatsApp screen lists, and whether WhatsApp could be read.
 
-        status is "ok", or why there is nothing: "not_in_backup", "no_records",
-        "unsupported_format" (a layout this version can't read), or "error"
+        status is "ok", or why there is nothing: "not_in_backup", "chats_left_out"
+        (WhatsApp is on the iPhone but kept its chats out of the backup; see
+        python/whatsapp.py), "no_records", "unsupported_format" (a layout this
+        version can't read), or "error"
         (in the backup but unreadable; only that one also comes back as
         ``error``, for the overview's list of errors). Messages count every
         row in the listed chats, notices included, as the chat list does.

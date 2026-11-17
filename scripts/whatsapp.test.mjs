@@ -175,6 +175,42 @@ test('empty states follow the voicemail contract: calm when WhatsApp isn\'t ther
   assert.equal(wa.emptyCopy('not_in_backup', 'odd').kind, 'empty');
 });
 
+test("WhatsApp on the iPhone with its chats left out of the backup says why, calmly, with the guide's advice", () => {
+  const leftOut = wa.emptyCopy('chats_left_out', undefined);
+  assert.equal(leftOut.kind, 'empty', 'not a failure: no Report button');
+  assert.equal(leftOut.title, "WhatsApp's chats aren't in this backup");
+  assert.equal(leftOut.detail, wa.CHATS_LEFT_OUT_DETAIL);
+  assert.match(leftOut.detail, /^WhatsApp is on this iPhone/);
+  assert.match(leftOut.detail, /end-to-end encrypted backup/);
+  assert.match(leftOut.detail, /Settings, then Chats, then Chat Backup/, 'where the setting is, as the website guide says it');
+  assert.match(leftOut.detail, /back up the iPhone again/);
+  assert.equal(wa.emptyCopy('chats_left_out', 'odd').kind, 'empty');
+});
+
+test("Recover deleted's WhatsApp note uses the words WhatsApp's screen shows for a deleted message", () => {
+  // The engine's text for a type-14 row (ios-backup-core extractors/whatsapp.py)
+  assert.match(wa.DELETED_WHATSAPP_NOTE, /"This message was deleted"/);
+  assert.match(wa.DELETED_WHATSAPP_NOTE, /deleted just for you leaves nothing behind/);
+  assert.match(wa.DELETED_WHATSAPP_NOTE, /backup made before it was deleted/);
+});
+
+test('WhatsApp has a section when its chats were left out of the backup, and is never "missing"', () => {
+  const s = loadTs('src/components/explore/sections.ts');
+  const base = {
+    total_messages: 1, total_whatsapp_messages: 0, photos_in_backup: 1, total_contacts: 1, total_calls: 1,
+    total_notes: 1, total_voicemails: 1,
+  };
+  const ids = o => s.availableData(o, true).map(x => x.id);
+  assert.ok(ids({ ...base, whatsapp_status: 'chats_left_out' }).includes('whatsapp'));
+  assert.ok(!ids({ ...base, whatsapp_status: 'not_in_backup' }).includes('whatsapp'));
+  assert.ok(!ids({ ...base, whatsapp_status: 'no_records' }).includes('whatsapp'));
+  assert.equal(s.whatsappChatsLeftOut({ whatsapp_status: 'chats_left_out' }), true);
+  assert.equal(s.whatsappChatsLeftOut({ whatsapp_status: 'error' }), false);
+  assert.equal(s.whatsappChatsLeftOut(null), false);
+  assert.equal(s.whatsappUnreadable({ whatsapp_status: 'chats_left_out' }), false, 'nothing to report: it was read');
+  assert.ok(!s.missingKinds({ ...base, whatsapp_status: 'chats_left_out' }, true).includes('whatsapp'));
+});
+
 test('search matches step through a chat in arrival order, not by date or id', () => {
   const entry = (id, chatId, text, sort, type = 'whatsapp', extra = {}) => ({
     id: `${type}:${id}`, type, timestamp: '', title: '', subtitle: '',

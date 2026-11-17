@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- WhatsApp: when the iPhone has WhatsApp but its chats aren't in the backup, the WhatsApp section now says why instead of not showing up at all. WhatsApp's own end-to-end encrypted backup is the usual reason: with it turned on, WhatsApp keeps its chats only in its iCloud backup. The screen says where to turn it off so the next backup includes them (OE-99)
+
+### Changed
+- Recover deleted messages: says that it looks for deleted iMessages and texts, and, when the backup has WhatsApp, why deleted WhatsApp messages can't be brought back. If you send a report asking about encrypted or deleted WhatsApp messages, the app now answers it right away (OE-99)
+
 ## [0.17.0] - 2026-11-17
 
 Voicemail now has Spam and Deleted lists beside Voicemail, as on the iPhone. Spam voicemails used to be mixed in with the rest, deleted ones still in the backup weren't shown at all, and some older deleted ones showed up as if they hadn't been deleted. Save all saves every list, and a voicemail whose recording isn't in the backup now says so instead of failing to play.

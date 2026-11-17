@@ -213,6 +213,24 @@ test('Messages shows its calm empty line for a backup without sms.db, and an err
   assert.deepEqual(me.readChatList(null).conversations, []);
 });
 
+test("WhatsApp's screen explains chats left out of the backup, with no Report button", () => {
+  const { WHATSAPP_SOURCE } = loadTs('src/components/explore/WhatsAppExplorer.tsx');
+  const html = renderToStaticMarkup(WHATSAPP_SOURCE.emptyScreen('chats_left_out', null));
+  assert.match(html, /WhatsApp&#x27;s chats aren&#x27;t in this backup/);
+  assert.match(html, /end-to-end encrypted backup is turned on/);
+  assert.doesNotMatch(html, /Report/);
+});
+
+test('Recover deleted says it looks for iMessages and texts, and why deleted WhatsApp messages aren\'t there, only when there is WhatsApp', () => {
+  const { default: RecordRecoveryView } = loadTs('src/components/explore/RecordRecoveryView.tsx');
+  const withWhatsApp = renderToStaticMarkup(createElement(RecordRecoveryView, { udid: 'u', query: '', whatsapp: true }));
+  assert.match(withWhatsApp, /deleted iMessages and texts/);
+  assert.match(withWhatsApp, /Deleted WhatsApp messages can&#x27;t be brought back/);
+  const without = renderToStaticMarkup(createElement(RecordRecoveryView, { udid: 'u', query: '' }));
+  assert.match(without, /deleted iMessages and texts/);
+  assert.doesNotMatch(without, /WhatsApp/);
+});
+
 // ── Searching every chat past the index's limit ──────────────────────────────
 
 test('past the index limit WhatsApp searches the whole store through the engine; Messages is unchanged', async (t) => {

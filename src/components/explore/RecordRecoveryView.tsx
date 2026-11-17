@@ -12,6 +12,7 @@ import EmptyState from '../shared/EmptyState';
 import SaveDialog, { FORMATS, SaveButton } from '../shared/SaveDialog';
 import { useSaveAction } from '../../hooks/useSaveAction';
 import { checkEngineResult, plural } from '../../lib/saveData';
+import { DELETED_WHATSAPP_NOTE } from '../../lib/whatsapp';
 
 type ExportFormat = 'csv' | 'html' | 'pdf';
 
@@ -55,6 +56,8 @@ interface Props {
   udid: string;
   /** What the top search box holds; the list shows only conversations that match. */
   query: string;
+  /** The backup has WhatsApp: say that its deleted messages can't be found here, and why. */
+  whatsapp?: boolean;
 }
 
 function sourceLabel(source: RecoverySource): string {
@@ -67,7 +70,7 @@ function sourceBadgeClass(source: RecoverySource): string {
     : 'bg-sand text-text-secondary border-rule';
 }
 
-export default function RecordRecoveryView({ udid, query }: Props) {
+export default function RecordRecoveryView({ udid, query, whatsapp = false }: Props) {
   const [scanned, setScanned] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -130,9 +133,11 @@ export default function RecordRecoveryView({ udid, query }: Props) {
           title={scanning ? 'Looking for deleted messages…' : 'Look for deleted messages'}
           detail={scanning ? undefined : (
             <>
-              OpenExtract checks two places: the iPhone's Recently Deleted folder (iOS 16 and later,
-              kept for up to 30 days), and messages left behind after their conversation was deleted.
-              Whatever it finds is shown in its original conversation where possible.
+              OpenExtract looks for deleted iMessages and texts in two places: the iPhone's Recently
+              Deleted folder (iOS 16 and later, kept for up to 30 days), and messages left behind after
+              their conversation was deleted. Whatever it finds is shown in its original conversation
+              where possible.
+              {whatsapp && <span className="block mt-2">{DELETED_WHATSAPP_NOTE}</span>}
             </>
           )}
           action={scanning ? undefined : (
@@ -277,9 +282,12 @@ export default function RecordRecoveryView({ udid, query }: Props) {
             <EmptyState
               icon={RecoverIcon}
               title={conversations.length === 0 ? 'Nothing to recover' : 'Pick a conversation to read it'}
-              detail={conversations.length === 0
-                ? 'No deleted messages were found in this backup. Recently Deleted only keeps messages for 30 days, so a backup made at another time may hold different ones.'
-                : undefined}
+              detail={conversations.length === 0 || whatsapp ? (
+                <>
+                  {conversations.length === 0 && 'No deleted iMessages or texts were found in this backup. Recently Deleted only keeps messages for 30 days, so a backup made at another time may hold different ones.'}
+                  {whatsapp && <span className={conversations.length === 0 ? 'block mt-2' : undefined}>{DELETED_WHATSAPP_NOTE}</span>}
+                </>
+              ) : undefined}
             />
           )}
         </div>

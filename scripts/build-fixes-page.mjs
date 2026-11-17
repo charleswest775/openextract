@@ -22,6 +22,7 @@ export const { KNOWN_FIXES } = require(path.join(root, 'website/static/api/_lib/
 export const AREAS = [
   ['backup', 'Backing up an iPhone'],
   ['open', 'Opening a backup'],
+  ['data', 'Finding what\'s in a backup'],
   ['app', 'Starting OpenExtract'],
 ];
 

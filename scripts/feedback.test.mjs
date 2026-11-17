@@ -691,6 +691,20 @@ const REAL_ERRORS = [
     version: '0.12.0',
     errors: [['backup.start', 'Sidecar call timed out: backup.start']],
   },
+  // Questions about WhatsApp, in people's own words: its chats in an encrypted backup (WhatsApp's
+  // end-to-end encrypted chat backup leaves them out), and deleted WhatsApp messages.
+  {
+    fix: 'whatsapp-chats-not-in-backup',
+    os: WINDOWS,
+    area: 'whatsapp',
+    details: 'How can I open my encrypted WhatsApp messages?',
+  },
+  {
+    fix: 'deleted-whatsapp-messages',
+    os: MAC,
+    area: 'record_recovery',
+    details: 'Can I get back WhatsApp messages I deleted?',
+  },
 ];
 
 test('each known fix shows for the app\'s real error, and only that fix', async () => {
@@ -730,6 +744,37 @@ test('reports about something else get no known fix', async () => {
   assert.deepEqual(await knownFixesFor({
     errors: [['backup.list_devices', "DEVICE_SERVICE_REQUIRED: OpenExtract can't reach the part of macOS that talks to iPhones (usbmuxd). Restart your Mac, then search again."]],
   }), []);
+});
+
+test('WhatsApp questions get the WhatsApp fixes, and WhatsApp in the diagnostics alone gets none', () => {
+  const { matchKnownFixes } = require(path.join(root, 'website/static/api/_lib/feedback.js'));
+  // What a report from an encrypted backup that read WhatsApp looks like (src/lib/feedback.ts).
+  const diagnostics = [
+    'App: OpenExtract 0.17.0 on Windows 10.0.26200 (x64)',
+    'Backup: iPhone12,1 · iOS 27.0.1 · encrypted',
+    'Loaded OK: get_backup_stats, get_whatsapp_messages, list_whatsapp_chats, recover_messages',
+    'Failed: export_whatsapp_chat',
+    '',
+    'Recent errors:',
+    '12:00:00 list_whatsapp_chats: WhatsApp is in this backup but could not be read. The backup may be incomplete or damaged.',
+  ].join('\n');
+  const fixes = details => matchKnownFixes({ kind: 'broken', details, diagnostics }).map(f => f.id);
+  assert.deepEqual(fixes('The photos are blurry'), []);
+  assert.deepEqual(fixes('Voicemail is missing'), []);
+  for (const details of [
+    'How to see encrypted whatsapp chats',
+    "WhatsApp's end-to-end backup is on, can I still read it?",
+    'WhatsApp is not showing',
+    "Whatsapp doesn't appear for my backup",
+    'There is no WhatsApp in the list',
+  ]) {
+    assert.deepEqual(fixes(details), ['whatsapp-chats-not-in-backup'], details);
+  }
+  for (const details of ['recover deleted whatsapp messages', 'WhatsApp chat I deleted last week']) {
+    assert.deepEqual(fixes(details), ['deleted-whatsapp-messages'], details);
+  }
+  assert.deepEqual(fixes('deleted WhatsApp messages are missing'), ['whatsapp-chats-not-in-backup', 'deleted-whatsapp-messages']);
+  assert.deepEqual(matchKnownFixes({ kind: 'thanks', details: 'encrypted WhatsApp worked!', diagnostics: '' }), []);
 });
 
 test('a report\'s status comes from its labels, then open or closed', () => {
