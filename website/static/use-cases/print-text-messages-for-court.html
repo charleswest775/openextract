@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#faf6f1" />
   <title>Print iPhone text messages for court, free — OpenExtract</title>
-  <meta name="description" content="Print a whole iPhone text conversation with the date, time and sender of every message. Free and open source, from a backup on your own computer." />
+  <meta name="description" content="Print a whole iPhone text conversation for court, free, with the date, time and sender of every message. Step by step, with screenshots and a sample PDF." />
   <link rel="canonical" href="https://www.openextract.app/use-cases/print-text-messages-for-court" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://www.openextract.app/use-cases/print-text-messages-for-court" />
   <meta property="og:title" content="Print iPhone text messages for court, free" />
-  <meta property="og:description" content="The whole thread with dates, times and senders. Courts and attorneys decide what's admissible." />
+  <meta property="og:description" content="The whole thread with the date, time and sender of every message, from a backup on your own computer. Courts and attorneys decide what's admissible." />
   <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -20,12 +20,12 @@
   {
     "@context": "https://schema.org",
     "@type": "WebPage",
-    "name": "Print text messages from your iPhone for court",
-    "description": "Print a whole iPhone text conversation with the date, time and sender of every message. Free and open source, from a backup on your own computer.",
+    "name": "How to print text messages from your iPhone for court, free",
+    "description": "Print a whole iPhone text conversation for court, free, with the date, time and sender of every message. Step by step, with screenshots and a sample PDF.",
     "url": "https://www.openextract.app/use-cases/print-text-messages-for-court",
     "datePublished": "2026-11-03",
-    "dateModified": "2026-11-03",
-    "image": "https://www.openextract.app/img/og-image.png",
+    "dateModified": "2026-11-17",
+    "image": "https://www.openextract.app/img/screens/court-printout-1200.webp",
     "isPartOf": {
       "@type": "WebSite",
       "name": "OpenExtract",
@@ -47,7 +47,7 @@
       "applicationSubCategory": "DataExtraction",
       "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
       "url": "https://www.openextract.app/",
-      "screenshot": "https://www.openextract.app/img/screens/home-2000.png",
+      "screenshot": "https://www.openextract.app/img/screens/court-save-pdf-2000.webp",
       "downloadUrl": "https://github.com/charleswest775/openextract/releases",
       "license": "https://opensource.org/licenses/MIT",
       "isAccessibleForFree": true,
@@ -77,7 +77,15 @@
         "name": "Does it show the date and time of each message?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes. Every message on the printout has its own date and time, in UTC (the +00:00 at the end), not local time. Convert it to the time zone you mean before you quote a time."
+          "text": "Yes. Each day's date appears once, above its first message, and every message has its time, like Jun 12, 2025 and 3:30 PM, in your computer's time zone. The printout doesn't name the time zone, so note it if a time matters. A spreadsheet (CSV) export gives each exact time, with its offset from UTC."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it show the other person's phone number?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "If they were in your contacts when the backup was made, the printout shows their name, not their number. Their number is on their card in OpenExtract's Address book. If they weren't in your contacts, it shows the number or email the messages came from."
         }
       },
       {
@@ -86,6 +94,14 @@
         "acceptedAnswer": {
           "@type": "Answer",
           "text": "Yes, all three. Group chats show who sent each message."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I print just part of a conversation?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "OpenExtract saves the whole conversation. To print part of it, choose a page range in the print dialog."
         }
       },
       {
@@ -141,15 +157,15 @@
   </nav>
 
   <header class="page-head">
-    <div class="page-head__eyebrow">Guide · 5 min</div>
-    <h1>Print text messages<br />from your iPhone <span class="it">for court</span>.</h1>
-    <p class="page-head__lede">Back up the iPhone to your computer, open the backup in OpenExtract (free), export the conversation as a PDF, and print it. You can also export an HTML or text file and print that. You get the whole thread, with the date, time and sender of every message, not a pile of screenshots. Whether a court accepts it is up to the court and the attorneys.</p>
+    <div class="page-head__eyebrow">Guide · 7 min</div>
+    <h1>Print text messages<br />from your iPhone <span class="it">for court</span>, free.</h1>
+    <p class="page-head__lede">The iPhone can't print a whole conversation. The free way: back up the iPhone to your computer, open the backup in OpenExtract, save the conversation as a PDF, and print it. You get the whole thread, with the date, time and sender of every message, not a pile of screenshots. Whether a court accepts it is up to the court and the attorneys.</p>
   </header>
 
   <section class="prose">
     <div class="prose__inner">
-      <p>On the iPhone itself you can screenshot a thread or forward a few messages, but forwarded messages lose their dates and times. For a long conversation that means dozens of screenshots, and screenshots often cut off the dates. A computer backup holds the whole conversation, so the printout can too.</p>
-      <p><strong>This page isn't legal advice.</strong> OpenExtract makes a printable record. It doesn't certify or authenticate anything. If you have a case, ask your attorney, or the court's self-help center if you don't have one, what format they need. Some cases call for a forensic examiner rather than a printout you make yourself.</p>
+      <p>On the phone itself you can screenshot a thread or forward a few messages, but forwarded messages lose their dates and times. A long conversation takes dozens of screenshots, and they often cut off the dates. A backup on your computer holds the whole conversation, so the printout can too. <a href="/samples/text-messages-for-court-sample.pdf">Here's a sample printout</a> (PDF, 2 pages), made from a made-up iPhone we use for screenshots.</p>
+      <p><strong>This page isn't legal advice.</strong> It's for messages on your own phone. OpenExtract makes a printable record. It doesn't certify or authenticate anything. If you have a case, ask your attorney, or the court's self-help center if you don't have one, what format they need. Some cases call for a forensic examiner rather than a printout you make yourself.</p>
     </div>
   </section>
 
@@ -158,7 +174,7 @@
       <div class="uc-step__num" style="color: var(--coral);">01</div>
       <div>
         <h2>Make a backup on your computer</h2>
-        <p>Plug the iPhone into your computer with a cable and tap <strong>Trust</strong> on the phone if it asks. On a Mac, open Finder and click the iPhone in the sidebar. On Windows, open the Apple Devices app or iTunes. Choose to back up to this computer and click <strong>Back Up Now</strong>. You can tick <strong>Encrypt local backup</strong> for a fuller backup; just write the password down. OpenExtract can also make the backup for you, from its start screen.</p>
+        <p>Plug the iPhone into your computer with a cable and tap <strong>Trust</strong> on the phone if it asks. On a Mac, open Finder and click the iPhone in the sidebar. On Windows, open the Apple Devices app or iTunes. Choose to back up to this computer and click <strong>Back Up Now</strong>. You can tick <strong>Encrypt local backup</strong> for a fuller backup; just write the password down. OpenExtract can also make the backup for you: click <strong>Back up my iPhone</strong> on its start screen.</p>
       </div>
     </div>
     <div class="uc-step">
@@ -172,28 +188,41 @@
       <div class="uc-step__num" style="color: var(--sage);">03</div>
       <div>
         <h2>Open the backup</h2>
-        <p>On OpenExtract's start screen, choose to open a backup you already have, and pick the backup folder. On a Mac it's <code>~/Library/Application Support/MobileSync/Backup</code>, which is hidden: press Cmd+Shift+G in the window that opens and paste that path. If OpenExtract asks for Full Disk Access, follow its steps. On Windows it's <code>%USERPROFILE%\Apple\MobileSync\Backup</code>, or <code>%APPDATA%\Apple Computer\MobileSync\Backup</code> if that isn't there. If the folder holds more than one backup, it shows each one with the device name and date so you can choose. If the backup is encrypted, type the password you set. It stays on your computer.</p>
+        <p>Backups in the usual place show up on OpenExtract's start screen under <strong>Found on this computer</strong>, with the device name and date. Click yours. On a Mac, the first time, you'll see "macOS needs your OK before OpenExtract can list Finder's backups here" instead: click <strong>Allow access</strong>, turn on OpenExtract in System Settings, then come back and click <strong>Quit &amp; Reopen</strong>, and the list appears.</p>
+        <p>If your backup isn't listed, click <strong>Open a backup folder</strong> and pick it. Finder, iTunes and Apple Devices keep backups in <code>~/Library/Application Support/MobileSync/Backup</code> on a Mac (hidden: press Cmd+Shift+G in the window that opens and paste that path), and in <code>%USERPROFILE%\Apple\MobileSync\Backup</code> or <code>%APPDATA%\Apple Computer\MobileSync\Backup</code> on Windows. If OpenExtract asks for Full Disk Access, follow its steps. If the backup is encrypted, type the password you set. It stays on your computer.</p>
       </div>
     </div>
     <div class="uc-step">
       <div class="uc-step__num" style="color: var(--plum);">04</div>
       <div>
         <h2>Find the conversation</h2>
-        <p>Open <strong>Messages</strong>. Type a name or number in the search box at the top to narrow the list of conversations, then click the one you need to read it. iMessage, SMS and group chats are all there.</p>
+        <p>On the backup's home page, click <strong>Messages</strong>. Conversations are listed newest first. Type a name in the search box at the top to narrow the list, then click the conversation to read it. iMessage, SMS and group chats are all there.</p>
+        <figure class="screen">
+          <a class="screen__frame" href="/img/screens/court-thread-2000.webp">
+            <img src="/img/screens/court-thread-1000.webp" srcset="/img/screens/court-thread-1000.webp 1000w, /img/screens/court-thread-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 736px" width="1000" height="625" loading="lazy" decoding="async" alt="OpenExtract's Messages screen: 17 conversations listed on the left, and on the right a text thread with Ray Duarte, a site superintendent, by date, with a time under every message and a Save conversation button at the top right." />
+          </a>
+          <figcaption><strong>A conversation open in OpenExtract</strong>From a made-up iPhone backup: texts with a site superintendent about a building job.</figcaption>
+        </figure>
       </div>
     </div>
     <div class="uc-step">
       <div class="uc-step__num" style="color: var(--coral);">05</div>
       <div>
-        <h2>Export it</h2>
-        <p>Click <strong>Save conversation</strong> at the top right, choose PDF, HTML or plain text, and click <strong>Save</strong>. Then pick a folder. PDF and HTML look like a chat, with the sender's name above each message you received, and both show the photos. A text file starts each message on a new line, with its timestamp and the sender ("me" for your own messages). The file is named after the conversation and the dates it covers.</p>
+        <h2>Save it as a PDF</h2>
+        <p>Click <strong>Save conversation</strong> at the top right, choose <strong>Readable document</strong> (PDF), click <strong>Save</strong>, and pick a folder. It saves the whole conversation, even if you searched inside it. The file is named after the person and the dates it covers, like <code>Ray Duarte, Jun 12 2025 - Aug 29 2025.pdf</code>.</p>
+        <figure class="screen">
+          <a class="screen__frame" href="/img/screens/court-save-pdf-2000.webp">
+            <img src="/img/screens/court-save-pdf-1000.webp" srcset="/img/screens/court-save-pdf-1000.webp 1000w, /img/screens/court-save-pdf-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 736px" width="1000" height="625" loading="lazy" decoding="async" alt="The Save your conversation with Ray Duarte window, with four choices: Web page, Readable document (PDF, selected), Spreadsheet and Plain text, and Cancel and Save buttons." />
+          </a>
+          <figcaption><strong>Choose Readable document</strong>The other three formats are covered further down.</figcaption>
+        </figure>
       </div>
     </div>
     <div class="uc-step">
       <div class="uc-step__num" style="color: var(--butter);">06</div>
       <div>
         <h2>Print it</h2>
-        <p>Open the PDF and print it, or send the file as it is. An HTML file prints from your web browser with Ctrl+P (Cmd+P on a Mac), and a text file prints from Notepad or TextEdit the same way.</p>
+        <p>Open the PDF and print it, or send the file as it is if that's what was asked for. To print part of a long conversation, choose a page range in the print dialog.</p>
       </div>
     </div>
   </section>
@@ -201,23 +230,52 @@
   <section class="prose">
     <div class="prose__inner">
       <h2>What's on the printout</h2>
+      <figure class="screen screen--page">
+        <a class="screen__frame" href="/samples/text-messages-for-court-sample.pdf">
+          <img src="/img/screens/court-printout-600.webp" srcset="/img/screens/court-printout-600.webp 600w, /img/screens/court-printout-1200.webp 1200w" sizes="(max-width: 720px) calc(100vw - 48px), 440px" width="600" height="777" loading="lazy" decoding="async" alt="Page 1 of the saved PDF: Ray Duarte at the top, then dates such as Jun 12, 2025 and Jun 24, 2025, a time above every message, Ray Duarte's name above each of his messages on the left in gray, and Maren's replies on the right in blue." />
+        </a>
+        <figcaption><strong>Page 1 of the sample PDF</strong><a href="/samples/text-messages-for-court-sample.pdf">Open the whole sample</a> (2 pages).</figcaption>
+      </figure>
       <ul>
-        <li><strong>Every message in the conversation</strong>, oldest first, up to the moment the backup was made.</li>
-        <li><strong>A timestamp on every message</strong>, in UTC (that's what the <code>+00:00</code> means), for example <code>2026-01-01T03:00:00.512345+00:00</code> (the digits after the dot are fractions of a second). It isn't local time, so it can differ from the times the phone and the app show, sometimes by a day: this one is 7 PM on December 31 in California. If you quote a time, convert it and say which time zone you mean.</li>
-        <li><strong>Who sent each message.</strong> A name if the person was in the phone's contacts when the backup was made, otherwise their phone number or email.</li>
+        <li><strong>The conversation's name at the top</strong>, then every message, oldest first, up to the moment the backup was made.</li>
+        <li><strong>The date and time of every message.</strong> Each day's date appears once, above its first message, and each message has its time, written like this: "Jun 12, 2025" and "3:30 PM".</li>
+        <li><strong>Who sent each message.</strong> Messages from the other person are on the left with their name above them, and yours are on the right. It shows a name if the person was in the phone's contacts when the backup was made, otherwise their phone number or email. In a group chat, every message from someone else has their name above it.</li>
+        <li><strong>Photos sent in the conversation</strong>, if they're in the backup. Videos, voice notes and other files show as a line with their name.</li>
+        <li><strong>A small line at the end</strong> saying it was made with OpenExtract.</li>
       </ul>
-      <h2>What it can't do</h2>
+
+      <h2>Times and time zones</h2>
+      <p>The times are in your computer's time zone when you save. If the messages were sent in that same time zone, the times match what the phone showed. If your computer is set to a different time zone, every time shifts with it, and a late-evening message can land on the next day. The printout doesn't say which time zone it uses, so if a time matters, write it next to the printout, for example "all times Pacific".</p>
+      <p>For exact times, save the conversation as a <strong>Spreadsheet</strong> (CSV) as well. Each row has the exact time with its offset from UTC, like <code>2025-06-12T15:30:39.512345-07:00</code>. The digits after the dot are fractions of a second, and <code>-07:00</code> means seven hours behind UTC (here, Pacific Daylight Time), so the exact moment can't be misread.</p>
+
+      <h2>What it doesn't show</h2>
       <ul>
-        <li><strong>A text file doesn't show photos.</strong> It names each attachment instead. PDF and HTML show them, and the HTML page keeps its photos, videos and other files in a folder beside it, so keep the two together. A photo that lives only in iCloud isn't in the backup, so every format names it instead.</li>
-        <li><strong>No date range in the export.</strong> It exports the whole conversation. To print part of it, choose a page range in the print dialog.</li>
-        <li><strong>It only has what the backup has.</strong> Messages deleted before the backup was made usually aren't there. See <a href="/use-cases/recover-deleted-text-messages-iphone">recovering deleted texts</a> for what can and can't come back.</li>
-        <li><strong>It doesn't certify anything.</strong> It's not a forensic tool, and the export isn't signed or notarized.</li>
-        <li><strong>No iCloud.</strong> It reads backups on your computer, not iCloud backups.</li>
+        <li><strong>The other person's number, if they're in your contacts.</strong> The printout shows their name. Their number and email are on their card in OpenExtract's <strong>Address book</strong>.</li>
+        <li><strong>Page numbers.</strong> The PDF doesn't number its pages. If the court wants numbered pages or exhibit labels, add them the way your attorney or the clerk asks.</li>
+        <li><strong>Messages deleted before the backup was made.</strong> They usually aren't in the backup. See <a href="/use-cases/recover-deleted-text-messages-iphone">recovering deleted texts</a> for what can and can't come back.</li>
+        <li><strong>Photos kept only in iCloud.</strong> With Messages in iCloud on, the iPhone can keep older photos only in iCloud, so they aren't in the backup. The printout names them instead.</li>
+        <li><strong>A date range.</strong> It saves the whole conversation. Print a page range to print part of it.</li>
+        <li><strong>Any kind of certification.</strong> It's not a forensic tool, and the file isn't signed or notarized.</li>
+        <li><strong>iCloud backups.</strong> It reads backups on your computer, not iCloud backups.</li>
       </ul>
+
+      <h2>Other ways to save it</h2>
+      <p>The same <strong>Save conversation</strong> window has three other formats:</p>
+      <ul>
+        <li><strong>Web page</strong> (HTML) looks like the PDF and opens in any web browser. It keeps photos, videos and other files in a folder beside the page, so keep the two together. Print it from the browser with Ctrl+P (Cmd+P on a Mac).</li>
+        <li><strong>Plain text</strong> puts each message on its own line with its date, time and sender, for example <code>[Jun 12, 2025, 3:30 PM] Ray Duarte: Maren this is Ray Duarte, Hollis.</code> Your own messages say "me". It names attachments instead of showing them.</li>
+        <li><strong>Spreadsheet</strong> (CSV) has a row per message: the exact time with its offset, the sender, the text, whether you sent it, and whether it had attachments. It opens in Excel, Numbers or Google Sheets.</li>
+      </ul>
+
+      <h2>Keep the backup</h2>
+      <p>OpenExtract only reads the backup and never changes it. Keep the backup folder as it is after you print, in case someone asks for it or wants it examined. The backup's home page in OpenExtract shows when it was made, for example "Backed up June 28, 2026".</p>
+
       <h2>Common questions</h2>
       <p><strong>Will a court accept this printout?</strong> We can't tell you that. It depends on the court, the case and the rules where you are, and the judge and attorneys decide. Ask your attorney or the court clerk what they want before you print.</p>
-      <p><strong>Does it show the date and time of each message?</strong> Yes. Every message on the printout has its own date and time, in UTC (the +00:00 at the end), not local time. Convert it to the time zone you mean before you quote a time.</p>
+      <p><strong>Does it show the date and time of each message?</strong> Yes. Each day's date appears once, above its first message, and every message has its time, like Jun 12, 2025 and 3:30 PM, in your computer's time zone. The printout doesn't name the time zone, so note it if a time matters. A spreadsheet (CSV) export gives each exact time, with its offset from UTC.</p>
+      <p><strong>Does it show the other person's phone number?</strong> If they were in your contacts when the backup was made, the printout shows their name, not their number. Their number is on their card in OpenExtract's Address book. If they weren't in your contacts, it shows the number or email the messages came from.</p>
       <p><strong>Can I print iMessages and SMS texts, and group chats?</strong> Yes, all three. Group chats show who sent each message.</p>
+      <p><strong>Can I print just part of a conversation?</strong> OpenExtract saves the whole conversation. To print part of it, choose a page range in the print dialog.</p>
       <p><strong>Will the other person know I printed our messages?</strong> No. OpenExtract reads a backup that's already on your computer and contacts no one.</p>
       <p><strong>Does it change the backup?</strong> No. It only reads the backup. Keep the original backup folder as it is, in case someone asks for it later.</p>
       <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
@@ -258,9 +316,9 @@
       <div class="uc-related__grid">
         <a class="uc-related__link" href="/use-cases/export-imessage-to-pdf">Export iMessage to PDF →</a>
         <a class="uc-related__link" href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted text messages →</a>
+        <a class="uc-related__link" href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails from your iPhone →</a>
         <a class="uc-related__link" href="/use-cases/export-iphone-messages">Get all your texts off your iPhone →</a>
         <a class="uc-related__link" href="/blog/what-is-in-an-iphone-backup">What's actually in an iPhone backup →</a>
-        <a class="uc-related__link" href="/blog/open-source-trust-model">What "open source" means for a tool like this →</a>
         <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
       </div>
     </div>
