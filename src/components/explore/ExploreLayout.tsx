@@ -261,7 +261,7 @@ export default function ExploreLayout({ udid, session, onBack, unfinished = fals
           />
         );
       case 'record_recovery':
-        return <RecordRecoveryView udid={udid} query={screenQuery} />;
+        return <RecordRecoveryView udid={udid} query={screenQuery} whatsapp={ctx.data.some(s => s.id === 'whatsapp')} />;
       case 'export':
         return <ExportPanel udid={udid} overview={overview} hasBrowserHistory={hasBrowserHistory} />;
     }

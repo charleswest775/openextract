@@ -427,13 +427,18 @@ def make_plain_copy(source: Path, dest: Path, scenario: Scenario, udid: str = PL
     return dest
 
 
-def make_minimal_plain(dest: Path, files: dict, udid: str = PLAIN_UDID) -> Path:
-    """A bare unencrypted backup holding only ``files`` ((domain, relative path) -> bytes)."""
+def make_minimal_plain(dest: Path, files: dict, udid: str = PLAIN_UDID,
+                       info: Optional[dict] = None, manifest: Optional[dict] = None) -> Path:
+    """A bare unencrypted backup holding only ``files`` ((domain, relative path) -> bytes).
+
+    ``info`` and ``manifest`` add keys to Info.plist and Manifest.plist, such as
+    the installed apps ("Installed Applications", "Applications").
+    """
     dest = Path(dest)
     dest.mkdir(parents=True)
     (dest / "Info.plist").write_bytes(plistlib.dumps({"Unique Identifier": udid, "Device Name": "Test iPhone",
-                                                      "Product Version": SCHEMA_VERSION}))
-    (dest / "Manifest.plist").write_bytes(plistlib.dumps({"IsEncrypted": False}))
+                                                      "Product Version": SCHEMA_VERSION, **(info or {})}))
+    (dest / "Manifest.plist").write_bytes(plistlib.dumps({"IsEncrypted": False, **(manifest or {})}))
     conn = sqlite3.connect(str(dest / "Manifest.db"))
     try:
         conn.execute("CREATE TABLE Files (fileID TEXT PRIMARY KEY, domain TEXT, relativePath TEXT, flags INTEGER, file BLOB)")

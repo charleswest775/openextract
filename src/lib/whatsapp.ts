@@ -316,10 +316,30 @@ export interface EmptyCopy {
 }
 
 /**
+ * Why a backup of an iPhone that has WhatsApp can hold none of its chats, and
+ * what to do (the same advice as the WhatsApp guide on openextract.app). With
+ * WhatsApp's own end-to-end encrypted chat backup turned on, WhatsApp keeps its
+ * chats out of the iPhone's backup and only in iCloud (python/whatsapp.py).
+ */
+export const CHATS_LEFT_OUT_DETAIL =
+  "WhatsApp is on this iPhone, but its chats aren't in the backup. That usually means WhatsApp's end-to-end encrypted backup is turned on: WhatsApp then keeps its chats only in its own iCloud backup, which only WhatsApp can open. To see them here, turn it off in WhatsApp (Settings, then Chats, then Chat Backup), then back up the iPhone again.";
+
+/**
+ * What Recover deleted says about WhatsApp, which it doesn't look in: a deleted
+ * WhatsApp message leaves no text behind to find (a "deleted for everyone" row
+ * keeps only that it was deleted), so an older backup is the only way back.
+ */
+export const DELETED_WHATSAPP_NOTE =
+  "Deleted WhatsApp messages can't be brought back: WhatsApp doesn't keep them. One deleted for everyone shows in WhatsApp as \"This message was deleted\", and one deleted just for you leaves nothing behind. Only a backup made before it was deleted still has it.";
+
+/**
  * What the WhatsApp screen says when it has no chats, from the engine's answer.
  * Not having WhatsApp is normal and calm; a store that can't be read says so.
  */
 export function emptyCopy(emptyReason: WhatsAppEmptyReason | string | null | undefined, error: string | null | undefined): EmptyCopy {
+  if (emptyReason === 'chats_left_out') {
+    return { kind: 'empty', title: "WhatsApp's chats aren't in this backup", detail: CHATS_LEFT_OUT_DETAIL };
+  }
   if (emptyReason === 'unsupported_format') {
     return {
       kind: 'unsupported',

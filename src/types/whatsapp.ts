@@ -19,7 +19,7 @@
 export type WhatsAppChatType = 'individual' | 'group' | 'broadcast' | 'channel';
 
 /** Why a list came back empty, as the engine says it. */
-export type WhatsAppEmptyReason = 'not_in_backup' | 'no_records' | 'unsupported_format';
+export type WhatsAppEmptyReason = 'not_in_backup' | 'chats_left_out' | 'no_records' | 'unsupported_format';
 
 export interface WhatsAppConversation {
   chat_id: number;
@@ -200,4 +200,8 @@ export interface WhatsAppAttachmentResult {
 }
 
 /** What get_backup_stats says about WhatsApp, in its overview. */
-export type WhatsAppStatus = 'ok' | 'not_in_backup' | 'no_records' | 'unsupported_format' | 'error';
+/**
+ * 'chats_left_out': WhatsApp is on the iPhone, but its chats aren't in the backup
+ * (WhatsApp's own end-to-end encrypted chat backup keeps them out).
+ */
+export type WhatsAppStatus = 'ok' | 'not_in_backup' | 'chats_left_out' | 'no_records' | 'unsupported_format' | 'error';

@@ -45,6 +45,15 @@ export function whatsappUnreadable(o: BackupStatsOverview | null | undefined): b
   return o?.whatsapp_status === 'error' || o?.whatsapp_status === 'unsupported_format';
 }
 
+/**
+ * WhatsApp is on the iPhone, but its chats aren't in the backup (WhatsApp's own
+ * end-to-end encrypted chat backup keeps them out). Its section shows, with no
+ * number, so the screen can say why instead of looking like there's no WhatsApp.
+ */
+export function whatsappChatsLeftOut(o: BackupStatsOverview | null | undefined): boolean {
+  return o?.whatsapp_status === 'chats_left_out';
+}
+
 /** Podcasts in the backup that couldn't be read: shown with no number, like WhatsApp. */
 export { podcastsUnreadable };
 
@@ -53,7 +62,7 @@ export const DATA_SECTIONS: Section[] = [
   { id: 'messages', label: 'Messages', icon: LinesIcon, count: o => o.total_messages },
   {
     id: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon, count: o => o.total_whatsapp_messages ?? 0,
-    shown: o => (o.total_whatsapp_messages ?? 0) > 0 || whatsappUnreadable(o),
+    shown: o => (o.total_whatsapp_messages ?? 0) > 0 || whatsappUnreadable(o) || whatsappChatsLeftOut(o),
   },
   { id: 'photos', label: 'Photos', icon: CameraIcon, count: o => o.photos_in_backup },
   PEOPLE,

@@ -206,6 +206,7 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
 
   const whatsappMessages = overview.total_whatsapp_messages ?? 0;
   const whatsappUnreadable = overview.whatsapp_status === 'error' || overview.whatsapp_status === 'unsupported_format';
+  const whatsappChatsLeftOut = overview.whatsapp_status === 'chats_left_out';
   const podcastCount = overview.total_podcasts ?? 0;
   const podcastsUnreadable = overview.podcasts_status === 'error' || overview.podcasts_status === 'unsupported_format';
   const tiles = [
@@ -320,10 +321,14 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
             </InsightCard>
           )}
 
-          {/* WhatsApp: how much there is, or that it's there but couldn't be read */}
-          {(whatsappMessages > 0 || whatsappUnreadable) && (
+          {/* WhatsApp: how much there is, or that it's there but couldn't be read or its chats were left out */}
+          {(whatsappMessages > 0 || whatsappUnreadable || whatsappChatsLeftOut) && (
             <InsightCard title="WhatsApp" icon={WhatsAppIcon} onViewAll={() => onNavigate('whatsapp')}>
-              {whatsappUnreadable ? (
+              {whatsappChatsLeftOut ? (
+                <p className="text-sm text-text-secondary">
+                  WhatsApp is on this iPhone, but its chats aren't in this backup.
+                </p>
+              ) : whatsappUnreadable ? (
                 <p className="text-sm text-text-secondary">
                   {overview.whatsapp_status === 'unsupported_format'
                     ? "WhatsApp is in this backup, but this version of it can't be read yet."

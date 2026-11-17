@@ -206,6 +206,30 @@ const KNOWN_FIXES = [
     match: /No iPhone backups found/i,
     text: 'Choose the folder that holds your backups, not one backup inside it. If a backup you were making with OpenExtract didn\'t finish, there\'s nothing to open yet: make the backup again first. On a Mac it\'s Library/Application Support/MobileSync/Backup in your user folder. On Windows it\'s usually Apple/MobileSync/Backup in your user folder, or AppData/Roaming/Apple Computer/MobileSync/Backup.',
   },
+  {
+    id: 'whatsapp-chats-not-in-backup',
+    title: "WhatsApp's chats aren't in the backup",
+    area: 'data',
+    seen: ["WhatsApp's chats aren't in this backup", 'No WhatsApp chats in this backup'],
+    // With WhatsApp's own end-to-end encrypted chat backup on, WhatsApp keeps its chats out of the
+    // iPhone's backup and only in iCloud (WhatsApp-Chat-Exporter issue #84). Up to 0.17.0 the app just
+    // showed no WhatsApp section; later versions say so (python/whatsapp.py). People ask for their
+    // "encrypted WhatsApp". The diagnostics' "encrypted" (the backup's own) and method names such as
+    // list_whatsapp_chats never match: they're on different lines, and \b skips "_whatsapp".
+    match: /(?:encrypt|end[- ]to[- ]end|\be2ee?\b)[^\n]*\bwhats ?app?|\bwhats ?app?[^\n]*(?:encrypt|end[- ]to[- ]end|\be2ee?\b|\bmissing\b|\bnot (?:there|showing|shown|appearing)\b|\b(?:isn|doesn|don)['’]?t (?:there|show|appear))|\bno whats ?app?\b/i,
+    text: "OpenExtract reads WhatsApp from encrypted backups as well as ordinary ones: it asks for the backup's password when you open it, and the chats are under WhatsApp. If there's no WhatsApp section, or it says WhatsApp's chats aren't in this backup, WhatsApp's own end-to-end encrypted backup is usually why. With it turned on, WhatsApp keeps its chats only in its iCloud backup, which only WhatsApp can open, and leaves them out of the iPhone's backup. To read them in OpenExtract, turn it off in WhatsApp (Settings > Chats > Chat Backup), then back up the iPhone again.",
+  },
+  {
+    id: 'deleted-whatsapp-messages',
+    title: 'Deleted WhatsApp messages',
+    area: 'data',
+    seen: ['Recover deleted messages', 'This message was deleted'],
+    // Recover deleted (python/message_recovery.py) reads Messages' sms.db only. In WhatsApp's store a
+    // message deleted for everyone keeps only a row saying so, and one deleted for me leaves no row
+    // (ios-backup-core extractors/whatsapp.py), so there's no text to recover.
+    match: /\bdelet[^\n]*\bwhats ?app?|\bwhats ?app?[^\n]*\bdelet/i,
+    text: "Recover deleted messages looks for deleted iMessages and texts only. WhatsApp doesn't keep the messages you delete, so there's nothing for OpenExtract to find: one deleted for everyone shows in the WhatsApp section as \"This message was deleted\", and one deleted just for you leaves nothing behind. A backup made before the message was deleted still has it, so open that backup in OpenExtract if you have one.",
+  },
 ];
 
 module.exports = { KNOWN_FIXES };

@@ -5,6 +5,9 @@ Each WhatsApp state a backup can be in, and what every method and the home
 screen's counts (get_backup_stats) say about it:
 
   * not in the backup (most iPhones): calm empties, no error anywhere;
+  * WhatsApp on the iPhone but its chats not in the backup (WhatsApp's own
+    end-to-end encrypted chat backup is on): "chats_left_out", just as calm,
+    so the app can say why;
   * in the backup with nothing to list: "no_records";
   * listed but unreadable (a zero-length file): an error, counted in the
     overview's errors, and saves fail instead of writing empty files;
@@ -21,6 +24,7 @@ OPENEXTRACT_REQUIRE_GENERATED=1).
 
 import json
 import os
+import plistlib
 import sys
 import tempfile
 import unittest
@@ -54,10 +58,10 @@ class EngineCase(unittest.TestCase):
         for udid in list(self.server.backup_manager._open_backups):
             self.server.backup_manager.close_backup(udid)
 
-    def open(self, files: dict) -> str:
+    def open(self, files: dict, **plists) -> str:
         self.n += 1
         udid = f"00008120-00000000000000{self.n:02d}"
-        backup_dir = wb.make_minimal_plain(self.tmp / f"b{self.n}" / udid, files, udid)
+        backup_dir = wb.make_minimal_plain(self.tmp / f"b{self.n}" / udid, files, udid, **plists)
         self.assertEqual(self.call("open_backup", udid=udid, backup_dir=str(backup_dir))["status"], "open")
         return udid
 
@@ -109,6 +113,65 @@ class TestNotInBackup(EngineCase):
             error_expected={"error": "WhatsApp is not in this backup", "empty_reason": "not_in_backup"},
         )
         self.assertEqual(self.overview(udid), ((0, 0, "not_in_backup"), []))
+
+
+# WhatsApp on the iPhone without its chats in the backup: WhatsApp's end-to-end
+# encrypted chat backup keeps them out. The app says why instead of hiding WhatsApp.
+APP_PREFS = ("AppDomain-net.whatsapp.WhatsApp", "Library/Preferences/net.whatsapp.WhatsApp.plist")
+GROUP_PREFS = (wb.SHARED_DOMAIN, wb.PLIST)
+BUSINESS_PREFS = ("AppDomain-net.whatsapp.WhatsAppSMB", "Library/Preferences/net.whatsapp.WhatsAppSMB.plist")
+PREFS = plistlib.dumps({})
+
+
+class TestChatsLeftOut(EngineCase):
+
+    def assert_left_out(self, udid):
+        self.assertEqual(self.call("list_whatsapp_chats", udid=udid),
+                         {"conversations": [], "empty_reason": "chats_left_out"})
+        # Calm, like not having WhatsApp: not one of the backup's errors.
+        self.assertEqual(self.overview(udid), ((0, 0, "chats_left_out"), []))
+
+    def test_each_way_a_backup_lists_the_app(self):
+        cases = {
+            "Info.plist": ({}, {"info": {"Installed Applications": ["com.example.other", "net.whatsapp.WhatsApp"]}}),
+            "Manifest.plist": ({}, {"manifest": {"Applications": {"net.whatsapp.WhatsApp": {"CFBundleIdentifier": "x"}}}}),
+            "app container": ({APP_PREFS: PREFS}, {}),
+            "app group": ({GROUP_PREFS: PREFS}, {}),
+        }
+        for name, (files, plists) in cases.items():
+            with self.subTest(name):
+                self.assert_left_out(self.open(files, **plists))
+
+    def test_whatsapp_business_and_other_apps_dont_count(self):
+        udid = self.open({BUSINESS_PREFS: PREFS},
+                         info={"Installed Applications": ["net.whatsapp.WhatsAppSMB", "com.example.other"]},
+                         manifest={"Applications": {"net.whatsapp.WhatsAppSMB": {}}})
+        self.assertEqual(self.call("list_whatsapp_chats", udid=udid),
+                         {"conversations": [], "empty_reason": "not_in_backup"})
+        self.assertEqual(self.overview(udid), ((0, 0, "not_in_backup"), []))
+
+    def test_damaged_plists_fall_back_to_the_files(self):
+        udid = self.open({APP_PREFS: PREFS})
+        backup_dir = self.tmp / f"b{self.n}" / udid
+        for name in ("Info.plist", "Manifest.plist"):
+            (backup_dir / name).write_bytes(b"not a plist")
+        self.assert_left_out(udid)
+
+    def test_everything_else_still_says_not_in_backup(self):
+        udid = self.open({APP_PREFS: PREFS})
+        page = self.call("get_whatsapp_messages", udid=udid, chat_id=1, offset=0, limit=50)
+        self.assertEqual(page["empty_reason"], "not_in_backup")
+        self.assertEqual(self.call("get_whatsapp_attachment", udid=udid, attachment_id=1),
+                         {"error": "WhatsApp is not in this backup", "empty_reason": "not_in_backup"})
+
+    def test_an_encrypted_backup(self):
+        _needs_store()
+        scenario = wb.Scenario(files={APP_PREFS: PREFS})
+        backup_dir = wb.make_encrypted(self.tmp / "enc", scenario)
+        udid = backup_dir.name
+        opened = self.call("open_backup", udid=udid, backup_dir=str(backup_dir), password=wb.PASSWORD)
+        self.assertEqual(opened["status"], "open", opened)
+        self.assert_left_out(udid)
 
 
 class TestStoreStates(EngineCase):

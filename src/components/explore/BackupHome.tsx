@@ -5,7 +5,7 @@ import {
 import { gatherPeople } from '../people/gather';
 import { plural } from '../../lib/saveData';
 import { podcastsHomeLine } from '../../lib/podcasts';
-import { DATA_SECTIONS, podcastsUnreadable, whatsappUnreadable, type ExploreContext, type Icon, type Tab } from './sections';
+import { DATA_SECTIONS, podcastsUnreadable, whatsappChatsLeftOut, whatsappUnreadable, type ExploreContext, type Icon, type Tab } from './sections';
 
 function monthYear(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -68,7 +68,9 @@ export default function BackupHome({ ctx, onSearch }: { ctx: ExploreContext; onS
       ? "This WhatsApp version can't be read yet"
       : overview.whatsapp_status === 'error'
         ? "Couldn't be read: open it to see why"
-        : overview.total_whatsapp_chats ? plural(overview.total_whatsapp_chats, 'chat') : 'Chats, groups and calls';
+        : whatsappChatsLeftOut(overview)
+          ? 'Its chats aren\'t in this backup'
+          : overview.total_whatsapp_chats ? plural(overview.total_whatsapp_chats, 'chat') : 'Chats, groups and calls';
     // Podcasts' too: the shows followed, or that it couldn't be read
     lines.podcasts = podcastsHomeLine(overview);
   }
@@ -77,8 +79,8 @@ export default function BackupHome({ ctx, onSearch }: { ctx: ExploreContext; onS
     ...ctx.data.map(s => ({
       tab: s.id, icon: s.icon, label: s.label,
       value: s.id === 'people' ? (peopleCount || undefined)
-        // An unreadable WhatsApp has no number to show, only why
-        : s.id === 'whatsapp' && whatsappUnreadable(overview) ? undefined
+        // An unreadable WhatsApp, or one whose chats aren't in the backup, has no number to show, only why
+        : s.id === 'whatsapp' && (whatsappUnreadable(overview) || whatsappChatsLeftOut(overview)) ? undefined
         : s.id === 'podcasts' && podcastsUnreadable(overview) ? undefined
         : s.count && overview ? s.count(overview) : undefined,
       line: lines[s.id] ?? '',
