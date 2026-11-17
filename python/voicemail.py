@@ -11,6 +11,8 @@ import base64
 import csv
 import os
 import shutil
+from datetime import datetime
+from typing import Optional
 
 from ios_backup_core.extractors.voicemail import (
     VoicemailExtractor as _CoreVoicemailExtractor,
@@ -19,6 +21,10 @@ from ios_backup_core.extractors.voicemail import (
 
 class VoicemailExtractor:
     """Adapter wrapping the ios-backup-core VoicemailExtractor."""
+
+    # Time zone saves show dates in. None is the computer's own, as the app
+    # and message saves use (messages.py); tests set a fixed one.
+    local_tz = None
 
     def __init__(self):
         self._inner = _CoreVoicemailExtractor()
@@ -56,7 +62,9 @@ class VoicemailExtractor:
         number when they aren't in it), Phone Number is always the number, so a
         saved contact's number isn't lost. Spam is True for every voicemail
         marked spam, including one that was then deleted (its List is Deleted).
-        Dates are UTC, and the header says so.
+        Dates are in the computer's time zone, as message saves are: the CSV's
+        as ISO 8601 with the offset, the audio file names by the local day, so
+        a voicemail left in the evening isn't filed under the next day.
         """
         voicemails_data = self.list_voicemails(backup, contacts, include_deleted=True)
         if "error" in voicemails_data:
@@ -83,7 +91,7 @@ class VoicemailExtractor:
                     writer.writerow([
                         vm["id"],
                         _LIST_NAMES.get(folder, folder),
-                        vm["date_received"],
+                        self._csv_date(vm["date_received"]),
                         vm["contact_name"],
                         vm.get("phone_number") or "",
                         # An older ios-backup-core has no is_spam: then only the Spam list is known
@@ -98,7 +106,7 @@ class VoicemailExtractor:
                     if src and os.path.exists(src):
                         dest_dir = audio_dir if folder == "voicemail" else os.path.join(audio_dir, _LIST_NAMES[folder])
                         os.makedirs(dest_dir, exist_ok=True)
-                        name = _safe_name(f"{vm['contact_name']}_{vm['date_received'][:10]}_{vm['id']}")
+                        name = _safe_name(f"{vm['contact_name']}_{self._file_day(vm['date_received'])}_{vm['id']}")
                         shutil.copy2(src, os.path.join(dest_dir, f"{name}.amr"))
 
                     exported_count += 1
@@ -107,10 +115,34 @@ class VoicemailExtractor:
         except Exception as e:
             return {"error": f"Export failed: {e}"}
 
+    # ── Dates in saves ───────────────────────────────────────────────────────
+    # The library gives each voicemail's date in UTC ("2024-07-06T00:48:12+00:00").
+    # Saves show it in local time, like message saves (messages.py _csv_date).
+
+    def _local_datetime(self, iso) -> Optional[datetime]:
+        """A voicemail's date in local time, or None if it has none we can read."""
+        if not iso:
+            return None
+        try:
+            return datetime.fromisoformat(iso).astimezone(self.local_tz)
+        except (TypeError, ValueError, OverflowError, OSError):
+            return None
+
+    def _csv_date(self, iso) -> str:
+        """ISO 8601 in local time with its offset, e.g. "2024-07-05T17:48:12-07:00":
+        the same moment as the library's UTC value, and the clock time people expect."""
+        dt = self._local_datetime(iso)
+        return dt.isoformat() if dt is not None else (iso or "")
+
+    def _file_day(self, iso) -> str:
+        """The local day, "2024-07-05", for an audio file's name."""
+        dt = self._local_datetime(iso)
+        return dt.date().isoformat() if dt is not None else (iso or "")[:10]
+
 
 _LIST_NAMES = {"voicemail": "Voicemail", "spam": "Spam", "deleted": "Deleted"}
 
-CSV_HEADER = ["ID", "List", "Date (UTC)", "Contact", "Phone Number", "Spam", "Duration", "Is Read", "Transcript"]
+CSV_HEADER = ["ID", "List", "Date", "Contact", "Phone Number", "Spam", "Duration", "Is Read", "Transcript"]
 
 
 def _safe_name(name: str) -> str:

@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Recover deleted messages: says that it looks for deleted iMessages and texts, and, when the backup has WhatsApp, why deleted WhatsApp messages can't be brought back. If you send a report asking about encrypted or deleted WhatsApp messages, the app now answers it right away (OE-99)
 
 ### Fixed
-- Voicemail: the list Save all saves (voicemails.csv) now has the caller's number in a Phone Number column. For a caller saved in your contacts it used to show only their name. A new Spam column marks every spam voicemail, including spam you then deleted, which is in the Deleted list. The Date column says its times are UTC
+- Voicemail: the list Save all saves (voicemails.csv) now has the caller's number in a Phone Number column. For a caller saved in your contacts it used to show only their name. A new Spam column marks every spam voicemail, including spam you then deleted, which is in the Deleted list
+- Voicemail: Save all's dates follow your computer's time zone, as message saves do: the list's Date column shows local time with its offset, and each audio file is named with the local day, so a voicemail left in the evening no longer gets the next day's date. They used to be UTC
 
 ## [0.17.0] - 2026-11-17
 

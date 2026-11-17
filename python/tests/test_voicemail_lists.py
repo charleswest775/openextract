@@ -12,7 +12,10 @@ import plistlib
 import sqlite3
 import sys
 import tempfile
+import time
 import unittest
+from datetime import datetime, timedelta, timezone
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from backup import BackupManager  # noqa: E402
@@ -134,13 +137,12 @@ class VoicemailListsTest(unittest.TestCase):
         """Contact is the address book's name; Phone Number is always the number (it was
         lost for saved contacts)."""
         rows = self._saved_list()
-        self.assertEqual(list(rows[0]), ["ID", "List", "Date (UTC)", "Contact", "Phone Number", "Spam",
+        self.assertEqual(list(rows[0]), ["ID", "List", "Date", "Contact", "Phone Number", "Spam",
                                          "Duration", "Is Read", "Transcript"])
         by_id = {r["ID"]: r for r in rows}
         self.assertEqual((by_id["2"]["Contact"], by_id["2"]["Phone Number"]), ("Dentist", "+15550000002"))
         self.assertEqual((by_id["1"]["Contact"], by_id["1"]["Phone Number"]), ("+15550000001", "+15550000001"))
         self.assertEqual((by_id["2"]["List"], by_id["2"]["Spam"]), ("Spam", "True"))
-        self.assertTrue(by_id["1"]["Date (UTC)"].endswith("+00:00"))
 
     @unittest.skipUnless(SPAM_MARK, "needs ios-backup-core with is_spam (charleswest775/ios-backup-core#36)")
     def test_the_list_keeps_every_spam_mark(self):
@@ -159,6 +161,86 @@ class VoicemailListsTest(unittest.TestCase):
     def test_audio_that_isnt_there_says_so(self):
         result = VoicemailExtractor().get_audio(self.backup, 1940)
         self.assertIn("isn't in the backup", result["error"])
+
+
+PDT = timezone(timedelta(hours=-7), "PDT")
+IST = timezone(timedelta(hours=5, minutes=30), "IST")
+# Fri Jul 5 2024, 5:48 PM in California: already Jul 6 in UTC (2024-07-06T00:48:12Z)
+EVENING = 1_720_226_892
+
+
+class VoicemailLocalTimeTest(unittest.TestCase):
+    """Save all shows dates in the computer's time zone, as message saves do
+    (test_export_local_time.py): a voicemail left in the evening used to be
+    dated, and its audio file named, with the next day's UTC date."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        backup_dir = os.path.join(self.tmp.name, UDID)
+        _make_backup(backup_dir, {
+            "Library/Voicemail/voicemail.db": _voicemail_db([
+                (1, EVENING, "+15550000001", 20, LIVE, 0),
+                (2, 1_720_195_809, "+15550000002", 30, LIVE, 0),  # Jul 5 9:10:09 AM in California
+            ]),
+            "Library/Voicemail/1.amr": AMR,
+            "Library/Voicemail/2.amr": AMR,
+        })
+        manager = BackupManager()
+        self.assertEqual(manager.open_backup(UDID, backup_dir=backup_dir)["status"], "open")
+        self.addCleanup(manager.close_backup, UDID)
+        self.backup = manager.get_open_backup(UDID)
+
+    def save(self, tz):
+        extractor = VoicemailExtractor()
+        extractor.local_tz = tz
+        out = os.path.join(self.tmp.name, f"out-{tz}")
+        self.assertEqual(extractor.export_voicemails(self.backup, {}, out)["exported"], 2)
+        with open(os.path.join(out, "voicemails.csv"), newline="", encoding="utf-8") as f:
+            rows = {r["ID"]: r for r in csv.DictReader(f)}
+        audio = sorted(os.listdir(os.path.join(out, "audio")))
+        return rows, audio
+
+    def test_csv_date_is_local_iso_with_offset(self):
+        rows, _ = self.save(PDT)
+        self.assertEqual(rows["1"]["Date"], "2024-07-05T17:48:12-07:00")
+        self.assertEqual(rows["2"]["Date"], "2024-07-05T09:10:09-07:00")
+
+    def test_audio_file_names_use_the_local_day(self):
+        _, audio = self.save(PDT)
+        self.assertEqual(audio, ["+15550000001_2024-07-05_1.amr", "+15550000002_2024-07-05_2.amr"])
+        # In UTC the evening one is the next day
+        _, audio = self.save(timezone.utc)
+        self.assertEqual(audio, ["+15550000001_2024-07-06_1.amr", "+15550000002_2024-07-05_2.amr"])
+
+    def test_csv_date_is_the_same_moment_as_the_librarys(self):
+        rows, _ = self.save(IST)
+        self.assertEqual(rows["1"]["Date"], "2024-07-06T06:18:12+05:30")
+        self.assertEqual(datetime.fromisoformat(rows["1"]["Date"]).timestamp(), EVENING)
+
+    def test_missing_or_unreadable_dates_do_not_fail(self):
+        extractor = VoicemailExtractor()
+        extractor.local_tz = PDT
+        self.assertEqual(extractor._csv_date("not a date"), "not a date")
+        self.assertEqual(extractor._csv_date(""), "")
+        self.assertEqual(extractor._csv_date(None), "")
+        self.assertEqual(extractor._file_day("not a date"), "not a date")
+        self.assertEqual(extractor._file_day(""), "")
+
+
+@unittest.skipUnless(hasattr(time, "tzset"), "time.tzset is POSIX-only")
+class VoicemailComputersTimeZoneTest(unittest.TestCase):
+    def test_saves_use_the_computers_time_zone_by_default(self):
+        patcher = mock.patch.dict(os.environ, {"TZ": "America/Los_Angeles"})
+        patcher.start()
+        self.addCleanup(time.tzset)
+        self.addCleanup(patcher.stop)
+        time.tzset()
+
+        extractor = VoicemailExtractor()
+        self.assertIsNone(extractor.local_tz)
+        self.assertEqual(extractor._csv_date("2024-07-06T00:48:12+00:00"), "2024-07-05T17:48:12-07:00")
+        self.assertEqual(extractor._file_day("2024-07-06T00:48:12+00:00"), "2024-07-05")
 
 
 if __name__ == "__main__":

@@ -682,7 +682,7 @@ def case_export_voicemails(ctx):
     assert result["status"] == "success" and result["exported"] == len(m.voicemails) > 0
     assert same_path(result["path"], out)
     rows = read_csv(out / "voicemails.csv")
-    assert rows[0] == ["ID", "List", "Date (UTC)", "Contact", "Phone Number", "Spam", "Duration", "Is Read", "Transcript"]
+    assert rows[0] == ["ID", "List", "Date", "Contact", "Phone Number", "Spam", "Duration", "Is Read", "Transcript"]
     assert sorted(int(row[0]) for row in rows[1:]) == sorted(v["id"] for v in m.voicemails)
     assert {row[1] for row in rows[1:]} == {"Voicemail"}
     audio = files_under(out / "audio")
