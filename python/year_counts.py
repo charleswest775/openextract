@@ -15,7 +15,6 @@ Days are in the computer's local time zone, as on the Overview.
 
 import json
 import re
-import sqlite3
 import weakref
 from collections import Counter
 from datetime import datetime, timezone
