@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>OpenExtract data bundle format</title>
+  <meta name="description" content="The OpenExtract data bundle: messages, calls, voicemail, contacts and photo details from an iPhone backup as documented JSON, with SHA-256 hashes." />
+  <link rel="canonical" href="https://www.openextract.app/bundle" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.openextract.app/bundle" />
+  <meta property="og:title" content="The OpenExtract data bundle format" />
+  <meta property="og:description" content="iPhone backup data as documented JSON any tool can read, with an integrity check." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__pay" href="/support" aria-label="Pay it forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C1 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.2 4.4 2.5h2c.7-1.3 2.2-2.5 4.4-2.5 3.7 0 5.6 3.9 4.2 7.1C19.5 16.4 12 21 12 21z"/></svg><span class="nav__pay-label">Pay it forward</span></a>
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">For developers · experimental</div>
+    <h1>The data bundle format</h1>
+    <p class="page-head__lede">OpenExtract can save an iPhone backup's messages, calls, voicemail, contacts, photo details and people as one folder of plain JSON, with a SHA-256 hash of every file. Any tool can read it: a script, a spreadsheet, or a program of your own. This page describes the format.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>Experimental for now</h2>
+      <p>This is version <code>0.1</code> of the format. Until it reaches <code>1.0</code> it can still change from one version of OpenExtract to the next. Every bundle says which version it is, in <code>manifest.json</code>, and each version has its own <a href="https://github.com/charleswest775/openextract/blob/main/docs/bundle/schema/0.1">JSON Schemas</a>. If you write a tool that reads bundles, check <code>schema_version</code> first.</p>
+
+      <h2>Making one</h2>
+      <p>Open a backup in OpenExtract, click <strong>Save to this computer</strong>, and under <strong>For other tools</strong> click <strong>Export</strong> next to <strong>Export a data bundle</strong>. Tick the kinds of data you want and the files to copy in (message attachments and voicemail audio are ticked to start with; photo and video files aren't, because they can take a lot of space). Then choose a folder. Everything happens on your computer: nothing is uploaded.</p>
+
+      <h2>What's in it</h2>
+      <ul>
+        <li><code>manifest.json</code>: the backup it came from (device, iOS version, backup date), the version of OpenExtract that made it, and for each kind of data how many records there are and the first and last date. That's where each kind of data starts and stops in this backup.</li>
+        <li><code>conversations.json</code> and <code>messages.jsonl</code>: every message, with the sender's number or email address, whether it went by iMessage, SMS or RCS, and its attachments.</li>
+        <li><code>calls.jsonl</code>: call history.</li>
+        <li><code>voicemail.jsonl</code>: every voicemail in the Voicemail, Spam and Deleted lists, with the caller's number (even for a saved contact) and whether it was marked spam.</li>
+        <li><code>contacts.json</code>: the address book.</li>
+        <li><code>photos.jsonl</code> and <code>albums.json</code>: photo and video details, such as dates, places, favorites and albums.</li>
+        <li><code>people.json</code>: who the backup shows you in touch with, merged the way OpenExtract's People screen does it.</li>
+        <li><code>attachments/</code>, <code>voicemail/</code> and <code>photos/</code>: the files you chose to copy, byte for byte as they are in the backup.</li>
+        <li><code>SHA256SUMS</code>: a hash of every other file.</li>
+      </ul>
+      <p>The <code>.jsonl</code> files are <a href="https://jsonlines.org/">JSON Lines</a>, one record per line, so a tool can read millions of messages a line at a time. Every date is in UTC, like <code>2024-07-05T16:10:00Z</code>, and <code>manifest.json</code> also names the time zone of the computer that made the bundle.</p>
+
+      <h2>The integrity check</h2>
+      <p><code>SHA256SUMS</code> is in the format the <code>sha256sum</code> command reads, so anyone can check a bundle from inside its folder:</p>
+      <pre class="code-block"><code>shasum -a 256 -c SHA256SUMS     # macOS
+sha256sum -c SHA256SUMS         # Linux</code></pre>
+      <p>It shows whether any file has changed since the bundle was made. It doesn't say anything about how the backup itself was made, or who made the bundle.</p>
+
+      <h2>Versions</h2>
+      <p>While the version starts with <code>0</code>, a new version can add, rename or remove fields and files. Each change gets a new <code>schema_version</code>, its own schemas, and a line in the format's change list. From <code>1.0</code> on, a version like <code>1.1</code> will only add things, so a tool written for <code>1.0</code> keeps working; a change that would break a tool will be <code>2.0</code>.</p>
+
+      <h2>The full description</h2>
+      <p>Every file and field is described in <a href="https://github.com/charleswest775/openextract/blob/main/docs/BUNDLE.md">docs/BUNDLE.md</a> on GitHub, next to the JSON Schemas. OpenExtract is open source (MIT), so the code that writes bundles is there too: <a href="https://github.com/charleswest775/openextract/blob/main/python/bundle.py">python/bundle.py</a>. Questions and suggestions are welcome as an <a href="https://github.com/charleswest775/openextract/issues">issue on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/support">Pay it forward</a></li>
+        <li><a href="/what-people-say">What people say</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
