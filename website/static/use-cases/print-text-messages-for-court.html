@@ -77,7 +77,7 @@
         "name": "Does it show the date and time of each message?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes. Each day's date appears once, above its first message, and every message has its time, like Jun 12, 2025 and 3:30 PM, in your computer's time zone. The printout doesn't name the time zone, so note it if a time matters. A spreadsheet (CSV) export gives each time to the second, with its offset from UTC."
+          "text": "Yes. Each day's date appears once, above its first message, and every message has its time, like Jun 12, 2025 and 3:30 PM, in your computer's time zone. The printout doesn't name the time zone, so note it if a time matters. A spreadsheet (CSV) export gives each exact time, with its offset from UTC."
         }
       },
       {
@@ -188,7 +188,8 @@
       <div class="uc-step__num" style="color: var(--sage);">03</div>
       <div>
         <h2>Open the backup</h2>
-        <p>Backups in the usual place show up on OpenExtract's start screen under <strong>Found on this computer</strong>, with the device name and date. Click yours. If it isn't there, click <strong>Open a backup folder</strong> and pick it. On a Mac backups are in <code>~/Library/Application Support/MobileSync/Backup</code>, which is hidden: press Cmd+Shift+G in the window that opens and paste that path. If OpenExtract asks for Full Disk Access, follow its steps. On Windows they're in <code>%USERPROFILE%\Apple\MobileSync\Backup</code>, or <code>%APPDATA%\Apple Computer\MobileSync\Backup</code> if that isn't there. If the backup is encrypted, type the password you set. It stays on your computer.</p>
+        <p>Backups in the usual place show up on OpenExtract's start screen under <strong>Found on this computer</strong>, with the device name and date. Click yours. On a Mac, the first time, you'll see "macOS needs your OK before OpenExtract can list Finder's backups here" instead: click <strong>Allow access</strong>, turn on OpenExtract in System Settings, then come back and click <strong>Quit &amp; Reopen</strong>, and the list appears.</p>
+        <p>If your backup isn't listed, click <strong>Open a backup folder</strong> and pick it. Finder, iTunes and Apple Devices keep backups in <code>~/Library/Application Support/MobileSync/Backup</code> on a Mac (hidden: press Cmd+Shift+G in the window that opens and paste that path), and in <code>%USERPROFILE%\Apple\MobileSync\Backup</code> or <code>%APPDATA%\Apple Computer\MobileSync\Backup</code> on Windows. If OpenExtract asks for Full Disk Access, follow its steps. If the backup is encrypted, type the password you set. It stays on your computer.</p>
       </div>
     </div>
     <div class="uc-step">
@@ -237,15 +238,15 @@
       </figure>
       <ul>
         <li><strong>The conversation's name at the top</strong>, then every message, oldest first, up to the moment the backup was made.</li>
-        <li><strong>The date and time of every message.</strong> Each day's date appears once, above its first message, and each message has its time, written the way the phone writes them: "Jun 12, 2025" and "3:30 PM".</li>
-        <li><strong>Who sent each message.</strong> Messages from the other person are on the left with their name above them, and yours are on the right. It shows a name if the person was in the phone's contacts when the backup was made, otherwise their phone number or email. In a group chat, every message has its sender's name.</li>
+        <li><strong>The date and time of every message.</strong> Each day's date appears once, above its first message, and each message has its time, written like this: "Jun 12, 2025" and "3:30 PM".</li>
+        <li><strong>Who sent each message.</strong> Messages from the other person are on the left with their name above them, and yours are on the right. It shows a name if the person was in the phone's contacts when the backup was made, otherwise their phone number or email. In a group chat, every message from someone else has their name above it.</li>
         <li><strong>Photos sent in the conversation</strong>, if they're in the backup. Videos, voice notes and other files show as a line with their name.</li>
         <li><strong>A small line at the end</strong> saying it was made with OpenExtract.</li>
       </ul>
 
       <h2>Times and time zones</h2>
       <p>The times are in your computer's time zone when you save. If the messages were sent in that same time zone, the times match what the phone showed. If your computer is set to a different time zone, every time shifts with it, and a late-evening message can land on the next day. The printout doesn't say which time zone it uses, so if a time matters, write it next to the printout, for example "all times Pacific".</p>
-      <p>For exact times, save the conversation as a <strong>Spreadsheet</strong> (CSV) as well. Each row has the time to the second, with its offset from UTC, like <code>2025-06-12T15:30:39-07:00</code>. The <code>-07:00</code> means seven hours behind UTC, which is Pacific Daylight Time, so the time can't be read in the wrong zone.</p>
+      <p>For exact times, save the conversation as a <strong>Spreadsheet</strong> (CSV) as well. Each row has the exact time with its offset from UTC, like <code>2025-06-12T15:30:39.512345-07:00</code>. The digits after the dot are fractions of a second, and <code>-07:00</code> means seven hours behind UTC (here, Pacific Daylight Time), so the exact moment can't be misread.</p>
 
       <h2>What it doesn't show</h2>
       <ul>
@@ -271,7 +272,7 @@
 
       <h2>Common questions</h2>
       <p><strong>Will a court accept this printout?</strong> We can't tell you that. It depends on the court, the case and the rules where you are, and the judge and attorneys decide. Ask your attorney or the court clerk what they want before you print.</p>
-      <p><strong>Does it show the date and time of each message?</strong> Yes. Each day's date appears once, above its first message, and every message has its time, like Jun 12, 2025 and 3:30 PM, in your computer's time zone. The printout doesn't name the time zone, so note it if a time matters. A spreadsheet (CSV) export gives each time to the second, with its offset from UTC.</p>
+      <p><strong>Does it show the date and time of each message?</strong> Yes. Each day's date appears once, above its first message, and every message has its time, like Jun 12, 2025 and 3:30 PM, in your computer's time zone. The printout doesn't name the time zone, so note it if a time matters. A spreadsheet (CSV) export gives each exact time, with its offset from UTC.</p>
       <p><strong>Does it show the other person's phone number?</strong> If they were in your contacts when the backup was made, the printout shows their name, not their number. Their number is on their card in OpenExtract's Address book. If they weren't in your contacts, it shows the number or email the messages came from.</p>
       <p><strong>Can I print iMessages and SMS texts, and group chats?</strong> Yes, all three. Group chats show who sent each message.</p>
       <p><strong>Can I print just part of a conversation?</strong> OpenExtract saves the whole conversation. To print part of it, choose a page range in the print dialog.</p>
