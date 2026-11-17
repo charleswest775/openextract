@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Voicemail now has Spam and Deleted lists beside Voicemail, as on the iPhone. Spam voicemails used to be mixed in with the rest, deleted ones still in the backup weren't shown at all, and some older deleted ones showed up as if they hadn't been deleted. Save all saves every list, and a voicemail whose recording isn't in the backup now says so instead of failing to play.
+
 ### Added
 - Voicemail: Spam and Deleted lists beside Voicemail, as on the iPhone. Spam voicemails used to be mixed in with the rest, and deleted ones that are still in the backup weren't shown at all. Save all saves every list, with spam and deleted voicemails in folders of their own (OE-79)
 
