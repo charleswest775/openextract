@@ -1051,6 +1051,10 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .step-body p 
 .screen__frame img { width: 100%; height: auto; }
 .screen figcaption { margin-top: 16px; font-size: 14px; color: var(--ink-soft); line-height: 1.55; }
 .screen figcaption strong { display: block; font-size: 17px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 4px; }
+/* A screenshot under a guide step, and a printed page (portrait) in a guide. */
+.uc-step .screen { margin-top: 20px; }
+.prose__inner .screen { margin: 8px 0 24px; }
+.screen--page { max-width: 440px; }
 
 .screens { padding: 24px 56px 56px; }
 .screens__head {
