@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Voicemail: Spam and Deleted lists beside Voicemail, as on the iPhone. Spam voicemails used to be mixed in with the rest, and deleted ones that are still in the backup weren't shown at all. Save all saves every list, with spam and deleted voicemails in folders of their own (OE-79)
+
+### Fixed
+- Voicemail: older voicemails that were deleted on the iPhone no longer show up as if they were still there, and voicemails newer iPhones keep in a separate store for each phone line are read too, each listed once (OE-79, OE-85)
+- Voicemail: a voicemail whose recording isn't in the backup says so, instead of failing to play without a word (OE-85)
+
 ## [0.16.0] - 2026-11-16
 
 OpenExtract stays free for everyone, no strings. After an export, a Pay it forward note from Charles asks you to pay what it's worth to you, but only if you can. It has a Pay $5 button, and if you can't, Say thanks lets you send a thank-you note instead. Photos now lists Favorites, Hidden and the album folders you made on the phone. As on the iPhone, All Photos and Favorites leave out photos you've hidden: they're under Hidden. Save to this computer still saves every photo and video, hidden ones included. Back up my iPhone no longer asks for a new password when the iPhone already has a backup password.

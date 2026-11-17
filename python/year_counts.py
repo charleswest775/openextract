@@ -18,10 +18,11 @@ import re
 import sqlite3
 import weakref
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable, Optional
 
 from ios_backup_core.db import connect_readonly, get_database
+from ios_backup_core.extractors.voicemail import VoicemailExtractor
 from ios_backup_core.text import _type_from_bundle_id
 
 from messages import NANOSECOND_THRESHOLD
@@ -37,7 +38,6 @@ PERSON_TYPES = ("message", "call", "voicemail")
 _APPLE_UNIX_DELTA = 978307200
 
 _SMS_DB = "Library/SMS/sms.db"
-_VOICEMAIL_DB = "Library/Voicemail/voicemail.db"
 
 # Bucket per row, like apple_date_to_iso: an upgraded phone's sms.db can hold both units.
 _MESSAGE_SECONDS = (
@@ -343,25 +343,20 @@ class YearCounter:
         return rows
 
     def _voicemail_rows(self, backup, contacts: dict) -> Counter:
-        db_path = get_database(backup, _VOICEMAIL_DB, "HomeDomain")
-        if not db_path:
-            return Counter()
-        conn = connect_readonly(db_path, backup)
-        try:
-            rows: Counter = Counter()
-            for sender, day, count in conn.execute(
-                """SELECT sender, strftime('%Y-%m-%d', date, 'unixepoch', 'localtime') AS day, COUNT(*)
-                   FROM voicemail
-                   WHERE (trashed_date = 0 OR trashed_date IS NULL) AND date > 0
-                   GROUP BY sender, day"""
-            ):
-                if day:
-                    rows[(_as_text(sender), day)] += count
-            return rows
-        except sqlite3.OperationalError as e:
-            raise RuntimeError(f"Voicemail could not be read: {e}") from e
-        finally:
-            conn.close()
+        """Voicemails that aren't deleted, from every store, as the Voicemail list reads them."""
+        result = VoicemailExtractor().voicemail_rows(backup)
+        if "error" in result:
+            raise RuntimeError(f"Voicemail could not be read: {result['error']}")
+        rows: Counter = Counter()
+        for vm in result["rows"]:
+            if vm["folder"] == "deleted" or not vm["date"] or vm["date"] <= 0:
+                continue
+            try:
+                day = datetime.fromtimestamp(int(vm["date"]), timezone.utc).astimezone().date().isoformat()
+            except (ValueError, OverflowError, OSError):
+                continue
+            rows[(_as_text(vm["sender"]), day)] += 1
+        return rows
 
     @staticmethod
     def _history_end(backup, everyone: dict) -> Optional[str]:

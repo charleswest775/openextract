@@ -492,8 +492,12 @@ def case_list_voicemails(ctx):
     assert sorted((v["id"], v["duration"]) for v in voicemails) == \
         sorted((v["rowid"], v["duration"]) for v in m.expected["voicemails"])
     for v in voicemails:
-        assert {"phone_number", "contact_name", "date_received", "is_read", "transcript"} <= set(v)
+        assert {"phone_number", "contact_name", "date_received", "is_read", "transcript", "folder"} <= set(v)
+        assert v["folder"] == "voicemail"
         local_day(v["date_received"])
+    everything = m.rpc("list_voicemails", include_deleted=True)
+    assert everything["voicemails"] == voicemails
+    assert everything["counts"] == {"voicemail": len(voicemails), "spam": 0, "deleted": 0}
 
 
 @contract("get_voicemail_audio")
@@ -503,7 +507,8 @@ def case_get_voicemail_audio(ctx):
             result = engine.rpc("get_voicemail_audio", voicemail_id=v["id"])
             assert decoded(result, f"voicemail {v['id']}").startswith(AMR_MAGIC)
             assert result["mime_type"] == "audio/amr" and result["voicemail_id"] == v["id"]
-    assert_error_dict(ctx.maren.rpc("get_voicemail_audio", voicemail_id=10 ** 6), "not found")
+    assert_error_dict(ctx.maren.rpc("get_voicemail_audio", voicemail_id=10 ** 6), "isn't in the backup")
+    assert_error_dict(ctx.maren.rpc("get_voicemail_audio", voicemail_id="../../Manifest"), "isn't in the backup")
 
 
 @contract("list_calls")
@@ -676,8 +681,9 @@ def case_export_voicemails(ctx):
     assert result["status"] == "success" and result["exported"] == len(m.voicemails) > 0
     assert same_path(result["path"], out)
     rows = read_csv(out / "voicemails.csv")
-    assert rows[0] == ["ID", "Date", "Contact/Number", "Duration", "Is Read", "Transcript"]
+    assert rows[0] == ["ID", "List", "Date", "Contact/Number", "Duration", "Is Read", "Transcript"]
     assert sorted(int(row[0]) for row in rows[1:]) == sorted(v["id"] for v in m.voicemails)
+    assert {row[1] for row in rows[1:]} == {"Voicemail"}
     audio = files_under(out / "audio")
     assert len(audio) == len(m.voicemails)
     assert all(p.suffix == ".amr" and p.read_bytes().startswith(AMR_MAGIC) for p in audio)
@@ -1472,7 +1478,7 @@ def empty_list_voicemails(e, out):
 
 @empty_state("get_voicemail_audio")
 def empty_get_voicemail_audio(e, out):
-    assert_error_dict(e.rpc("get_voicemail_audio", voicemail_id=1), "not found")
+    assert_error_dict(e.rpc("get_voicemail_audio", voicemail_id=1), "isn't in the backup")
 
 
 @empty_state("list_calls")
