@@ -27,6 +27,8 @@ import sys
 from datetime import datetime, timezone
 from email.utils import format_datetime
 
+from local_dates import csv_date
+
 try:
     from ios_backup_core.extractors.podcasts import (
         PodcastExtractor as _CorePodcastExtractor,
@@ -247,10 +249,5 @@ class PodcastExtractor:
     def _csv_date(self, iso) -> str:
         """The date as ISO 8601 in local time with its offset, e.g.
         "2024-07-05T09:10:09-07:00": the same moment as the library's UTC
-        value, and the clock time people expect (as messages.py's CSVs)."""
-        if not iso:
-            return ""
-        try:
-            return datetime.fromisoformat(iso).astimezone(self.local_tz).isoformat()
-        except (TypeError, ValueError, OverflowError, OSError):
-            return iso
+        value, and the clock time people expect (local_dates.py)."""
+        return csv_date(iso, self.local_tz)

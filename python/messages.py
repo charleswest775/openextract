@@ -41,6 +41,15 @@ from ios_backup_core.timestamps import (
     iso_to_apple as iso_to_apple_date,
 )
 
+from local_dates import (
+    MONTHS as _MONTHS,
+    csv_date,
+    format_day,
+    format_time,
+    local_datetime,
+    readable_date,
+)
+
 __all__ = [
     "MessageExtractor",
     "apple_date_to_iso",
@@ -86,11 +95,6 @@ _ATTACHMENT_CSS = """.msg img { display: block; max-width: 100%; max-height: 420
   .day, .meta, .sender { break-after: avoid; }
 }
 """
-
-# Month names for the dates in exports, written out so the computer's
-# language settings can't change them (strftime's %b follows the locale).
-_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
-           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 # What can't go in an export's file name: characters Windows refuses (macOS
 # only refuses "/" and ":"), control characters, and the invisible marks that
@@ -445,38 +449,23 @@ class MessageExtractor:
     # ── Dates in exports ─────────────────────────────────────────────────────
     # The engine gives each message's date in UTC ("2024-07-05T16:10:09+00:00").
     # Exports show it in local time, the way the app's thread view does
-    # (src/lib/dates.ts): "Jul 5, 2024" for a day, "9:10 AM" for a time.
+    # (src/lib/dates.ts): "Jul 5, 2024" for a day, "9:10 AM" for a time. The
+    # helpers are in local_dates.py, shared with the other saves.
 
     def _local_datetime(self, iso) -> Optional[datetime]:
         """A message's date in local time, or None if it has none we can read."""
-        if not iso:
-            return None
-        try:
-            return datetime.fromisoformat(iso).astimezone(self.local_tz)
-        except (TypeError, ValueError, OverflowError, OSError):
-            return None
+        return local_datetime(iso, self.local_tz)
 
-    @staticmethod
-    def _format_day(dt: datetime) -> str:
-        return f"{_MONTHS[dt.month - 1]} {dt.day}, {dt.year}"
-
-    @staticmethod
-    def _format_time(dt: datetime) -> str:
-        return f"{dt.hour % 12 or 12}:{dt.minute:02d} {'AM' if dt.hour < 12 else 'PM'}"
+    _format_day = staticmethod(format_day)
+    _format_time = staticmethod(format_time)
 
     def _readable_date(self, iso) -> str:
         """"Jul 5, 2024, 9:10 AM", for a TXT line that reads on its own."""
-        dt = self._local_datetime(iso)
-        if dt is None:
-            return iso or "Unknown date"
-        return f"{self._format_day(dt)}, {self._format_time(dt)}"
+        return readable_date(iso, self.local_tz)
 
     def _csv_date(self, iso) -> str:
-        """The date as ISO 8601 in local time with its offset, e.g.
-        "2024-07-05T09:10:09-07:00": the same moment as the engine's UTC
-        value, so programs read it exactly, and the clock time people expect."""
-        dt = self._local_datetime(iso)
-        return dt.isoformat() if dt is not None else (iso or "")
+        """"2024-07-05T09:10:09-07:00": the engine's moment, in local time."""
+        return csv_date(iso, self.local_tz)
 
     def _with_day_and_time(self, messages):
         """Yield (msg, day, time) for an HTML export: day is "Jul 5, 2024" on

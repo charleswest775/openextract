@@ -2,7 +2,9 @@
 Notes adapter.
 
 Delegates ``list_notes`` to ``ios_backup_core.extractors.notes.NoteExtractor``
-and keeps openextract's PDF/TXT export wrapper.
+and keeps openextract's PDF/TXT export wrapper. A saved note's Created and
+Modified dates read "Jul 5, 2024, 9:10 AM" in the computer's time zone
+(local_dates.py); the library gives them in UTC.
 """
 
 import os
@@ -10,9 +12,14 @@ import re
 
 from ios_backup_core.extractors.notes import NoteExtractor as _CoreNoteExtractor
 
+from local_dates import readable_date
+
 
 class NoteExtractor:
     """Adapter wrapping the ios-backup-core NoteExtractor."""
+
+    # The time zone saved notes' dates are shown in; None is this computer's.
+    local_tz = None
 
     def __init__(self):
         self._inner = _CoreNoteExtractor()
@@ -39,14 +46,16 @@ class NoteExtractor:
             safe_title = re.sub(r'[\\/*?:"<>|]', "", note["title"])[:50]
             if not safe_title.strip():
                 safe_title = f"Note_{note['note_id']}"
+            created = readable_date(note.get("created"), self.local_tz)
+            modified = readable_date(note.get("modified"), self.local_tz)
 
             if format.lower() == "txt":
                 filename = f"{safe_title}.txt"
                 filepath = os.path.join(output_dir, filename)
                 with open(filepath, "w", encoding="utf-8") as f:
                     f.write(f"Title: {note['title']}\n")
-                    f.write(f"Created: {note['created']}\n")
-                    f.write(f"Modified: {note['modified']}\n")
+                    f.write(f"Created: {created}\n")
+                    f.write(f"Modified: {modified}\n")
                     f.write("=" * 40 + "\n\n")
                     f.write(note["body"])
                 exported_files.append(filepath)
@@ -64,8 +73,8 @@ class NoteExtractor:
                         c.drawString(50, height - 50, note["title"])
 
                         c.setFont("Helvetica", 10)
-                        c.drawString(50, height - 70, f"Created: {note['created']}")
-                        c.drawString(50, height - 85, f"Modified: {note['modified']}")
+                        c.drawString(50, height - 70, f"Created: {created}")
+                        c.drawString(50, height - 85, f"Modified: {modified}")
 
                         c.setFont("Helvetica", 11)
                         y = height - 120
