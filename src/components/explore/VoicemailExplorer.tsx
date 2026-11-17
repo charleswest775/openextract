@@ -15,21 +15,36 @@ import { checkEngineResult, plural } from '../../lib/saveData';
 import { matches } from '../../lib/search';
 import Highlight from '../shared/Highlight';
 
+/** The list the Phone app shows a voicemail in. */
+type Folder = 'voicemail' | 'spam' | 'deleted';
+
+/** A ROWID in the main voicemail store, or "<account folder>.<ROWID>" for a per-account one. */
+type VoicemailId = number | string;
+
 interface Voicemail {
-  id: number;
+  id: VoicemailId;
   phone_number: string;
   contact_name: string;
   date_received: string;
   duration: number;
   is_read: boolean;
   transcript: string;
+  folder?: Folder;
 }
 
 interface AudioInfo {
   data: string;
   mime_type: string;
-  voicemail_id: number;
+  voicemail_id: VoicemailId;
 }
+
+const FOLDERS: { id: Folder; label: string; note?: string }[] = [
+  { id: 'voicemail', label: 'Voicemail' },
+  { id: 'spam', label: 'Spam', note: 'Voicemails the iPhone put in Spam.' },
+  { id: 'deleted', label: 'Deleted', note: 'Voicemails deleted on the iPhone that are still in this backup.' },
+];
+
+const folderOf = (vm: Voicemail): Folder => vm.folder ?? 'voicemail';
 
 interface PlayerState {
   isPlaying: boolean;
@@ -57,15 +72,16 @@ function formatTime(seconds: number) {
 export default function VoicemailExplorer({ udid, query, selectId }: Props) {
   const [voicemails, setVoicemails] = useState<Voicemail[]>([]);
   const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState<number | null>(null);
-  const [audioCache, setAudioCache] = useState<Record<number, AudioInfo>>({});
-  const [playerStates, setPlayerStates] = useState<Record<number, PlayerState>>({});
+  const [folder, setFolder] = useState<Folder>('voicemail');
+  const [expanded, setExpanded] = useState<VoicemailId | null>(null);
+  const [audioCache, setAudioCache] = useState<Record<string, AudioInfo>>({});
+  const [playerStates, setPlayerStates] = useState<Record<string, PlayerState>>({});
   const { busy, run } = useSaveAction('voicemail');
   const [error, setError] = useState<string | null>(null);
   const [emptyReason, setEmptyReason] = useState<string | null>(null);
 
-  const playersRef = useRef<Record<number, BenzAMRRecorder>>({});
-  const timersRef = useRef<Record<number, number>>({});
+  const playersRef = useRef<Record<string, BenzAMRRecorder>>({});
+  const timersRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     loadVoicemails();
@@ -84,7 +100,7 @@ export default function VoicemailExplorer({ udid, query, selectId }: Props) {
     setError(null);
     setEmptyReason(null);
     try {
-      const res = await window.openextract.call('list_voicemails', { udid });
+      const res = await window.openextract.call('list_voicemails', { udid, include_deleted: true });
       if (!res.success) {
         setVoicemails([]);
         setError(res.error || 'Failed to load voicemails');
@@ -95,14 +111,17 @@ export default function VoicemailExplorer({ udid, query, selectId }: Props) {
         if (res.data.error) setError(res.data.error);
         // Opened from a search: play-ready, with its transcript showing
         const found = list.find(vm => `voicemail:${vm.id}` === selectId);
-        if (found) toggleExpand(found.id);
+        if (found) {
+          setFolder(folderOf(found));
+          toggleExpand(found.id);
+        }
       }
     } finally {
       setLoading(false);
     }
   }
 
-  async function initPlayer(id: number, audio: AudioInfo) {
+  async function initPlayer(id: VoicemailId, audio: AudioInfo) {
     try {
       const binStr = atob(audio.data);
       const bytes = new Uint8Array(binStr.length);
@@ -146,7 +165,7 @@ export default function VoicemailExplorer({ udid, query, selectId }: Props) {
     }
   }
 
-  async function toggleExpand(id: number) {
+  async function toggleExpand(id: VoicemailId) {
     // Stop any currently playing audio when collapsing or switching
     if (expanded !== null && playersRef.current[expanded]) {
       try { playersRef.current[expanded].stop(); } catch {}
@@ -160,16 +179,23 @@ export default function VoicemailExplorer({ udid, query, selectId }: Props) {
 
     if (!audioCache[id]) {
       const res = await window.openextract.call('get_voicemail_audio', { udid, voicemail_id: id });
-      if (res.success && res.data) {
+      if (res.success && res.data?.data) {
         setAudioCache(prev => ({ ...prev, [id]: res.data }));
         await initPlayer(id, res.data);
+      } else {
+        // OE-85: a voicemail listed in voicemail.db whose audio file isn't in the backup
+        const reason = res.data?.error || res.error || "Couldn't load this voicemail's audio.";
+        setPlayerStates(prev => ({
+          ...prev,
+          [id]: { isPlaying: false, isLoaded: false, duration: 0, currentTime: 0, error: reason },
+        }));
       }
     } else if (!playersRef.current[id]) {
       await initPlayer(id, audioCache[id]);
     }
   }
 
-  function togglePlay(id: number) {
+  function togglePlay(id: VoicemailId) {
     const player = playersRef.current[id];
     if (!player) return;
     if (player.isPlaying()) {
@@ -186,25 +212,70 @@ export default function VoicemailExplorer({ udid, query, selectId }: Props) {
       const result = checkEngineResult(await sidecarCall<{ exported: number; path?: string }>(
         'export_voicemails', { udid, output_dir: outputDir },
       ));
-      return { title: `Saved ${plural(result.exported, 'voicemail')}`, detail: 'Audio files', path: result.path ?? outputDir };
+      return {
+        title: `Saved ${plural(result.exported, 'voicemail')}`,
+        detail: counts.spam || counts.deleted ? 'Audio files, with spam and deleted ones in their own folders' : 'Audio files',
+        path: result.path ?? outputDir,
+      };
     });
   }
 
+  const counts = useMemo(() => {
+    const c: Record<Folder, number> = { voicemail: 0, spam: 0, deleted: 0 };
+    for (const vm of voicemails) c[folderOf(vm)] += 1;
+    return c;
+  }, [voicemails]);
+
+  const inFolder = useMemo(() => voicemails.filter(vm => folderOf(vm) === folder), [voicemails, folder]);
+
   const shown = useMemo(
-    () => voicemails.filter(vm => `voicemail:${vm.id}` === selectId
+    () => inFolder.filter(vm => `voicemail:${vm.id}` === selectId
       || matches(query, vm.contact_name, vm.phone_number, vm.transcript, 'voicemail')),
-    [voicemails, query, selectId],
+    [inFolder, query, selectId],
   );
+
+  function chooseFolder(next: Folder) {
+    if (next === folder) return;
+    if (expanded !== null && playersRef.current[expanded]) {
+      try { playersRef.current[expanded].stop(); } catch {}
+    }
+    setExpanded(null);
+    setFolder(next);
+  }
+
+  const folderTabs = FOLDERS.filter(f => f.id === 'voicemail' || counts[f.id] > 0);
+  const folderNote = FOLDERS.find(f => f.id === folder)?.note;
+  const noun = folder === 'voicemail' ? 'voicemail' : folder === 'spam' ? 'spam voicemail' : 'deleted voicemail';
 
   return (
     <div className="h-full flex flex-col">
       <PageHeader
         title="Voicemail"
-        count={voicemails.length > 0
-          ? (query ? `${shown.length} of ${plural(voicemails.length, 'voicemail')}` : plural(voicemails.length, 'voicemail'))
+        count={inFolder.length > 0
+          ? (query ? `${shown.length} of ${plural(inFolder.length, noun)}` : plural(inFolder.length, noun))
           : undefined}
         actions={<SaveButton onClick={handleSave} busy={busy} disabled={voicemails.length === 0} label="Save all" />}
       />
+      {!loading && folderTabs.length > 1 && (
+        <div className="px-6 py-3 border-b border-rule">
+          <div role="group" aria-label="Which voicemails" className="inline-flex rounded-full border border-rule bg-surface p-0.5">
+            {folderTabs.map(f => (
+              <button
+                key={f.id}
+                type="button"
+                aria-pressed={folder === f.id}
+                onClick={() => chooseFolder(f.id)}
+                className={`px-3.5 py-1 rounded-full text-sm transition-colors ${
+                  folder === f.id ? 'bg-accent-wash text-accent font-medium' : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {f.label} <span className="tabular-nums">{counts[f.id].toLocaleString()}</span>
+              </button>
+            ))}
+          </div>
+          {folderNote && <div className="mt-2 text-sm text-text-tertiary">{folderNote}</div>}
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto">
         {loading && (
           <div className="flex justify-center py-12 text-accent">
@@ -228,7 +299,14 @@ export default function VoicemailExplorer({ udid, query, selectId }: Props) {
             />
           )
         )}
-        {!loading && voicemails.length > 0 && shown.length === 0 && (
+        {!loading && voicemails.length > 0 && inFolder.length === 0 && (
+          <EmptyState
+            icon={VoicemailIcon}
+            title="No voicemails in this list"
+            detail="This backup's voicemails are under Spam or Deleted."
+          />
+        )}
+        {!loading && inFolder.length > 0 && shown.length === 0 && (
           <EmptyState icon={VoicemailIcon} title={`No voicemail matches "${query}"`} detail="Try a name, a number or a word they said." />
         )}
         {shown.map((vm) => {

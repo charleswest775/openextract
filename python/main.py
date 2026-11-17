@@ -389,7 +389,9 @@ class SidecarServer:
         udid = params["udid"]
         backup = self.backup_manager.get_open_backup(udid)
         contacts = self.contact_resolver.load_contacts(backup)
-        return self.voicemail_extractor.list_voicemails(backup, contacts)
+        return self.voicemail_extractor.list_voicemails(
+            backup, contacts, include_deleted=bool(params.get("include_deleted")),
+        )
 
     def get_voicemail_audio(self, params):
         udid = params["udid"]

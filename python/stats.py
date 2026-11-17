@@ -10,6 +10,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from ios_backup_core.db import connect_readonly, get_database
+from ios_backup_core.extractors.voicemail import VoicemailExtractor as CoreVoicemailExtractor
 
 from contacts import resolve_contact
 from messages import apple_date_to_iso, NANOSECOND_THRESHOLD
@@ -601,29 +602,17 @@ class StatsComputer:
     # ── Voicemails ────────────────────────────────────────────────────────────
 
     def _voicemail_stats(self, backup) -> dict:
-        db_path = get_database(backup, "Library/Voicemail/voicemail.db", domain="HomeDomain")
-        conn = _safe_connect(db_path, backup)
-        if not conn:
-            return {"total": 0, "total_duration_seconds": 0, "read": 0, "unread": 0}
-
-        try:
-            c = conn.cursor()
-            rows = c.execute("""
-                SELECT duration, flags
-                FROM voicemail
-                WHERE trashed_date = 0 OR trashed_date IS NULL
-            """).fetchall()
-
-            total = len(rows)
-            total_duration = sum(float(r[0] or 0) for r in rows)
-            read_count = sum(1 for r in rows if r[1] and (r[1] & 1))
-            unread = total - read_count
-
-            return {
-                "total": total,
-                "total_duration_seconds": total_duration,
-                "read": read_count,
-                "unread": unread,
-            }
-        finally:
-            conn.close()
+        """Voicemails that aren't deleted (the Voicemail and Spam lists), from every store."""
+        result = CoreVoicemailExtractor().voicemail_rows(backup)
+        if "error" in result:
+            raise RuntimeError(result["error"])
+        rows = [r for r in result["rows"] if r["folder"] != "deleted"]
+        read_count = sum(1 for r in rows if r["flags"] & 1)
+        return {
+            "total": len(rows),
+            "total_duration_seconds": sum(float(r["duration"] or 0) for r in rows),
+            "read": read_count,
+            "unread": len(rows) - read_count,
+            "spam": sum(1 for r in rows if r["folder"] == "spam"),
+            "deleted": len(result["rows"]) - len(rows),
+        }
