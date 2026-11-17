@@ -50,7 +50,14 @@ class VoicemailExtractor:
 
     def export_voicemails(self, backup, contacts: dict, output_dir: str) -> dict:
         """Every voicemail, spam and deleted ones too: a CSV saying which list each
-        is in, and the audio in audio/ (spam in audio/Spam, deleted in audio/Deleted)."""
+        is in, and the audio in audio/ (spam in audio/Spam, deleted in audio/Deleted).
+
+        The CSV names the caller twice: Contact is their address-book name (the
+        number when they aren't in it), Phone Number is always the number, so a
+        saved contact's number isn't lost. Spam is True for every voicemail
+        marked spam, including one that was then deleted (its List is Deleted).
+        Dates are UTC, and the header says so.
+        """
         voicemails_data = self.list_voicemails(backup, contacts, include_deleted=True)
         if "error" in voicemails_data:
             return voicemails_data
@@ -69,7 +76,7 @@ class VoicemailExtractor:
         try:
             with open(csv_path, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
-                writer.writerow(["ID", "List", "Date", "Contact/Number", "Duration", "Is Read", "Transcript"])
+                writer.writerow(CSV_HEADER)
 
                 for vm in voicemails:
                     folder = vm.get("folder", "voicemail")
@@ -78,6 +85,9 @@ class VoicemailExtractor:
                         _LIST_NAMES.get(folder, folder),
                         vm["date_received"],
                         vm["contact_name"],
+                        vm.get("phone_number") or "",
+                        # An older ios-backup-core has no is_spam: then only the Spam list is known
+                        bool(vm.get("is_spam", folder == "spam")),
                         vm["duration"],
                         vm["is_read"],
                         vm["transcript"]
@@ -99,6 +109,8 @@ class VoicemailExtractor:
 
 
 _LIST_NAMES = {"voicemail": "Voicemail", "spam": "Spam", "deleted": "Deleted"}
+
+CSV_HEADER = ["ID", "List", "Date (UTC)", "Contact", "Phone Number", "Spam", "Duration", "Is Read", "Transcript"]
 
 
 def _safe_name(name: str) -> str:

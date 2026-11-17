@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/charleswest775/openextract/main/docs/bundle/schema/0.1/conversations.schema.json",
+  "title": "OpenExtract Bundle conversations",
+  "description": "conversations.json: Messages conversations (iMessage, SMS, RCS).",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "0.1",
+      "description": "The format version this file follows."
+    },
+    "conversations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "chat_id": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The conversation's ROWID in sms.db; messages refer to it."
+          },
+          "chat_identifier": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The other person's number or address, or the group's id."
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "service": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The conversation's service; each message also has its own."
+          },
+          "is_group": {
+            "type": "boolean"
+          },
+          "message_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "first_utc": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+            "description": "A UTC date and time, like 2024-07-05T16:10:00Z, or null when the backup has none."
+          },
+          "last_utc": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+            "description": "A UTC date and time, like 2024-07-05T16:10:00Z, or null when the backup has none."
+          },
+          "handles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every number and address seen sending in it."
+          }
+        },
+        "required": [
+          "chat_id",
+          "chat_identifier",
+          "display_name",
+          "service",
+          "is_group",
+          "message_count",
+          "first_utc",
+          "last_utc",
+          "handles"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "conversations"
+  ],
+  "additionalProperties": false
+}

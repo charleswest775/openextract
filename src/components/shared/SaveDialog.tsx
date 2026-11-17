@@ -78,6 +78,8 @@ interface Props<T extends string> {
   initial?: T;
   /** Shown under the formats, e.g. a "merged or separate files" choice. */
   children?: React.ReactNode;
+  /** False while what's chosen can't be saved (nothing ticked). */
+  canSave?: boolean;
   onSave: (format: T) => void;
   onCancel: () => void;
 }
@@ -86,7 +88,7 @@ interface Props<T extends string> {
  * The one Save dialog: pick a format, then the system dialog asks where.
  * The caller does the saving and reports the result with a notice.
  */
-export default function SaveDialog<T extends string>({ title, formats, initial, children, onSave, onCancel }: Props<T>) {
+export default function SaveDialog<T extends string>({ title, formats, initial, children, canSave = true, onSave, onCancel }: Props<T>) {
   const [format, setFormat] = useState<T>(initial ?? formats[0].id);
 
   useEffect(() => {
@@ -136,7 +138,7 @@ export default function SaveDialog<T extends string>({ title, formats, initial, 
         <div className="flex items-center gap-3 pt-1">
           <span className="text-xs text-text-tertiary mr-auto">You'll choose where to save it next.</span>
           <button onClick={onCancel} className="hearth-ghost-btn">Cancel</button>
-          <button onClick={() => onSave(format)} className="hearth-primary-btn" autoFocus>
+          <button onClick={() => onSave(format)} className="hearth-primary-btn" disabled={!canSave} autoFocus>
             <ExportIcon size={18} />
             Save
           </button>

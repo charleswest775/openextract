@@ -9,9 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 - WhatsApp: when the iPhone has WhatsApp but its chats aren't in the backup, the WhatsApp section now says why instead of not showing up at all. WhatsApp's own end-to-end encrypted backup is the usual reason: with it turned on, WhatsApp keeps its chats only in its iCloud backup. The screen says where to turn it off so the next backup includes them (OE-99)
+- Save to computer: Export a data bundle saves messages, calls, voicemail, contacts, photo details and people in one folder, in a documented format other tools can read (JSON and JSON Lines, with every date in UTC). It copies message attachments and voicemail audio too, and photo files if you tick them, and lists a SHA-256 hash of every file in SHA256SUMS, so anyone can check that nothing in it has changed since. The format is experimental and may still change: docs/BUNDLE.md describes it
 
 ### Changed
 - Recover deleted messages: says that it looks for deleted iMessages and texts, and, when the backup has WhatsApp, why deleted WhatsApp messages can't be brought back. If you send a report asking about encrypted or deleted WhatsApp messages, the app now answers it right away (OE-99)
+
+### Fixed
+- Voicemail: the list Save all saves (voicemails.csv) now has the caller's number in a Phone Number column. For a caller saved in your contacts it used to show only their name. A new Spam column marks every spam voicemail, including spam you then deleted, which is in the Deleted list. The Date column says its times are UTC
 
 ## [0.17.0] - 2026-11-17
 

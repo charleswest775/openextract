@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/charleswest775/openextract/main/docs/bundle/schema/0.1/photo.schema.json",
+  "title": "OpenExtract Bundle photo",
+  "description": "One line of photos.jsonl: a photo or video whose file is in the backup.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The asset's UUID in Photos.sqlite."
+    },
+    "filename": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "photo, video, live_photo, …"
+    },
+    "date_created_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "A UTC date and time, like 2024-07-05T16:10:00Z, or null when the backup has none."
+    },
+    "date_modified_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "A UTC date and time, like 2024-07-05T16:10:00Z, or null when the backup has none."
+    },
+    "width": {
+      "type": "number",
+      "minimum": 0
+    },
+    "height": {
+      "type": "number",
+      "minimum": 0
+    },
+    "duration": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Seconds, for a video."
+    },
+    "favorite": {
+      "type": "boolean"
+    },
+    "hidden": {
+      "type": "boolean"
+    },
+    "latitude": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "longitude": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "album_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Ids in albums.json."
+    },
+    "path": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))[^\\\\]+$",
+      "description": "A path inside the bundle folder, with / between folders, or null when the file isn't in the bundle."
+    },
+    "sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "A SHA-256 hash in lower-case hex, or null."
+    }
+  },
+  "required": [
+    "id",
+    "filename",
+    "kind",
+    "date_created_utc",
+    "date_modified_utc",
+    "width",
+    "height",
+    "duration",
+    "favorite",
+    "hidden",
+    "latitude",
+    "longitude",
+    "album_ids",
+    "path",
+    "sha256"
+  ],
+  "additionalProperties": false
+}

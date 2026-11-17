@@ -1,0 +1,392 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/charleswest775/openextract/main/docs/bundle/schema/0.1/manifest.schema.json",
+  "title": "OpenExtract Bundle manifest",
+  "description": "manifest.json: what the bundle holds, which backup it was made from, and which app made it.",
+  "type": "object",
+  "properties": {
+    "format": {
+      "const": "openextract-bundle"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "description": "The format version this file follows."
+    },
+    "experimental": {
+      "type": "boolean",
+      "description": "True while the format can still change between versions (schema_version 0.x)."
+    },
+    "spec": {
+      "type": "string",
+      "description": "Where the format is described."
+    },
+    "created_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "A UTC date and time, like 2024-07-05T16:10:00Z, or null when the backup has none."
+    },
+    "app": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "const": "OpenExtract"
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "OpenExtract's version."
+        },
+        "ios_backup_core_commit": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "The ios-backup-core commit the backup was read with."
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "ios_backup_core_commit"
+      ],
+      "additionalProperties": false
+    },
+    "time_zone_used": {
+      "const": "UTC",
+      "description": "Every date in the bundle is UTC."
+    },
+    "computer_time_zone": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The time zone of the computer that made the bundle (an IANA name), for showing local times. Dates in the bundle are UTC regardless."
+    },
+    "backup": {
+      "type": "object",
+      "properties": {
+        "device_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "product_type": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "e.g. iPhone17,1"
+        },
+        "ios_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "e.g. 26.5"
+        },
+        "backup_date_utc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+          "description": "A UTC date and time, like 2024-07-05T16:10:00Z, or null when the backup has none."
+        },
+        "encrypted": {
+          "type": "boolean",
+          "description": "Whether the backup was encrypted (the bundle itself never is)."
+        },
+        "udid_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of the iPhone's identifier, so two bundles from one iPhone can be matched without naming it."
+        }
+      },
+      "required": [
+        "device_name",
+        "product_type",
+        "ios_version",
+        "backup_date_utc",
+        "encrypted",
+        "udid_sha256"
+      ],
+      "additionalProperties": false
+    },
+    "files_copied": {
+      "type": "object",
+      "description": "Which files were copied into the bundle.",
+      "properties": {
+        "attachments": {
+          "type": "boolean"
+        },
+        "voicemail_audio": {
+          "type": "boolean"
+        },
+        "photos": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "attachments",
+        "voicemail_audio",
+        "photos"
+      ],
+      "additionalProperties": false
+    },
+    "types": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "$ref": "#/$defs/section"
+        },
+        "calls": {
+          "$ref": "#/$defs/section"
+        },
+        "voicemail": {
+          "$ref": "#/$defs/section"
+        },
+        "contacts": {
+          "$ref": "#/$defs/section"
+        },
+        "photos": {
+          "$ref": "#/$defs/section"
+        },
+        "people": {
+          "$ref": "#/$defs/section"
+        }
+      },
+      "required": [
+        "messages",
+        "calls",
+        "voicemail",
+        "contacts",
+        "photos",
+        "people"
+      ],
+      "additionalProperties": false
+    },
+    "integrity": {
+      "type": "object",
+      "properties": {
+        "algorithm": {
+          "const": "SHA-256"
+        },
+        "file": {
+          "const": "SHA256SUMS"
+        },
+        "covers": {
+          "type": "string"
+        },
+        "meaning": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "algorithm",
+        "file",
+        "covers",
+        "meaning"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "format",
+    "schema_version",
+    "experimental",
+    "spec",
+    "created_utc",
+    "app",
+    "time_zone_used",
+    "computer_time_zone",
+    "backup",
+    "files_copied",
+    "types",
+    "integrity"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "section": {
+      "type": "object",
+      "properties": {
+        "included": {
+          "type": "boolean",
+          "description": "Whether this kind of data was chosen for the bundle. When false, nothing else is given."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many records the files hold."
+        },
+        "first_utc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+          "description": "A UTC date and time, like 2024-07-05T16:10:00Z, or null when the backup has none."
+        },
+        "last_utc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+          "description": "A UTC date and time, like 2024-07-05T16:10:00Z, or null when the backup has none."
+        },
+        "empty_reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Why there are no records, when count is 0: not_in_backup (the backup doesn't have this data), no_records (it has the database, with nothing in it), requires_encryption (iOS only backs this up in encrypted backups), unsupported_format. Null when there are records or an error."
+        },
+        "error": {
+          "type": "string",
+          "description": "Why this kind of data couldn't be read. Its files may be missing or incomplete; the rest of the bundle is fine."
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))[^\\\\]+$",
+            "description": "A path inside the bundle folder, with / between folders, or null when the file isn't in the bundle."
+          },
+          "description": "The files that hold this kind of data."
+        },
+        "conversations": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "messages: how many conversations."
+        },
+        "attachments": {
+          "type": "object",
+          "properties": {
+            "copied": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "messages: attachments copied into the bundle."
+            },
+            "not_in_backup": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "messages: attachments the backup has no file for."
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "messages: attachments that couldn't be copied."
+            }
+          },
+          "required": [
+            "copied",
+            "not_in_backup",
+            "failed"
+          ],
+          "additionalProperties": false
+        },
+        "lists": {
+          "type": "object",
+          "description": "voicemail: how many are in each list on the iPhone.",
+          "properties": {
+            "voicemail": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "spam": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "deleted": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "voicemail",
+            "spam",
+            "deleted"
+          ],
+          "additionalProperties": false
+        },
+        "audio": {
+          "type": "object",
+          "properties": {
+            "copied": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "voicemail: audio files copied into the bundle."
+            },
+            "not_in_backup": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "voicemail: audio files the backup has no file for."
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "voicemail: audio files that couldn't be copied."
+            }
+          },
+          "required": [
+            "copied",
+            "not_in_backup",
+            "failed"
+          ],
+          "additionalProperties": false
+        },
+        "albums": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "photos: how many albums albums.json lists."
+        },
+        "not_in_backup": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "photos: photos and videos the library lists whose file isn't in the backup (kept only in iCloud)."
+        },
+        "photo_files": {
+          "type": "object",
+          "description": "photos: files copied, when photo files were asked for.",
+          "properties": {
+            "copied": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "copied",
+            "failed"
+          ],
+          "additionalProperties": false
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "messages",
+              "calls",
+              "voicemail"
+            ]
+          },
+          "description": "people: the kinds of data people were worked out from."
+        }
+      },
+      "required": [
+        "included"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

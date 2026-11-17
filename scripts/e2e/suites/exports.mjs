@@ -2,6 +2,7 @@
 // the Save buttons on each screen (conversation, bulk, notes, address book, people, timeline,
 // calls, voicemail, photos, web history, recovered messages). Files are checked for count and
 // format, not just existence.
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { check, csvRows, launch, looksValid, pdfStats, sleep, timing } from '../harness.mjs';
@@ -150,6 +151,39 @@ export default {
           await prompts();
         }
       }
+      // ── Save to this computer: a data bundle (docs/BUNDLE.md) ──
+      {
+        await app.open('Save to this computer', /Copy what's in this backup/);
+        const dir = path.join(root, 'panel-bundle');
+        const res = await run(dir, () => app.eval(() => {
+          const el = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Export');
+          el?.click();
+          return !!el;
+        }), 'bundle');
+        timing('export a data bundle', res.ms ?? 0);
+        // One new folder holding the bundle
+        const folder = res.files.find(f => f.endsWith('/manifest.json'))?.slice(0, -'manifest.json'.length) ?? '';
+        const inBundle = name => path.join(dir, folder, name);
+        const lines = name => fs.existsSync(inBundle(name)) ? fs.readFileSync(inBundle(name), 'utf-8').split('\n').filter(Boolean) : [];
+        const manifest = folder ? JSON.parse(fs.readFileSync(inBundle('manifest.json'), 'utf-8')) : null;
+        // Every file is in SHA256SUMS with its right hash, and nothing else is
+        const sums = lines('SHA256SUMS').map(l => [l.slice(66), l.slice(0, 64)]);
+        const files = res.files.filter(f => f.startsWith(folder)).map(f => f.slice(folder.length)).filter(f => f !== 'SHA256SUMS');
+        const wrong = sums.filter(([f, h]) => !fs.existsSync(inBundle(f))
+          || crypto.createHash('sha256').update(fs.readFileSync(inBundle(f))).digest('hex') !== h).map(([f]) => f);
+        const voicemails = lines('voicemail.jsonl').map(l => JSON.parse(l));
+        const detail = {
+          format: manifest?.format, version: manifest?.schema_version, messages: lines('messages.jsonl').length,
+          voicemails: voicemails.length, sums: sums.length, files: files.length, wrong: wrong.slice(0, 5),
+        };
+        const pass = manifest?.format === 'openextract-bundle' && manifest?.time_zone_used === 'UTC'
+          && detail.messages === key.messages.length && voicemails.length === key.voicemails.length
+          && voicemails.every(v => v.phone_number && v.audio_sha256 && typeof v.is_spam === 'boolean')
+          && sums.length === files.length && wrong.length === 0;
+        ok('Save panel: data bundle', res, { pass, detail });
+        await prompts();
+      }
+
       check('the "Pay it forward" card showed after the first export, with Say thanks and Pay $5', shareSeen?.join() === 'Say thanks,Pay $5', shareSeen);
       check('Say thanks on that card opens the thank-you note', thanksOpened === 'Say thanks', thanksOpened);
       check('"Did this export come out right?" showed at most once', exportCheckSeen <= 1, exportCheckSeen);

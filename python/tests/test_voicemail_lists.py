@@ -18,12 +18,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from backup import BackupManager  # noqa: E402
 from stats import StatsComputer  # noqa: E402
 from voicemail import VoicemailExtractor  # noqa: E402
+from ios_backup_core.extractors import voicemail as _core_voicemail  # noqa: E402
+
+# A deleted spam voicemail keeps its spam mark from charleswest775/ios-backup-core#36 on
+SPAM_MARK = hasattr(_core_voicemail, "is_spam")
 
 UDID = "00008030-0000000000000001"
 ACCOUNT = "A-0B1C2D3E-4F50-4A6B-8C7D-9E0F1A2B3C4D"
 AMR = b"#!AMR\n" + bytes(32)
 
 LIVE, SPAM, TRASHED, DELETED_LONG_AGO = 0x1103, 0x1182, 0x110A, 0x110B
+SPAM_THEN_DELETED = 0x118A
 
 
 def _voicemail_db(rows) -> bytes:
@@ -75,11 +80,12 @@ class VoicemailListsTest(unittest.TestCase):
                 (2, 1_710_000_000, "+15550000002", 30, SPAM, 0),
                 (3, 1_720_000_000, "+15550000003", 40, TRASHED, 1_720_000_100),
                 (4, 1_600_000_000, "+15550000004", 50, DELETED_LONG_AGO, 0),
+                (5, 1_725_000_000, "+15550000005", 12, SPAM_THEN_DELETED, 1_725_000_100),
             ]),
             f"Library/Voicemail/{ACCOUNT}/voicemail.db": _voicemail_db([
                 (7, 1_730_000_000, "Mum: home?", 60, 0x3, 0),  # only in the account store
             ]),
-            **{f"Library/Voicemail/{n}.amr": AMR for n in (1, 2, 3, 4)},
+            **{f"Library/Voicemail/{n}.amr": AMR for n in (1, 2, 3, 4, 5)},
             f"Library/Voicemail/{ACCOUNT}/7.amr": AMR,
         })
         # Through the app's own manager, which closes Manifest.db: Windows won't
@@ -93,29 +99,57 @@ class VoicemailListsTest(unittest.TestCase):
         stats = StatsComputer()._voicemail_stats(self.backup)
         self.assertEqual(
             {k: stats[k] for k in ("total", "read", "unread", "spam", "deleted")},
-            {"total": 3, "read": 2, "unread": 1, "spam": 1, "deleted": 2},
+            {"total": 3, "read": 2, "unread": 1, "spam": 1, "deleted": 3},
         )
         self.assertEqual(stats["total_duration_seconds"], 20 + 30 + 60)
 
     def test_save_all_writes_every_list(self):
         out = os.path.join(self.tmp.name, "out")
         result = VoicemailExtractor().export_voicemails(self.backup, {}, out)
-        self.assertEqual(result["exported"], 5)
+        self.assertEqual(result["exported"], 6)
         with open(os.path.join(out, "voicemails.csv"), newline="", encoding="utf-8") as f:
             rows = list(csv.reader(f))
         self.assertEqual(rows[0][:2], ["ID", "List"])
         self.assertEqual(
             sorted((r[0], r[1]) for r in rows[1:]),
-            sorted([("1", "Voicemail"), ("2", "Spam"), ("3", "Deleted"), ("4", "Deleted"), (f"{ACCOUNT}.7", "Voicemail")]),
+            sorted([("1", "Voicemail"), ("2", "Spam"), ("3", "Deleted"), ("4", "Deleted"), ("5", "Deleted"),
+                    (f"{ACCOUNT}.7", "Voicemail")]),
         )
         audio = sorted(os.path.relpath(os.path.join(d, f), out) for d, _, fs in os.walk(out) for f in fs if f.endswith(".amr"))
-        self.assertEqual(len(audio), 5)
+        self.assertEqual(len(audio), 6)
         self.assertEqual(sum(p.startswith(os.path.join("audio", "Spam") + os.sep) for p in audio), 1)
-        self.assertEqual(sum(p.startswith(os.path.join("audio", "Deleted") + os.sep) for p in audio), 2)
+        self.assertEqual(sum(p.startswith(os.path.join("audio", "Deleted") + os.sep) for p in audio), 3)
         account = [p for p in audio if ACCOUNT in p]
         self.assertEqual(len(account), 1)
         self.assertNotIn(":", os.path.basename(account[0]))  # "Mum: home?" made safe for Windows
         self.assertNotIn("?", os.path.basename(account[0]))
+
+    def _saved_list(self):
+        out = os.path.join(self.tmp.name, "out")
+        VoicemailExtractor().export_voicemails(self.backup, {"+15550000002": "Dentist"}, out)
+        with open(os.path.join(out, "voicemails.csv"), newline="", encoding="utf-8") as f:
+            return list(csv.DictReader(f))
+
+    def test_the_list_keeps_a_saved_contacts_number(self):
+        """Contact is the address book's name; Phone Number is always the number (it was
+        lost for saved contacts)."""
+        rows = self._saved_list()
+        self.assertEqual(list(rows[0]), ["ID", "List", "Date (UTC)", "Contact", "Phone Number", "Spam",
+                                         "Duration", "Is Read", "Transcript"])
+        by_id = {r["ID"]: r for r in rows}
+        self.assertEqual((by_id["2"]["Contact"], by_id["2"]["Phone Number"]), ("Dentist", "+15550000002"))
+        self.assertEqual((by_id["1"]["Contact"], by_id["1"]["Phone Number"]), ("+15550000001", "+15550000001"))
+        self.assertEqual((by_id["2"]["List"], by_id["2"]["Spam"]), ("Spam", "True"))
+        self.assertTrue(by_id["1"]["Date (UTC)"].endswith("+00:00"))
+
+    @unittest.skipUnless(SPAM_MARK, "needs ios-backup-core with is_spam (charleswest775/ios-backup-core#36)")
+    def test_the_list_keeps_every_spam_mark(self):
+        """Spam stays True for spam that was then deleted (its List is Deleted)."""
+        by_id = {r["ID"]: r for r in self._saved_list()}
+        self.assertEqual({i: (r["List"], r["Spam"]) for i, r in by_id.items()}, {
+            "1": ("Voicemail", "False"), "2": ("Spam", "True"), "3": ("Deleted", "False"),
+            "4": ("Deleted", "False"), "5": ("Deleted", "True"), f"{ACCOUNT}.7": ("Voicemail", "False"),
+        })
 
     def test_a_voicemail_only_in_the_account_store_plays(self):
         result = VoicemailExtractor().get_audio(self.backup, f"{ACCOUNT}.7")

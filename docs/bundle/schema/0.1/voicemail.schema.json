@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/charleswest775/openextract/main/docs/bundle/schema/0.1/voicemail.schema.json",
+  "title": "OpenExtract Bundle voicemail",
+  "description": "One line of voicemail.jsonl.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "The ROWID in voicemail.db, or <account folder>.<ROWID> for a per-account store."
+    },
+    "date_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "A UTC date and time, like 2024-07-05T16:10:00Z, or null when the backup has none."
+    },
+    "phone_number": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The caller's number, always, even when they're a saved contact."
+    },
+    "contact_name": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The caller's name in the address book, or null."
+    },
+    "duration": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Seconds."
+    },
+    "is_read": {
+      "type": "boolean"
+    },
+    "folder": {
+      "enum": [
+        "voicemail",
+        "spam",
+        "deleted"
+      ],
+      "description": "The list the iPhone shows it in."
+    },
+    "is_spam": {
+      "type": "boolean",
+      "description": "Marked spam, whichever list it's in: a deleted spam voicemail is in deleted with is_spam true."
+    },
+    "is_deleted": {
+      "type": "boolean",
+      "description": "In Recently Deleted."
+    },
+    "transcript": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "audio_path": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))[^\\\\]+$",
+      "description": "A path inside the bundle folder, with / between folders, or null when the file isn't in the bundle."
+    },
+    "audio_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "A SHA-256 hash in lower-case hex, or null."
+    }
+  },
+  "required": [
+    "id",
+    "date_utc",
+    "phone_number",
+    "contact_name",
+    "duration",
+    "is_read",
+    "folder",
+    "is_spam",
+    "is_deleted",
+    "transcript",
+    "audio_path",
+    "audio_sha256"
+  ],
+  "additionalProperties": false
+}

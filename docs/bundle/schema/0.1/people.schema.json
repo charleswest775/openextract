@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/charleswest775/openextract/main/docs/bundle/schema/0.1/people.schema.json",
+  "title": "OpenExtract Bundle people",
+  "description": "people.json: who the backup shows you in touch with, merged by the same rules as the app's People screen.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "0.1",
+      "description": "The format version this file follows."
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "messages",
+          "calls",
+          "voicemail"
+        ]
+      }
+    },
+    "people": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "How this person was merged: a name in lower case, or the digits of a number."
+          },
+          "name": {
+            "type": "string"
+          },
+          "identifier": {
+            "type": "string",
+            "description": "One of their numbers or addresses."
+          },
+          "identifiers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every number (last 10 digits) and address (lower case) merged into them."
+          },
+          "numbers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The same, as the backup writes them."
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "messages": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "calls": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "voicemail": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "messages",
+              "calls",
+              "voicemail"
+            ],
+            "additionalProperties": false
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "last_utc": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+            "description": "A UTC date and time, like 2024-07-05T16:10:00Z, or null when the backup has none."
+          },
+          "is_group": {
+            "type": "boolean",
+            "description": "A group conversation, not one person."
+          },
+          "chat_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Their conversation in conversations.json."
+          },
+          "contact_id": {
+            "type": [
+              "integer",
+              "string",
+              "null"
+            ],
+            "description": "Their card in contacts.json, when contacts are in the bundle."
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "identifier",
+          "identifiers",
+          "numbers",
+          "counts",
+          "total",
+          "last_utc",
+          "is_group",
+          "chat_id",
+          "contact_id"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "sources",
+    "people"
+  ],
+  "additionalProperties": false
+}
