@@ -1,0 +1,15 @@
+PackageIdentifier: OpenExtract.OpenExtract
+PackageVersion: 0.17.0
+InstallerType: nullsoft
+Scope: user
+InstallModes:
+  - interactive
+  - silent
+UpgradeBehavior: install
+ReleaseDate: 2026-11-17
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/charleswest775/openextract/releases/download/v0.17.0/OpenExtract-Setup-0.17.0.exe
+    InstallerSha256: 4612A5EA397DC6C29653DD1599487CAA1168054F00AFDC7715DA42DCADB73343
+ManifestType: installer
+ManifestVersion: 1.6.0
