@@ -286,6 +286,16 @@ def case_get_backup_size(ctx):
         assert result["size_gb"] == round(on_disk / 1024 ** 3, 2)
 
 
+@contract("check_backup_files")
+def case_check_backup_files(ctx):
+    # A backup that finished has every file it lists in its folder (OE-102 was one that didn't).
+    for engine in (ctx.maren, ctx.maren_enc):
+        result = engine.rpc("check_backup_files")
+        assert result["listed"] > 0, result
+        assert result["missing"] == 0, result
+        assert result["missing_by_area"] == {"photos": 0, "messages": 0, "other": 0}
+
+
 @contract("list_conversations")
 def case_list_conversations(ctx):
     m = ctx.maren
@@ -1278,6 +1288,7 @@ def case_get_backup_stats(ctx):
         assert o["total_messages"] == len(exp["messages"])
         assert o["total_conversations"] == len(exp["conversations"])
         assert o["total_photos"] + o["total_videos"] == o["photos_in_backup"] == len(exp["photos"])
+        assert o["photos_missing_from_folder"] == 0
         assert o["total_contacts"] == len(exp["contacts"])
         assert o["total_notes"] == len(exp["notes"])
         assert o["total_voicemails"] == len(exp["voicemails"])

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { sidecarCall } from '../../lib/ipc';
 import type { RecentSession } from '../../lib/appState';
 import { ArrowLeftIcon } from '../shared/Icons';
 import SettingsDialog from '../shared/SettingsDialog';
@@ -28,7 +29,9 @@ import { useFeedback } from '../shared/Feedback';
 import TitleBar from './TitleBar';
 import HomeCrumb from './HomeCrumb';
 import BackupHome from './BackupHome';
-import UnfinishedBanner from './UnfinishedBanner';
+import BackupBanner from './BackupBanner';
+import { UNFINISHED_MESSAGE } from '../../lib/foundBackups';
+import { missingFilesMessage, type BackupFilesCheck } from '../../lib/backupFiles';
 import {
   availableData, missingKinds, sectionFor, SCOPED,
   type ExploreContext, type OpenOptions, type Tab,
@@ -151,6 +154,20 @@ export default function ExploreLayout({ udid, session, onBack, unfinished = fals
       }
     }).catch(() => {});
   }, [udid]);
+
+  // Whether the backup's folder has every file it lists (OE-102). Asked once the backup is
+  // open, so opening doesn't wait for it to read the whole folder.
+  const [filesCheck, setFilesCheck] = useState<BackupFilesCheck | null>(null);
+  useEffect(() => {
+    setFilesCheck(null);
+    let current = true;
+    sidecarCall<BackupFilesCheck>('check_backup_files', { udid })
+      .then(result => { if (current) setFilesCheck(result); })
+      .catch(() => {});
+    return () => { current = false; };
+  }, [udid]);
+  // A backup that didn't finish is missing files too; its own message says why.
+  const bannerMessage = unfinished ? UNFINISHED_MESSAGE : missingFilesMessage(filesCheck);
 
   const ctx: ExploreContext = {
     udid,
@@ -305,7 +322,7 @@ export default function ExploreLayout({ udid, session, onBack, unfinished = fals
         onHelp={() => openFeedback({ area: area as FeedbackArea })}
         onSettings={() => setSettingsOpen(true)}
       />
-      {unfinished && <UnfinishedBanner key={udid} onNewBackup={onNewBackup} />}
+      {bannerMessage && <BackupBanner key={udid} message={bannerMessage} onNewBackup={onNewBackup} />}
       {scope && query && (
         <div className="flex-shrink-0 px-6 py-2 border-b border-rule bg-accent-wash flex items-center gap-3 text-sm">
           <span className="text-text-secondary">

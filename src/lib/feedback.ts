@@ -112,6 +112,7 @@ export function formatDiagnostics(d: FeedbackDiagnostics): string {
       b.encrypted === undefined ? undefined : b.encrypted ? 'encrypted' : 'not encrypted',
       typeof b.sizeGB === 'number' ? `${b.sizeGB} GB` : undefined,
       b.unfinished ? "didn't finish" : undefined,
+      b.missingFiles ? `${b.missingFiles} ${b.missingFiles === 1 ? 'file' : 'files'} missing from its folder` : undefined,
     ].filter(Boolean);
     lines.push(`Backup: ${parts.join(' · ') || 'details unknown'}`);
   } else {

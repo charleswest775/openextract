@@ -90,7 +90,10 @@ export type TextSize = 'default' | 'large' | 'larger';
 export interface FeedbackDiagnostics {
   appVersion: string;
   os: string;
-  backup: { model?: string; iosVersion?: string; encrypted?: boolean; sizeGB?: number | null; unfinished?: boolean } | null;
+  backup: {
+    model?: string; iosVersion?: string; encrypted?: boolean; sizeGB?: number | null; unfinished?: boolean;
+    missingFiles?: number;
+  } | null;
   loaded: string[];
   failed: string[];
   recentErrors: { at: string; method: string; message: string; count: number }[];

@@ -93,6 +93,15 @@ def test_backup_opens(ctx):
     assert ctx.open_result["status"] == "open"
 
 
+def test_every_listed_file_is_in_the_folder(ctx):
+    # A finished backup has every file it lists, so the app's "files missing from this backup's
+    # folder" strip never shows for one (OE-102 was a folder that didn't).
+    ctx.require_open()
+    result = ctx.rpc("check_backup_files")
+    assert result["listed"] > 0, result
+    assert result["missing"] == 0, result
+
+
 # ── nothing reports an error for data that exists ───────────────────────────
 
 

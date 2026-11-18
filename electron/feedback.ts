@@ -20,6 +20,8 @@ export interface BackupFacts {
   sizeGB?: number | null;
   /** The backup stopped partway (OE-31), so sections may fail for that reason alone. */
   unfinished?: boolean;
+  /** How many files the backup lists aren't in its folder (OE-102), from check_backup_files. */
+  missingFiles?: number;
 }
 
 export interface RecentFailure {
@@ -209,6 +211,10 @@ export class FeedbackRecorder {
         ...(info.unfinished === true ? { unfinished: true } : {}),
       };
       this.outcomes.clear();
+    }
+    if (method === 'check_backup_files' && outcome.ok && this.backup
+        && typeof outcome.result?.missing === 'number' && outcome.result.missing > 0) {
+      this.backup.missingFiles = outcome.result.missing;
     }
     if (method === 'list_backups' && outcome.ok && Array.isArray(outcome.result?.backups)) {
       for (const b of outcome.result.backups) {

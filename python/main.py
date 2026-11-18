@@ -143,6 +143,7 @@ from device_backup import DeviceBackupManager  # noqa: E402
 from stats import StatsComputer  # noqa: E402
 from year_counts import YearCounter  # noqa: E402
 from bundle import BundleExporter  # noqa: E402
+import backup_files  # noqa: E402
 import build_info  # noqa: E402
 
 
@@ -176,6 +177,7 @@ class SidecarServer:
             "open_backup": self.open_backup,
             "validate_password": self.validate_password,
             "get_backup_size": self.get_backup_size,
+            "check_backup_files": self.check_backup_files,
             "list_conversations": self.list_conversations,
             "get_messages": self.get_messages,
             "get_attachment": self.get_attachment,
@@ -306,6 +308,15 @@ class SidecarServer:
     def get_backup_size(self, params):
         backup_dir = params["backup_dir"]
         return self.backup_manager.get_backup_size(backup_dir)
+
+    def check_backup_files(self, params):
+        """How many of the files the open backup lists aren't in its folder (OE-102).
+
+        A separate call from open_backup, so opening doesn't wait for it: it reads the
+        whole folder once (backup_files.py), and the app asks after the backup is open.
+        """
+        backup = self.backup_manager.get_open_backup(params["udid"])
+        return backup_files.missing_files(backup)
 
     def list_conversations(self, params):
         udid = params["udid"]

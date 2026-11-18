@@ -177,6 +177,26 @@ test('a backup that stopped partway is noted in the facts (OE-31)', () => {
   assert.match(lib.formatDiagnostics(d), /Backup: iPhone13,4 · iOS 18\.4\.1 · not encrypted · didn't finish/);
 });
 
+test('files missing from the backup folder are noted in the facts (OE-102)', () => {
+  const rec = new main.FeedbackRecorder(path.join(tmp, 'missing-log.txt'), '0.9.0');
+  const open = { status: 'open', info: { udid: 'abcd1234efgh', product_type: 'iPhone14,4', product_version: '26.5.2', encrypted: false, size_gb: null, backup_dir: '/b' } };
+  rec.recordCall('open_backup', { udid: 'abcd1234efgh' }, { ok: true, result: open });
+  rec.recordCall('check_backup_files', { udid: 'abcd1234efgh' }, {
+    ok: true, result: { listed: 40000, missing: 1234, missing_by_area: { photos: 1200, messages: 0, other: 34 } },
+  });
+  const d = rec.diagnostics();
+  assert.equal(d.backup.missingFiles, 1234);
+  assert.match(lib.formatDiagnostics(d), /Backup: iPhone14,4 · iOS 26\.5\.2 · not encrypted · 1234 files missing from its folder/);
+  assert.deepEqual(d.loaded, ['check_backup_files', 'open_backup']);
+
+  // Opening a backup again starts over; nothing missing adds nothing.
+  rec.recordCall('open_backup', { udid: 'abcd1234efgh' }, { ok: true, result: open });
+  rec.recordCall('check_backup_files', { udid: 'abcd1234efgh' }, { ok: true, result: { listed: 40000, missing: 0 } });
+  assert.equal(rec.diagnostics().backup.missingFiles, undefined);
+  assert.doesNotMatch(lib.formatDiagnostics(rec.diagnostics()), /missing from its folder/);
+  assert.match(lib.formatDiagnostics({ ...rec.diagnostics(), backup: { missingFiles: 1 } }), /Backup: 1 file missing from its folder/);
+});
+
 const diag = {
   appVersion: '0.9.0', os: 'macOS 14.3.0 (arm64)',
   backup: { model: 'iPhone14,2', iosVersion: '17.4', encrypted: false, sizeGB: 12.5 },
@@ -690,6 +710,22 @@ const REAL_ERRORS = [
     area: 'create_backup',
     version: '0.12.0',
     errors: [['backup.start', 'Sidecar call timed out: backup.start']],
+  },
+  // Photos the backup lists whose files aren't in its folder, as 0.17.0 reported them (OE-102),
+  // and the line later diagnostics add (python/backup_files.py via check_backup_files).
+  {
+    fix: 'files-missing-from-backup-folder',
+    os: WINDOWS,
+    area: 'photos',
+    version: '0.17.0',
+    details: 'could not find the files',
+    errors: [['get_photo_thumbnail', 'Photo not found'], ['get_photo_path', 'File not found'], ['get_photo', 'Photo not found']],
+  },
+  {
+    fix: 'files-missing-from-backup-folder',
+    os: WINDOWS,
+    area: 'photos',
+    details: "It says 1,234 of this backup's files are missing from its folder",
   },
   // Questions about WhatsApp, in people's own words: its chats in an encrypted backup (WhatsApp's
   // end-to-end encrypted chat backup leaves them out), and deleted WhatsApp messages.

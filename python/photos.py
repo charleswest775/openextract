@@ -32,6 +32,7 @@ import uuid
 import weakref
 from typing import Optional
 
+import backup_files
 from export_progress import ExportProgress, ProgressCallback
 from ios_backup_core.db import connect_readonly
 from ios_backup_core.extractors.photos import (
@@ -99,6 +100,24 @@ def _original_paths(rel: str) -> tuple:
     if rel.startswith("Media/DCIM/"):
         return (rel, "Media/" + rel[len("Media/DCIM/"):])
     return (rel,)
+
+
+def _selection_count(part: dict, has_albums: bool, album_id: Optional[str]) -> Optional[int]:
+    """The count in ``part`` ({"library", "albums", "smart"}) for what list_photos(album_id=...) lists."""
+    if album_id in part["smart"]:
+        return part["smart"][album_id]
+    if album_id == LIBRARY:
+        # Every photo: All Photos plus Hidden, which All Photos leaves out.
+        hidden = part["smart"].get(HIDDEN, 0) if HIDDEN is not None and _CORE_LIBRARY is not None else 0
+        return part["library"] + hidden
+    # Same choice as the library's list_photos: an album it can't filter by
+    # (no album junction table, "__all__") lists the whole library.
+    if album_id and album_id != "__all__" and has_albums:
+        try:
+            return part["albums"].get(str(int(album_id)), 0)
+        except ValueError:
+            return None
+    return part["library"]
 
 
 def asset_table(conn) -> str:
@@ -215,7 +234,9 @@ class PhotoExtractor:
         ``total``, ``offset`` and ``limit`` count rows in the Photos library, so
         a page can hold fewer photos than ``limit`` (or none) with more after it.
         ``in_backup`` is how many photos the pages hold in all, and
-        ``not_in_backup`` how many library rows have no file in the backup.
+        ``not_in_backup`` how many library rows have no file in the backup (only in
+        iCloud). ``missing_from_folder`` is how many the backup lists but its folder
+        doesn't have (OE-102); they're left out too, and not counted as iCloud-only.
         """
         # An older ios-backup-core has no LIBRARY, and its All Photos already holds every photo.
         core_album_id = None if album_id == LIBRARY and _CORE_LIBRARY is None else album_id
@@ -254,8 +275,10 @@ class PhotoExtractor:
         }
         in_backup = self._selection_in_backup(backup, album_id)
         if in_backup is not None:
+            missing = self._selection_missing(backup, album_id) or 0
             out["in_backup"] = in_backup
-            out["not_in_backup"] = max(total - in_backup, 0)
+            out["not_in_backup"] = max(total - in_backup - missing, 0)
+            out["missing_from_folder"] = missing
         return out
 
     def library_in_backup(self, backup) -> int:
@@ -266,6 +289,12 @@ class PhotoExtractor:
         """
         page = self.list_photos(backup, 0, 1)
         return page.get("in_backup", page.get("total", 0))
+
+    def library_missing_from_folder(self, backup) -> int:
+        """All Photos rows whose original the backup lists but its folder doesn't have (OE-102):
+        list_photos' ``missing_from_folder`` for All Photos. 0 when the library can't be counted."""
+        counts = self._in_backup_counts(backup)
+        return 0 if counts is None else counts["missing"]["library"]
 
     def hidden_in_backup(self, backup) -> int:
         """How many hidden photos and videos the backup has a file for: the Hidden album's count.
@@ -419,47 +448,52 @@ class PhotoExtractor:
             return None
         if "PhotoCloudSharingData" in rel or "PhotoCloudSharingData" in filename:
             return None
-        files = self._original_files(backup)
+        files, _ = self._original_files(backup)
         for path in _original_paths(rel):
             file_id = files.get(path)
             if file_id is not None:
                 return f"dcim:{path}" if backup.encrypted else file_id
         return None
 
-    def _original_files(self, backup) -> dict:
-        """CameraRollDomain files where Photos keeps originals, as relative path → fileID.
+    def _missing_from_folder(self, backup, rel: Optional[str]) -> bool:
+        """Whether the backup lists the asset's original but its folder doesn't have the file (OE-102)."""
+        if not rel:
+            return False
+        _, missing = self._original_files(backup)
+        return any(path in missing for path in _original_paths(rel))
 
-        Read once per backup: a Manifest.db query per folder instead of a lookup
-        per asset, and it works on encrypted backups too (list_files reads
-        their decrypted manifest).
+    def _original_files(self, backup) -> tuple:
+        """CameraRollDomain files where Photos keeps originals: (relative path → fileID for
+        those in the backup's folder, relative paths the backup lists but its folder doesn't have).
+
+        A file is in the backup only if its folder has it: OE-102's Manifest.db listed
+        photos whose files weren't there (backup_files.py). Read once per backup: a
+        Manifest.db query per folder instead of a lookup per asset, and it works on
+        encrypted backups too (list_files reads their decrypted manifest).
         """
-        files = self._originals_cache.get(backup)
-        if files is None:
-            files = {
-                f["path"]: f["hash"]
-                for prefix in _ORIGINALS_PREFIXES
-                for f in backup.list_files(domain="CameraRollDomain", path_like=prefix + "%")
-            }
-            self._originals_cache[backup] = files
-        return files
+        cached = self._originals_cache.get(backup)
+        if cached is None:
+            files, missing = {}, set()
+            for prefix in _ORIGINALS_PREFIXES:
+                for f in backup.list_files(domain="CameraRollDomain", path_like=prefix + "%"):
+                    if backup_files.is_stored(backup, f["hash"]):
+                        files[f["path"]] = f["hash"]
+                    else:
+                        missing.add(f["path"])
+            cached = (files, frozenset(missing))
+            self._originals_cache[backup] = cached
+        return cached
 
     def _selection_in_backup(self, backup, album_id: Optional[str]) -> Optional[int]:
         """How many photos list_photos(album_id=...) holds across all its pages."""
         counts = self._in_backup_counts(backup)
-        if counts is None:
-            return None
-        if album_id in counts["smart"]:
-            return counts["smart"][album_id]
-        if album_id == LIBRARY:
-            return counts["library"] + self.hidden_in_backup(backup)
-        # Same choice as the library's list_photos: an album it can't filter by
-        # (no album junction table, "__all__") lists the whole library.
-        if album_id and album_id != "__all__" and counts["has_albums"]:
-            try:
-                return counts["albums"].get(str(int(album_id)), 0)
-            except ValueError:
-                return None
-        return counts["library"]
+        return None if counts is None else _selection_count(counts, counts["has_albums"], album_id)
+
+    def _selection_missing(self, backup, album_id: Optional[str]) -> Optional[int]:
+        """How many of the photos list_photos(album_id=...) would show the backup lists but its
+        folder doesn't have (OE-102). list_photos leaves them out, as it does iCloud-only ones."""
+        counts = self._in_backup_counts(backup)
+        return None if counts is None else _selection_count(counts["missing"], counts["has_albums"], album_id)
 
     def _in_backup_counts(self, backup) -> Optional[dict]:
         """In-backup counts for the library and each album, computed once per backup.
@@ -468,8 +502,10 @@ class PhotoExtractor:
         paging through that listing returns: the library view (All Photos) leaves
         out trashed and hidden assets, an album view lists every asset joined to the album.
         Returns ``{"library": n, "albums": {album id: n}, "smart": {Favorites or
-        Hidden id: n}, "has_albums": bool, "present": Z_PKs in the backup}``, or
-        None when Photos.sqlite can't be read (list_photos then reports only ``total``).
+        Hidden id: n}, "has_albums": bool, "present": Z_PKs in the backup, "missing":
+        {"library", "albums", "smart"} for the assets the backup lists but its folder
+        doesn't have}``, or None when Photos.sqlite can't be read (list_photos then
+        reports only ``total``).
         """
         if backup in self._in_backup_cache:
             return self._in_backup_cache[backup]
@@ -492,40 +528,45 @@ class PhotoExtractor:
         # Only an ios-backup-core whose All Photos leaves hidden photos out (it has LIBRARY).
         hidden = "COALESCE(ZHIDDEN, 0)" if "ZHIDDEN" in columns and _CORE_LIBRARY else "0"
         present: set = set()
-        library = 0
+        missing: set = set()  # listed in the backup, but not in its folder (OE-102)
+        in_library: set = set()
         for pk, directory, filename, is_trashed, is_hidden in conn.execute(
             f"SELECT Z_PK, ZDIRECTORY, ZFILENAME, {trashed}, {hidden} FROM {assets}"
         ):
-            rel = _build_dcim_path(directory, filename) if directory and filename else None
-            if self._file_hash_for(backup, rel, filename or "") is None:
-                continue
-            present.add(pk)
             if is_trashed == 0 and is_hidden == 0:
-                library += 1
+                in_library.add(pk)
+            rel = _build_dcim_path(directory, filename) if directory and filename else None
+            if self._file_hash_for(backup, rel, filename or "") is not None:
+                present.add(pk)
+            elif self._missing_from_folder(backup, rel):
+                missing.add(pk)
 
-        albums: dict = {}
+        def tally(pks: set) -> dict:
+            return {"library": len(pks & in_library), "albums": {}, "smart": {}}
+
+        found, lost = tally(present), tally(missing)
         junc_table, albums_col, assets_col = self._inner._find_album_junction(conn)
         if junc_table:
             for album, asset in conn.execute(
                 f"SELECT {albums_col}, {assets_col} FROM '{junc_table}' WHERE {albums_col} IS NOT NULL"
             ):
-                if asset in present:
-                    albums[str(album)] = albums.get(str(album), 0) + 1
+                for pks, part in ((present, found), (missing, lost)):
+                    if asset in pks:
+                        part["albums"][str(album)] = part["albums"].get(str(album), 0) + 1
 
         # Favorites and Hidden, with the library's own filters, so these counts match their listings too.
-        smart: dict = {}
         for album_id in SMART_ALBUMS:
             where = smart_album_where(columns, album_id)
-            smart[album_id] = sum(
-                1 for (pk,) in conn.execute(f"SELECT Z_PK FROM {assets} WHERE {where}") if pk in present
-            )
-        return {"library": library, "albums": albums, "smart": smart, "has_albums": bool(junc_table),
-                "present": frozenset(present)}
+            pks = [pk for (pk,) in conn.execute(f"SELECT Z_PK FROM {assets} WHERE {where}")]
+            found["smart"][album_id] = sum(1 for pk in pks if pk in present)
+            lost["smart"][album_id] = sum(1 for pk in pks if pk in missing)
+        return {**found, "has_albums": bool(junc_table), "present": frozenset(present), "missing": lost}
 
     def _list_photos_from_dcim(self, backup, offset: int, limit: int) -> dict:
         """Fallback: enumerate files directly from DCIM via Manifest.db."""
         files = backup.list_files(domain="CameraRollDomain", path_like="Media/DCIM/%")
         media_files = []
+        missing = 0
         for f in files:
             ext = os.path.splitext(f["path"])[1].lower()
             if ext in PHOTO_EXTENSIONS:
@@ -533,6 +574,9 @@ class PhotoExtractor:
             elif ext in VIDEO_EXTENSIONS:
                 kind = "video"
             else:
+                continue
+            if not backup_files.is_stored(backup, f["hash"]):
+                missing += 1
                 continue
             file_hash = f"dcim:{f['path']}" if backup.encrypted else f["hash"]
             media_files.append({
@@ -561,6 +605,7 @@ class PhotoExtractor:
             "total": total,
             "in_backup": total,
             "not_in_backup": 0,
+            "missing_from_folder": missing,
             "offset": offset,
             "limit": limit,
             "source": "dcim_scan",
@@ -814,6 +859,8 @@ class PhotoExtractor:
             # Library items left out because the backup has no file for them
             # (only in iCloud). list_photos never returns them, so they aren't errors.
             "not_in_backup": result.get("not_in_backup", 0),
+            # Left out because the backup lists them but its folder doesn't have them (OE-102).
+            "missing_from_folder": result.get("missing_from_folder", 0),
             "output_dir": output_dir,
         }
 

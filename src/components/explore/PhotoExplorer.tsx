@@ -3,8 +3,10 @@ import { sidecarCall, saveFolder } from '../../lib/ipc';
 import { CameraIcon, ChevronRightIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
 import {
-  allOnlyInIcloud, moreOnlyInIcloud, photoExportSummary, photoSaveFailures, photoSaveProgress, PhotoExportResult,
+  moreMissingFromFolder, moreOnlyInIcloud, noPhotosHere, photoExportSummary, photoSaveFailures, photoSaveProgress,
+  PhotoExportResult,
 } from '../../lib/photoCounts';
+import { useNotice } from '../shared/Notices';
 import { percentDone } from '../../lib/exportProgress';
 import PageHeader from '../shared/PageHeader';
 import EmptyState from '../shared/EmptyState';
@@ -32,12 +34,14 @@ interface PhotoAsset {
 
 // total counts rows in the Photos library (paging steps through it); in_backup
 // is how many photos the pages hold, not_in_backup the rows left out because
-// the backup has no file for them.
+// the backup has no file for them (only in iCloud), missing_from_folder the rows
+// left out because the backup lists their file but its folder doesn't have it (OE-102).
 interface PhotoPage {
   photos: PhotoAsset[];
   total: number;
   in_backup?: number;
   not_in_backup?: number;
+  missing_from_folder?: number;
 }
 
 const BATCH_SIZE = 100;
@@ -71,6 +75,7 @@ export default function PhotoExplorer({ udid, open }: Props) {
   const [total, setTotal] = useState(0);
   const [inBackup, setInBackup] = useState<number | null>(null);
   const [notInBackup, setNotInBackup] = useState(0);
+  const [missingFromFolder, setMissingFromFolder] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -78,6 +83,7 @@ export default function PhotoExplorer({ udid, open }: Props) {
   const { busy, run } = useSaveAction('photos');
   const saving = useExportProgress('photos', busy);
   const [videoLoading, setVideoLoading] = useState(false);
+  const notify = useNotice();
 
   const offsetRef = useRef(0);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -134,6 +140,7 @@ export default function PhotoExplorer({ udid, open }: Props) {
       }
       setInBackup(result.in_backup ?? null);
       setNotInBackup(result.not_in_backup ?? 0);
+      setMissingFromFolder(result.missing_from_folder ?? 0);
       setTotal(result.total);
       offsetRef.current = next;
       setHasMore(next < result.total);
@@ -277,9 +284,12 @@ export default function PhotoExplorer({ udid, open }: Props) {
       if (result.path && window.openextract?.openPath) {
         // Open in system default media player (handles HEVC, MOV, etc.)
         window.openextract.openPath(result.path);
+      } else if (!result.path) {
+        // It did nothing before, for each of OE-102's videos.
+        notify({ kind: 'error', title: "This video couldn't be opened", detail: videoProblem(result.error), area: 'photos' });
       }
-    } catch {
-      // Ignore
+    } catch (err: any) {
+      notify({ kind: 'error', title: "This video couldn't be opened", detail: videoProblem(err?.message), area: 'photos' });
     } finally {
       setVideoLoading(false);
     }
@@ -383,6 +393,9 @@ export default function PhotoExplorer({ udid, open }: Props) {
           percent={percentDone(saving)}
         />
       )}
+      {missingFromFolder > 0 && shownCount > 0 && (
+        <p className="px-6 py-2 text-sm text-text-secondary border-b border-rule">{moreMissingFromFolder(missingFromFolder)}</p>
+      )}
       {notInBackup > 0 && shownCount > 0 && (
         <p className="px-6 py-2 text-sm text-text-secondary border-b border-rule">{moreOnlyInIcloud(notInBackup)}</p>
       )}
@@ -470,7 +483,7 @@ export default function PhotoExplorer({ udid, open }: Props) {
             <EmptyState
               icon={CameraIcon}
               title={kindFilter !== 'all' ? 'None of this type here' : 'No photos in this backup'}
-              detail={shownCount === 0 && notInBackup > 0 ? allOnlyInIcloud(notInBackup) : undefined}
+              detail={shownCount === 0 ? noPhotosHere(missingFromFolder, notInBackup) : undefined}
             />
           )}
         </div>
@@ -493,6 +506,12 @@ export default function PhotoExplorer({ udid, open }: Props) {
       )}
     </div>
   );
+}
+
+/** Why a video couldn't be opened: the engine says "File not found" when its file isn't in the backup's folder. */
+function videoProblem(error?: string): string | undefined {
+  if (!error || /not found/i.test(error)) return "Its file isn't in the backup's folder.";
+  return error;
 }
 
 function SidebarHeading({ children }: { children: string }) {

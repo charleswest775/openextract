@@ -207,6 +207,18 @@ const KNOWN_FIXES = [
     text: 'Choose the folder that holds your backups, not one backup inside it. If a backup you were making with OpenExtract didn\'t finish, there\'s nothing to open yet: make the backup again first. On a Mac it\'s Library/Application Support/MobileSync/Backup in your user folder. On Windows it\'s usually Apple/MobileSync/Backup in your user folder, or AppData/Roaming/Apple Computer/MobileSync/Backup.',
   },
   {
+    id: 'files-missing-from-backup-folder',
+    title: "Files missing from the backup's folder",
+    area: 'data',
+    seen: ["of this backup's files are missing from its folder", "missing from the backup's folder", 'Photo not found'],
+    // OE-102: Manifest.db listed the photos, but their files weren't in the backup's folder, so every
+    // photo failed with "Photo not found" (python/photos.py) and every video with "File not found"
+    // (get_photo_path). After 0.17.0 the app leaves such photos out and says how many files are
+    // missing (python/backup_files.py, src/lib/backupFiles.ts); the diagnostics say it too.
+    match: /get_photo(?:_thumbnail)?(?: \(×\d+\))?: Photo not found|get_photo_path(?: \(×\d+\))?: File not found|\d+ files? missing from its folder|of this backup's files (?:is|are) missing from its folder/,
+    text: "The backup lists these files, but they aren't in its folder, so OpenExtract can't open them. This usually happens when a backup folder is copied or moved and the copy stops partway, or when another program, such as a cleanup tool or cloud storage, removes files from it. If you copied or moved the backup, copy the whole folder again from where it came from and open the new copy. Otherwise, make a new backup.",
+  },
+  {
     id: 'whatsapp-chats-not-in-backup',
     title: "WhatsApp's chats aren't in the backup",
     area: 'data',
