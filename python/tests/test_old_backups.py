@@ -170,8 +170,13 @@ def test_dashboard_and_timeline(server, opened):
     counts = _call(server, "get_year_counts", udid=udid, year=2012)
     assert counts["years"] == [2012, 2013]
     assert not counts["errors"]
-    day = _call(server, "get_messages_on_day", udid=udid, day="2012-11-03")
-    assert sum(len(c["messages"]) for c in day["conversations"]) == 3
+    # 2012's three messages were sent on 3 Nov (UTC), which is two local days in Auckland. In any
+    # time zone, the Timeline opens each day on as many messages as the Year view counts for it.
+    message_days = {day: c["message"] for day, c in counts["days"].items() if c.get("message")}
+    assert sum(message_days.values()) == 3
+    for day, count in message_days.items():
+        on_day = _call(server, "get_messages_on_day", udid=udid, day=day)
+        assert sum(len(c["messages"]) for c in on_day["conversations"]) == count, day
 
 
 def test_what_old_backups_lack_is_empty_not_an_error(server, opened):
