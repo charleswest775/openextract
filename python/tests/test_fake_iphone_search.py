@@ -34,6 +34,8 @@ JARGON = re.compile(r"sidecar|engine|lockdown|handshake|timed? ?out|RSD", re.I)
 # Shortened limits for these scenarios, so a silent iPhone costs a second, not ten.
 ANSWER_S = 1.0
 USB_SEARCH_S = 3.0
+# A search that waited out ANSWER_S. Windows' clock ticks every ~16 ms, so it can read 0.985 s.
+WAITED_S = ANSWER_S - 0.1
 
 
 @pytest.fixture(autouse=True)
@@ -72,7 +74,7 @@ def test_iphone_that_never_answers_its_handshake_is_listed_as_not_answering():
 
     # Back within the limit, not after the app's 5 minutes.
     assert run.error is None
-    assert ANSWER_S <= run.seconds < ANSWER_S + 2
+    assert WAITED_S <= run.seconds < ANSWER_S + 2
     [device] = run.devices
     assert device["udid"] == phone.udid
     assert device["connection_type"] == "usb"
@@ -91,7 +93,7 @@ def test_iphone_that_stops_answering_after_its_handshake_is_listed_as_not_answer
     run = run_search(phone, hang_timeout=20)
 
     assert run.error is None
-    assert ANSWER_S <= run.seconds < ANSWER_S + 2
+    assert WAITED_S <= run.seconds < ANSWER_S + 2
     [device] = run.devices
     assert device["answering"] is False and device["trusted"] is None
     # It said who it is before it went quiet.
@@ -111,7 +113,7 @@ def test_device_service_that_never_answers_is_a_plain_error(monkeypatch):
     run = run_search(phone, hang_timeout=20)
 
     assert run.result is None
-    assert ANSWER_S <= run.seconds < ANSWER_S + 4
+    assert WAITED_S <= run.seconds < ANSWER_S + 4
     _assert_plain(run.error, usbmuxd_named=True)
     # Not DEVICE_SERVICE_REQUIRED: on Windows that offers to install Apple Devices.
     assert not run.error.startswith(device_backup.DEVICE_SERVICE_PREFIX)
