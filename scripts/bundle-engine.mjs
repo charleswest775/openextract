@@ -20,6 +20,12 @@ function run(command, args) {
   return result.status ?? 1;
 }
 
+// build_info.json: the app version and the ios-backup-core commit this engine is built with,
+// which ping and a data bundle's manifest.json report (python/build_info.py). Written here,
+// from package.json and the ios-backup-core checkout, and bundled with --add-data.
+const info = run('python', ['build_info.py', '--write']);
+if (info !== 0) process.exit(info);
+
 // --recursive-copy-metadata: some packages read their own installed metadata when imported
 // (pyimg4 and apple_compress call importlib.metadata.version), and PyInstaller only collects
 // metadata when asked. pymobiledevice3 11.54 began importing pyimg4 on its way to a backup,
@@ -28,6 +34,8 @@ function run(command, args) {
 const built = run('pyinstaller', [
   '--onedir', '--noconfirm', '--name', 'openextract-engine',
   '--recursive-copy-metadata', 'pymobiledevice3',
+  // SOURCE<sep>DEST, with the OS's own separator (";" on Windows), which every PyInstaller accepts
+  '--add-data', `build_info.json${path.delimiter}.`,
   'main.py',
 ]);
 if (built !== 0) process.exit(built);

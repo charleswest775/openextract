@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/charleswest775/openextract/main/docs/bundle/schema/0.1/call.schema.json",
+  "title": "OpenExtract Bundle call",
+  "description": "One line of calls.jsonl.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "call_history: the call's Z_PK; voicemail: vm_<voicemail id>; messages: ft_<message ROWID>."
+    },
+    "date_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "A UTC date and time, like 2024-07-05T16:10:00Z, or null when the backup has none."
+    },
+    "address": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The number or address (a FaceTime UUID when that's all there is)."
+    },
+    "contact_name": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Their name in the address book, or null."
+    },
+    "direction": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "incoming or outgoing"
+    },
+    "status": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "answered, missed, …"
+    },
+    "duration": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Seconds."
+    },
+    "app": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Phone, FaceTime, or the app's id."
+    },
+    "source": {
+      "enum": [
+        "call_history",
+        "voicemail",
+        "messages"
+      ],
+      "description": "call_history: CallHistory.storedata; voicemail: a voicemail with no call record, shown as a missed call as the app does; messages: a FaceTime row in sms.db."
+    }
+  },
+  "required": [
+    "id",
+    "date_utc",
+    "address",
+    "contact_name",
+    "direction",
+    "status",
+    "duration",
+    "app",
+    "source"
+  ],
+  "additionalProperties": false
+}

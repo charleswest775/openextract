@@ -20,6 +20,9 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from rpc_contract_support import load_engine_module  # noqa: E402
 
+# ping answers with the app's version (python/build_info.py)
+VERSION = json.loads((HERE.parents[1] / "package.json").read_text(encoding="utf-8"))["version"]
+
 
 @pytest.fixture
 def engine(monkeypatch, tmp_path):
@@ -59,7 +62,7 @@ def test_raw_bytes_go_as_text_and_the_engine_answers_the_next_call(engine):
         {"uuid": "00000000000000000000000000000001", "filename": "IMG_0001.JPG"},  # binary → hex
         {"uuid": "fffe0001", "filename": "IMG_0002.JPG"},  # not UTF-8 → hex
     ]}}
-    assert second == {"id": 2, "result": {"status": "ok", "version": "0.1.0"}}
+    assert second == {"id": 2, "result": {"status": "ok", "version": VERSION}}
     # Where they were, so the reader that returned them can be fixed; never their contents.
     note = ("[RPC ERROR] photos_with_bytes: sent raw bytes as text at "
             "result.photos[].uuid (2 values), result.photos[].filename")
@@ -94,5 +97,5 @@ def test_a_result_that_cant_be_written_is_an_error_naming_the_method(engine):
 def test_an_ordinary_result_is_written_as_before(engine):
     _, exchange, log_text = engine
     (response,) = exchange({"id": 3, "method": "ping", "params": {}})
-    assert response == {"id": 3, "result": {"status": "ok", "version": "0.1.0"}}
+    assert response == {"id": 3, "result": {"status": "ok", "version": VERSION}}
     assert "[RPC ERROR]" not in log_text()

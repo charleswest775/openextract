@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/charleswest775/openextract/main/docs/bundle/schema/0.1/albums.schema.json",
+  "title": "OpenExtract Bundle albums",
+  "description": "albums.json: the albums photos.jsonl refers to.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "0.1",
+      "description": "The format version this file follows."
+    },
+    "albums": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "smart, user, folder, shared"
+          },
+          "parent_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The folder it's in."
+          },
+          "count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "How many of its photos and videos the backup has a file for."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "kind",
+          "parent_id",
+          "count"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "albums"
+  ],
+  "additionalProperties": false
+}

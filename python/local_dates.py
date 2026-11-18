@@ -4,9 +4,9 @@ Dates in saved files, in the computer's own time zone.
 ios-backup-core gives every date in UTC ("2024-07-05T16:10:09+00:00"). Saves
 people read show it in local time instead, as the app does (src/lib/dates.ts),
 so a call made or a page visited on a Friday evening in California doesn't land
-on Saturday. Messages, WhatsApp, podcasts, call history, web history and notes
-use these. The data bundle's JSON stays UTC on purpose: it's a documented
-machine format.
+on Saturday. Messages, WhatsApp, podcasts, call history, web history, notes
+and voicemail use these. The data bundle's JSON stays UTC on purpose: it's a
+documented machine format.
 
 Each function takes ``tz``, the time zone to show: None is this computer's,
 which the app uses; tests pass a fixed one.

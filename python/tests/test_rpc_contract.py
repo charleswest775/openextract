@@ -73,6 +73,7 @@ from rpc_contract_support import (  # noqa: E402
     read_csv,
     same_path,
 )
+from bundle_schema import check_bundle, read_lines  # noqa: E402
 import whatsapp_backup as wb  # noqa: E402
 import podcasts_backup as pb  # noqa: E402
 
@@ -681,12 +682,47 @@ def case_export_voicemails(ctx):
     assert result["status"] == "success" and result["exported"] == len(m.voicemails) > 0
     assert same_path(result["path"], out)
     rows = read_csv(out / "voicemails.csv")
-    assert rows[0] == ["ID", "List", "Date", "Contact/Number", "Duration", "Is Read", "Transcript"]
+    assert rows[0] == ["ID", "List", "Date", "Contact", "Phone Number", "Spam", "Duration", "Is Read", "Transcript"]
     assert sorted(int(row[0]) for row in rows[1:]) == sorted(v["id"] for v in m.voicemails)
     assert {row[1] for row in rows[1:]} == {"Voicemail"}
     audio = files_under(out / "audio")
     assert len(audio) == len(m.voicemails)
     assert all(p.suffix == ".amr" and p.read_bytes().startswith(AMR_MAGIC) for p in audio)
+
+
+@contract("export_bundle")
+def case_export_bundle(ctx):
+    m = ctx.maren
+    out = ctx.folder("bundle")
+    result = m.rpc("export_bundle", output_dir=str(out), time_zone="America/Los_Angeles")
+    path = Path(result["path"])
+    assert same_path(path.parent, out) and path.name.startswith("OpenExtract Bundle - ")
+    assert check_bundle(path) == []
+    assert result["errors"] == {} and result["failed_files"] == 0 and result["schema_version"] == "0.1"
+    assert {"manifest.json", "SHA256SUMS", "conversations.json", "messages.jsonl", "calls.jsonl", "voicemail.jsonl",
+            "contacts.json", "photos.jsonl", "albums.json", "people.json"} <= set(result["files"])
+    assert sorted(result["files"]) == sorted(p.relative_to(path).as_posix() for p in files_under(path))
+    expected = m.expected
+    assert result["counts"]["messages"] == len(expected["messages"])
+    assert result["counts"]["voicemail"] == len(expected["voicemails"])
+    assert result["counts"]["contacts"] == len(expected["contacts"])
+    assert result["counts"]["photos"] == len(m.photos)
+    manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["backup"]["ios_version"] == expected["ios"]
+    assert manifest["backup"]["product_type"] == expected["product_type"]
+    assert manifest["backup"]["encrypted"] is False and manifest["computer_time_zone"] == "America/Los_Angeles"
+    # Every message, each with the conversation it's in; attachments copied in and hashed
+    messages = read_lines(path / "messages.jsonl")
+    assert sorted(msg["id"] for msg in messages) == sorted(
+        msg["message_id"] for c in m.conversations for msg in m.messages_of(c["chat_id"]))
+    copied = [a for msg in messages for a in msg["attachments"] if a["path"]]
+    assert len(copied) == len(m.attachments) > 0
+    # Voicemail keeps every number, even a saved contact's
+    voicemails = read_lines(path / "voicemail.jsonl")
+    assert sorted(v["phone_number"] for v in voicemails) == sorted(v["sender"] for v in expected["voicemails"])
+    assert all(v["audio_path"] and v["audio_sha256"] for v in voicemails)
+    # Photo files only when asked for
+    assert not (path / "photos").exists()
 
 
 @contract("export_calls")
@@ -1522,6 +1558,18 @@ def empty_export_photos(e, out):
 def empty_export_voicemails(e, out):
     assert e.rpc("export_voicemails", output_dir=str(out)) == {"status": "success", "exported": 0}
     assert files_under(out) == []
+
+
+@empty_state("export_bundle")
+def empty_export_bundle(e, out):
+    result = e.rpc("export_bundle", output_dir=str(out))
+    path = Path(result["path"])
+    assert check_bundle(path) == [] and result["errors"] == {}
+    assert result["counts"]["messages"] == len(e.expected["messages"])
+    types = json.loads((path / "manifest.json").read_text(encoding="utf-8"))["types"]
+    for kind in ("calls", "voicemail", "photos"):
+        assert types[kind]["count"] == 0 and types[kind]["empty_reason"], (kind, types[kind])
+    assert types["voicemail"]["empty_reason"] == "not_in_backup"
 
 
 @empty_state("export_calls")

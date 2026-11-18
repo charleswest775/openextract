@@ -1,6 +1,7 @@
 import {
   ArchiveRestore, ArrowLeft, BookUser, Briefcase, CalendarDays, ChevronRight, Clock, Download, FolderOpen,
-  Globe, House, Image, LayoutGrid, LifeBuoy, Lock, MessageCircle, MessagesSquare, NotebookPen, Phone, Play, Plus, Podcast, Search,
+  Globe, House, Image, LayoutGrid, LifeBuoy, Lock, MessageCircle, MessagesSquare, NotebookPen, PackageOpen, Phone, Play, Plus,
+  Podcast, Search,
   Settings, Smartphone, Users, Voicemail,
   type LucideIcon,
 } from 'lucide-react';
@@ -35,6 +36,7 @@ export const GlobeIcon = icon(Globe); // Safari history
 export const ClockIcon = icon(Clock); // Timeline
 export const CalendarIcon = icon(CalendarDays); // Year
 export const RecoverIcon = icon(ArchiveRestore);
+export const BundleIcon = icon(PackageOpen); // a data bundle, for other tools
 
 // Actions
 export const ExportIcon = icon(Download); // Save to this computer

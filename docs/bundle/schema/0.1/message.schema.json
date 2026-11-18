@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/charleswest775/openextract/main/docs/bundle/schema/0.1/message.schema.json",
+  "title": "OpenExtract Bundle message",
+  "description": "One line of messages.jsonl.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The message's ROWID in sms.db."
+    },
+    "chat_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "date_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "A UTC date and time, like 2024-07-05T16:10:00Z, or null when the backup has none."
+    },
+    "is_from_me": {
+      "type": "boolean"
+    },
+    "sender_handle": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The sender's number or address; null when from me."
+    },
+    "sender_name": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The sender's name in the address book, else their number; null when from me."
+    },
+    "service": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "iMessage, SMS or RCS, as sms.db records it for this message (else the conversation's)."
+    },
+    "type": {
+      "type": "string",
+      "description": "text, attachment, link, audio, facetime, unsent, system, group_*, location_* …"
+    },
+    "text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "event_text": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "What happened, in words, for a group change, an unsent message or a FaceTime call."
+    },
+    "is_reaction": {
+      "type": "boolean",
+      "description": "A tapback."
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/attachment"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "chat_id",
+    "date_utc",
+    "is_from_me",
+    "sender_handle",
+    "sender_name",
+    "service",
+    "type",
+    "text",
+    "event_text",
+    "is_reaction",
+    "attachments"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "attachment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "The attachment's ROWID in sms.db."
+        },
+        "filename": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Its name as sent."
+        },
+        "mime": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Size in bytes: the copied file's, or what sms.db says."
+        },
+        "backup_path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Where sms.db says it is, e.g. ~/Library/SMS/Attachments/…"
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))[^\\\\]+$",
+          "description": "A path inside the bundle folder, with / between folders, or null when the file isn't in the bundle."
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "A SHA-256 hash in lower-case hex, or null."
+        },
+        "in_backup": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Whether the backup has the file; null when attachments weren't copied."
+        }
+      },
+      "required": [
+        "id",
+        "filename",
+        "mime",
+        "size",
+        "backup_path",
+        "path",
+        "sha256",
+        "in_backup"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

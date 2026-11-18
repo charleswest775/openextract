@@ -3,6 +3,10 @@ import { saveFolder, sidecarCall } from '../../lib/ipc';
 import { photoExportSummary, photoSaveFailures, photoSaveProgress, PhotoExportResult } from '../../lib/photoCounts';
 import { percentDone } from '../../lib/exportProgress';
 import {
+  BUNDLE_FILES, BUNDLE_KINDS, bundleParams, bundleProgress, bundleSummary, computerTimeZone, defaultBundleChoice,
+  type BundleChoice, type BundleResult,
+} from '../../lib/bundle';
+import {
   checkEngineResult, contactsToCsv, contactsToVcard, notesToText, plural, saveConversations, savePodcasts, saveTextFile,
   saveWhatsAppChats,
   type ContactRecord, type ConversationFormat, type NoteRecord, type SaveResult,
@@ -15,7 +19,7 @@ import { useExportProgress } from '../../hooks/useExportProgress';
 import PageHeader from '../shared/PageHeader';
 import SaveDialog, { ConversationModeChoice, FORMATS, SaveButton, SaveProgress, type SaveFormat } from '../shared/SaveDialog';
 import {
-  LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon, GlobeIcon, ContactIcon, WhatsAppIcon, PodcastIcon,
+  LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon, GlobeIcon, ContactIcon, WhatsAppIcon, PodcastIcon, BundleIcon,
 } from '../shared/Icons';
 
 interface Props {
@@ -94,6 +98,12 @@ const KINDS: KindInfo[] = [
   },
 ];
 
+// The bundle's one "format", for the Save dialog
+const BUNDLE_FORMAT = {
+  id: 'bundle', label: 'Data bundle (experimental)',
+  detail: 'JSON files, copies of the files you tick, and a SHA-256 integrity check, in one folder',
+};
+
 // "Web page, readable document, spreadsheet or plain text"
 function formatChoices(formats: SaveFormat[]): string {
   const names = formats.map((f, i) => (i === 0 ? f.label : f.label.toLowerCase()));
@@ -116,6 +126,12 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
     browser_history: useSaveAction('browser_history'),
   };
   const photoProgress = useExportProgress('photos', running === 'photos');
+  // The data bundle: everything in one documented folder, for other tools (docs/BUNDLE.md)
+  const bundleAction = useSaveAction('export');
+  const [bundleRunning, setBundleRunning] = useState(false);
+  const [bundleChoice, setBundleChoice] = useState<BundleChoice | null>(null);
+  const bundleProgressNow = useExportProgress('bundle', bundleRunning);
+  const busy = running !== null || bundleRunning;
 
   const kinds = KINDS.filter(k => {
     if (k.id === 'browser_history') return hasBrowserHistory;
@@ -181,6 +197,27 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
       default:
         return saveToFolder(kind);
     }
+  }
+
+  async function saveBundle(choice: BundleChoice) {
+    setBundleChoice(null);
+    setBundleRunning(true);
+    await bundleAction.run(async () => {
+      const outputDir = await saveFolder();
+      if (!outputDir) return null;
+      const result = checkEngineResult(await sidecarCall<BundleResult>('export_bundle', {
+        udid, output_dir: outputDir, time_zone: computerTimeZone(), ...bundleParams(choice),
+      }));
+      return { title: 'Saved a data bundle', detail: bundleSummary(result), path: result.path };
+    });
+    setBundleRunning(false);
+  }
+
+  function toggle<T>(set: Set<T>, item: T): Set<T> {
+    const next = new Set(set);
+    if (next.has(item)) next.delete(item);
+    else next.add(item);
+    return next;
   }
 
   async function saveToFolder(kind: Kind): Promise<SaveResult | null> {
@@ -250,11 +287,39 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
                     <div className="text-xs text-text-tertiary mt-0.5">{formatChoices(kind.formats)}</div>
                   )}
                 </div>
-                <SaveButton onClick={() => start(kind)} busy={running === kind.id} disabled={running !== null} />
+                <SaveButton onClick={() => start(kind)} busy={running === kind.id} disabled={busy} />
               </li>
             );
           })}
         </ul>
+        <h2 className="max-w-2xl mt-8 mb-3 text-sm font-medium text-text-secondary">For other tools</h2>
+        <div className="max-w-2xl hearth-card flex items-center gap-4 p-4">
+          <span className="w-12 h-12 rounded-xl bg-accent-wash flex items-center justify-center flex-shrink-0">
+            <BundleIcon className="text-accent" size={26} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-base font-medium text-text-primary">Export a data bundle</div>
+            <div className="text-sm text-text-secondary">
+              Messages, calls, voicemail, contacts, photo details and people in one folder, in a documented
+              format other tools can read, with a hash of every file to check nothing has changed
+            </div>
+            {bundleProgressNow ? (
+              <SaveProgress
+                className="mt-1.5"
+                text={bundleProgress(bundleProgressNow.done, bundleProgressNow.total)}
+                percent={percentDone(bundleProgressNow)}
+              />
+            ) : (
+              <div className="text-xs text-text-tertiary mt-0.5">JSON and JSON Lines · experimental, the format may still change</div>
+            )}
+          </div>
+          <SaveButton
+            label="Export"
+            onClick={() => setBundleChoice(defaultBundleChoice(overview))}
+            busy={bundleRunning}
+            disabled={busy}
+          />
+        </div>
       </div>
       {choosing && (
         <SaveDialog
@@ -266,6 +331,56 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
           {(choosing.id === 'messages' || choosing.id === 'whatsapp') && (
             <ConversationModeChoice mode={mode} onChange={setMode} noun={choosing.id === 'whatsapp' ? 'chat' : 'conversation'} />
           )}
+        </SaveDialog>
+      )}
+      {bundleChoice && (
+        <SaveDialog
+          title="Export a data bundle"
+          formats={[BUNDLE_FORMAT]}
+          canSave={bundleChoice.kinds.size > 0}
+          onSave={() => saveBundle(bundleChoice)}
+          onCancel={() => setBundleChoice(null)}
+        >
+          <fieldset className="flex flex-col gap-1.5">
+            <legend className="text-sm font-medium text-text-primary mb-1">What to include</legend>
+            {BUNDLE_KINDS.map(kind => (
+              <label key={kind.id} className="flex items-center gap-2.5 text-sm text-text-primary cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={bundleChoice.kinds.has(kind.id)}
+                  onChange={() => setBundleChoice({ ...bundleChoice, kinds: toggle(bundleChoice.kinds, kind.id) })}
+                  className="w-4 h-4 accent-[var(--accent)]"
+                />
+                {kind.label}
+              </label>
+            ))}
+          </fieldset>
+          <fieldset className="flex flex-col gap-1.5">
+            <legend className="text-sm font-medium text-text-primary mb-1">Copy these files in too</legend>
+            {BUNDLE_FILES.map(file => {
+              const off = !bundleChoice.kinds.has(file.needs);
+              return (
+                <label
+                  key={file.id}
+                  className={`flex items-center gap-2.5 text-sm cursor-pointer ${off ? 'text-text-tertiary' : 'text-text-primary'}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!off && bundleChoice.files.has(file.id)}
+                    disabled={off}
+                    onChange={() => setBundleChoice({ ...bundleChoice, files: toggle(bundleChoice.files, file.id) })}
+                    className="w-4 h-4 accent-[var(--accent)]"
+                  />
+                  {file.label}
+                  {file.detail && <span className="text-xs text-text-tertiary">{file.detail}</span>}
+                </label>
+              );
+            })}
+          </fieldset>
+          <p className="text-xs text-text-secondary">
+            Every date is in UTC. The hashes in SHA256SUMS are an integrity check: they show whether a file has
+            changed since you saved it.
+          </p>
         </SaveDialog>
       )}
     </div>

@@ -1,0 +1,732 @@
+{
+  "description": "One fixture for the People merge, run by python/tests/test_people_merge.py (python/people_merge.py) and scripts/people-merge.test.mjs (src/components/people/gather.ts), so the two can't drift. Each case: Timeline-shaped entries and address-book cards in, people (gatherPeople, with ids and numbers as sorted lists) and the card each person links to (linkCards: person key -> card id) out. Change a merge rule in both files and here.",
+  "cases": [
+    {
+      "name": "texts, calls and voicemail under one name are one person, however the number is written",
+      "entries": [
+        {
+          "type": "message",
+          "contactName": "Theo Navarro",
+          "contactIdentifier": "+15035550102",
+          "timestamp": "2026-01-02T10:00:00Z",
+          "message": {
+            "isGroup": false,
+            "chatId": 17
+          }
+        },
+        {
+          "type": "message",
+          "contactName": "Theo Navarro",
+          "contactIdentifier": "+15035550102",
+          "timestamp": "2026-01-03T09:00:00Z",
+          "message": {
+            "isGroup": false,
+            "chatId": 17
+          }
+        },
+        {
+          "type": "call",
+          "contactName": "Theo Navarro",
+          "contactIdentifier": "(503) 555-0102",
+          "timestamp": "2026-01-04T08:00:00Z"
+        },
+        {
+          "type": "voicemail",
+          "contactName": "Theo Navarro",
+          "contactIdentifier": "5035550102",
+          "timestamp": "2025-12-31T23:59:59Z"
+        },
+        {
+          "type": "message",
+          "contactName": "theo navarro",
+          "contactIdentifier": "theo@example.com",
+          "timestamp": "2025-06-01T12:00:00Z",
+          "message": {
+            "isGroup": false,
+            "chatId": 18
+          }
+        }
+      ],
+      "cards": [],
+      "people": [
+        {
+          "key": "theo navarro",
+          "name": "Theo Navarro",
+          "identifier": "+15035550102",
+          "ids": [
+            "5035550102",
+            "theo@example.com"
+          ],
+          "numbers": [
+            "(503) 555-0102",
+            "+15035550102",
+            "5035550102",
+            "theo@example.com"
+          ],
+          "counts": {
+            "message": 3,
+            "whatsapp": 0,
+            "call": 1,
+            "voicemail": 1
+          },
+          "total": 5,
+          "last": "2026-01-04T08:00:00Z",
+          "isGroup": false,
+          "chatId": 17
+        }
+      ],
+      "cardOf": {}
+    },
+    {
+      "name": "an unsaved number is one person in any format; a short code stays exact",
+      "entries": [
+        {
+          "type": "call",
+          "contactName": "+15035550199",
+          "contactIdentifier": "+15035550199",
+          "timestamp": "2026-02-01T00:00:00Z"
+        },
+        {
+          "type": "voicemail",
+          "contactName": "(503) 555-0199",
+          "contactIdentifier": "(503) 555-0199",
+          "timestamp": "2026-02-02T00:00:00Z"
+        },
+        {
+          "type": "message",
+          "contactName": null,
+          "contactIdentifier": "15035550199",
+          "timestamp": "2026-02-03T00:00:00Z",
+          "message": {
+            "isGroup": false,
+            "chatId": 3
+          }
+        },
+        {
+          "type": "message",
+          "contactName": "72727",
+          "contactIdentifier": "72727",
+          "timestamp": "2026-02-04T00:00:00Z",
+          "message": {
+            "isGroup": false,
+            "chatId": 4
+          }
+        },
+        {
+          "type": "message",
+          "contactName": "72727",
+          "contactIdentifier": "72727",
+          "timestamp": "2026-02-05T00:00:00Z",
+          "message": {
+            "isGroup": false,
+            "chatId": 4
+          }
+        }
+      ],
+      "cards": [],
+      "people": [
+        {
+          "key": "5035550199",
+          "name": "+15035550199",
+          "identifier": "+15035550199",
+          "ids": [
+            "5035550199"
+          ],
+          "numbers": [
+            "(503) 555-0199",
+            "+15035550199",
+            "15035550199"
+          ],
+          "counts": {
+            "message": 1,
+            "whatsapp": 0,
+            "call": 1,
+            "voicemail": 1
+          },
+          "total": 3,
+          "last": "2026-02-03T00:00:00Z",
+          "isGroup": false,
+          "chatId": 3
+        },
+        {
+          "key": "72727",
+          "name": "72727",
+          "identifier": "72727",
+          "ids": [
+            "72727"
+          ],
+          "numbers": [
+            "72727"
+          ],
+          "counts": {
+            "message": 2,
+            "whatsapp": 0,
+            "call": 0,
+            "voicemail": 0
+          },
+          "total": 2,
+          "last": "2026-02-05T00:00:00Z",
+          "isGroup": false,
+          "chatId": 4
+        }
+      ],
+      "cardOf": {}
+    },
+    {
+      "name": "a group conversation is its own entry; photos and entries with no one are left out",
+      "entries": [
+        {
+          "type": "message",
+          "contactName": "Switchbacks & Snacks",
+          "contactIdentifier": "chat123456789",
+          "timestamp": "2026-03-01T00:00:00Z",
+          "message": {
+            "isGroup": true,
+            "chatId": 9
+          }
+        },
+        {
+          "type": "message",
+          "contactName": "Switchbacks & Snacks",
+          "contactIdentifier": "chat123456789",
+          "timestamp": "2026-03-02T00:00:00Z",
+          "message": {
+            "isGroup": true,
+            "chatId": 9
+          }
+        },
+        {
+          "type": "photo",
+          "contactName": null,
+          "contactIdentifier": null,
+          "timestamp": "2026-03-03T00:00:00Z"
+        },
+        {
+          "type": "call",
+          "contactName": "FaceTime",
+          "contactIdentifier": null,
+          "timestamp": "2026-03-04T00:00:00Z"
+        },
+        {
+          "type": "note",
+          "contactName": "Someone",
+          "contactIdentifier": "+15035550000",
+          "timestamp": "2026-03-05T00:00:00Z"
+        }
+      ],
+      "cards": [],
+      "people": [
+        {
+          "key": "switchbacks & snacks",
+          "name": "Switchbacks & Snacks",
+          "identifier": "chat123456789",
+          "ids": [
+            "123456789"
+          ],
+          "numbers": [
+            "chat123456789"
+          ],
+          "counts": {
+            "message": 2,
+            "whatsapp": 0,
+            "call": 0,
+            "voicemail": 0
+          },
+          "total": 2,
+          "last": "2026-03-02T00:00:00Z",
+          "isGroup": true,
+          "chatId": 9
+        }
+      ],
+      "cardOf": {}
+    },
+    {
+      "name": "WhatsApp joins whoever has the number, or their card, and never by name",
+      "entries": [
+        {
+          "type": "message",
+          "contactName": "Karin Holt",
+          "contactIdentifier": "+447700900123",
+          "timestamp": "2026-04-01T00:00:00Z",
+          "message": {
+            "isGroup": false,
+            "chatId": 21
+          }
+        },
+        {
+          "type": "call",
+          "contactName": "Lena Park",
+          "contactIdentifier": "+15035550150",
+          "timestamp": "2026-04-02T00:00:00Z"
+        },
+        {
+          "type": "whatsapp",
+          "contactName": "Karin 🌼",
+          "contactIdentifier": "+44 7700 900123",
+          "timestamp": "2026-04-03T00:00:00Z",
+          "whatsapp": {
+            "chatType": "individual",
+            "chatId": 1
+          }
+        },
+        {
+          "type": "whatsapp",
+          "contactName": "Lena",
+          "contactIdentifier": "+15035550151",
+          "timestamp": "2026-04-04T00:00:00Z",
+          "whatsapp": {
+            "chatType": "individual",
+            "chatId": 2
+          }
+        },
+        {
+          "type": "whatsapp",
+          "contactName": "Alex",
+          "contactIdentifier": "+33612345678",
+          "timestamp": "2026-04-05T00:00:00Z",
+          "whatsapp": {
+            "chatType": "individual",
+            "chatId": 3
+          }
+        },
+        {
+          "type": "whatsapp",
+          "contactName": "Alex",
+          "contactIdentifier": "+33698765432",
+          "timestamp": "2026-04-06T00:00:00Z",
+          "whatsapp": {
+            "chatType": "individual",
+            "chatId": 4
+          }
+        },
+        {
+          "type": "whatsapp",
+          "contactName": "Sam Ortiz",
+          "contactIdentifier": "+15035550170",
+          "timestamp": "2026-04-07T00:00:00Z",
+          "whatsapp": {
+            "chatType": "individual",
+            "chatId": 5
+          }
+        },
+        {
+          "type": "whatsapp",
+          "contactName": "Sam Ortiz",
+          "contactIdentifier": "+15035550171",
+          "timestamp": "2026-04-08T00:00:00Z",
+          "whatsapp": {
+            "chatType": "individual",
+            "chatId": 6
+          }
+        },
+        {
+          "type": "whatsapp",
+          "contactName": "WhatsApp group",
+          "contactIdentifier": "120363025246125486@g.us",
+          "timestamp": "2026-04-09T00:00:00Z",
+          "whatsapp": {
+            "chatType": "group",
+            "chatId": 7
+          }
+        },
+        {
+          "type": "whatsapp",
+          "contactName": "WhatsApp group",
+          "contactIdentifier": "120363025246125999@g.us",
+          "timestamp": "2026-04-10T00:00:00Z",
+          "whatsapp": {
+            "chatType": "group",
+            "chatId": 8
+          }
+        },
+        {
+          "type": "whatsapp",
+          "contactName": "Market list",
+          "contactIdentifier": "+15035550199",
+          "timestamp": "2026-04-11T00:00:00Z",
+          "whatsapp": {
+            "chatType": "broadcast",
+            "chatId": 9
+          }
+        }
+      ],
+      "cards": [
+        {
+          "id": 31,
+          "phones": [
+            "+1 503 555 0150",
+            "+1 503 555 0151"
+          ],
+          "emails": []
+        },
+        {
+          "id": 32,
+          "phones": [
+            "+1 503 555 0170",
+            "+1 503 555 0171"
+          ],
+          "emails": [
+            "sam@example.com"
+          ]
+        },
+        {
+          "id": 33,
+          "phones": [
+            "+44 7700 900123"
+          ],
+          "emails": [
+            "karin@example.com"
+          ]
+        }
+      ],
+      "people": [
+        {
+          "key": "karin holt",
+          "name": "Karin Holt",
+          "identifier": "+447700900123",
+          "ids": [
+            "7700900123"
+          ],
+          "numbers": [
+            "+44 7700 900123",
+            "+447700900123"
+          ],
+          "counts": {
+            "message": 1,
+            "whatsapp": 1,
+            "call": 0,
+            "voicemail": 0
+          },
+          "total": 2,
+          "last": "2026-04-03T00:00:00Z",
+          "isGroup": false,
+          "chatId": 21,
+          "waChatId": 1,
+          "waChatType": "individual"
+        },
+        {
+          "key": "lena park",
+          "name": "Lena Park",
+          "identifier": "+15035550150",
+          "ids": [
+            "5035550150",
+            "5035550151"
+          ],
+          "numbers": [
+            "+15035550150",
+            "+15035550151"
+          ],
+          "counts": {
+            "message": 0,
+            "whatsapp": 1,
+            "call": 1,
+            "voicemail": 0
+          },
+          "total": 2,
+          "last": "2026-04-04T00:00:00Z",
+          "isGroup": false,
+          "waChatId": 2,
+          "waChatType": "individual"
+        },
+        {
+          "key": "wa-card:32",
+          "name": "Sam Ortiz",
+          "identifier": "+15035550170",
+          "ids": [
+            "5035550170",
+            "5035550171"
+          ],
+          "numbers": [
+            "+15035550170",
+            "+15035550171"
+          ],
+          "counts": {
+            "message": 0,
+            "whatsapp": 2,
+            "call": 0,
+            "voicemail": 0
+          },
+          "total": 2,
+          "last": "2026-04-08T00:00:00Z",
+          "isGroup": false,
+          "waChatId": 5,
+          "waChatType": "individual"
+        },
+        {
+          "key": "wa:3612345678",
+          "name": "Alex",
+          "identifier": "+33612345678",
+          "ids": [
+            "3612345678"
+          ],
+          "numbers": [
+            "+33612345678"
+          ],
+          "counts": {
+            "message": 0,
+            "whatsapp": 1,
+            "call": 0,
+            "voicemail": 0
+          },
+          "total": 1,
+          "last": "2026-04-05T00:00:00Z",
+          "isGroup": false,
+          "waChatId": 3,
+          "waChatType": "individual"
+        },
+        {
+          "key": "wa:3698765432",
+          "name": "Alex",
+          "identifier": "+33698765432",
+          "ids": [
+            "3698765432"
+          ],
+          "numbers": [
+            "+33698765432"
+          ],
+          "counts": {
+            "message": 0,
+            "whatsapp": 1,
+            "call": 0,
+            "voicemail": 0
+          },
+          "total": 1,
+          "last": "2026-04-06T00:00:00Z",
+          "isGroup": false,
+          "waChatId": 4,
+          "waChatType": "individual"
+        },
+        {
+          "key": "wa:5035550199",
+          "name": "Market list",
+          "identifier": "+15035550199",
+          "ids": [
+            "5035550199"
+          ],
+          "numbers": [
+            "+15035550199"
+          ],
+          "counts": {
+            "message": 0,
+            "whatsapp": 1,
+            "call": 0,
+            "voicemail": 0
+          },
+          "total": 1,
+          "last": "2026-04-11T00:00:00Z",
+          "isGroup": true,
+          "waChatId": 9,
+          "waChatType": "broadcast"
+        },
+        {
+          "key": "wa:120363025246125486@g.us",
+          "name": "WhatsApp group",
+          "identifier": "120363025246125486@g.us",
+          "ids": [
+            "120363025246125486@g.us"
+          ],
+          "numbers": [],
+          "counts": {
+            "message": 0,
+            "whatsapp": 1,
+            "call": 0,
+            "voicemail": 0
+          },
+          "total": 1,
+          "last": "2026-04-09T00:00:00Z",
+          "isGroup": true,
+          "waChatId": 7,
+          "waChatType": "group"
+        },
+        {
+          "key": "wa:120363025246125999@g.us",
+          "name": "WhatsApp group",
+          "identifier": "120363025246125999@g.us",
+          "ids": [
+            "120363025246125999@g.us"
+          ],
+          "numbers": [],
+          "counts": {
+            "message": 0,
+            "whatsapp": 1,
+            "call": 0,
+            "voicemail": 0
+          },
+          "total": 1,
+          "last": "2026-04-10T00:00:00Z",
+          "isGroup": true,
+          "waChatId": 8,
+          "waChatType": "group"
+        }
+      ],
+      "cardOf": {
+        "lena park": 31,
+        "wa-card:32": 32,
+        "karin holt": 33
+      }
+    },
+    {
+      "name": "most in touch first, then by name; a number on two cards belongs to the card read last",
+      "entries": [
+        {
+          "type": "call",
+          "contactName": "Bea",
+          "contactIdentifier": "+15035550201",
+          "timestamp": "2026-05-01T00:00:00Z"
+        },
+        {
+          "type": "call",
+          "contactName": "abe",
+          "contactIdentifier": "+15035550202",
+          "timestamp": "2026-05-02T00:00:00Z"
+        },
+        {
+          "type": "call",
+          "contactName": "Cy",
+          "contactIdentifier": "+15035550203",
+          "timestamp": "2026-05-03T00:00:00Z"
+        },
+        {
+          "type": "call",
+          "contactName": "Cy",
+          "contactIdentifier": "+15035550203",
+          "timestamp": "2026-05-04T00:00:00Z"
+        },
+        {
+          "type": "voicemail",
+          "contactName": "Dot",
+          "contactIdentifier": "+15035550100",
+          "timestamp": "2026-05-05T00:00:00Z"
+        },
+        {
+          "type": "whatsapp",
+          "contactName": "Home",
+          "contactIdentifier": "+15035550109",
+          "timestamp": "2026-05-06T00:00:00Z",
+          "whatsapp": {
+            "chatType": "individual",
+            "chatId": 10
+          }
+        }
+      ],
+      "cards": [
+        {
+          "id": 41,
+          "phones": [
+            "+1 503 555 0109"
+          ],
+          "emails": [
+            "mom@example.com"
+          ]
+        },
+        {
+          "id": 42,
+          "phones": [
+            "+1 503 555 0109",
+            "+1 503 555 0100"
+          ],
+          "emails": [
+            "dad@example.com"
+          ]
+        },
+        {
+          "id": 43,
+          "phones": [
+            "+1 503 555 0201"
+          ],
+          "emails": []
+        }
+      ],
+      "people": [
+        {
+          "key": "cy",
+          "name": "Cy",
+          "identifier": "+15035550203",
+          "ids": [
+            "5035550203"
+          ],
+          "numbers": [
+            "+15035550203"
+          ],
+          "counts": {
+            "message": 0,
+            "whatsapp": 0,
+            "call": 2,
+            "voicemail": 0
+          },
+          "total": 2,
+          "last": "2026-05-04T00:00:00Z",
+          "isGroup": false
+        },
+        {
+          "key": "dot",
+          "name": "Dot",
+          "identifier": "+15035550100",
+          "ids": [
+            "5035550100",
+            "5035550109"
+          ],
+          "numbers": [
+            "+15035550100",
+            "+15035550109"
+          ],
+          "counts": {
+            "message": 0,
+            "whatsapp": 1,
+            "call": 0,
+            "voicemail": 1
+          },
+          "total": 2,
+          "last": "2026-05-06T00:00:00Z",
+          "isGroup": false,
+          "waChatId": 10,
+          "waChatType": "individual"
+        },
+        {
+          "key": "abe",
+          "name": "abe",
+          "identifier": "+15035550202",
+          "ids": [
+            "5035550202"
+          ],
+          "numbers": [
+            "+15035550202"
+          ],
+          "counts": {
+            "message": 0,
+            "whatsapp": 0,
+            "call": 1,
+            "voicemail": 0
+          },
+          "total": 1,
+          "last": "2026-05-02T00:00:00Z",
+          "isGroup": false
+        },
+        {
+          "key": "bea",
+          "name": "Bea",
+          "identifier": "+15035550201",
+          "ids": [
+            "5035550201"
+          ],
+          "numbers": [
+            "+15035550201"
+          ],
+          "counts": {
+            "message": 0,
+            "whatsapp": 0,
+            "call": 1,
+            "voicemail": 0
+          },
+          "total": 1,
+          "last": "2026-05-01T00:00:00Z",
+          "isGroup": false
+        }
+      ],
+      "cardOf": {
+        "dot": 41,
+        "bea": 43
+      }
+    }
+  ]
+}

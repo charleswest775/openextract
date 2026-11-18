@@ -142,6 +142,8 @@ from message_recovery import MessageRecoveryExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
 from stats import StatsComputer  # noqa: E402
 from year_counts import YearCounter  # noqa: E402
+from bundle import BundleExporter  # noqa: E402
+import build_info  # noqa: E402
 
 
 class SidecarServer:
@@ -162,6 +164,9 @@ class SidecarServer:
         self.year_counter = YearCounter(
             self.message_extractor, self.photo_extractor, self.call_extractor,
             self.note_extractor, self.browser_history_extractor,
+        )
+        self.bundle_exporter = BundleExporter(
+            self.message_extractor, self.call_extractor, self.voicemail_extractor, self.photo_extractor,
         )
 
         # Method dispatch table
@@ -193,6 +198,8 @@ class SidecarServer:
             "export_voicemails": self.export_voicemails,
             "export_calls": self.export_calls,
             "export_notes": self.export_notes,
+            # Data bundle: a documented export any tool can read (docs/BUNDLE.md)
+            "export_bundle": self.export_bundle,
             # Browser history
             "has_browser_history": self.has_browser_history,
             "list_browser_history": self.list_browser_history,
@@ -262,7 +269,8 @@ class SidecarServer:
     # ── RPC method handlers ───────────────────────────────────────────────────
 
     def ping(self, params):
-        return {"status": "ok", "version": "0.1.0"}
+        """The engine is up. ``version`` is the app's (build_info.py); "unknown" if it can't be told."""
+        return {"status": "ok", "version": build_info.app_version() or "unknown"}
 
     def write_file(self, params):
         """Write text content to a file path. Used by timeline export."""
@@ -486,6 +494,25 @@ class SidecarServer:
         output_dir = params["output_dir"]
         backup = self.backup_manager.get_open_backup(udid)
         return self.note_extractor.export_notes(backup, note_ids, fmt, output_dir)
+
+    def export_bundle(self, params):
+        """Save an OpenExtract Bundle (docs/BUNDLE.md) into a new folder in output_dir.
+
+        params: output_dir; types (list, default all of bundle.TYPES); files
+        ({"attachments", "voicemail_audio", "photos"}: which files to copy in);
+        time_zone (the computer's IANA zone, recorded in manifest.json).
+        Progress goes out as export.progress with kind "bundle". Returns
+        { path, schema_version, files, counts, errors, failed_files }.
+        """
+        udid = params["udid"]
+        output_dir = params["output_dir"]
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        return self.bundle_exporter.export(
+            backup, contacts, lambda: self.contact_resolver.list_contacts(backup), output_dir,
+            types=params.get("types"), files=params.get("files"), time_zone=params.get("time_zone"),
+            on_progress=self._export_progress("bundle"),
+        )
 
     # ── Browser history ──────────────────────────────────────────────────────
 

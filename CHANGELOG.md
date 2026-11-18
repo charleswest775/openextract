@@ -9,11 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 - WhatsApp: when the iPhone has WhatsApp but its chats aren't in the backup, the WhatsApp section now says why instead of not showing up at all. WhatsApp's own end-to-end encrypted backup is the usual reason: with it turned on, WhatsApp keeps its chats only in its iCloud backup. The screen says where to turn it off so the next backup includes them (OE-99)
+- Save to computer: Export a data bundle saves messages, calls, voicemail, contacts, photo details and people in one folder, in a documented format other tools can read (JSON and JSON Lines, with every date in UTC). It copies message attachments and voicemail audio too, and photo files if you tick them, and lists a SHA-256 hash of every file in SHA256SUMS, so anyone can check that nothing in it has changed since. The format is experimental and may still change: docs/BUNDLE.md describes it
 
 ### Changed
 - Recover deleted messages: says that it looks for deleted iMessages and texts, and, when the backup has WhatsApp, why deleted WhatsApp messages can't be brought back. If you send a report asking about encrypted or deleted WhatsApp messages, the app now answers it right away (OE-99)
 
 ### Fixed
+- Voicemail: the list Save all saves (voicemails.csv) now has the caller's number in a Phone Number column. For a caller saved in your contacts it used to show only their name. A new Spam column marks every spam voicemail, including spam you then deleted, which is in the Deleted list
+- Voicemail: Save all's dates follow your computer's time zone, as message saves do: the list's Date column shows local time with its offset, and each audio file is named with the local day, so a voicemail left in the evening no longer gets the next day's date. They used to be UTC
 - Saved call history, web history and notes show dates in your computer's time zone, as saved messages, WhatsApp chats and podcasts already do. They used to be in UTC, so in California a call made at 5:48 in the evening read 00:48 the next day. In the call history and web history spreadsheets (CSV), the Date column keeps its exact form with your time zone added: 2024-07-05T17:48:12-07:00. A saved note's Created and Modified lines read "Jul 5, 2024, 5:48 PM", and a note without a date says "Unknown date" instead of "None" or nothing
 
 ## [0.17.0] - 2026-11-17
