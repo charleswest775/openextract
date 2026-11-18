@@ -38,6 +38,10 @@ jobs:
           cache: 'pip'
           cache-dependency-path: python/requirements*.txt
 
+      # As in ci.yml: the corpus checks run outside UTC (Pacific/Auckland on Linux).
+      - name: Time zone (not UTC)
+        uses: ./.github/actions/time-zone
+
       # Same sibling layout as ci.yml: python/requirements.txt installs
       # ios-backup-core from ../../ios-backup-core.
       - name: Clone ios-backup-core (sibling for editable install)

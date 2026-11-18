@@ -112,6 +112,10 @@ jobs:
         with:
           python-version: '3.11'
 
+      # As in ci.yml: the corpus and end-to-end checks run outside UTC, a different zone per OS.
+      - name: Time zone (not UTC)
+        uses: ./.github/actions/time-zone
+
       - name: Install Node dependencies
         run: npm ci --no-audit --no-fund
 

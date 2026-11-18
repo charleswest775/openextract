@@ -88,6 +88,20 @@ and the bug stays visible:
 All of them are strict: once the bug is fixed the test passes, the run fails, and the fix's PR
 removes the entry.
 
+## Time zones
+
+GitHub's runners use UTC, where a date that was never converted to local time looks exactly
+like one that was. So every job that runs tests switches to another zone first
+(`.github/actions/time-zone`), a different one on each OS: Linux in Pacific/Auckland,
+macOS in America/Los_Angeles, Windows in India Standard Time (+5:30). The renderer's date
+tests also re-run themselves in several zones (`scripts/test-helpers/time-zones.mjs`).
+
+Write tests that hold in any zone. Build instants in UTC and check which local day they land
+on, or check that two places agree (the day the Year view counts a message on is the day the
+Timeline opens it on). Don't hard-code a local day. To run a suite in another zone yourself:
+`TZ=Pacific/Auckland pytest python/tests/` (macOS and Linux; Windows takes its zone from the
+system, not `TZ`).
+
 ## Performance
 
 The engine contract test and the end-to-end suites time the things people wait for: starting

@@ -1,0 +1,38 @@
+name: Run the tests in a time zone other than UTC
+description: >
+  GitHub's runners use UTC, where a date that was never converted to local time looks exactly
+  like one that was: that's how call history, web history, notes and voicemail saves shipped in
+  UTC (#289, #291) with every test passing. So every job that runs the app's tests runs in
+  another zone, a different one on each OS, and each layer is checked in three:
+  Linux in Pacific/Auckland (+12/+13, daylight saving, a different date from UTC for half of
+  every day), macOS in America/Los_Angeles (-8/-7, daylight saving, the evening-is-tomorrow
+  case users reported), Windows in India Standard Time (+5:30, a half-hour offset).
+  Linux and macOS read TZ, as Node, Python and Electron all do. Windows ignores TZ, and Python
+  there misreads an IANA name in it, so the step sets the system zone instead, which every
+  process started afterwards uses. Run it after Node and Python are set up and before any test.
+
+runs:
+  using: composite
+  steps:
+    - name: Time zone (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: echo "TZ=Pacific/Auckland" >> "$GITHUB_ENV"
+
+    - name: Time zone (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: echo "TZ=America/Los_Angeles" >> "$GITHUB_ENV"
+
+    - name: Time zone (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: Set-TimeZone -Id 'India Standard Time'
+
+    # What the tests will see, so a date failure's log says which zone it ran in.
+    - name: Show the time zone
+      shell: bash
+      run: |
+        date
+        if command -v node >/dev/null; then node -e "console.log('Node:', Intl.DateTimeFormat().resolvedOptions().timeZone, new Date().toString())"; fi
+        if command -v python >/dev/null; then python -c "from datetime import datetime; print('Python:', datetime.now().astimezone().isoformat())"; fi
