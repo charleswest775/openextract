@@ -66,8 +66,10 @@ _UNFINISHED_BACKUP = (
     "the iPhone can't continue it. Choose a new, empty folder, then try again."
 )
 
-# "[WinError 5] Access is denied: '…\\Snapshot\\00'" when the backup tidied up its own
-# files (OE-11), as when another program has them open.
+# "[Errno 13] Permission denied", "[WinError 5] Access is denied" or "[WinError 32] The process
+# cannot access the file…" on a file in the backup folder, as when another program has it open.
+# OE-11 got it removing Snapshot at the very end; a Snapshot left with only empty folders no
+# longer fails the backup (_tolerate_snapshot_in_use), one that still holds files does.
 _FOLDER_IN_USE = (
     "OpenExtract wasn't allowed to change a file in the backup folder. This can happen when "
     "another program, such as OneDrive or antivirus software, is using it. Choose a new, empty "
@@ -322,6 +324,102 @@ class _ReceivedBytes:
             except OSError:
                 pass  # not created yet, or moved into place: keep the last size seen
         return self._current_size
+
+
+# OE-11: the last thing the iPhone has the computer do with its files is remove <udid>/Snapshot,
+# by then only empty folders: every file in it has been moved into place. On Windows, Defender,
+# the Search indexer or Explorer often have one of those folders open for a moment, and the
+# removal failed with "[WinError 5] Access is denied: '…\\Snapshot\\00'", which failed a backup
+# that had taken hours. So it's tried again for a few seconds, and if only empty folders are left
+# after that, the iPhone is told it worked. It then finishes as usual: it reads Status.plist,
+# Manifest.plist and Manifest.db back, writes its last Status.plist and reports success.
+# backup_status.check() doesn't count those empty folders against a backup that finished.
+_SNAPSHOT_REMOVE_WAIT_S = 5.0
+_SNAPSHOT_REMOVE_RETRY_S = 0.5
+
+
+async def _retry_removing_snapshot(folder: str, error: OSError) -> Optional[OSError]:
+    """After pymobiledevice3's try failed with `error`, tries again to remove the backup's
+    Snapshot folder for _SNAPSHOT_REMOVE_WAIT_S. Returns None once it's gone, or the last error."""
+    deadline = time.monotonic() + _SNAPSHOT_REMOVE_WAIT_S
+    tries = 1
+    while os.path.lexists(folder) and time.monotonic() < deadline:
+        await asyncio.sleep(_SNAPSHOT_REMOVE_RETRY_S)
+        tries += 1
+        try:
+            shutil.rmtree(folder)
+        except OSError as e:
+            error = e
+    if os.path.lexists(folder):
+        return error
+    if tries > 1:
+        _dev_log(f"removed the backup's Snapshot folder on try {tries}, after {error!r}")
+    return None
+
+
+def _tolerate_snapshot_in_use(dl, udid: str) -> None:
+    """Makes the DeviceLink's RemoveItems step cope with the backup's own Snapshot folder in use,
+    as long as it holds only empty folders (OE-11). Anything else fails as before."""
+    handlers = getattr(dl, "_dl_handlers", None)
+    remove_items = handlers.get("DLMessageRemoveItems") if isinstance(handlers, dict) else None
+    if remove_items is None:
+        _dev_log("pymobiledevice3's DeviceLink has no RemoveItems step to wrap: a Snapshot folder "
+                 "in use will fail the backup (OE-11)")
+        return
+    snapshot = f"{udid}/{backup_status.SNAPSHOT_DIR}"
+    folder = os.path.join(dl.root_path, udid, backup_status.SNAPSHOT_DIR)
+
+    async def remove_items_coping(message):
+        try:
+            return await remove_items(message)
+        except OSError as first:
+            paths = [str(p) for p in message[1]]
+            if snapshot not in (p.rstrip("/") for p in paths):
+                raise
+            error = await _retry_removing_snapshot(folder, first)
+            if error is not None:
+                if not backup_status.holds_only_empty_folders(folder):
+                    _dev_log(f"couldn't remove the backup's Snapshot folder, and it still holds files: {error!r}")
+                    raise first
+                _dev_log(f"couldn't remove the backup's Snapshot folder after "
+                         f"{_SNAPSHOT_REMOVE_WAIT_S:g} s: {error!r}. It holds only empty folders, "
+                         f"every file is in place: telling the iPhone it's done")
+            # Whatever else the iPhone asked to remove, and the answer to it, as pymobiledevice3 does them.
+            rest = [p for p in paths if p.rstrip("/") != snapshot]
+            return await remove_items([message[0], rest, *message[2:]])
+
+    handlers["DLMessageRemoveItems"] = remove_items_coping
+
+
+def _remove_leftover_snapshot(backup_dir: str) -> None:
+    """Once the backup has finished, tries once more to remove a Snapshot of empty folders it had
+    to leave (OE-11). The other program may have let go by now."""
+    folder = os.path.join(backup_dir, backup_status.SNAPSHOT_DIR)
+    if not os.path.isdir(folder) or not backup_status.holds_only_empty_folders(folder):
+        return
+    try:
+        shutil.rmtree(folder)
+        _dev_log("removed the empty Snapshot folder the backup had to leave")
+    except OSError as e:
+        _dev_log(f"the backup left an empty Snapshot folder: {e!r}")
+
+
+def _cope_with_snapshot_in_use(mb2, udid: Optional[str]) -> None:
+    """Has the DeviceLink a Mobilebackup2Service makes for its backup cope with a Snapshot folder
+    in use (OE-11). Mobilebackup2Service.backup() gets its DeviceLink from self.device_link()."""
+    from contextlib import asynccontextmanager
+
+    device_link = getattr(mb2, "device_link", None)
+    if not udid or device_link is None:
+        return
+
+    @asynccontextmanager
+    async def coping_device_link(*args, **kwargs):
+        async with device_link(*args, **kwargs) as dl:
+            _tolerate_snapshot_in_use(dl, udid)
+            yield dl
+
+    mb2.device_link = coping_device_link
 
 
 # Warnings logged per backup, e.g. "Failed to fully upload: <file>. Reason: ..." for each file
@@ -1015,7 +1113,9 @@ class DeviceBackupManager:
             with warnings.catch_warnings(record=True) as backup_warnings:
                 warnings.simplefilter("always")
                 try:
-                    async with Mobilebackup2Service(lockdown) as mb2:
+                    service = Mobilebackup2Service(lockdown)
+                    _cope_with_snapshot_in_use(service, lockdown.udid)
+                    async with service as mb2:
                         await mb2.backup(
                             full=True,
                             backup_directory=output_dir,
@@ -1023,6 +1123,7 @@ class DeviceBackupManager:
                             filter_callback=received.file_started,
                         )
                     # Returning means the iPhone's final answer was success (ErrorCode 0).
+                    _remove_leftover_snapshot(attempt.backup_dir)
                     attempt.finished()
                 except BaseException:
                     attempt.failed()

@@ -225,6 +225,49 @@ def test_marker_finished_does_not_hide_a_later_try_by_another_program(folder):
     assert not c.finished and not c.confirmed and c.signs == ["snapshot"]
 
 
+def _finished_leaving_empty_snapshot(folder: Path) -> None:
+    # OE-11: Windows wouldn't let the engine remove Snapshot's empty folders at the very end.
+    finished_backup(folder)
+    (folder / "Snapshot" / "00" / "inner").mkdir(parents=True)
+    (folder / "Snapshot" / "ff").mkdir()
+    attempt = backup_status.BackupTry(str(folder)).start()
+    (folder / "Status.plist").touch()
+    attempt.finished()
+
+
+def test_empty_folders_a_finished_backup_had_to_leave_in_snapshot(folder):
+    _finished_leaving_empty_snapshot(folder)
+    assert backup_status.read_marker(str(folder))["left_empty_snapshot"] is True
+    c = backup_status.check(str(folder))
+    assert c.finished and c.confirmed and c.signs == [] and c.openable
+
+
+def test_a_backup_that_removed_snapshot_says_nothing_about_one(folder):
+    finished_backup(folder)
+    backup_status.BackupTry(str(folder)).start().finished()
+    assert "left_empty_snapshot" not in backup_status.read_marker(str(folder))
+
+
+@pytest.mark.parametrize("later", ["a file in Snapshot", "another Manifest.db"])
+def test_an_empty_snapshot_counts_again_once_the_folder_changes(folder, later):
+    _finished_leaving_empty_snapshot(folder)
+    if later == "a file in Snapshot":
+        (folder / "Snapshot" / "ff" / "ff00").write_bytes(b"x")
+    else:
+        with sqlite3.connect(folder / "Manifest.db") as con:
+            con.execute("CREATE TABLE Later (x)")
+    c = backup_status.check(str(folder))
+    assert not c.finished and c.signs == ["snapshot"] and not c.confirmed
+
+
+def test_an_empty_snapshot_without_openextracts_marker_counts(folder):
+    # A backup by any program that stopped before the first file arrived leaves the same folders.
+    finished_backup(folder)
+    (folder / "Snapshot" / "00").mkdir(parents=True)
+    c = backup_status.check(str(folder))
+    assert not c.finished and c.signs == ["snapshot"]
+
+
 def test_a_failed_try_that_changed_nothing_puts_the_old_marker_back(folder):
     finished_backup(folder)
     backup_status.BackupTry(str(folder)).start().finished()

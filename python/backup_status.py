@@ -22,7 +22,13 @@ So the signs that a backup didn't finish, most reliable first:
     new Manifest.db in place. The engine writes it before each backup and replaces it only once
     the iPhone reports success (device_backup.py), so it doesn't depend on guessing.
   - A Snapshot folder. The iPhone makes one at the start of every backup, whatever program asked
-    for it, and removes it only at the very end.
+    for it, and removes it only at the very end. Finished backups made by Finder and iTunes have
+    none (the six real ones in the corpus, iOS 13 to 17). One exception: a Snapshot that holds only
+    empty folders doesn't count when OpenExtract's marker says the backup that wrote this
+    Manifest.db finished and left them. Windows sometimes won't let the engine remove those
+    folders at the very end, because another program has one open, and the engine then lets the
+    backup finish without removing them (OE-11, device_backup.py). Otherwise an empty Snapshot
+    still counts: a backup that stops before any file arrives leaves the same empty folders.
   - An empty Manifest.plist. pymobiledevice3 empties it before the backup starts and the iPhone
     replaces it near the end. This covers the minutes before Snapshot exists, while the iPhone
     prepares or waits for its passcode. (OpenExtract 0.12 and earlier left this; Finder doesn't.)
@@ -135,6 +141,19 @@ def _is_plain_sqlite(path: str) -> bool:
         return False
 
 
+def holds_only_empty_folders(folder: str) -> bool:
+    """folder holds nothing but folders, however deep: no files, no links. What a backup's
+    Snapshot holds once every file in it has been moved into place. False if it can't be read."""
+    try:
+        with os.scandir(folder) as entries:
+            for entry in entries:
+                if not entry.is_dir(follow_symlinks=False) or not holds_only_empty_folders(entry.path):
+                    return False
+    except OSError:
+        return False
+    return True
+
+
 def check(backup_dir: str) -> Completion:
     """Whether the backup in backup_dir finished, and if not, whether there's anything to open."""
     signs: list[str] = []
@@ -143,6 +162,9 @@ def check(backup_dir: str) -> Completion:
     index = _index_facts(backup_dir)
     has_index = index is not None
     marker = read_marker(backup_dir)
+    # OpenExtract's marker says this Manifest.db is from a backup that finished.
+    marked_finished = (marker is not None and marker["state"] == "finished"
+                       and _same_file(marker.get("manifest_db"), index))
 
     if marker and marker["state"] == "started":
         started_at = marker.get("started_at")
@@ -152,8 +174,12 @@ def check(backup_dir: str) -> Completion:
                      and index["mtime"] >= started_at - _MTIME_SLACK_S)
         if not new_index:
             signs.append("openextract_try")
-    snapshot = os.path.isdir(os.path.join(backup_dir, SNAPSHOT_DIR))
-    if snapshot:
+    snapshot_dir = os.path.join(backup_dir, SNAPSHOT_DIR)
+    snapshot = os.path.isdir(snapshot_dir)
+    # Empty folders a backup that finished had to leave in Snapshot (OE-11) don't count; see the top.
+    left_by_finished = (marked_finished and marker.get("left_empty_snapshot") is True
+                        and holds_only_empty_folders(snapshot_dir))
+    if snapshot and not left_by_finished:
         signs.append("snapshot")
     manifest_plist = _file_facts(os.path.join(backup_dir, "Manifest.plist"))
     empty_manifest_plist = manifest_plist is not None and manifest_plist["size"] == 0
@@ -170,8 +196,7 @@ def check(backup_dir: str) -> Completion:
     # A failed try by pymobiledevice3 empties Manifest.plist, which holds an encrypted backup's
     # keys. An encrypted Manifest.db can't be read without them.
     keys_lost = db is not None and empty_manifest_plist and not _is_plain_sqlite(manifest_db)
-    confirmed = (not signs and marker is not None and marker["state"] == "finished"
-                 and _same_file(marker.get("manifest_db"), index))
+    confirmed = not signs and marked_finished
     return Completion(
         finished=not signs,
         signs=signs,
@@ -274,17 +299,22 @@ class BackupTry:
 
     def finished(self) -> None:
         now = time.time()
+        marker = {
+            "app": "OpenExtract",
+            "state": "finished",
+            "started": _iso(self.started_at),
+            "started_at": self.started_at,
+            "finished": _iso(now),
+            "finished_at": now,
+            # Manifest.db, or Manifest.mbdb from iOS 9 and earlier.
+            "manifest_db": _index_facts(self.backup_dir),
+        }
+        snapshot_dir = os.path.join(self.backup_dir, SNAPSHOT_DIR)
+        if os.path.isdir(snapshot_dir) and holds_only_empty_folders(snapshot_dir):
+            # The empty folders Windows wouldn't let the engine remove at the very end (OE-11).
+            marker["left_empty_snapshot"] = True
         try:
-            _write_marker(self.backup_dir, {
-                "app": "OpenExtract",
-                "state": "finished",
-                "started": _iso(self.started_at),
-                "started_at": self.started_at,
-                "finished": _iso(now),
-                "finished_at": now,
-                # Manifest.db, or Manifest.mbdb from iOS 9 and earlier.
-                "manifest_db": _index_facts(self.backup_dir),
-            })
+            _write_marker(self.backup_dir, marker)
         except OSError as e:
             self._log(f"couldn't write {MARKER_FILE} in {self.backup_dir!r}: {e!r}")
 
