@@ -860,9 +860,9 @@ describe('sidecar:call', () => {
     );
   });
 
-  test('backups, the Apple Devices install and exports get long timeouts; everything else the default', async () => {
+  test('backups, the Apple Devices install and exports get long timeouts, the iPhone search a short one; everything else the default', async () => {
     const m = await loadMain();
-    const methods = ['backup.start', 'backup.install_device_support', 'export_photos', 'export_conversations', 'list_messages', 'ping'];
+    const methods = ['backup.start', 'backup.install_device_support', 'export_photos', 'export_conversations', 'backup.list_devices', 'list_messages', 'ping'];
     for (const method of methods) {
       await m.invoke('sidecar:call', method, {});
     }
@@ -871,6 +871,8 @@ describe('sidecar:call', () => {
       [
         ['backup.start', 7_200_000], ['backup.install_device_support', 900_000],
         ['export_photos', 21_600_000], ['export_conversations', 21_600_000],
+        // One iPhone that never answered held the search for the 5-minute default (OE-37).
+        ['backup.list_devices', 90_000],
         ['list_messages', undefined], ['ping', undefined],
       ],
     );

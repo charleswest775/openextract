@@ -342,6 +342,9 @@ const LOST_CONNECTION = /^(DEVICE_DISCONNECTED|PASSCODE_REQUIRED):|connection to
 const COMPUTER_SLEPT =
   'DEVICE_DISCONNECTED: Your computer went to sleep during the backup, which disconnects the iPhone. ' +
   'Keep the computer plugged in with its lid open until the backup finishes, then click Retry.';
+// How long the app waits for a search for iPhones (backup.list_devices; see the sidecar:call
+// handler). python/tests/test_fake_iphone_search.py checks the engine's own limits fit inside it.
+const LIST_DEVICES_TIMEOUT_MS = 90_000;
 
 app.whenReady().then(async () => {
   // Belt and braces for the spellcheck: false above: with no languages set,
@@ -409,6 +412,12 @@ app.whenReady().then(async () => {
       const timeoutMs = method === 'backup.start' ? 7_200_000 // the iPhone can sit preparing or waiting for its passcode
         : method === 'backup.install_device_support' ? 900_000 // winget may download slowly
         : method.startsWith('export_') ? 21_600_000 // a whole photo library to a slow drive can take hours
+        // The engine gives each step of the search its own limit and lists an iPhone that
+        // doesn't answer, so a search ends within about 50 seconds (python/device_backup.py,
+        // _ANSWER_TIMEOUT_S). This is in case it doesn't: before, one silent iPhone held the
+        // search for the 5-minute default (OE-37, OE-8, OE-31). It leaves room for the first
+        // search on Windows, which may have to start Apple Devices first.
+        : method === 'backup.list_devices' ? LIST_DEVICES_TIMEOUT_MS
         : undefined;
       const result = await sidecar.call(method, params, timeoutMs);
       feedback.recordCall(method, params, { ok: true, result });

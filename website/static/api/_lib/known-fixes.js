@@ -186,6 +186,22 @@ const KNOWN_FIXES = [
     text: 'A backup can take hours, and the iPhone drops off if the computer goes to sleep or the USB connection is interrupted, even while it stays plugged in. OpenExtract 0.13.0 and later keep the computer awake during a backup, so if you have an older version, install the latest from openextract.app first. Keep the computer plugged in, keep a laptop\'s lid open, and don\'t let it sleep until the backup finishes. Plug the iPhone straight into the computer, not through a hub, dock or monitor, and try another USB port if it keeps happening. Then try the backup again.',
   },
   {
+    id: 'iphone-search-timed-out',
+    title: 'Searching for the iPhone stopped after 5 minutes',
+    area: 'backup',
+    seen: ['Sidecar call timed out: backup.list_devices'],
+    // python/device_backup.py list_devices() up to 0.17.0 waited for each iPhone with no limit of
+    // its own, so one that never answered held the search until the app's 5-minute default, and
+    // everything else the app asked for waited behind it (OE-37, OE-8, OE-31). The next version
+    // gives each step a limit, lists a silent iPhone as not answering, and gives the search 90
+    // seconds (electron/main.ts); after that the app says so in plain words, and this text, about
+    // waiting 5 minutes, doesn't fit: hence `when`. At its release, set fixedIn and say "update to
+    // X.Y.Z" (RELEASING.md).
+    match: /Sidecar call timed out: backup\.list_devices/,
+    when: /App: OpenExtract 0\.(?:\d|1[0-6])\.\d+\b|App: OpenExtract 0\.17\.0\b/,
+    text: "An iPhone, or Apple's software that talks to it, didn't answer when OpenExtract searched, and OpenExtract waited 5 minutes for it. Quit OpenExtract and open it again: until you do, it keeps waiting. Then unplug the iPhone, unlock it, plug it straight into the computer (not through a hub), tap Trust if it asks, and click Refresh. If it still isn't found, restart the iPhone, and on Windows restart the PC too, which restarts Apple Devices. The next version of OpenExtract stops waiting after a few seconds and says which iPhone isn't answering.",
+  },
+  {
     id: 'windows-apple-devices',
     title: 'Windows needs Apple Devices to find an iPhone',
     area: 'backup',

@@ -3,7 +3,7 @@ Running OpenExtract's engine against a FakeIPhone, and the faults on the compute
 
 run_backup() calls DeviceBackupManager.start_backup() the way main.py's backup.start does and
 returns what the app would get: the result, or the error text it would show, plus every
-backup.progress notification.
+backup.progress notification. run_search() does the same for backup.list_devices.
 """
 
 from __future__ import annotations
@@ -107,6 +107,52 @@ def run_backup(phone: FakeIPhone, output_dir: Path, *, encrypted: bool = False,
     assert not hung.is_set(), (
         f"the backup was still running after {limit:.0f}s; the fake iPhone's last events: "
         f"{phone.events[-15:]}; the engine then reported: {run.error!r}")
+    assert not phone.errors, "the fake iPhone itself failed:\n" + "\n".join(phone.errors)
+    return run
+
+
+@dataclass
+class SearchRun:
+    phone: FakeIPhone
+    result: Optional[dict] = None
+    error: Optional[str] = None  # what the app shows: str() of the engine's exception
+    exception: Optional[BaseException] = None
+    seconds: float = 0.0
+
+    @property
+    def devices(self) -> list[dict]:
+        return (self.result or {}).get("devices", [])
+
+
+def run_search(phone: FakeIPhone, *, hang_timeout: Optional[float] = None) -> SearchRun:
+    """
+    DeviceBackupManager.list_devices() with the phone plugged in, as main.py's
+    backup.list_devices calls it. A search still running after hang_timeout (HANG_TIMEOUT_S by
+    default) fails the test instead of holding up CI.
+    """
+    run = SearchRun(phone=phone)
+    limit = hang_timeout or HANG_TIMEOUT_S
+
+    def search() -> None:
+        t0 = time.monotonic()
+        try:
+            run.result = device_backup.DeviceBackupManager().list_devices()
+        except Exception as e:  # main.py turns this into {"error": {"message": str(e)}}
+            run.exception = e
+            run.error = str(e)
+        run.seconds = time.monotonic() - t0
+
+    with phone.plugged_in():
+        thread = threading.Thread(target=search, name="search", daemon=True)
+        thread.start()
+        thread.join(limit)
+        hung = thread.is_alive()
+        if hung:
+            phone.log(f"watchdog: no result after {limit:.0f}s, unplugging")
+            phone.unplug()
+    assert not hung, (
+        f"the search was still running after {limit:.0f}s; the fake iPhone's last events: "
+        f"{phone.events[-15:]}")
     assert not phone.errors, "the fake iPhone itself failed:\n" + "\n".join(phone.errors)
     return run
 

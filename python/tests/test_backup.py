@@ -252,6 +252,116 @@ class TestListDevices(unittest.TestCase):
         self.assertEqual(len(result["devices"]), 1)
         self.assertEqual(result["devices"][0]["udid"], "GOOD")
 
+    def _search_with_a_silent_iphone(self, silent_step):
+        """GOOD answers; SILENT never answers its handshake, or its question after it (OE-37)."""
+        import asyncio
+        import time
+
+        good_dev = _make_usbmux_device("GOOD", "USB")
+        silent_dev = _make_usbmux_device("SILENT", "USB")
+        good_lockdown = _make_lockdown_mock("GOOD", "Eve's iPhone", "17.0")
+        silent_lockdown = _make_lockdown_mock("SILENT", "Sam's iPhone", "18.1")
+
+        async def never(*args, **kwargs):
+            await asyncio.sleep(3600)
+
+        if silent_step == "question":
+            silent_lockdown.get_value = AsyncMock(side_effect=never)
+
+        async def create_lockdown(serial=None, **kwargs):
+            if serial == "SILENT" and silent_step == "handshake":
+                await never()
+            return silent_lockdown if serial == "SILENT" else good_lockdown
+
+        with (
+            patch.object(device_backup, "_ANSWER_TIMEOUT_S", 0.5),
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[silent_dev, good_dev]),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", side_effect=create_lockdown),
+            patch("pymobiledevice3.remote.utils.get_rsds", return_value=[]),
+        ):
+            t0 = time.monotonic()
+            result = self.manager.list_devices()
+            seconds = time.monotonic() - t0
+        if silent_step == "question":
+            silent_lockdown.close.assert_awaited()  # the connection it did open is closed
+        return {d["udid"]: d for d in result["devices"]}, seconds
+
+    def test_iphone_that_never_answers_its_handshake_holds_up_no_other(self):
+        devices, seconds = self._search_with_a_silent_iphone("handshake")
+        # Asked at the same time, so the search takes one limit, not one per iPhone.
+        self.assertLess(seconds, 2)
+        self.assertEqual(list(devices), ["SILENT", "GOOD"])
+        self.assertIs(devices["GOOD"]["answering"], True)
+        self.assertIs(devices["SILENT"]["answering"], False)
+        self.assertIsNone(devices["SILENT"]["trusted"])
+        self.assertIn("isn't answering", devices["SILENT"]["message"])
+
+    def test_iphone_that_answers_its_handshake_but_not_the_next_question(self):
+        devices, _ = self._search_with_a_silent_iphone("question")
+        self.assertIs(devices["SILENT"]["answering"], False)
+        self.assertEqual((devices["SILENT"]["name"], devices["SILENT"]["ios_version"]), ("Sam's iPhone", "18.1"))
+        self.assertIs(devices["GOOD"]["answering"], True)
+
+    def test_usb_step_that_runs_out_of_time_lists_the_rest_as_not_answering(self):
+        # As if a step wait_for can't stop (one that blocks) held the USB search past its limit.
+        import time
+
+        dev = _make_usbmux_device("STUCK", "Network")
+
+        async def blocks(*args, **kwargs):
+            time.sleep(1.5)
+            raise ConnectionError("too late")
+
+        with (
+            patch.object(device_backup, "_USB_SEARCH_TIMEOUT_S", 0.3),
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[dev]),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", side_effect=blocks),
+            patch("pymobiledevice3.remote.utils.get_rsds", return_value=[]),
+        ):
+            [device] = self.manager.list_devices()["devices"]
+        self.assertEqual((device["udid"], device["connection_type"], device["answering"]), ("STUCK", "wifi", False))
+        self.assertIn("Plug it into this computer with a cable", device["message"])
+
+    def test_wifi_search_that_never_ends_is_left_behind(self):
+        """The RSD step blocks in system tools asyncio can't interrupt, so it has a limit of its own."""
+        import time
+
+        lockdown = _make_lockdown_mock("DEV-1")
+
+        def blocks(*args, **kwargs):
+            time.sleep(1.5)
+            return []
+
+        with (
+            patch.object(device_backup, "_RSD_TIMEOUT_S", 0.3),
+            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock,
+                  return_value=[_make_usbmux_device("DEV-1")]),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
+            patch("pymobiledevice3.remote.utils.get_rsds", side_effect=blocks),
+        ):
+            t0 = time.monotonic()
+            result = self.manager.list_devices()
+            seconds = time.monotonic() - t0
+        self.assertLess(seconds, 1.2)
+        self.assertEqual([d["udid"] for d in result["devices"]], ["DEV-1"])
+
+    def test_device_service_that_never_answers_is_a_plain_error(self):
+        import asyncio
+
+        async def never(*args, **kwargs):
+            await asyncio.sleep(3600)
+
+        with (
+            patch.object(device_backup, "_ANSWER_TIMEOUT_S", 0.3),
+            patch("pymobiledevice3.usbmux.list_devices", side_effect=never),
+            patch("device_backup._start_apple_devices") as start,
+        ):
+            with self.assertRaises(RuntimeError) as ctx:
+                self.manager.list_devices()
+        start.assert_not_called()  # it's running, just not answering
+        self.assertIn("isn't answering", str(ctx.exception))
+        self.assertFalse(str(ctx.exception).startswith("DEVICE_SERVICE_REQUIRED"))
+
     def test_untrusted_device_is_listed_without_asking_it_to_trust(self):
         """Searching must not pair: each pairing attempt is a new Trust prompt on the iPhone."""
         usbmux_dev = _make_usbmux_device("DEV-1", "USB")

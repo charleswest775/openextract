@@ -1,19 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { saveFolder, sidecarCall } from '../../lib/ipc';
+import { canBackUp, deviceDetail, notAnsweringMessages, searchFailedMessage, type DeviceInfo } from '../../lib/deviceSearch';
 import { ArrowLeftIcon, PhoneIcon, FolderIcon, LockIcon, DownloadIcon } from '../shared/Icons';
 import { ReportProblemButton } from '../shared/Feedback';
-
-interface DeviceInfo {
-  udid: string;
-  name: string;
-  ios_version: string;
-  connection_type: 'usb' | 'wifi';
-  // false until the iPhone trusts this computer (backup.pair_device)
-  trusted?: boolean;
-  // true when the iPhone already has a backup password (Encrypt local backup): every backup
-  // is encrypted with it, and the app can't set a new one (OE-68). null when unknown.
-  encrypts_backups?: boolean | null;
-}
 
 // backup.pair_device: 'locked' also covers the iPhone asking for its passcode after Trust.
 type PairState = 'trusted' | 'waiting' | 'locked' | 'denied';
@@ -168,7 +157,7 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
       const result = await sidecarCall<{ devices: DeviceInfo[] }>('backup.list_devices', {});
       setDevices(result.devices);
     } catch (err: any) {
-      setDeviceError(err.message || 'Failed to detect devices');
+      setDeviceError(searchFailedMessage(err.message || 'Failed to detect devices'));
     } finally {
       setLoadingDevices(false);
     }
@@ -292,8 +281,10 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
     setBackupPath(null);
   };
 
-  const selectedTrusted = devices.find((d) => d.udid === selectedDevice?.udid)?.trusted !== false;
-  const canStart = selectedDevice !== null && selectedTrusted && outputDir !== ''
+  // An iPhone that doesn't trust this computer yet, or didn't answer the search, can't be backed up.
+  const selectedReady = canBackUp(devices.find((d) => d.udid === selectedDevice?.udid));
+  const notAnswering = notAnsweringMessages(devices);
+  const canStart = selectedDevice !== null && selectedReady && outputDir !== ''
     && (!useEncryption || existingPassword || password !== '') && status === 'idle';
 
   return (
@@ -348,7 +339,7 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                 <button
                   key={device.udid}
                   onClick={() => setSelectedDevice(device)}
-                  disabled={status === 'running' || device.trusted === false}
+                  disabled={status === 'running' || !canBackUp(device)}
                   className={`w-full text-left p-3.5 rounded-lg border transition-colors disabled:opacity-50 ${
                     selectedDevice?.udid === device.udid
                       ? 'border-accent bg-accent-wash/50'
@@ -359,15 +350,19 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                     <PhoneIcon className="text-accent flex-shrink-0" size={18} />
                     <div>
                       <div className="text-sm font-medium text-gray-900">{device.name}</div>
-                      <div className="text-xs text-text-tertiary">
-                        iOS {device.ios_version} · {device.connection_type === 'usb' ? 'USB' : 'Wi-Fi'}
-                        {device.trusted === false && ' · Waiting for you to trust this computer'}
-                      </div>
+                      <div className="text-xs text-text-tertiary">{deviceDetail(device)}</div>
                     </div>
                   </div>
                 </button>
               ))}
             </div>
+
+            {notAnswering.map((message) => (
+              <div key={message} className="mt-2 p-3 rounded-lg bg-accent-wash/50 border border-accent-line flex items-start gap-2 text-sm text-gray-700">
+                <PhoneIcon className="text-accent flex-shrink-0 mt-0.5" size={16} />
+                <p>{message}</p>
+              </div>
+            ))}
 
             {untrusted && (
               <div className="mt-2 p-3 rounded-lg bg-accent-wash/50 border border-accent-line flex items-start gap-2 text-sm text-gray-700">
