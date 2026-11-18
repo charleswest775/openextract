@@ -2,7 +2,8 @@
 Call history adapter.
 
 Delegates ``list_calls`` to ``ios_backup_core.extractors.calls.CallExtractor``
-and keeps openextract's CSV export wrapper.
+and keeps openextract's CSV export wrapper. The CSV's dates are in the
+computer's time zone (local_dates.py); the library gives them in UTC.
 """
 
 import csv
@@ -10,9 +11,14 @@ import os
 
 from ios_backup_core.extractors.calls import CallExtractor as _CoreCallExtractor
 
+from local_dates import csv_date
+
 
 class CallExtractor:
     """Adapter wrapping the ios-backup-core CallExtractor."""
+
+    # The time zone the CSV's dates are written in; None is this computer's.
+    local_tz = None
 
     def __init__(self):
         self._inner = _CoreCallExtractor()
@@ -41,7 +47,7 @@ class CallExtractor:
                 writer.writerow(["Date", "Contact Name", "Phone/Email", "Direction", "Status", "Duration (s)", "App/Service"])
                 for call in calls:
                     writer.writerow([
-                        call["date"],
+                        csv_date(call["date"], self.local_tz),
                         call["contact_name"],
                         call["address"],
                         call["direction"].capitalize(),

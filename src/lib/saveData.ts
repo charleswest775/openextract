@@ -2,6 +2,7 @@
  * Shared pieces of "Save to this computer": writing text files the renderer builds,
  * and the file formats more than one screen produces.
  */
+import { formatSavedDateTime } from './dates';
 import { exportMessagesPdf, saveFolder, sidecarCall } from './ipc';
 import { chatName } from './whatsapp';
 import type { PodcastExportResult, PodcastSaveFormat } from '../types/podcasts';
@@ -110,9 +111,11 @@ export interface NoteRecord {
   modified: string;
 }
 
+/** Every note in one text file. Dates are on the local clock, as the Notes screen's own save writes them. */
 export function notesToText(notes: NoteRecord[]): string {
   return notes.map(n =>
-    `Title: ${n.title}\nCreated: ${n.created}\nModified: ${n.modified}\n${'='.repeat(40)}\n\n${n.body}`
+    `Title: ${n.title}\nCreated: ${formatSavedDateTime(n.created)}\nModified: ${formatSavedDateTime(n.modified)}\n`
+    + `${'='.repeat(40)}\n\n${n.body}`
   ).join('\n\n' + '-'.repeat(60) + '\n\n');
 }
 

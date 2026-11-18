@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { loadTs } from './test-helpers/load-ts.mjs';
 import { rerunInTimeZones, onlyIn } from './test-helpers/time-zones.mjs';
 
-const { formatDate, formatTime, formatDateTime, formatRelative, formatDuration } = loadTs('src/lib/dates.ts');
+const { formatDate, formatTime, formatDateTime, formatRelative, formatDuration, formatSavedDateTime } = loadTs('src/lib/dates.ts');
 
 // An instant at this local wall-clock time, as the engine would send it
 const local = (y, mo, d, h = 0, mi = 0, s = 0, ms = 0) => new Date(y, mo - 1, d, h, mi, s, ms);
@@ -99,6 +99,30 @@ test('formatRelative counts back from now', () => {
   assert.equal(formatRelative('2019-07-04T16:20:00+00:00'), formatDate('2019-07-04T16:20:00+00:00'));
   // A clock a little ahead (the phone's or this computer's) still reads as now
   assert.equal(formatRelative(engine(new Date(Date.now() + 5 * MIN))), 'Just now');
+});
+
+test('formatSavedDateTime writes the local date and time in English, as the engine does', () => {
+  // The words python/local_dates.py readable_date writes, whatever the zone and language
+  assert.equal(formatSavedDateTime(engine(local(2024, 7, 5, 17, 48, 12))), 'Jul 5, 2024, 5:48 PM');
+  assert.equal(formatSavedDateTime(engine(local(2024, 7, 6, 0, 5, 0, 250))), 'Jul 6, 2024, 12:05 AM');
+  assert.equal(formatSavedDateTime(engine(local(2024, 12, 31, 12, 0))), 'Dec 31, 2024, 12:00 PM');
+  assert.equal(formatSavedDateTime(engine(local(2025, 1, 1, 9, 7))), 'Jan 1, 2025, 9:07 AM');
+  for (const [y, mo, d] of TRICKY_DAYS) {
+    assert.match(formatSavedDateTime(engine(local(y, mo, d, 23, 59))), new RegExp(`^\\w{3} ${d}, ${y}, 11:59 PM$`));
+  }
+  assert.equal(formatSavedDateTime(''), 'Unknown date');
+  assert.equal(formatSavedDateTime(null), 'Unknown date');
+  assert.equal(formatSavedDateTime(undefined), 'Unknown date');
+  assert.equal(formatSavedDateTime('sometime'), 'sometime');
+});
+
+test('formatSavedDateTime: an evening in California is not the next day', { skip: onlyIn('America/Los_Angeles') }, () => {
+  assert.equal(formatSavedDateTime('2024-07-06T00:48:12+00:00'), 'Jul 5, 2024, 5:48 PM');
+  assert.equal(formatSavedDateTime('2024-07-05T16:10:09Z'), 'Jul 5, 2024, 9:10 AM');
+});
+
+test('formatSavedDateTime stays English in German', { skip: onlyIn('Europe/Berlin', 'de-DE') }, () => {
+  assert.equal(formatSavedDateTime('2024-10-26T22:00:00+00:00'), 'Oct 27, 2024, 12:00 AM');
 });
 
 test('formatDuration shows minutes and seconds', () => {

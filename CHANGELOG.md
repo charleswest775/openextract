@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 - Recover deleted messages: says that it looks for deleted iMessages and texts, and, when the backup has WhatsApp, why deleted WhatsApp messages can't be brought back. If you send a report asking about encrypted or deleted WhatsApp messages, the app now answers it right away (OE-99)
 
+### Fixed
+- Saved call history, web history and notes show dates in your computer's time zone, as saved messages, WhatsApp chats and podcasts already do. They used to be in UTC, so in California a call made at 5:48 in the evening read 00:48 the next day. In the call history and web history spreadsheets (CSV), the Date column keeps its exact form with your time zone added: 2024-07-05T17:48:12-07:00. A saved note's Created and Modified lines read "Jul 5, 2024, 5:48 PM", and a note without a date says "Unknown date" instead of "None" or nothing
+
 ## [0.17.0] - 2026-11-17
 
 Voicemail now has Spam and Deleted lists beside Voicemail, as on the iPhone. Spam voicemails used to be mixed in with the rest, deleted ones still in the backup weren't shown at all, and some older deleted ones showed up as if they hadn't been deleted. Save all saves every list, and a voicemail whose recording isn't in the backup now says so instead of failing to play.

@@ -160,14 +160,17 @@ test('vCard name falls back to first and last, then the organization', () => {
   assert.equal(contactsToVcard([]), '\r\n');
 });
 
-test('notes text file: a header per note, separated by a rule', () => {
+test('notes text file: a header per note, separated by a rule, with local dates', () => {
+  // Instants at these local clock times, as UTC the way the engine sends them: the
+  // file shows the local time, so an evening edit isn't dated the next day.
+  const engine = (...args) => new Date(...args).toISOString().replace('Z', '+00:00');
   const text = notesToText([
-    { title: 'Groceries', body: 'eggs\nflour', created: '2024-03-10T09:59:59+00:00', modified: '2024-03-11T10:00:00+00:00' },
-    { title: 'שלום 🎉', body: '', created: '', modified: '' },
+    { title: 'Groceries', body: 'eggs\nflour', created: engine(2024, 2, 10, 9, 59, 59), modified: engine(2024, 2, 11, 22, 30) },
+    { title: 'שלום 🎉', body: '', created: '', modified: 'sometime' },
   ]);
   const [first, second] = text.split('\n\n' + '-'.repeat(60) + '\n\n');
-  assert.equal(first, `Title: Groceries\nCreated: 2024-03-10T09:59:59+00:00\nModified: 2024-03-11T10:00:00+00:00\n${'='.repeat(40)}\n\neggs\nflour`);
-  assert.equal(second, `Title: שלום 🎉\nCreated: \nModified: \n${'='.repeat(40)}\n\n`);
+  assert.equal(first, `Title: Groceries\nCreated: Mar 10, 2024, 9:59 AM\nModified: Mar 11, 2024, 10:30 PM\n${'='.repeat(40)}\n\neggs\nflour`);
+  assert.equal(second, `Title: שלום 🎉\nCreated: Unknown date\nModified: sometime\n${'='.repeat(40)}\n\n`);
   assert.equal(notesToText([]), '');
 });
 
