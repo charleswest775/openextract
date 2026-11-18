@@ -11,19 +11,19 @@ import base64
 import csv
 import os
 import shutil
-from datetime import datetime
-from typing import Optional
 
 from ios_backup_core.extractors.voicemail import (
     VoicemailExtractor as _CoreVoicemailExtractor,
 )
 
+from local_dates import csv_date, local_datetime
+
 
 class VoicemailExtractor:
     """Adapter wrapping the ios-backup-core VoicemailExtractor."""
 
-    # Time zone saves show dates in. None is the computer's own, as the app
-    # and message saves use (messages.py); tests set a fixed one.
+    # The time zone saves show dates in; None is this computer's, as the app
+    # and the other saves use (local_dates.py). Tests set a fixed one.
     local_tz = None
 
     def __init__(self):
@@ -117,26 +117,16 @@ class VoicemailExtractor:
 
     # ── Dates in saves ───────────────────────────────────────────────────────
     # The library gives each voicemail's date in UTC ("2024-07-06T00:48:12+00:00").
-    # Saves show it in local time, like message saves (messages.py _csv_date).
-
-    def _local_datetime(self, iso) -> Optional[datetime]:
-        """A voicemail's date in local time, or None if it has none we can read."""
-        if not iso:
-            return None
-        try:
-            return datetime.fromisoformat(iso).astimezone(self.local_tz)
-        except (TypeError, ValueError, OverflowError, OSError):
-            return None
+    # Saves show it in local time, like the other saves (local_dates.py).
 
     def _csv_date(self, iso) -> str:
         """ISO 8601 in local time with its offset, e.g. "2024-07-05T17:48:12-07:00":
         the same moment as the library's UTC value, and the clock time people expect."""
-        dt = self._local_datetime(iso)
-        return dt.isoformat() if dt is not None else (iso or "")
+        return csv_date(iso, self.local_tz)
 
     def _file_day(self, iso) -> str:
         """The local day, "2024-07-05", for an audio file's name."""
-        dt = self._local_datetime(iso)
+        dt = local_datetime(iso, self.local_tz)
         return dt.date().isoformat() if dt is not None else (iso or "")[:10]
 
 

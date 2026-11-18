@@ -46,6 +46,25 @@ export function formatDateTime(isoString: string | null | undefined): string {
   return `${formatDate(isoString)} ${formatTime(isoString)}`;
 }
 
+// Month names for saved files: English whatever the computer's language, as the
+// engine writes them (python/local_dates.py).
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * "Jul 5, 2024, 9:10 AM" on the local clock, for a date a saved file shows on its own.
+ * The same words the engine writes in saved messages and notes (python/local_dates.py
+ * readable_date), so a file saved here matches one the engine saves. A timestamp that
+ * can't be read is written as it came; a missing one is "Unknown date".
+ */
+export function formatSavedDateTime(isoString: string | null | undefined): string {
+  if (!isoString) return 'Unknown date';
+  const date = parseDate(isoString);
+  if (isNaN(date.getTime())) return isoString;
+  const hours = date.getHours();
+  const time = `${hours % 12 || 12}:${String(date.getMinutes()).padStart(2, '0')} ${hours < 12 ? 'AM' : 'PM'}`;
+  return `${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}, ${time}`;
+}
+
 export function formatRelative(isoString: string | null | undefined): string {
   if (!isoString) return '';
   try {

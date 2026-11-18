@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - Voicemail: the list Save all saves (voicemails.csv) now has the caller's number in a Phone Number column. For a caller saved in your contacts it used to show only their name. A new Spam column marks every spam voicemail, including spam you then deleted, which is in the Deleted list
 - Voicemail: Save all's dates follow your computer's time zone, as message saves do: the list's Date column shows local time with its offset, and each audio file is named with the local day, so a voicemail left in the evening no longer gets the next day's date. They used to be UTC
+- Saved call history, web history and notes show dates in your computer's time zone, as saved messages, WhatsApp chats and podcasts already do. They used to be in UTC, so in California a call made at 5:48 in the evening read 00:48 the next day. In the call history and web history spreadsheets (CSV), the Date column keeps its exact form with your time zone added: 2024-07-05T17:48:12-07:00. A saved note's Created and Modified lines read "Jul 5, 2024, 5:48 PM", and a note without a date says "Unknown date" instead of "None" or nothing
 
 ## [0.17.0] - 2026-11-17
 

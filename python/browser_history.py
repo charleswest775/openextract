@@ -3,7 +3,8 @@ Browser history adapter.
 
 Delegates ``has_browser_history`` and ``list_browser_history`` to
 ``ios_backup_core.extractors.browser_history.BrowserHistoryExtractor``.
-Keeps openextract's CSV export wrapper.
+Keeps openextract's CSV export wrapper. The CSV's dates are in the computer's
+time zone (local_dates.py); the library gives them in UTC.
 """
 
 import csv
@@ -13,9 +14,14 @@ from ios_backup_core.extractors.browser_history import (
     BrowserHistoryExtractor as _CoreBrowserHistoryExtractor,
 )
 
+from local_dates import csv_date
+
 
 class BrowserHistoryExtractor:
     """Adapter wrapping the ios-backup-core BrowserHistoryExtractor."""
+
+    # The time zone the CSV's dates are written in; None is this computer's.
+    local_tz = None
 
     def __init__(self):
         self._inner = _CoreBrowserHistoryExtractor()
@@ -47,7 +53,7 @@ class BrowserHistoryExtractor:
                 writer.writerow(["Date", "Browser", "URL", "Title", "Domain", "Visit Count"])
                 for visit in visits:
                     writer.writerow([
-                        visit["visit_date"],
+                        csv_date(visit["visit_date"], self.local_tz),
                         visit["browser"].capitalize(),
                         visit["url"],
                         visit["title"],
