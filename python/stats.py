@@ -131,6 +131,13 @@ class StatsComputer:
         except Exception as e:
             overview["photos_in_backup"] = overview["total_photos"] + overview["total_videos"]
             errors.append(f"photos in backup: {e}")
+        # All Photos rows whose file the backup lists but its folder doesn't have (OE-102), so the
+        # app doesn't call them only in iCloud.
+        try:
+            overview["photos_missing_from_folder"] = self._photos().library_missing_from_folder(backup)
+        except Exception as e:
+            overview["photos_missing_from_folder"] = 0
+            errors.append(f"photos missing from the folder: {e}")
         # Hidden photos aren't in All Photos or the counts above; Save to this computer saves them too.
         try:
             overview["hidden_photos_in_backup"] = self._photos().hidden_in_backup(backup)

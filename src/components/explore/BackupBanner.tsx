@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { UNFINISHED_MESSAGE } from '../../lib/foundBackups';
 
 /**
- * A strip above every screen of a backup that stopped partway (OE-31), so a
- * section that won't load isn't a surprise. It can be hidden until the backup
- * is opened again.
+ * A strip above every screen of a backup with something wrong with it, so a
+ * section that won't load isn't a surprise: one that stopped partway (OE-31,
+ * foundBackups.UNFINISHED_MESSAGE) or whose folder is missing files (OE-102,
+ * backupFiles.missingFilesMessage). It can be hidden until the backup is opened again.
  */
-export default function UnfinishedBanner({ onNewBackup }: { onNewBackup?: () => void }) {
+export default function BackupBanner({ message, onNewBackup }: { message: string; onNewBackup?: () => void }) {
   const [hidden, setHidden] = useState(false);
   if (hidden) return null;
 
@@ -20,7 +20,7 @@ export default function UnfinishedBanner({ onNewBackup }: { onNewBackup?: () => 
         className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-semibold"
         style={{ background: 'var(--warning)' }}
       >!</span>
-      <span className="flex-1 min-w-0">{UNFINISHED_MESSAGE}</span>
+      <span className="flex-1 min-w-0">{message}</span>
       {onNewBackup && (
         <button onClick={onNewBackup} className="font-medium text-amber-900 hover:underline flex-shrink-0">
           Make a new backup

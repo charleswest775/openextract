@@ -16,17 +16,51 @@ export function allOnlyInIcloud(count: number): string {
     : `All ${count.toLocaleString()} photos here are only in iCloud, so this backup doesn't have them.`;
 }
 
+// Photos the backup lists but whose files aren't in its folder (OE-102): the engine
+// leaves them out of the grid too, and the banner above the backup says what to do.
+
+/** Under the Photos title, when some of the photos in view are missing from the folder. */
+export function moreMissingFromFolder(count: number): string {
+  return count === 1
+    ? "1 more is missing from the backup's folder, though the backup lists it."
+    : `${count.toLocaleString()} more are missing from the backup's folder, though the backup lists them.`;
+}
+
+/**
+ * In place of the grid, when none of the photos in view can be shown: why, for the ones
+ * missing from the folder and the ones only in iCloud. Undefined when there are neither.
+ */
+export function noPhotosHere(missingFromFolder: number, onlyInIcloud: number): string | undefined {
+  if (missingFromFolder > 0 && onlyInIcloud > 0) {
+    const missing = missingFromFolder === 1
+      ? '1 is missing from it, though the backup lists it'
+      : `${missingFromFolder.toLocaleString()} are missing from it, though the backup lists them`;
+    const icloud = onlyInIcloud === 1 ? '1 is only in iCloud' : `${onlyInIcloud.toLocaleString()} are only in iCloud`;
+    return `None of the photos here are in the backup's folder: ${missing}, and ${icloud}.`;
+  }
+  if (missingFromFolder > 0) {
+    return missingFromFolder === 1
+      ? "The 1 photo here is missing from the backup's folder, though the backup lists it."
+      : `All ${missingFromFolder.toLocaleString()} photos here are missing from the backup's folder, though the backup lists them.`;
+  }
+  return onlyInIcloud > 0 ? allOnlyInIcloud(onlyInIcloud) : undefined;
+}
+
 export interface PhotoExportResult {
   exported: number;
   errors: number;
   not_in_backup?: number;
+  missing_from_folder?: number;
 }
 
-/** "300 exported · 5,700 only in iCloud, not in this backup · 3 couldn't be copied" */
+/** "300 exported · 5,700 only in iCloud, not in this backup · 12 missing from the backup's folder · 3 couldn't be copied" */
 export function photoExportSummary(result: PhotoExportResult): string {
   const parts = [`${result.exported.toLocaleString()} exported`];
   if (result.not_in_backup) {
     parts.push(`${result.not_in_backup.toLocaleString()} only in iCloud, not in this backup`);
+  }
+  if (result.missing_from_folder) {
+    parts.push(`${result.missing_from_folder.toLocaleString()} missing from the backup's folder`);
   }
   if (result.errors) {
     parts.push(`${result.errors.toLocaleString()} couldn't be copied`);

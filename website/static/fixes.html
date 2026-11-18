@@ -170,6 +170,15 @@
       },
       {
         "@type": "Question",
+        "name": "Files missing from the backup's folder",
+        "url": "https://www.openextract.app/fixes#files-missing-from-backup-folder",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The backup lists these files, but they aren't in its folder, so OpenExtract can't open them. This usually happens when a backup folder is copied or moved and the copy stops partway, or when another program, such as a cleanup tool or cloud storage, removes files from it. If you copied or moved the backup, copy the whole folder again from where it came from and open the new copy. Otherwise, make a new backup."
+        }
+      },
+      {
+        "@type": "Question",
         "name": "WhatsApp's chats aren't in the backup",
         "url": "https://www.openextract.app/fixes#whatsapp-chats-not-in-backup",
         "acceptedAnswer": {
@@ -303,6 +312,11 @@
       </div>
 
       <h2 id="data">Finding what's in a backup</h2>
+      <div class="fix" id="files-missing-from-backup-folder">
+        <h3>Files missing from the backup's folder</h3>
+        <p class="fix__seen">What you see: <code>of this backup's files are missing from its folder</code> or <code>missing from the backup's folder</code> or <code>Photo not found</code></p>
+        <p>The backup lists these files, but they aren't in its folder, so OpenExtract can't open them. This usually happens when a backup folder is copied or moved and the copy stops partway, or when another program, such as a cleanup tool or cloud storage, removes files from it. If you copied or moved the backup, copy the whole folder again from where it came from and open the new copy. Otherwise, make a new backup.</p>
+      </div>
       <div class="fix" id="whatsapp-chats-not-in-backup">
         <h3>WhatsApp's chats aren't in the backup</h3>
         <p class="fix__seen">What you see: <code>WhatsApp's chats aren't in this backup</code> or <code>No WhatsApp chats in this backup</code></p>

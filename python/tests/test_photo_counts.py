@@ -73,11 +73,19 @@ class _FakeBackup:
                     f.write(b"\xff\xd8\xff" + bytes(pk))
                 self.files[_path(directory, filename)] = file_id
 
+    def lose(self, *pks):
+        """Take assets' files out of the folder but leave them in the list of files (OE-102)."""
+        for pk, directory, filename, _, _ in ASSETS:
+            if pk in pks:
+                file_id = self.files[_path(directory, filename)]
+                os.remove(os.path.join(self.backup_dir, file_id[:2], file_id))
+
     def get_file(self, relative_path, domain="HomeDomain"):
         if (domain, relative_path) == ("CameraRollDomain", "Media/PhotoData/Photos.sqlite"):
-            return self.photos_db
+            return self.photos_db if os.path.exists(self.photos_db) else None
         file_id = self.files.get(relative_path) if domain == "CameraRollDomain" else None
-        return os.path.join(self.backup_dir, file_id[:2], file_id) if file_id else None
+        path = os.path.join(self.backup_dir, file_id[:2], file_id) if file_id else None
+        return path if path and os.path.isfile(path) else None
 
     def list_files(self, domain=None, path_like=None):
         if domain == "CameraRollDomain":
@@ -221,6 +229,7 @@ class _PhotoCountTests:
         # The tile showed library rows (8 here; 6,000 for the reporter, with about 300 in the backup).
         overview = StatsComputer(self.extractor).compute(self.backup, {})["overview"]
         self.assertEqual(overview["photos_in_backup"], 2)
+        self.assertEqual(overview["photos_missing_from_folder"], 0)
         self.assertEqual(overview["total_photos"] + overview["total_videos"], 6)
         # Not in that count, as on the iPhone, but Save to this computer adds it.
         self.assertEqual(overview["hidden_photos_in_backup"], 1)
@@ -239,6 +248,70 @@ class _PhotoCountTests:
         # Library rows, as before; the card says how many of them are only in iCloud.
         self.assertEqual((photos["total_photos"], photos["total_videos"]), (4, 2))
         self.assertEqual((stats["overview"]["total_photos"], stats["overview"]["total_videos"]), (4, 2))
+
+    # ── Files the backup lists but its folder doesn't have (OE-102) ──────────
+
+    def test_photos_missing_from_the_folder_are_left_out_and_counted(self):
+        # OE-102: they were listed, and every tile failed with "Photo not found".
+        self.backup.lose(1)
+        photos, page = _page_through(self.extractor, self.backup)
+        self.assertEqual([p["uuid"] for p in photos], ["UUID-8"])
+        self.assertEqual((page["total"], page["in_backup"]), (6, 1))
+        # Not counted as only in iCloud: 4, 5, 6 and 9's rows still are, as before.
+        self.assertEqual((page["not_in_backup"], page["missing_from_folder"]), (4, 1))
+
+    def test_nothing_is_missing_from_a_complete_folder(self):
+        _, page = _page_through(self.extractor, self.backup)
+        self.assertEqual(page["missing_from_folder"], 0)
+
+    def test_album_and_every_photo_counts_leave_out_missing_files(self):
+        self.backup.lose(1, 2)
+        photos, page = _page_through(self.extractor, self.backup, album_id=ALBUM)
+        self.assertEqual(sorted(p["uuid"] for p in photos), ["UUID-3", "UUID-8"])
+        self.assertEqual((page["total"], page["in_backup"], page["not_in_backup"], page["missing_from_folder"]),
+                         (4, 2, 1, 1))
+        photos, page = _page_through(self.extractor, self.backup, album_id=LIBRARY)
+        self.assertEqual([p["uuid"] for p in photos], ["UUID-8"])
+        missing = 2 if SMART_ALBUMS else 1  # the hidden video too, where Hidden is counted
+        self.assertEqual((page["in_backup"], page["missing_from_folder"]), (1, missing))
+        albums = {a["id"]: a for a in self.extractor.list_albums(self.backup)["albums"]}
+        self.assertEqual((albums["__all__"]["in_backup"], albums[ALBUM]["in_backup"]), (1, 2))
+
+    @unittest.skipUnless(SMART_ALBUMS, "needs ios-backup-core with Favorites and Hidden")
+    def test_favorites_leave_out_missing_files(self):
+        self.backup.lose(8)
+        photos, page = _page_through(self.extractor, self.backup, album_id="__favorites__")
+        self.assertEqual(photos, [])
+        self.assertEqual((page["total"], page["in_backup"], page["not_in_backup"], page["missing_from_folder"]),
+                         (2, 0, 1, 1))
+
+    def test_every_photo_missing_from_the_folder(self):
+        self.backup.lose(1, 2, 3, 8)
+        photos, page = _page_through(self.extractor, self.backup)
+        self.assertEqual(photos, [])
+        # All Photos: 1 and 8 (2 is hidden, 3 trashed).
+        self.assertEqual((page["in_backup"], page["not_in_backup"], page["missing_from_folder"]), (0, 4, 2))
+        overview = StatsComputer(self.extractor).compute(self.backup, {})["overview"]
+        self.assertEqual(overview["photos_in_backup"], 0)
+        # So the home page and Backup details don't call them only in iCloud.
+        self.assertEqual(overview["photos_missing_from_folder"], 2)
+
+    def test_export_reports_photos_missing_from_the_folder(self):
+        self.backup.lose(1)
+        out = os.path.join(self._tmp.name, "export")
+        result = self.extractor.export_photos(self.backup, out)
+        # Left out, as iCloud-only ones are, not errors.
+        self.assertEqual((result["exported"], result["errors"], result["not_in_backup"], result["missing_from_folder"]),
+                         (1, 0, 4, 1))
+
+    def test_scan_without_a_photos_library_leaves_out_missing_files(self):
+        # When Photos.sqlite can't be read, the DCIM folders are listed instead.
+        self.backup.lose(2)
+        os.remove(self.backup.photos_db)
+        page = self.extractor.list_photos(self.backup, offset=0, limit=100)
+        self.assertEqual(page["source"], "dcim_scan")
+        self.assertEqual(sorted(p["filename"] for p in page["photos"]), ["IMG_0001.HEIC", "IMG_0003.HEIC"])
+        self.assertEqual((page["in_backup"], page["missing_from_folder"]), (2, 1))
 
     def test_overview_card_is_empty_when_every_photo_is_only_in_icloud(self):
         self.backup.files.clear()

@@ -28,6 +28,9 @@ export interface BackupStatsOverview {
   // Photos and videos the backup has a file for: the Photos screen's count (All Photos,
   // which leaves out hidden photos, as the iPhone does).
   photos_in_backup: number;
+  // All Photos rows whose file the backup lists but its folder doesn't have (OE-102), so they
+  // aren't counted as only in iCloud; older engines don't send it.
+  photos_missing_from_folder?: number;
   // Hidden photos and videos the backup has a file for. Save to this computer saves them
   // as well; older engines don't send it.
   hidden_photos_in_backup?: number;

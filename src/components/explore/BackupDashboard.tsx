@@ -2,7 +2,7 @@ import type { BackupStats } from '../../hooks/useBackupStats';
 import PageHeader from '../shared/PageHeader';
 import CountUp from '../shared/CountUp';
 import OrganicLoader from '../shared/OrganicLoader';
-import { allOnlyInIcloud, moreOnlyInIcloud } from '../../lib/photoCounts';
+import { moreMissingFromFolder, moreOnlyInIcloud, noPhotosHere } from '../../lib/photoCounts';
 import { Info } from 'lucide-react';
 import {
   LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon, VoicemailIcon, LockIcon, WhatsAppIcon, PodcastIcon,
@@ -196,8 +196,11 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
   hasBrowserHistory: boolean;
 }) {
   const { overview, messages, photos, calls, notes, voicemails } = stats;
-  // Library rows the backup has no file for (#106), as the Photos screen counts them.
-  const photosOnlyInIcloud = Math.max(overview.total_photos + overview.total_videos - overview.photos_in_backup, 0);
+  // Library rows the backup has no file for (#106), and those whose file is missing from its
+  // folder (OE-102), as the Photos screen counts them.
+  const photosMissingFromFolder = overview.photos_missing_from_folder ?? 0;
+  const photosOnlyInIcloud = Math.max(
+    overview.total_photos + overview.total_videos - overview.photos_in_backup - photosMissingFromFolder, 0);
 
   const dateRange = (from: string | null, to: string | null) => {
     if (!from && !to) return '';
@@ -366,7 +369,7 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
           {(overview.total_photos + overview.total_videos) > 0 && (
             <InsightCard title="Photos & Videos" icon={CameraIcon} onViewAll={() => onNavigate('photos')}>
               {overview.photos_in_backup === 0 ? (
-                <p className="text-xs text-gray-500">{allOnlyInIcloud(photosOnlyInIcloud)}</p>
+                <p className="text-xs text-gray-500">{noPhotosHere(photosMissingFromFolder, photosOnlyInIcloud)}</p>
               ) : (
                 <div className="space-y-4">
                   {Object.keys(photos.by_kind).length > 0 && (
@@ -389,6 +392,9 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
                     </div>
                   )}
 
+                  {photosMissingFromFolder > 0 && (
+                    <p className="text-xs text-gray-500">{moreMissingFromFolder(photosMissingFromFolder)}</p>
+                  )}
                   {photosOnlyInIcloud > 0 && (
                     <p className="text-xs text-gray-500">{moreOnlyInIcloud(photosOnlyInIcloud)}</p>
                   )}

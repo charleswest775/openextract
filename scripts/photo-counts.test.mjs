@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { loadTs } from './test-helpers/load-ts.mjs';
 import { enUS } from './test-helpers/time-zones.mjs';
 
-const { moreOnlyInIcloud, allOnlyInIcloud, photoExportSummary } = loadTs('src/lib/photoCounts.ts');
+const { moreOnlyInIcloud, allOnlyInIcloud, photoExportSummary, moreMissingFromFolder, noPhotosHere } = loadTs('src/lib/photoCounts.ts');
 
 const n = x => x.toLocaleString();
 
@@ -39,4 +39,29 @@ test('the export summary leaves out what is zero', () => {
 test('the export summary with every part, in that order', () => {
   const s = photoExportSummary({ exported: 31_000, errors: 1_250, not_in_backup: 250_000 });
   assert.equal(s, `${n(31_000)} exported · ${n(250_000)} only in iCloud, not in this backup · ${n(1_250)} couldn't be copied`);
+});
+
+// Photos the backup lists but whose files aren't in its folder (OE-102): left out of the grid,
+// and not called iCloud-only, because they aren't.
+test('photos missing from the folder: under the title, one and many', () => {
+  assert.equal(moreMissingFromFolder(1), "1 more is missing from the backup's folder, though the backup lists it.");
+  assert.equal(moreMissingFromFolder(1200), `${n(1200)} more are missing from the backup's folder, though the backup lists them.`);
+});
+
+test('in place of the grid: missing from the folder, only in iCloud, or both', () => {
+  assert.equal(noPhotosHere(0, 0), undefined);
+  assert.equal(noPhotosHere(0, 6000), allOnlyInIcloud(6000));
+  assert.equal(noPhotosHere(1, 0), "The 1 photo here is missing from the backup's folder, though the backup lists it.");
+  assert.equal(noPhotosHere(1200, 0), `All ${n(1200)} photos here are missing from the backup's folder, though the backup lists them.`);
+  assert.equal(noPhotosHere(1200, 4),
+    `None of the photos here are in the backup's folder: ${n(1200)} are missing from it, though the backup lists them, and 4 are only in iCloud.`);
+  assert.equal(noPhotosHere(1, 1),
+    "None of the photos here are in the backup's folder: 1 is missing from it, though the backup lists it, and 1 is only in iCloud.");
+});
+
+test('the export summary says how many were missing from the folder', () => {
+  assert.equal(photoExportSummary({ exported: 0, errors: 0, not_in_backup: 0, missing_from_folder: 1200 }),
+    `0 exported · ${n(1200)} missing from the backup's folder`);
+  assert.equal(photoExportSummary({ exported: 300, errors: 3, not_in_backup: 5700, missing_from_folder: 12 }),
+    `300 exported · ${n(5700)} only in iCloud, not in this backup · 12 missing from the backup's folder · 3 couldn't be copied`);
 });

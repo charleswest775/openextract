@@ -91,7 +91,9 @@ export default function BackupHome({ ctx, onSearch }: { ctx: ExploreContext; onS
 
   const why = (tab: Tab): string => {
     switch (tab) {
-      case 'photos': return 'They may be only in iCloud';
+      case 'photos': return (overview?.photos_missing_from_folder ?? 0) > 0
+        ? "Their files are missing from the backup's folder"
+        : 'They may be only in iCloud';
       case 'calls': return overview && !overview.encrypted ? 'Only in encrypted backups' : 'None in this backup';
       case 'voicemail': return 'Needs Visual Voicemail from the carrier';
       case 'browser_history': return 'No Safari or Firefox history found';
