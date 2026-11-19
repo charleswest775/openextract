@@ -41,6 +41,17 @@ export function notAnsweringMessages(devices: DeviceInfo[]): string[] {
   return [...new Set(messages)];
 }
 
+/**
+ * The device list once an iPhone that was asked to trust this computer stopped answering
+ * (backup.pair_device's "not_answering"): listed as not answering, with the engine's `message`
+ * saying what to do, as if it hadn't answered the search. Refresh asks it again.
+ */
+export function markNotAnswering(devices: DeviceInfo[], udid: string, message?: string): DeviceInfo[] {
+  return devices.map(d => d.udid === udid
+    ? { ...d, trusted: null, encrypts_backups: null, answering: false, message: message || NOT_ANSWERING }
+    : d);
+}
+
 // For a device that didn't answer but came without the engine's own words.
 const NOT_ANSWERING =
   "Your iPhone is connected but isn't answering. Unplug it, unlock it, plug it back in, then click Refresh.";

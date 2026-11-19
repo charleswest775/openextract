@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { saveFolder, sidecarCall } from '../../lib/ipc';
-import { canBackUp, deviceDetail, notAnsweringMessages, searchFailedMessage, type DeviceInfo } from '../../lib/deviceSearch';
+import { canBackUp, deviceDetail, markNotAnswering, notAnsweringMessages, searchFailedMessage, type DeviceInfo } from '../../lib/deviceSearch';
 import { ArrowLeftIcon, PhoneIcon, FolderIcon, LockIcon, DownloadIcon } from '../shared/Icons';
 import { ReportProblemButton } from '../shared/Feedback';
 
 // backup.pair_device: 'locked' also covers the iPhone asking for its passcode after Trust.
-type PairState = 'trusted' | 'waiting' | 'locked' | 'denied';
+// 'not_answering' comes with a message: the iPhone stopped answering partway.
+type PairState = 'trusted' | 'waiting' | 'locked' | 'denied' | 'not_answering';
 
 interface BackupProgress {
   phase: 'negotiating' | 'waiting' | 'passcode' | 'backing_up' | 'finalizing';
@@ -179,10 +180,17 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
     setPairState('waiting');
     const ask = async () => {
       try {
-        const { state } = await sidecarCall<{ state: PairState }>('backup.pair_device', { udid: untrusted.udid });
+        const { state, message } = await sidecarCall<{ state: PairState; message?: string }>(
+          'backup.pair_device', { udid: untrusted.udid });
         if (cancelled) return;
         if (state === 'trusted') {
           loadDevices();
+          return;
+        }
+        if (state === 'not_answering') {
+          // Stop asking: each try would hold up the app for a few seconds. It's shown as not
+          // answering, with what to do, and Refresh asks it again.
+          setDevices((current) => markNotAnswering(current, untrusted.udid, message));
           return;
         }
         setPairState(state);
