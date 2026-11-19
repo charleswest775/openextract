@@ -141,6 +141,218 @@ test('extractLogExcerpt keeps the bootloader error of a crash before Python star
   assert.match(out, /\[EXIT\] code 4294967295$/);
 });
 
+// ── Which errors a report takes from the engine log (#298) ──────────────────
+//
+// The log was one file that only grew, and a report took the last few errors in it. A
+// report about a video, sent from 0.17.0, carried three backup.start errors from 0.15.0
+// and an export_photos error from 0.14.0. Now the log starts over each time the app
+// opens, the one before is kept beside it, and a report takes errors only from those two.
+
+const ERR = (method, why) => `[RPC ERROR] ${method}: Traceback (most recent call last):\n  File "main.py", line 782, in handle_request\n${why}\n`;
+const TIMING = '[TIMING 10:00:00] list_calls total=0.1s\n';
+const LAST_TIME = 'The last time OpenExtract was open:';
+const THIS_TIME = 'This time:';
+// What a test needs of an excerpt: which errors, under which of the two headings.
+const outline = excerpt => excerpt.split('\n').filter(l => l === LAST_TIME || l === THIS_TIME || /Error: /.test(l));
+let logFolders = 0;
+
+/** A fresh log folder, and `open(version, when)`: the app opening, as main.ts does it. */
+function engineLog() {
+  const folder = path.join(tmp, `sessions-${++logFolders}`);
+  fs.mkdirSync(folder);
+  const logPath = path.join(folder, 'python_log.txt');
+  return {
+    logPath,
+    previousPath: path.join(folder, 'python_log.previous.txt'),
+    files: () => fs.readdirSync(folder).sort(),
+    write: text => fs.appendFileSync(logPath, text),
+    open(version, when) {
+      const rec = new main.FeedbackRecorder(logPath, version);
+      rec.beginSession(new Date(when));
+      return rec;
+    },
+  };
+}
+
+/** Run `fn` while the old log can't be moved aside, as when another OpenExtract has it open on Windows. */
+function whileTheLogCannotBeMoved(fn) {
+  const rename = fs.renameSync;
+  fs.renameSync = () => { throw Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' }); };
+  try {
+    return fn();
+  } finally {
+    fs.renameSync = rename;
+  }
+}
+
+test('a report takes the errors from this time the app was opened, as it always read', () => {
+  const log = engineLog();
+  const rec = log.open('0.17.1', '2026-11-19T08:40:02.345Z');
+  assert.equal(fs.readFileSync(log.logPath, 'utf-8'), '[START] OpenExtract 0.17.1 at 2026-11-19T08:40:02Z\n');
+  log.write(TIMING + ERR('get_photo_path', "KeyError: 'ZFILENAME'") + TIMING);
+  // No heading when every error is from this time, and never the [START] line or its date.
+  assert.equal(rec.diagnostics().logExcerpt, [
+    '[RPC ERROR] get_photo_path: Traceback (most recent call last):',
+    '  File "main.py", line 782, in handle_request',
+    "KeyError: 'ZFILENAME'",
+  ].join('\n'));
+});
+
+test('errors an older version wrote are left out (the report in #297)', () => {
+  const log = engineLog();
+  log.open('0.14.0', '2026-11-12T09:00:00Z');
+  log.write(ERR('export_photos', 'BrokenPipeError: [Errno 32] Broken pipe'));
+  log.open('0.15.0', '2026-11-13T07:39:00Z');
+  log.write(ERR('backup.start', 'RuntimeError: pymobiledevice3 is not installed. Run: pip install pymobiledevice3').repeat(3));
+  const rec = log.open('0.17.0', '2026-11-18T08:30:00Z');
+  log.write(TIMING.repeat(5));
+  assert.equal(rec.diagnostics().logExcerpt, '', 'nothing failed this time, and the time before was another version');
+  log.write(ERR('get_photo_path', "KeyError: 'ZFILENAME'"));
+  assert.deepEqual(outline(rec.diagnostics().logExcerpt), ["KeyError: 'ZFILENAME'"]);
+});
+
+test('a crash that made someone reopen the app is still in the report, and says it was the time before', () => {
+  const log = engineLog();
+  log.open('0.17.1', '2026-11-18T21:03:11Z');
+  log.write([
+    TIMING.trim(),
+    '[STDERR] Traceback (most recent call last):',
+    '[STDERR] File "main.py", line 36, in <module>',
+    "ModuleNotFoundError: No module named 'ios_backup_core'",
+    '[EXIT] code 1',
+    '',
+  ].join('\n'));
+  const rec = log.open('0.17.1', '2026-11-19T08:40:02Z');
+  const crash = [
+    LAST_TIME,
+    '[STDERR] Traceback (most recent call last):',
+    '[STDERR] File "main.py", line 36, in <module>',
+    "ModuleNotFoundError: No module named 'ios_backup_core'",
+    '[EXIT] code 1',
+  ];
+  assert.equal(rec.diagnostics().logExcerpt, crash.join('\n'), 'nothing has failed this time, and the heading says so');
+  log.write(ERR('list_notes', "KeyError: 'ZNOTE'"));
+  assert.equal(rec.diagnostics().logExcerpt, [
+    ...crash,
+    '',
+    THIS_TIME,
+    '[RPC ERROR] list_notes: Traceback (most recent call last):',
+    '  File "main.py", line 782, in handle_request',
+    "KeyError: 'ZNOTE'",
+  ].join('\n'));
+});
+
+test('only this time and the time before: the log keeps two, and so does a report', () => {
+  const log = engineLog();
+  log.open('0.17.1', '2026-11-17T10:00:00Z');
+  log.write(ERR('list_calls', 'KeyError: three times ago'));
+  log.open('0.17.1', '2026-11-18T10:00:00Z');
+  log.write(ERR('list_notes', 'KeyError: the time before'));
+  const rec = log.open('0.17.1', '2026-11-19T10:00:00Z');
+  log.write(ERR('list_photos', 'KeyError: this time'));
+  assert.deepEqual(outline(rec.diagnostics().logExcerpt), [LAST_TIME, 'KeyError: the time before', THIS_TIME, 'KeyError: this time']);
+  // The log can't grow without end: nothing older than the time before is kept on disk.
+  assert.deepEqual(log.files(), ['python_log.previous.txt', 'python_log.txt']);
+  assert.doesNotMatch(fs.readFileSync(log.previousPath, 'utf-8') + fs.readFileSync(log.logPath, 'utf-8'), /three times ago/);
+});
+
+test('a log from before the app marked each time it opened is set aside, not sent', () => {
+  const log = engineLog();
+  // What 0.17.0 and earlier leave behind: no [START] lines, whichever versions wrote it.
+  const old = ERR('backup.start', 'RuntimeError: pymobiledevice3 is not installed. Run: pip install pymobiledevice3') + TIMING;
+  log.write(old);
+  const rec = log.open('0.17.1', '2026-11-19T08:40:02Z');
+  assert.equal(rec.diagnostics().logExcerpt, '');
+  assert.equal(fs.readFileSync(log.previousPath, 'utf-8'), old, 'moved, not lost');
+  assert.match(fs.readFileSync(log.logPath, 'utf-8'), /^\[START\] OpenExtract 0\.17\.1 /);
+  // And the next time, that old log is gone.
+  log.open('0.17.1', '2026-11-20T08:00:00Z');
+  assert.doesNotMatch(fs.readFileSync(log.previousPath, 'utf-8'), /pymobiledevice3/);
+});
+
+test('a long session still reports its latest errors, under the right heading', () => {
+  const log = engineLog();
+  log.open('0.17.1', '2026-11-18T21:03:11Z');
+  log.write(TIMING.repeat(9000) + ERR('list_notes', 'KeyError: late the time before'));  // far more than a report reads
+  const rec = log.open('0.17.1', '2026-11-19T08:40:02Z');
+  log.write(ERR('list_calls', 'KeyError: early this time') + TIMING.repeat(9000) + ERR('list_photos', 'KeyError: late this time'));
+  assert.ok(fs.statSync(log.logPath).size > 300_000 && fs.statSync(log.previousPath).size > 300_000);
+  assert.deepEqual(outline(rec.diagnostics().logExcerpt),
+    [LAST_TIME, 'KeyError: late the time before', THIS_TIME, 'KeyError: late this time']);
+});
+
+test('when the old log cannot be moved, this time\'s errors are still told apart from it', () => {
+  const log = engineLog();
+  log.open('0.17.1', '2026-11-18T21:03:11Z');
+  log.write(ERR('list_notes', 'KeyError: the time before') + '[TIMING 21:05:00] cut off mid-li');
+  const rec = whileTheLogCannotBeMoved(() => log.open('0.17.1', '2026-11-19T08:40:02Z'));
+  assert.deepEqual(log.files(), ['python_log.txt'], 'one file, with both times in it');
+  assert.match(fs.readFileSync(log.logPath, 'utf-8'), /cut off mid-li\n\[START\] OpenExtract 0\.17\.1 at 2026-11-19T08:40:02Z\n$/);
+  assert.equal(rec.diagnostics().logExcerpt, '');
+  log.write(ERR('list_photos', 'KeyError: this time'));
+  assert.deepEqual(outline(rec.diagnostics().logExcerpt), ['KeyError: this time']);
+});
+
+test('a log that was deleted or replaced while the app was open is read from its start', () => {
+  const log = engineLog();
+  log.open('0.17.1', '2026-11-18T21:03:11Z');
+  log.write(TIMING.repeat(50));
+  const rec = whileTheLogCannotBeMoved(() => log.open('0.17.1', '2026-11-19T08:40:02Z'));  // this time starts partway into the file
+  fs.writeFileSync(log.logPath, ERR('list_photos', 'KeyError: after it was replaced'));     // shorter than where this time began
+  assert.deepEqual(outline(rec.diagnostics().logExcerpt), ['KeyError: after it was replaced']);
+  fs.rmSync(log.logPath);
+  assert.equal(rec.diagnostics().logExcerpt, '');
+});
+
+test('with no log from the time before, an older one left beside it is removed', () => {
+  const log = engineLog();
+  fs.writeFileSync(log.previousPath, '[START] OpenExtract 0.17.1 at 2026-11-10T08:00:00Z\n' + ERR('list_notes', 'KeyError: long ago'));
+  const rec = log.open('0.17.1', '2026-11-19T08:40:02Z');
+  assert.deepEqual(log.files(), ['python_log.txt']);
+  assert.equal(rec.diagnostics().logExcerpt, '');
+});
+
+test('a log folder that cannot be written to stops nothing', () => {
+  const rec = new main.FeedbackRecorder(path.join(tmp, 'no-such-folder', 'python_log.txt'), '0.17.1');
+  assert.doesNotThrow(() => rec.beginSession(new Date('2026-11-19T08:40:02Z')));
+  assert.equal(rec.diagnostics().logExcerpt, '');
+});
+
+test('extractLogExcerpt keeps the last four errors and says which are from an earlier time', () => {
+  const session = n => `[START] OpenExtract 0.17.1 at 2026-11-1${n}T08:00:00Z\n`;
+  const text = session(1) + ERR('a', 'KeyError: 1') + session(2) + TIMING + session(3)
+    + ERR('b', 'KeyError: 2') + ERR('c', 'KeyError: 3') + ERR('d', 'KeyError: 4');
+  assert.deepEqual(outline(main.extractLogExcerpt(text)),
+    [LAST_TIME, 'KeyError: 1', THIS_TIME, 'KeyError: 2', 'KeyError: 3', 'KeyError: 4']);
+  // One more error this time pushes the old one out, and the headings go with it.
+  assert.deepEqual(outline(main.extractLogExcerpt(text + ERR('e', 'KeyError: 5'))),
+    ['KeyError: 2', 'KeyError: 3', 'KeyError: 4', 'KeyError: 5']);
+  // Errors, then the app opened again and nothing has failed since.
+  assert.deepEqual(outline(main.extractLogExcerpt(session(1) + ERR('a', 'KeyError: 1') + session(2) + TIMING)), [LAST_TIME, 'KeyError: 1']);
+  // A crash's traceback is looked for only in its own time.
+  const crash = '[STDERR] Traceback (most recent call last):\n[STDERR] ValueError: the time before\n' + session(3) + '[EXIT] code 1\n';
+  assert.equal(main.extractLogExcerpt(crash), '[EXIT] code 1');
+  // Opened twice in the same second: two times all the same, though their lines read alike.
+  assert.deepEqual(outline(main.extractLogExcerpt(session(1) + ERR('a', 'KeyError: 1') + session(1) + ERR('b', 'KeyError: 2'))),
+    [LAST_TIME, 'KeyError: 1', THIS_TIME, 'KeyError: 2']);
+  // The [START] lines and their dates never come out.
+  assert.doesNotMatch(main.extractLogExcerpt(text), /START|2026/);
+});
+
+test('the [START] line is not mistaken for a phone number or a known problem', () => {
+  // scrubText replaces long runs of digits. "0.17.1 2026-11" was one, which is why the line says "at".
+  for (const version of ['0.9.1', '0.17.1', '0.17.10', '1.0.0', '12.34.56']) {
+    for (const when of ['2026-11-19T08:40:02Z', '2027-01-01T00:00:00Z', '2030-12-31T23:59:59.999Z']) {
+      const mark = main.sessionMark(version, new Date(when));
+      assert.equal(main.scrubText(mark, new Map()), mark);
+      assert.match(mark, /^\[START\] OpenExtract \S+ at \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+    }
+  }
+  // Nor does a known fix's pattern match it: 0.15.0 has one, tied to "App: OpenExtract 0.15.0".
+  const text = `${main.sessionMark('0.15.0', new Date('2026-11-13T07:39:00Z'))}\n[ERROR STARTING] nothing, this is a log line`;
+  assert.deepEqual(site.matchKnownFixes({ kind: 'broken', details: 'Photos look wrong', diagnostics: text }).map(f => f.id), ['engine-did-not-start']);
+});
+
 test('FeedbackRecorder keeps backup facts but not names, and scrubs recorded errors', () => {
   const rec = new main.FeedbackRecorder(path.join(tmp, 'missing-log.txt'), '0.9.0');
   rec.recordCall('open_backup', { udid: 'abcd1234efgh', backup_dir: '/Volumes/Ext/MyBackups/abcd1234efgh' }, {
@@ -417,6 +629,29 @@ test('known fixes match on the error text and, where given, the system', () => {
   assert.deepEqual(site.matchKnownFixes(site.validateReport(goodReport({ details: 'Photos look fine', diagnostics: '' })).report), []);
 });
 
+// #298: a report from 0.17.0 and earlier carries the last errors in the engine log, whichever
+// version wrote them. An old traceback must not bring up "install 0.13.0" for someone on 0.17.0.
+test('a fix for a bug that a version fixed is not shown to someone on that version or a later one', () => {
+  const OLD_ERROR = '[RPC ERROR] list_photos: Traceback (most recent call last):\nTypeError: Object of type bytes is not JSON serializable';
+  const from = app => site.matchKnownFixes({ kind: 'broken', details: "A video won't open", diagnostics: `${app}\n\nEngine log (errors only):\n${OLD_ERROR}` }).map(f => f.id);
+  assert.deepEqual(from('App: OpenExtract 0.12.0 on macOS 15.1 (arm64)'), ['ios6-photos-stop-engine']);
+  assert.deepEqual(from('App: OpenExtract 0.13.0 on macOS 15.1 (arm64)'), [], 'the version that fixed it');
+  assert.deepEqual(from('App: OpenExtract 0.17.0 on macOS 27.2.1 (arm64)'), []);
+  assert.deepEqual(from('App: OpenExtract 0.9.10 on Windows 10.0.26300 (x64)'), ['ios6-photos-stop-engine'], '0.9.10 is older than 0.13.0');
+  // A report that doesn't say which version it came from still gets the answer.
+  assert.deepEqual(from('Removed by the sender.'), ['ios6-photos-stop-engine']);
+
+  // A fix without a fixed version is advice, good on every version.
+  const report = { kind: 'broken', details: 'it broke', diagnostics: 'App: OpenExtract 9.0.0 on macOS 15.1 (arm64)\nPython sidecar is not running' };
+  const fix = (id, extra = {}) => ({ id, title: id, text: id, match: /sidecar/, ...extra });
+  const ids = fixes => site.matchKnownFixes(report, fixes).map(f => f.id);
+  assert.deepEqual(ids([fix('advice'), fix('old-bug', { fixedIn: '0.13.0' }), fix('not-yet', { fixedIn: '9.0.1' })]), ['advice', 'not-yet']);
+  // Every fix that names the version that fixed it reads as an older version's problem.
+  for (const f of KNOWN_FIXES.filter(k => k.fixedIn)) {
+    assert.match(f.text, /install the latest version/i, `${f.id} tells people to update, which is wrong once they have`);
+  }
+});
+
 test('a known fix can hide a vaguer one whose advice would be wrong', () => {
   const report = site.validateReport(goodReport({ details: 'it broke', diagnostics: 'Python sidecar is not running' })).report;
   const fix = (id, extra = {}) => ({ id, title: id, text: id, match: /sidecar/, ...extra });
@@ -444,8 +679,10 @@ const LONG_AGO = Date.now() - 100_000 * RATE_WINDOW;
 /** Known fixes the site answers with, for a report built the way the app builds one. */
 async function knownFixesFor({ kind = 'broken', area = 'open_backup', details = "Something isn't working", os = MAC, errors = [], log = '', reportedError, version = '0.9.1' } = {}) {
   const logPath = path.join(tmp, `engine-log-${++fixReports}.txt`);
-  fs.writeFileSync(logPath, log);
   const rec = new main.FeedbackRecorder(logPath, version);
+  // As in the app: the log starts over when the app opens, then the engine writes to it.
+  rec.beginSession();
+  fs.appendFileSync(logPath, log);
   for (const [method, error] of errors) rec.recordCall(method, {}, { ok: false, error });
   const diagnostics = lib.formatDiagnostics({ ...rec.diagnostics(reportedError), os });
   const report = goodReport({ kind, area, details, diagnostics, token: fixReports.toString(16).padStart(48, '7') });

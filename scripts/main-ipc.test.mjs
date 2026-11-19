@@ -72,8 +72,12 @@ function fakeModules() {
 
   class FeedbackRecorder {
     constructor(logPath, version) {
-      Object.assign(this, { logPath, version, recorded: [] });
+      Object.assign(this, { logPath, version, recorded: [], sessionsBegun: [] });
       f.recorders.push(this);
+    }
+    beginSession() {
+      // How many times the engine had been started by then.
+      this.sessionsBegun.push(f.sidecars.reduce((n, s) => n + s.starts, 0));
     }
     recordCall(method, params, outcome) {
       this.recorded.push({ method, params, outcome });
@@ -233,6 +237,9 @@ describe('startup', () => {
     assert.equal(m.sidecar.starts, 1);
     assert.equal(m.sidecar.logPath, path.join(m.userData, 'python_log.txt'));
     assert.equal(m.recorder.logPath, m.sidecar.logPath);
+    // The log starts over once each time the app opens, before the engine can write to it:
+    // that is how a report tells this time's errors from older ones (#298).
+    assert.deepEqual(m.recorder.sessionsBegun, [0]);
     const exe = process.platform === 'win32' ? 'openextract-engine.exe' : 'openextract-engine';
     assert.equal(path.basename(m.sidecar.pythonPath), exe);
     assert.equal(path.basename(path.dirname(m.sidecar.pythonPath)), 'python');

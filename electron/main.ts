@@ -385,6 +385,9 @@ app.whenReady().then(async () => {
   const logPath = path.join(app.getPath('userData'), 'python_log.txt');
   sidecar = new PythonSidecar(getPythonPath(), getPythonArgs(), logPath);
   const feedback = new FeedbackRecorder(logPath, app.getVersion());
+  // Before the engine starts and writes to the log: it is kept one file per time the app
+  // is opened, so a report carries this time's errors and not ones from versions ago (#298).
+  feedback.beginSession();
 
   sidecar.notificationHandler = (notification: any) => {
     if (mainWindow && !mainWindow.isDestroyed()) {

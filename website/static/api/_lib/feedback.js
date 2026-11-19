@@ -140,11 +140,33 @@ function issueLabels(report) {
   return [...labels];
 }
 
+/** -1, 0 or 1, comparing dotted version numbers ("0.9.10" is newer than "0.9.2"), as the app does (electron/feedbackReports.ts). */
+function compareVersions(a, b) {
+  const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
+  const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d) return d > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
+/** The version of the app a report came from ("App: OpenExtract 0.17.0 on …" in its diagnostics), or null if it doesn't say. */
+function reportAppVersion(report) {
+  const m = String(report.diagnostics || '').match(/^App: OpenExtract (\d+(?:\.\d+)*)/m);
+  return m ? m[1] : null;
+}
+
 /** Known problems this report looks like, in the shape the app shows. */
 function matchKnownFixes(report, fixes = KNOWN_FIXES) {
   if (report.kind === 'thanks') return [];
   const text = `${report.details}\n${report.diagnostics}`;
-  const matched = fixes.filter(f => f.match.test(text) && (!f.when || f.when.test(text)));
+  // A bug of ours that `fixedIn` fixed isn't what someone on that version or a later one
+  // has. Their report can still match it: from 0.17.0 and earlier, a report carries the
+  // last errors in the engine log whichever version wrote them, weeks ago or not (#298).
+  const version = reportAppVersion(report);
+  const stillHasIt = f => !f.fixedIn || !version || compareVersions(version, f.fixedIn) < 0;
+  const matched = fixes.filter(f => f.match.test(text) && (!f.when || f.when.test(text)) && stillHasIt(f));
   // A fix can stand in for a vaguer one whose advice would be wrong here (`hides` in known-fixes.js).
   const hidden = new Set(matched.flatMap(f => f.hides || []));
   return matched
