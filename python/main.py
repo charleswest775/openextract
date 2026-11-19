@@ -36,6 +36,9 @@ sys.stdout = sys.stderr
 
 _LOG_PATH = os.environ.get('OPENEXTRACT_LOG_PATH') or os.path.join(tempfile.gettempdir(), 'python_log.txt')
 
+# Least time between two open.progress notifications (see _open_progress).
+_OPEN_PROGRESS_SECONDS = 1.0
+
 
 def _tlog(msg: str) -> None:
     """Append a timestamped line to the log file."""
@@ -248,7 +251,8 @@ class SidecarServer:
         routes them to a separate notificationHandler callback instead.
 
         This is used by backup.start to stream real-time progress events while
-        the backup RPC call is still in progress, and by saves (export.progress).
+        the backup RPC call is still in progress, by saves (export.progress), and
+        while a video is copied out of the backup to open it (open.progress).
         """
         notification = {"jsonrpc": "2.0", "method": method, "params": params}
         _rpc_out.write(json.dumps(notification) + "\n")
@@ -266,6 +270,27 @@ class SidecarServer:
             self.send_notification("export.progress", {
                 "kind": kind, "done": done, "total": total, "failed": failed,
             })
+        return notify
+
+    def _open_progress(self, kind: str):
+        """
+        A progress callback for copying a file out of the backup so another app can open it:
+            { "jsonrpc":"2.0", "method":"open.progress",
+              "params": { "kind": "photos", "done": bytes, "total": bytes } }
+
+        At most one every _OPEN_PROGRESS_SECONDS, and none for a copy quicker
+        than that. A long video from a slow drive can take longer to copy than
+        the app waits for an answer; each of these starts that wait over
+        (electron/sidecar.ts), as export.progress does for a save.
+        """
+        last = [time.monotonic()]
+
+        def notify(done: int, total: int) -> None:
+            now = time.monotonic()
+            if now - last[0] < _OPEN_PROGRESS_SECONDS:
+                return
+            last[0] = now
+            self.send_notification("open.progress", {"kind": kind, "done": done, "total": total})
         return notify
 
     # ── RPC method handlers ───────────────────────────────────────────────────
@@ -395,14 +420,16 @@ class SidecarServer:
         return self.photo_extractor.get_photo(backup, file_hash)
 
     def get_photo_path(self, params):
-        """Return the on-disk file path for a photo/video (no base64 encoding)."""
+        """A photo or video as a file another app can open: ``{path, filename, openable}``, or ``{error}``.
+
+        Never a path inside an unencrypted backup's folder, where the file has
+        no extension: it is copied out under its own name first
+        (photos.py: get_file_for_app). The app opens it only if ``openable``.
+        """
         udid = params["udid"]
         file_hash = params["file_hash"]
         backup = self.backup_manager.get_open_backup(udid)
-        path = self.photo_extractor._resolve_file(backup, file_hash)
-        if not path:
-            return {"error": "File not found"}
-        return {"path": path}
+        return self.photo_extractor.get_file_for_app(backup, file_hash, self._open_progress("photos"))
 
     def list_voicemails(self, params):
         udid = params["udid"]

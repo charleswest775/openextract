@@ -1,6 +1,7 @@
 // Wording for photos the Photos library lists but the backup has no file for:
 // with iCloud Photos and "Optimize iPhone Storage" most originals can be in
-// iCloud only, and Shared Album items always are (#106).
+// iCloud only, and Shared Album items always are (#106). And for a video on its
+// way to the computer's video player (#297).
 
 /** Under the Photos title, when some of the photos in view aren't in the backup. */
 export function moreOnlyInIcloud(count: number): string {
@@ -78,4 +79,17 @@ export function photoSaveProgress(done: number, total: number): string {
 /** Under that, once any have failed: "3 couldn't be copied". Matches photoExportSummary. */
 export function photoSaveFailures(failed: number): string {
   return failed > 0 ? `${failed.toLocaleString()} couldn't be copied` : '';
+}
+
+/** Shown while a video is copied out of the backup for the computer's video player. */
+export const VIDEO_GETTING_READY = 'Getting the video ready…';
+
+/**
+ * Why a video couldn't be opened, for under "This video couldn't be opened". The engine says
+ * "File not found" when the video's file isn't in the backup's folder (OE-102); anything else
+ * it or the computer says is already in words for people.
+ */
+export function videoProblem(error?: string): string | undefined {
+  if (!error || /^file not found\.?$/i.test(error.trim())) return "Its file isn't in the backup's folder.";
+  return error;
 }

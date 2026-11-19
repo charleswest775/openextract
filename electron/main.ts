@@ -30,6 +30,16 @@ export function runsCode(filePath: unknown): boolean {
   return CODE_EXTENSIONS.has(path.extname(filePath.replace(/[. ]+$/, '')).toLowerCase());
 }
 
+/**
+ * Whether the file's name says what kind of file it is. A name with no extension
+ * doesn't, so the computer can't pick an app for it, and macOS runs such a file when
+ * it is marked executable, as every file on an exFAT or NTFS drive is: a video opened
+ * straight from a backup's folder, where files have no extension, started Terminal (#297).
+ */
+export function hasFileType(filePath: string): boolean {
+  return path.extname(filePath.replace(/[. ]+$/, '')) !== '';
+}
+
 let mainWindow: any = null;
 let sidecar: any = null;
 
@@ -503,9 +513,12 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle('shell:openPath', (_event: any, filePath: string) => {
-    // A second guard behind the engine's (python/whatsapp.py marks such copies as
+    // A second guard behind the engine's (python/app_copies.py marks such copies as
     // not openable): a file someone sent, named "Invoice.pdf.exe", must never run.
     if (runsCode(filePath)) return "OpenExtract doesn't open programs or scripts.";
+    // And never a file where it lies in a backup's folder: the engine hands over a copy
+    // under the file's own name, and anything without a file type isn't one of those.
+    if (!hasFileType(filePath)) return "OpenExtract doesn't open a file with no file type in its name.";
     return shell.openPath(filePath);
   });
 

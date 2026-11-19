@@ -20,6 +20,7 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+import app_copies  # noqa: E402
 import whatsapp  # noqa: E402
 from whatsapp import WhatsAppExtractor, _NoWhatsAppSupport  # noqa: E402
 
@@ -355,11 +356,11 @@ class TestStaleFolders(AdapterCase):
             self.assertTrue(os.path.islink(link))
 
     def test_a_process_id_that_cant_be_an_engine(self):
-        self.assertTrue(whatsapp._process_running(os.getpid()))
+        self.assertTrue(app_copies.process_running(os.getpid()))
         for pid in (0, -1, 2 ** 40):
-            self.assertFalse(whatsapp._process_running(pid))
-        self.assertFalse(whatsapp._process_running(self.process(running=False)))
-        self.assertTrue(whatsapp._process_running(self.process(running=True)))
+            self.assertFalse(app_copies.process_running(pid))
+        self.assertFalse(app_copies.process_running(self.process(running=False)))
+        self.assertTrue(app_copies.process_running(self.process(running=True)))
 
 
 class TestWithoutLibrarySupport(unittest.TestCase):
