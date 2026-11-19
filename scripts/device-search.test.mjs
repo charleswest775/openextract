@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadTs } from './test-helpers/load-ts.mjs';
 
-const { deviceDetail, canBackUp, notAnsweringMessages, searchFailedMessage, SEARCH_TIMED_OUT } =
+const { deviceDetail, canBackUp, markNotAnswering, notAnsweringMessages, searchFailedMessage, SEARCH_TIMED_OUT } =
   loadTs('src/lib/deviceSearch.ts');
 
 const iphone = (extra = {}) => ({
@@ -46,6 +46,22 @@ test("what to do about devices that didn't answer is shown once per piece of adv
   assert.deepEqual(notAnsweringMessages([silent(), silent({ udid: 'U3' })]), [silent().message]);
   const [fallback] = notAnsweringMessages([silent({ message: undefined })]);
   assert.match(fallback, /isn't answering\. Unplug it, unlock it, plug it back in, then click Refresh\.$/);
+});
+
+test('an iPhone that stops answering while asked to trust this computer is shown as not answering', () => {
+  // backup.pair_device's "not_answering", with python/device_backup.py's message.
+  const message = silent().message;
+  const before = [iphone({ udid: 'U1', trusted: false, encrypts_backups: null }), iphone({ udid: 'U4' })];
+  const after = markNotAnswering(before, 'U1', message);
+  assert.deepEqual(after[0], { ...before[0], trusted: null, encrypts_backups: null, answering: false, message });
+  assert.equal(after[1], before[1]);
+  // No longer waiting for Trust (BackupFlow stops asking), and it says what to do.
+  assert.equal(after.some(d => d.trusted === false), false);
+  assert.equal(canBackUp(after[0]), false);
+  assert.equal(deviceDetail(after[0]), 'iOS 18.1 · USB · Not answering');
+  assert.deepEqual(notAnsweringMessages(after), [message]);
+  // Without the engine's words, the app's own.
+  assert.match(markNotAnswering(before, 'U1')[0].message, /isn't answering\. Unplug it/);
 });
 
 test('when the app stops waiting for the search, it says what to do in plain words', () => {

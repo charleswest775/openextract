@@ -3,7 +3,8 @@ Running OpenExtract's engine against a FakeIPhone, and the faults on the compute
 
 run_backup() calls DeviceBackupManager.start_backup() the way main.py's backup.start does and
 returns what the app would get: the result, or the error text it would show, plus every
-backup.progress notification. run_search() does the same for backup.list_devices.
+backup.progress notification. run_search() does the same for backup.list_devices, and
+pair() for backup.pair_device.
 """
 
 from __future__ import annotations
@@ -124,6 +125,32 @@ class SearchRun:
         return (self.result or {}).get("devices", [])
 
 
+def _watched(phone: FakeIPhone, what: str, call, run, limit: float) -> None:
+    """
+    Run call() in a thread, as the engine runs a request, putting its result or the error the app
+    would show on `run`. One still running after `limit` unplugs the phone, so the engine's reads
+    fail, and fails the test instead of holding up CI. The phone must be plugged in.
+    """
+    def target() -> None:
+        t0 = time.monotonic()
+        try:
+            run.result = call()
+        except Exception as e:  # main.py turns this into {"error": {"message": str(e)}}
+            run.exception = e
+            run.error = str(e)
+        run.seconds = time.monotonic() - t0
+
+    thread = threading.Thread(target=target, name=what, daemon=True)
+    thread.start()
+    thread.join(limit)
+    if thread.is_alive():
+        phone.log(f"watchdog: no result after {limit:.0f}s, unplugging")
+        phone.unplug()
+        raise AssertionError(
+            f"{what} was still running after {limit:.0f}s; the fake iPhone's last events: "
+            f"{phone.events[-15:]}")
+
+
 def run_search(phone: FakeIPhone, *, hang_timeout: Optional[float] = None) -> SearchRun:
     """
     DeviceBackupManager.list_devices() with the phone plugged in, as main.py's
@@ -131,29 +158,37 @@ def run_search(phone: FakeIPhone, *, hang_timeout: Optional[float] = None) -> Se
     default) fails the test instead of holding up CI.
     """
     run = SearchRun(phone=phone)
-    limit = hang_timeout or HANG_TIMEOUT_S
-
-    def search() -> None:
-        t0 = time.monotonic()
-        try:
-            run.result = device_backup.DeviceBackupManager().list_devices()
-        except Exception as e:  # main.py turns this into {"error": {"message": str(e)}}
-            run.exception = e
-            run.error = str(e)
-        run.seconds = time.monotonic() - t0
-
     with phone.plugged_in():
-        thread = threading.Thread(target=search, name="search", daemon=True)
-        thread.start()
-        thread.join(limit)
-        hung = thread.is_alive()
-        if hung:
-            phone.log(f"watchdog: no result after {limit:.0f}s, unplugging")
-            phone.unplug()
-    assert not hung, (
-        f"the search was still running after {limit:.0f}s; the fake iPhone's last events: "
-        f"{phone.events[-15:]}")
+        _watched(phone, "the search", device_backup.DeviceBackupManager().list_devices, run,
+                 hang_timeout or HANG_TIMEOUT_S)
     assert not phone.errors, "the fake iPhone itself failed:\n" + "\n".join(phone.errors)
+    return run
+
+
+@dataclass
+class PairRun:
+    phone: FakeIPhone
+    result: Optional[dict] = None
+    error: Optional[str] = None  # what the app shows: str() of the engine's exception
+    exception: Optional[BaseException] = None
+    seconds: float = 0.0
+
+    @property
+    def state(self) -> Optional[str]:
+        return (self.result or {}).get("state")
+
+
+def pair(phone: FakeIPhone, manager: "device_backup.DeviceBackupManager", *,
+         hang_timeout: Optional[float] = None) -> PairRun:
+    """
+    manager.pair_device(phone.udid), as main.py's backup.pair_device calls it. Unlike
+    run_search, the phone must already be plugged in (`with phone.plugged_in():`), so a test can
+    ask again with the same manager, as the app does every 2 seconds, and change `phone.trust`
+    in between, as the user does.
+    """
+    run = PairRun(phone=phone)
+    _watched(phone, "pair_device", lambda: manager.pair_device(phone.udid), run,
+             hang_timeout or HANG_TIMEOUT_S)
     return run
 
 
