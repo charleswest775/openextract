@@ -148,8 +148,17 @@ def test_photos(server, opened):
             assert photo["uuid"] == want_uuid[photo["filename"]]
         meta = _call(server, "get_photo_metadata", udid=udid, asset_uuid=photo["uuid"])
         assert meta["filename"] == photo["filename"]
-        path = _call(server, "get_photo_path", udid=udid, file_hash=photo["file_hash"])["path"]
-        assert Path(path).read_bytes()[:3] == JPEG_MAGIC
+        for_app = _call(server, "get_photo_path", udid=udid, file_hash=photo["file_hash"])
+        path = Path(for_app["path"])
+        assert path.read_bytes()[:3] == JPEG_MAGIC
+        # A file another app can open: never the backup's own, which has no extension (#297).
+        # An unencrypted backup's is a copy under the iPhone's name; an encrypted one's is
+        # the temp file it was decrypted to, which keeps the extension.
+        assert for_app["openable"] is True and for_app["filename"] == photo["filename"]
+        assert path.suffix == Path(photo["filename"]).suffix
+        assert not path.resolve().is_relative_to(opened["dir"].resolve())
+        if not opened["info"]["encrypted"]:
+            assert path.name == photo["filename"]
         thumb = _call(server, "get_photo_thumbnail", udid=udid, file_hash=photo["file_hash"])
         assert base64.b64decode(thumb["data"])[:3] == JPEG_MAGIC
     albums = {a["title"]: a for a in _call(server, "list_albums", udid=udid)["albums"]}

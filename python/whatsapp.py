@@ -20,7 +20,6 @@ WhatsApp id must never reach a Messages method, nor a Messages id this one:
 each would quietly return the wrong rows rather than fail.
 """
 
-import atexit
 import base64
 import csv
 import heapq
@@ -29,27 +28,22 @@ import io
 import mimetypes
 import os
 import plistlib
-import re
 import shutil
 import sys
-import tempfile
-import time
-import unicodedata
 import uuid
 from typing import Optional
 
+from app_copies import AppCopies, is_openable, join_name, openable_extension, split_name, temp_prefix
 from messages import (
     EXPORT_FOOTER_HTML,
     HTML_PREVIEW_MAX_PX,
     MessageExtractor,
     _ATTACHMENT_CSS,
     _BROWSER_IMAGE_EXTENSIONS,
-    _FILE_NAME_UNSAFE,
     _HtmlAttachmentWriter,
     _IMAGE_EXTENSIONS,
     _PrintAttachmentWriter,
     _VIDEO_EXTENSIONS,
-    _WINDOWS_DEVICE_NAMES,
     _save_as_jpeg,
     _without_lone_surrogates,
 )
@@ -96,44 +90,11 @@ _LIB_NOT_IN_BACKUP = "WhatsApp is not in this backup"
 # long video is better opened in another app (as_file).
 MAX_INLINE_BYTES = 25 * 1024 * 1024
 
-# Copies made for opening in another app live in one folder per engine, under
-# the system's temp folder, named "openextract-whatsapp-<engine's process
-# id>-<random>". The app stops the engine by killing it, so an engine rarely
-# cleans up after itself: the next one removes the folders of engines that
-# have ended as it starts. A folder whose process id is in use (a second
-# OpenExtract, or a new process given the same id) is removed only once it
-# hasn't been touched for _STALE_SECONDS; an engine touches its own on every
-# copy. Electron's PDF staging folders use the same hour.
-_TEMP_PREFIX = "openextract-whatsapp-"
-_TEMP_OWNER = re.compile(re.escape(_TEMP_PREFIX) + r"(\d+)-")
-_STALE_SECONDS = 3600
-
-# Copies another app may open (``openable``), by extension, which is what
-# Windows and macOS go by when they open a file: photos, videos, audio and
-# documents, which a viewer opens without running anything. Everything else (a
-# program, script, shortcut, archive, web page, contact or calendar file, or a
-# name with no extension) is still copied, but only to show in its folder. The
-# sender chose the name: "Invoice.pdf.exe" opened from here would run, and
-# Windows wouldn't warn, since the copy didn't come from the internet.
-_OPENABLE_EXTENSIONS = frozenset({
-    # photos
-    "jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "bmp", "tif", "tiff",
-    # video
-    "mp4", "mov", "m4v", "3gp", "avi", "mkv", "webm",
-    # audio
-    "opus", "ogg", "oga", "mp3", "m4a", "aac", "wav", "amr", "caf", "flac",
-    # documents
-    "pdf", "txt", "rtf", "csv", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
-    "odt", "ods", "odp", "pages", "numbers", "key", "epub",
-})
-
-# Longest copy name, before its extension: 80 characters keeps a Windows path
-# well inside 260, and 200 bytes keeps the name, its extension and the
-# ".<8 hex>.partial" of a copy in progress inside the 255 bytes Linux allows
-# (a title in Chinese or emoji takes 3 or 4 bytes a character).
-_COPY_STEM_CHARS = 80
-_COPY_STEM_BYTES = 200
-_COPY_EXT_BYTES = 16
+# Copies made for opening in another app (as_file) are app_copies.py's: a
+# folder per engine under the system's temp folder, whose name starts with
+# this, and a copy is ``openable`` only if its extension is a photo's, a
+# video's, an audio file's or a document's.
+_TEMP_PREFIX = temp_prefix("whatsapp")
 
 # Rows per page while an export reads a chat (the engine's own read, not the
 # app's paging).
@@ -296,55 +257,21 @@ def _extension_for(mime: str) -> str:
     return _EXTENSION_BY_MIME.get(mime) or mimetypes.guess_extension(mime) or ""
 
 
-def _openable_extension(ext: str) -> bool:
-    """Whether ".pdf" (say) is a photo, video, audio file or document's extension (see _OPENABLE_EXTENSIONS)."""
-    return ext.lower().lstrip(".") in _OPENABLE_EXTENSIONS
-
-
-def _is_openable(file_name: str) -> bool:
-    return _openable_extension(os.path.splitext(file_name)[1])
-
-
-def _visible(text: str) -> str:
-    """``text`` without invisible format characters.
-
-    Direction marks can make "Invoice<RLO>fdp.exe" read as "Invoiceexe.pdf";
-    zero-width spaces and joiners hide inside a name. Unicode calls all of
-    them "format" characters (Cf), which covers messages.py's
-    _FILE_NAME_UNSAFE marks and more; line and paragraph separators go too.
-    """
-    return "".join(ch for ch in text if unicodedata.category(ch) not in ("Cf", "Zl", "Zp"))
-
-
-def _cut_utf8(text: str, max_bytes: int) -> str:
-    """The longest start of ``text`` that is at most ``max_bytes`` in UTF-8, never half a character."""
-    return text.encode("utf-8")[:max_bytes].decode("utf-8", "ignore")
-
-
 def _name_for_app(name: str, mime: str, thumbnail: bool) -> str:
     """A file name another app will open: the file's own name, safe on every system, with a real extension.
 
     WhatsApp's thumbnails end in ".thumb" though they are JPEG, and a name can
     lack an extension altogether; the system then wouldn't know what opens it.
-    The MIME type supplies one then, but only one of _OPENABLE_EXTENSIONS: the
-    sender declared that type, and "Invoice" sent as a program must not
-    become "Invoice.exe".
+    The MIME type supplies one then, but only one of app_copies'
+    OPENABLE_EXTENSIONS: the sender declared that type, and "Invoice" sent as
+    a program must not become "Invoice.exe".
     """
-    name = _visible(_without_lone_surrogates(name or "")).replace("\\", "/").rsplit("/", 1)[-1]
-    name = re.sub(f"(?:{_FILE_NAME_UNSAFE})+", "_", name).strip(" .")
-    stem, ext = os.path.splitext(name)
+    stem, ext = split_name(name)
     if thumbnail or not ext or ext.lower() == ".thumb":
         guessed = _extension_for(mime)
-        if _openable_extension(guessed):
+        if openable_extension(guessed):
             ext = guessed
-    stem = _cut_utf8(stem[:_COPY_STEM_CHARS], _COPY_STEM_BYTES).strip(" .") or "WhatsApp file"
-    if stem.split(".")[0].rstrip().upper() in _WINDOWS_DEVICE_NAMES:
-        stem = f"_{stem}"
-    return stem + _cut_utf8(ext, _COPY_EXT_BYTES)
-
-
-def _safe_part(value) -> str:
-    return re.sub(r"[^A-Za-z0-9_-]+", "_", str(value or "")).strip("_") or "backup"
+    return join_name(stem, ext, "WhatsApp file")
 
 
 class WhatsAppExtractor:
@@ -352,12 +279,16 @@ class WhatsAppExtractor:
 
     def __init__(self):
         self._inner = _CoreWhatsAppExtractor() if _CoreWhatsAppExtractor is not None else _NoWhatsAppSupport()
-        self._temp_dir: Optional[str] = None
+        # Copies for other apps. Made as the engine starts, which is when the
+        # copies an earlier engine left behind are removed.
+        self._copies = AppCopies("whatsapp")
         self._export = _WhatsAppExport(self)
         self._app_found: dict[str, bool] = {}  # backup folder -> _app_in_backup()
-        # Made once, as the engine starts: copies an earlier engine left behind
-        # (decrypted, under readable names) shouldn't wait for a file to be opened.
-        _remove_stale_temp_dirs()
+
+    @property
+    def _temp_dir(self) -> Optional[str]:
+        """This engine's folder of copies, once it has made one."""
+        return self._copies.folder
 
     # Time zone exports show times in: None is the computer's own. Tests set one.
     @property
@@ -466,44 +397,16 @@ class WhatsAppExtractor:
         # "Attachment not found" (no such id), or the store couldn't be read.
         return {"error": message}
 
-    def _temp_root(self) -> str:
-        """This engine's folder for copies, made on first use (and again if something removed it)."""
-        if self._temp_dir and os.path.isdir(self._temp_dir):
-            return self._temp_dir
-        if self._temp_dir is None:
-            # Runs only when the engine exits on its own; see _TEMP_PREFIX.
-            atexit.register(_remove_dir, lambda: self._temp_dir)
-        self._temp_dir = tempfile.mkdtemp(prefix=f"{_TEMP_PREFIX}{os.getpid()}-")
-        return self._temp_dir
-
     def _copy_for_app(self, backup, attachment_id, thumbnail, src, mime, name, size) -> dict:
-        root = self._temp_root()
-        try:
-            os.utime(root)  # still in use: see _STALE_SECONDS
-        except OSError:
-            pass
-        # One folder per backup and attachment keeps the file's own name (what
-        # the other app shows) while ids that collide between backups don't.
+        # One folder per backup and attachment: ids collide between backups.
         key = f"{attachment_id}-thumb" if thumbnail else str(attachment_id)
-        folder = os.path.join(root, _safe_part(getattr(backup, "udid", "")), _safe_part(key))
         file_name = _name_for_app(name, mime, thumbnail)
-        dest = os.path.join(folder, file_name)
         try:
-            if not _same_file(src, dest):
-                os.makedirs(folder, exist_ok=True)
-                try:
-                    _replace_with_copy(src, dest)
-                except OSError:
-                    # The earlier copy is open in another app (Windows won't
-                    # replace it then): make a new one beside it.
-                    folder = os.path.join(folder, uuid.uuid4().hex[:8])
-                    os.makedirs(folder, exist_ok=True)
-                    dest = os.path.join(folder, file_name)
-                    _replace_with_copy(src, dest)
+            dest = self._copies.copy(src, (getattr(backup, "udid", ""), key), file_name)
         except OSError as e:
             print(f"[whatsapp] could not copy attachment {attachment_id}: {e}", file=sys.stderr, flush=True)
             return {"error": FILE_NOT_COPIED}
-        return {"path": dest, "mime_type": mime, "filename": name, "size": size, "openable": _is_openable(file_name)}
+        return {"path": dest, "mime_type": mime, "filename": name, "size": size, "openable": is_openable(file_name)}
 
     # ── Exports ──────────────────────────────────────────────────────────────
 
@@ -550,111 +453,6 @@ def _app_in_backup(backup) -> bool:
         except Exception as e:
             print(f"[whatsapp] could not list {domain}: {e}", file=sys.stderr, flush=True)
     return False
-
-
-def _same_file(src: str, dest: str) -> bool:
-    """``dest`` is already a copy of ``src``: _replace_with_copy gives it the same size and modification time.
-
-    On a disk that keeps coarser times the copy is just made again.
-    """
-    try:
-        a, b = os.stat(src), os.stat(dest)
-    except OSError:
-        return False
-    return a.st_size == b.st_size and a.st_mtime_ns == b.st_mtime_ns
-
-
-def _replace_with_copy(src: str, dest: str) -> None:
-    """Copy ``src`` to ``dest`` whole: never a half-written file under the real name.
-
-    The bytes and the modification time only (for _same_file). Not the
-    permissions: a backup on an exFAT or NTFS drive marks every file
-    executable, and macOS runs an executable file it is asked to open. The
-    copy is readable by its owner only, where the system has such
-    permissions (Windows' chmod only sets read-only, which would stop the
-    copy being replaced or removed).
-    """
-    partial = f"{dest}.{uuid.uuid4().hex[:8]}.partial"
-    try:
-        shutil.copyfile(src, partial)
-        stat = os.stat(src)
-        os.utime(partial, ns=(stat.st_atime_ns, stat.st_mtime_ns))
-        if os.name != "nt":
-            os.chmod(partial, 0o600)
-        os.replace(partial, dest)
-    finally:
-        if os.path.exists(partial):
-            try:
-                os.remove(partial)
-            except OSError:
-                pass
-
-
-def _remove_dir(get_path) -> None:
-    path = get_path()
-    if path:
-        shutil.rmtree(path, ignore_errors=True)
-
-
-def _process_running(pid: int) -> bool:
-    """Whether a process with this id is running; True when that can't be told (the age rule then decides)."""
-    if pid == os.getpid():
-        return True
-    if pid <= 0 or pid > 0xFFFFFFFF:
-        return False  # no engine has such an id (and os.kill(0, ...) would mean this process group)
-    if os.name == "nt":
-        # Never os.kill here: on Windows it ends the process whatever the signal.
-        import ctypes
-        from ctypes import wintypes
-
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
-        kernel32.OpenProcess.restype = wintypes.HANDLE
-        kernel32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
-        kernel32.GetExitCodeProcess.restype = wintypes.BOOL
-        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
-        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
-        if not handle:
-            return ctypes.get_last_error() != 87  # ERROR_INVALID_PARAMETER: no such process
-        try:
-            code = wintypes.DWORD()
-            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
-                return True
-            return code.value == 259  # STILL_ACTIVE
-        finally:
-            kernel32.CloseHandle(handle)
-    try:
-        os.kill(pid, 0)  # signal 0 only asks whether the process is there
-    except ProcessLookupError:
-        return False
-    except OSError:
-        return True  # there, but another user's (PermissionError), or can't tell
-    return True
-
-
-def _remove_stale_temp_dirs() -> None:
-    """Remove copy folders left by engines that have ended (see _TEMP_PREFIX).
-
-    One look at the temp folder. Only this app's own folders are touched, and
-    a link is never followed.
-    """
-    root = tempfile.gettempdir()
-    cutoff = time.time() - _STALE_SECONDS
-    try:
-        with os.scandir(root) as it:
-            entries = [e for e in it if e.name.startswith(_TEMP_PREFIX)]
-    except OSError:
-        return
-    for entry in entries:
-        try:
-            if entry.is_symlink() or not entry.is_dir(follow_symlinks=False):
-                continue
-            owner = _TEMP_OWNER.match(entry.name)
-            ended = owner is not None and not _process_running(int(owner.group(1)))
-            if ended or entry.stat(follow_symlinks=False).st_mtime < cutoff:
-                shutil.rmtree(entry.path, ignore_errors=True)
-        except OSError:
-            pass
 
 
 # ── How a message reads in an export ────────────────────────────────────────
