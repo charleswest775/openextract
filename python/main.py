@@ -757,8 +757,9 @@ class SidecarServer:
     def backup_pair_device(self, params):
         """
         Ask the iPhone with params["udid"] to trust this computer, without waiting.
-        Returns { state: "trusted" | "waiting" | "locked" | "denied" }; the app calls
-        it again every couple of seconds until "trusted" or "denied".
+        Returns { state: "trusted" | "waiting" | "locked" | "denied" | "not_answering" },
+        with a `message` for "not_answering"; the app calls it again every couple of
+        seconds until "trusted", "denied" or "not_answering".
         """
         return self.device_backup_manager.pair_device(params["udid"])
 
