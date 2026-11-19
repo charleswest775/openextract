@@ -15,13 +15,15 @@ Kept openextract-local because the library intentionally omits them as
 "UI concerns":
   * ``get_thumbnail``  — PIL/pillow-heif thumbnail generation, in-memory cache
   * ``get_photo``      — full-res JPEG re-encoding for HEIC, base64
-  * ``get_photo_path`` (handler in main.py uses ``_resolve_file``)
+  * ``get_file_for_app`` (main.py's ``get_photo_path``) — a video as a file the computer's
+    video player can open: a copy under its own name, never the backup's hash-named file
   * ``export_photos``  — disk export (originals or transcoded JPEG, by-date subfolders)
   * DCIM directory-scan fallback for backups where Photos.sqlite is missing
 """
 
 import base64
 import datetime
+import hashlib
 import io
 import json
 import os
@@ -33,6 +35,8 @@ import weakref
 from typing import Optional
 
 import backup_files
+from app_copies import AppCopies, NotEnoughSpace, is_openable, join_name, split_name
+from app_copies import ProgressCallback as CopyProgress
 from export_progress import ExportProgress, ProgressCallback
 from ios_backup_core.db import connect_readonly
 from ios_backup_core.extractors.photos import (
@@ -88,6 +92,35 @@ print(f"[photos] PIL={HAS_PIL} HEIF={HAS_HEIF}", file=sys.stderr, flush=True)
 # saved on this iPhone, PhotoData/CPLAssets for ones iCloud Photos brought in
 # from other devices.
 _ORIGINALS_PREFIXES = ("Media/DCIM/", "Media/PhotoData/CPLAssets/")
+
+# What the app is told when a video can't be handed to the computer's video player
+# (get_file_for_app), in words for people. The Photos screen shows them under "This video
+# couldn't be opened". FILE_NOT_FOUND is matched by the app and by a known fix
+# (website/static/api/_lib/known-fixes.js), so it keeps its words.
+FILE_NOT_FOUND = "File not found"
+NOT_COPIED = ("OpenExtract couldn't copy it out of the backup to open it. If the backup is on an external "
+              "drive, check that the drive is still connected, then try again.")
+NO_ROOM_TO_COPY = ("This computer doesn't have enough free space. OpenExtract copies a video out of the backup "
+                   "before your video player opens it: this one is {size}, and {free} is free. Free up some "
+                   "space and try again, or use Save all to save your photos and videos to a drive with more room.")
+
+
+def _size_words(size: int) -> str:
+    """A file size as people say it: "4.2 GB", "310 MB"."""
+    if size >= 1000 ** 3:
+        return f"{size / 1000 ** 3:.1f} GB"
+    return f"{max(1, round(size / 1000 ** 2))} MB"
+
+
+def _is_inside(path: str, folder: Optional[str]) -> bool:
+    """Whether ``path`` is in ``folder`` or a folder under it; False when that can't be told."""
+    if not folder:
+        return False
+    try:
+        folder = os.path.realpath(folder)
+        return os.path.commonpath([os.path.realpath(path), folder]) == folder
+    except (ValueError, OSError):  # on Windows, paths on different drives
+        return False
 
 
 def _original_paths(rel: str) -> tuple:
@@ -208,6 +241,9 @@ class PhotoExtractor:
         # its originals (relative path → fileID) and its in-backup counts.
         self._originals_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
         self._in_backup_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+        # Copies of videos for the computer's video player (get_file_for_app). Made as the
+        # engine starts, which is when the copies an earlier engine left behind are removed.
+        self._copies = AppCopies("photos")
 
     # ── Delegated raw-extraction methods ─────────────────────────────────────
 
@@ -879,6 +915,63 @@ class PhotoExtractor:
             return "Unknown Date"
         return ""
 
+    def get_file_for_app(self, backup, file_hash: str, on_progress: Optional[CopyProgress] = None) -> dict:
+        """A photo or video as a file another app can open: ``{path, filename, openable}``, or ``{error}``.
+
+        Never the file where it lies in an unencrypted backup. There it is
+        named by its hash, with no extension, so the computer can't tell what
+        opens it, and from a drive that marks every file executable macOS runs
+        it: clicking a video opened Terminal (issue #297). It is copied out
+        under the name the iPhone gave it (app_copies.py). An encrypted
+        backup's file has already been decrypted to a temp file that keeps its
+        extension, and that file is the answer.
+
+        ``openable`` is True only when the name's extension is a photo's or a
+        video's (app_copies.OPENABLE_EXTENSIONS): the app opens nothing else,
+        it only shows it in its folder. ``on_progress(bytes copied, bytes in
+        all)`` is called while a copy is made.
+        """
+        src = self._resolve_file(backup, file_hash)
+        if not src:
+            return {"error": FILE_NOT_FOUND}
+        own_name = self._name_in_backup(backup, file_hash) or os.path.basename(src)
+        name = join_name(*split_name(own_name), "Video")
+        if os.path.splitext(src)[1] and not _is_inside(src, getattr(backup, "backup_dir", None)):
+            return {"path": src, "filename": name, "openable": is_openable(src)}
+        try:
+            # A folder per backup and file: two videos can have one name. A short
+            # digest of the file's key tells them apart and keeps the path short for Windows.
+            key = hashlib.sha1(file_hash.encode("utf-8", "replace")).hexdigest()[:16]
+            path = self._copies.copy(src, (getattr(backup, "udid", ""), key), name, on_progress)
+        except NotEnoughSpace as e:
+            print(f"[photos] no room to copy {file_hash} to open it: {e}", file=sys.stderr, flush=True)
+            return {"error": NO_ROOM_TO_COPY.format(size=_size_words(e.needed), free=_size_words(e.free))}
+        except OSError as e:
+            print(f"[photos] could not copy {file_hash} to open it: {e}", file=sys.stderr, flush=True)
+            return {"error": NOT_COPIED}
+        return {"path": path, "filename": name, "openable": is_openable(name)}
+
+    def _name_in_backup(self, backup, file_hash: str) -> str:
+        """Where the iPhone kept the file stored under ``file_hash`` ("Media/DCIM/100APPLE/IMG_0042.MOV"),
+        which ends in its own name; "" when the backup doesn't say."""
+        if file_hash.startswith("dcim:"):
+            return file_hash[len("dcim:"):]
+        if getattr(backup, "encrypted", False):
+            return ""  # its temp file keeps the extension (see get_file_for_app)
+        try:
+            manifest = backup.get_manifest_db()
+            if not manifest:
+                return ""
+            conn = connect_readonly(manifest, backup)
+            try:
+                row = conn.execute("SELECT relativePath FROM Files WHERE fileID = ?", (file_hash,)).fetchone()
+            finally:
+                conn.close()
+        except Exception as e:
+            print(f"[photos] could not look up the name of {file_hash}: {e}", file=sys.stderr, flush=True)
+            return ""
+        return (row[0] or "") if row else ""
+
     def _resolve_file(self, backup, file_hash: str) -> Optional[str]:
         """Resolve a file hash (or path-based key) to an absolute path on disk.
 
@@ -889,7 +982,8 @@ class PhotoExtractor:
         file_hash. We detect that prefix here and call backup.get_file()
         directly instead of going through the manifest.
 
-        ``main.py:get_photo_path`` calls this method on the PhotoExtractor.
+        For reading the file here in the engine. A path for another app to
+        open comes from get_file_for_app, never straight from this.
         """
         if file_hash.startswith("dcim:"):
             return backup.get_file(file_hash[len("dcim:"):], domain="CameraRollDomain")

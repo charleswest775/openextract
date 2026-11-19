@@ -473,11 +473,20 @@ def case_get_photo(ctx):
 def case_get_photo_path(ctx):
     for engine in (ctx.maren, ctx.maren_enc):
         photo = engine.photos[0]
-        path = Path(engine.rpc("get_photo_path", file_hash=photo["file_hash"])["path"])
+        result = engine.rpc("get_photo_path", file_hash=photo["file_hash"])
+        assert set(result) == {"path", "filename", "openable"}
+        path = Path(result["path"])
         assert path.is_file() and path.stat().st_size > 0
         assert path.read_bytes()[:3] == JPEG_MAGIC
-        if not engine.encrypted:  # straight from the backup; an encrypted one is decrypted to a temp file
-            assert path.resolve().is_relative_to(engine.backup_dir.resolve())
+        # A file another app can open, so never the backup's own: there it is named by its
+        # hash, with no extension, and macOS can run it instead of opening it (#297). An
+        # unencrypted backup's is a copy under the iPhone's name; an encrypted one's is the
+        # temp file it was decrypted to, which keeps the extension.
+        assert result["openable"] is True and result["filename"] == photo["filename"]
+        assert path.suffix == Path(photo["filename"]).suffix
+        assert not path.resolve().is_relative_to(engine.backup_dir.resolve())
+        if not engine.encrypted:
+            assert path.name == photo["filename"]
     assert_error_dict(ctx.maren.rpc("get_photo_path", file_hash="0" * 40), "not found")
 
 

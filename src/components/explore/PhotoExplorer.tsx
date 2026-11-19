@@ -4,8 +4,9 @@ import { CameraIcon, ChevronRightIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
 import {
   moreMissingFromFolder, moreOnlyInIcloud, noPhotosHere, photoExportSummary, photoSaveFailures, photoSaveProgress,
-  PhotoExportResult,
+  PhotoExportResult, VIDEO_GETTING_READY, videoProblem,
 } from '../../lib/photoCounts';
+import { CopiedFile, handOver } from '../../lib/openFile';
 import { useNotice } from '../shared/Notices';
 import { percentDone } from '../../lib/exportProgress';
 import PageHeader from '../shared/PageHeader';
@@ -278,15 +279,16 @@ export default function PhotoExplorer({ udid, open }: Props) {
 
     setVideoLoading(true);
     try {
-      const result = await sidecarCall<{ path?: string; error?: string }>(
-        'get_photo_path', { udid, file_hash: photo.file_hash }
-      );
-      if (result.path && window.openextract?.openPath) {
-        // Open in system default media player (handles HEVC, MOV, etc.)
-        window.openextract.openPath(result.path);
-      } else if (!result.path) {
-        // It did nothing before, for each of OE-102's videos.
-        notify({ kind: 'error', title: "This video couldn't be opened", detail: videoProblem(result.error), area: 'photos' });
+      // The computer's own video player opens it (it handles HEVC, MOV, etc.). The engine
+      // hands over a copy named as on the iPhone ("IMG_0042.MOV"), never the backup's own
+      // file: that one has no file type in its name, so the computer couldn't tell it was
+      // a video, and from some drives macOS ran it in Terminal instead (#297).
+      const result = await sidecarCall<CopiedFile>('get_photo_path', { udid, file_hash: photo.file_hash });
+      // Whatever goes wrong is said. Nothing happened before when the video's file
+      // wasn't there (OE-102) or when the computer couldn't open it.
+      const problem = await handOver(result, window.openextract);
+      if (problem) {
+        notify({ kind: 'error', title: "This video couldn't be opened", detail: videoProblem(problem), area: 'photos' });
       }
     } catch (err: any) {
       notify({ kind: 'error', title: "This video couldn't be opened", detail: videoProblem(err?.message), area: 'photos' });
@@ -498,20 +500,15 @@ export default function PhotoExplorer({ udid, open }: Props) {
         />
       )}
 
-      {/* Video loading overlay */}
+      {/* Video loading overlay: the video is copied out of the backup first, which takes a while for a long one */}
       {videoLoading && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 pointer-events-none">
+        <div className="fixed inset-0 bg-black/40 flex flex-col items-center justify-center gap-3 z-50 pointer-events-none">
           <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <div className="text-white/90 text-sm">{VIDEO_GETTING_READY}</div>
         </div>
       )}
     </div>
   );
-}
-
-/** Why a video couldn't be opened: the engine says "File not found" when its file isn't in the backup's folder. */
-function videoProblem(error?: string): string | undefined {
-  if (!error || /not found/i.test(error)) return "Its file isn't in the backup's folder.";
-  return error;
 }
 
 function SidebarHeading({ children }: { children: string }) {

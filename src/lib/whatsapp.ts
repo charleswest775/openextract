@@ -10,7 +10,7 @@
  * same thing, so the screen and a saved chat agree.
  */
 import type {
-  WhatsAppAttachment, WhatsAppAttachmentResult, WhatsAppCall, WhatsAppEmptyReason, WhatsAppQuote, WhatsAppReaction,
+  WhatsAppAttachment, WhatsAppCall, WhatsAppEmptyReason, WhatsAppQuote, WhatsAppReaction,
   WhatsAppSearchHit,
 } from '../types/whatsapp';
 import type { TimelineEntry } from '../types/timeline';
@@ -199,33 +199,10 @@ export function fileTypeLabel(name: string): string {
   return ext ? `${ext.slice(1).toUpperCase()} file` : 'File';
 }
 
-/** What happened when a file was handed to the computer. */
-export const SHOWN_IN_FOLDER = "OpenExtract doesn't open this kind of file itself, so it's shown in its folder.";
-
-/** The two things the app can do with a copied file (window.openextract's openPath and showInFolder). */
-export interface FileHandler {
-  openPath: (path: string) => Promise<string>;
-  showInFolder: (path: string) => Promise<void>;
-}
-
-/**
- * Hand a file copied out of the backup (get_whatsapp_attachment with as_file)
- * to the computer. Only a file the engine says is safe to open (a photo,
- * video, sound or document) is opened; anything else, a program or a script
- * whatever the sender named it, is shown in its folder instead, because
- * opening a program runs it. Resolves to what to tell the person, or null.
- */
-export async function handOver(r: WhatsAppAttachmentResult | null | undefined, files: FileHandler): Promise<string | null> {
-  if (r?.empty_reason === 'not_in_backup') return "This file isn't in the backup";
-  if (r?.error) return r.error;
-  if (!r?.path) return "Couldn't copy the file out of the backup";
-  if (r.openable !== true) {
-    await files.showInFolder(r.path);
-    return SHOWN_IN_FOLDER;
-  }
-  const problem = await files.openPath(r.path);
-  return problem ? `Couldn't open it: ${problem}` : null;
-}
+// Handing a copy (get_whatsapp_attachment with as_file) to the computer is
+// openFile.ts's, which the Photos screen's videos use too.
+export { handOver, SHOWN_IN_FOLDER } from './openFile';
+export type { FileHandler } from './openFile';
 
 /**
  * Whether the app can play this sound itself. Chromium plays Ogg, MP3, AAC and
