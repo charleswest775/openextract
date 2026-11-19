@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Voicemail transcripts now show, under each voicemail and in search. Back up my iPhone no longer hangs for up to 5 minutes when a connected iPhone doesn't answer, and on Windows a backup the iPhone has finished no longer fails at the very last step. Videos in a backup that isn't encrypted open in your video player. Saved call history, web history, notes and voicemail lists show times in your own time zone instead of UTC, a backup whose folder is missing files now says so, and when WhatsApp's chats aren't in a backup, the app says why. New and experimental: Export a data bundle saves messages, calls, voicemail, contacts and photo details in one documented folder that other tools can read.
+
 ### Added
 - WhatsApp: when the iPhone has WhatsApp but its chats aren't in the backup, the WhatsApp section now says why instead of not showing up at all. WhatsApp's own end-to-end encrypted backup is the usual reason: with it turned on, WhatsApp keeps its chats only in its iCloud backup. The screen says where to turn it off so the next backup includes them (OE-99)
 - Save to computer: Export a data bundle saves messages, calls, voicemail, contacts, photo details and people in one folder, in a documented format other tools can read (JSON and JSON Lines, with every date in UTC). It copies message attachments and voicemail audio too, and photo files if you tick them, and lists a SHA-256 hash of every file in SHA256SUMS, so anyone can check that nothing in it has changed since. The format is experimental and may still change: docs/BUNDLE.md describes it
