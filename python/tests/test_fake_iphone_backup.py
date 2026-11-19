@@ -26,6 +26,7 @@ from fake_iphone import plan as plans  # noqa: E402
 from fake_iphone.harness import is_root, stalling_disk  # noqa: E402
 from fake_iphone.real_modules import module  # noqa: E402
 
+import backup_status  # noqa: E402
 import device_backup  # noqa: E402
 
 pytestmark = pytest.mark.fake_iphone
@@ -41,6 +42,8 @@ def quick_engine(monkeypatch):
     # The engine's own timings, shortened so each scenario takes a second or two.
     monkeypatch.setattr(device_backup, "_BYTES_REPORT_INTERVAL_S", 0.05)
     monkeypatch.setattr(device_backup, "_BACKUP_LOCK_RETRY_DELAY_S", 0.05)
+    monkeypatch.setattr(device_backup, "_SNAPSHOT_REMOVE_WAIT_S", 0.3)
+    monkeypatch.setattr(device_backup, "_SNAPSHOT_REMOVE_RETRY_S", 0.05)
 
 
 @pytest.fixture
@@ -330,13 +333,78 @@ def test_file_in_use_while_moving_files_into_place(out):
     assert (run.backup_dir / "Snapshot").exists()
 
 
+def _engine_log(monkeypatch) -> list[str]:
+    lines: list[str] = []
+    monkeypatch.setattr(device_backup, "_dev_log", lines.append)
+    return lines
+
+
 @skip_if_root
-def test_folder_in_use_while_removing_snapshot(out):
+def test_folder_in_use_while_removing_snapshot(out, monkeypatch):
     # OE-11: "[WinError 5] Access is denied: '...\\Snapshot\\00'". At the end the iPhone removes
-    # Snapshot, now 256 empty folders; another program has one of them open.
+    # Snapshot, now 256 empty folders; another program has one of them open, and keeps it open.
+    # Every file is in place, so the backup finishes, leaving the empty folders.
+    log = _engine_log(monkeypatch)
     phone = FakeIPhone()
     lock = InUse()
     phone.before("RemoveItems", lambda op: lock.lock(run_dir(phone, out) / "Snapshot" / "00"))
+    try:
+        run = run_backup(phone, out)
+        assert run.error is None
+        assert run.result == {"success": True, "backup_path": str(run.backup_dir), "existing_password": False}
+        assert (run.backup_dir / "Snapshot" / "00").is_dir()
+        assert any("holds only empty folders" in line for line in log)
+        # The iPhone carried on to its last steps (the last two read Manifest.db back, then list
+        # every folder) and reported success.
+        assert run.phases[-1] == "finalizing" and run.progress[-1]["percent"] == 100
+    finally:
+        lock.release()
+
+    assert set(_expected_files(phone.plan)) <= run.files()
+    status = backup_status.check(str(run.backup_dir))
+    assert status.finished and status.confirmed and status.signs == []
+    assert _unreadable_files(run) == []
+
+
+@skip_if_root
+def test_folder_in_use_for_a_moment_while_removing_snapshot(out, monkeypatch):
+    # The other program lets go while the engine tries again: Snapshot is removed after all.
+    log = _engine_log(monkeypatch)
+    phone = FakeIPhone()
+    lock = InUse()
+    phone.before("RemoveItems", lambda op: lock.lock(run_dir(phone, out) / "Snapshot" / "00"))
+    retry = device_backup._retry_removing_snapshot
+
+    async def let_go_then_retry(folder, error):
+        lock.release()
+        return await retry(folder, error)
+
+    monkeypatch.setattr(device_backup, "_retry_removing_snapshot", let_go_then_retry)
+    try:
+        run = run_backup(phone, out)
+    finally:
+        lock.release()
+
+    assert run.error is None
+    assert not (run.backup_dir / "Snapshot").exists()
+    assert any("removed the backup's Snapshot folder on try 2" in line for line in log)
+    assert "left_empty_snapshot" not in backup_status.read_marker(str(run.backup_dir))
+    assert backup_status.check(str(run.backup_dir)).confirmed
+
+
+@skip_if_root
+def test_file_still_in_snapshot_in_use_while_removing_it(out):
+    # A file the iPhone didn't move out of Snapshot is still there and in use: that isn't a tidy-up
+    # the backup can skip, so it fails as before.
+    phone = FakeIPhone()
+    lock = InUse()
+
+    def stray_file_in_use(op):
+        stray = run_dir(phone, out) / "Snapshot" / "00" / "00stray"
+        stray.write_bytes(b"left behind")
+        lock.lock(stray)
+
+    phone.before("RemoveItems", stray_file_in_use)
     try:
         run = run_backup(phone, out)
     finally:
@@ -344,7 +412,9 @@ def test_folder_in_use_while_removing_snapshot(out):
 
     assert run.error == device_backup._FOLDER_IN_USE
     assert isinstance(run.exception.__cause__, PermissionError)
-    assert (run.backup_dir / "Snapshot" / "00").exists()
+    assert (run.backup_dir / "Snapshot" / "00" / "00stray").exists()
+    status = backup_status.check(str(run.backup_dir))
+    assert not status.finished and "snapshot" in status.signs
 
 
 def run_dir(phone, out):
