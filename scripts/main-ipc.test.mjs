@@ -393,6 +393,12 @@ describe('small handlers', () => {
       assert.match(await m.invoke('shell:openPath', path.join(m.userData, name)), /doesn't open programs/);
     }
     for (const bad of ['', null, undefined, 42, {}]) assert.match(await m.invoke('shell:openPath', bad), /doesn't open programs/);
+    // Nor a file whose name has no file type: that is how a file lies in a backup's folder,
+    // and macOS runs one that is marked executable (#297: a video opened Terminal)
+    for (const name of ['46ad145c3bed7be57c9541aee31e9fc641c8ccfd', path.join('46', '46ad145c3bed7be57c9541aee31e9fc641c8ccfd'),
+      path.join('a.folder', 'README'), 'video.', 'video. ', '.hidden']) {
+      assert.match(await m.invoke('shell:openPath', path.join(m.userData, name)), /no file type/);
+    }
     assert.deepEqual(m.env.callsTo('shell.openPath'), [[file]]);
 
     await m.invoke('shell:showItemInFolder', file);
