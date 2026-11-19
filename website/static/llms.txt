@@ -23,7 +23,7 @@ OpenExtract is made by Charles West, an independent developer, with help from co
   - Contacts (the address book).
   - Call history. Apple puts call history only in encrypted backups.
   - Notes from Apple Notes.
-  - Voicemails, where the carrier offers Visual Voicemail, in Voicemail, Spam and Deleted lists as on the iPhone (deleted ones only while they were still in the phone's Deleted Messages list when the backup was made).
+  - Voicemails, where the carrier offers Visual Voicemail, with their transcripts, in Voicemail, Spam and Deleted lists as on the iPhone (deleted ones only while they were still in the phone's Deleted Messages list when the backup was made).
   - Web history from Safari (only in encrypted backups) and from Firefox for iOS.
   - Podcasts from Apple's Podcasts app, in a section of its own: the listening history (every episode played on the iPhone, most recent first), the shows you follow, and shows you played without following. Each show has its author, date added, episode counts, feed address and episodes, each episode with its date, length, play count or how far in it was played, and whether it was saved or downloaded. Episodes Apple Podcasts marks as played when you follow a show aren't counted as listened to. Episode audio is never in an iPhone backup, not even downloaded episodes; a Get audio button opens an episode in the browser from where the podcast publishes it. Checked on backups from iOS 13, 16, 17 and 26; iOS 18 to 25 not yet checked.
   - It also shows a timeline of everything by date, searches the whole backup from one box, and can scan the messages database for deleted messages that are still recoverable.
