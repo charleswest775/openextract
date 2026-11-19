@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import logging
 import threading
 import time
@@ -46,10 +47,18 @@ class FakeIPhone:
     locked            the iPhone is locked: lockdown refuses to start services
     stops_answering   "handshake": the iPhone takes the connection but never answers lockdown's
                       handshake; "questions": it answers that, then never answers a question
-                      (lockdown get_value). Either way it waits until it's unplugged (OE-37)
+                      (lockdown get_value); "pairing": it answers both, then never answers the
+                      Pair request (pair_device's "Trust This Computer?"). Either way it waits
+                      until it's unplugged (OE-37)
     close_after_finish  the iPhone closes the connection right after its final answer
     pace              replay a recorded trace at its own pace, sped up this many times
     size_cap          send at most this many bytes of each file, to replay a big trace quickly
+
+    Trusting: an iPhone made with paired=False answers each Pair request by `phone.trust`:
+    "pending" (showing "Trust This Computer?"), "locked" (locked, or asking for the passcode),
+    "denied" (the user tapped Don't Trust: answered once, then it asks again) or "trusted" (the
+    user tapped Trust: it accepts, and is paired from then on). A test changes it between
+    pair_device calls, as the user would. Every request is kept in `phone.pair_requests`.
 
     Hooks: phone.before("MoveItems", fn) calls fn(op) in the iPhone's thread just before the
     first MoveItems is sent, e.g. to lock a folder at the moment it matters.
@@ -65,6 +74,7 @@ class FakeIPhone:
         product_type: str = "iPhone15,2",
         will_encrypt: bool = False,
         paired: bool = True,
+        trust: str = "pending",
         locked: bool = False,
         stops_answering: Optional[str] = None,
         drop_after_bytes: Optional[int] = None,
@@ -91,7 +101,8 @@ class FakeIPhone:
             "SerialNumber": "FAKE0SERIAL0",
             "DeviceClass": "iPhone",
             "UniqueChipID": 0x1A2B3C4D5E6F,
-            "DevicePublicKey": b"fake public key",
+            "DevicePublicKey": _device_public_key(),
+            "WiFiAddress": "aa:bb:cc:dd:ee:ff",
         }
         self.domains: dict[str, dict] = {
             "com.apple.disk_usage": {"TotalDataCapacity": disk_capacity, "TotalDataAvailable": disk_capacity - disk_used},
@@ -101,8 +112,12 @@ class FakeIPhone:
         # Every ChangePassword request the computer sent (OldPassword, NewPassword, ...).
         self.password_changes: list[dict] = []
         self.paired = paired
+        assert trust in ("pending", "locked", "denied", "trusted"), trust
+        self.trust = trust
+        self.pair_requests: list[dict] = []  # every Pair request the computer sent
+        self.pair_record: Optional[dict] = None  # the record the computer saved once trusted
         self.locked = locked
-        assert stops_answering in (None, "handshake", "questions"), stops_answering
+        assert stops_answering in (None, "handshake", "questions", "pairing"), stops_answering
         self.stops_answering = stops_answering
         self.drop_after_bytes = drop_after_bytes
         self.unplug_on_drop = unplug_on_drop
@@ -187,6 +202,23 @@ class FakeIPhone:
                 self._hooks.remove((name, fn))
                 fn(op)
 
+    async def answer_pair(self, request: dict) -> dict:
+        """lockdownd's answer to a Pair request, by `trust` (see the class docstring)."""
+        self.pair_requests.append(request)
+        if self.stops_answering == "pairing":
+            await self.never_answer("lockdown Pair")
+        answer = {"Request": "Pair"}
+        if self.trust == "trusted":
+            self.paired = True
+            self.log("Pair: trusted")
+            return {**answer, "EscrowBag": b"fake escrow bag"}
+        self.log(f"Pair: {self.trust}")
+        error = {"pending": "PairingDialogResponsePending", "locked": "PasswordProtected",
+                 "denied": "UserDeniedPairing"}[self.trust]
+        if self.trust == "denied":
+            self.trust = "pending"  # the next request shows "Trust This Computer?" again
+        return {**answer, "Error": error}
+
     def take_sync_lock_busy(self) -> bool:
         with self._lock:
             if self.sync_lock_busy > 0:
@@ -261,10 +293,32 @@ class FakeIPhone:
         return make_lockdown_client(self)
 
 
-class _NoLockdownConnection:
-    """Stands in for the lockdownd connection, which the fake lockdown client never uses."""
+@functools.lru_cache(maxsize=None)
+def _device_public_key() -> bytes:
+    """An RSA public key in the form an iPhone gives it, so pairing certificates can be made for it."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048).public_key()
+    return key.public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.PKCS1)
+
+
+class _LockdownConnection:
+    """
+    The lockdownd connection. The fake lockdown client answers most requests itself; a Pair
+    request comes through here, so pymobiledevice3's own _request_pair and _request read the
+    iPhone's answer and its errors.
+    """
 
     mux_device = None
+
+    def __init__(self, phone: FakeIPhone) -> None:
+        self.phone = phone
+
+    async def send_recv_plist(self, message: dict) -> dict:
+        if message.get("Request") == "Pair":
+            return await self.phone.answer_pair(dict(message))
+        raise NotImplementedError(f"the fake lockdownd doesn't answer {message.get('Request')}")
 
     async def close(self) -> None:
         pass
@@ -281,7 +335,7 @@ def make_lockdown_client(phone: FakeIPhone):
     class FakeLockdownClient(lockdown_module.LockdownClient):
         def __init__(self) -> None:
             super().__init__(
-                _NoLockdownConnection(),
+                _LockdownConnection(phone),
                 host_id="00000000-FAKE-HOST-0000-000000000000",
                 identifier=phone.udid,
                 pair_record={"HostID": "00000000-FAKE-HOST-0000-000000000000", "EscrowBag": b"fake escrow bag"}
@@ -298,11 +352,11 @@ def make_lockdown_client(phone: FakeIPhone):
         async def get_value(self, domain: Optional[str] = None, key: Optional[str] = None) -> Any:
             if phone.stops_answering == "questions":
                 await phone.never_answer(f"lockdown get_value {domain}/{key}")
-            if domain is None and key is None:
+            if not domain and key is None:
                 return dict(phone.values)
             if domain == "com.apple.mobile.backup":
                 values = {"WillEncrypt": phone.will_encrypt}
-            elif domain is None:
+            elif not domain:  # None, or "" as pair_device asks for DevicePublicKey
                 values = phone.values
             else:
                 values = phone.domains.get(domain, {})
@@ -327,6 +381,20 @@ def make_lockdown_client(phone: FakeIPhone):
 
         async def create_service_connection(self, port: int, *args: Any, **kwargs: Any):
             raise NotImplementedError("the fake lockdown client starts services with start_lockdown_service")
+
+        async def save_pair_record(self) -> None:
+            # The computer keeps the record; here, the fake iPhone does, for tests to look at.
+            phone.pair_record = dict(self.pair_record)
+            phone.log("pair record saved")
+
+        async def validate_pairing(self) -> bool:
+            # The real one starts a session with the saved record: it works once the iPhone has
+            # accepted a Pair request with that record's HostID.
+            ok = phone.paired and self.pair_record is not None and any(
+                r.get("PairRecord", {}).get("HostID") == self.pair_record.get("HostID")
+                for r in phone.pair_requests)
+            self.paired = ok
+            return ok
 
         async def close(self) -> None:
             pass

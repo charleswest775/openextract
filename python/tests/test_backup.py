@@ -31,11 +31,6 @@ def _make_pymobiledevice3_stub():
     pkg.lockdown = types.ModuleType("pymobiledevice3.lockdown")
     pkg.services = _make_package("pymobiledevice3.services")
     pkg.services.mobilebackup2 = types.ModuleType("pymobiledevice3.services.mobilebackup2")
-    pkg.remote = _make_package("pymobiledevice3.remote")
-    pkg.remote.utils = types.ModuleType("pymobiledevice3.remote.utils")
-    pkg.remote.remote_service_discovery = types.ModuleType(
-        "pymobiledevice3.remote.remote_service_discovery"
-    )
     pkg.exceptions = types.ModuleType("pymobiledevice3.exceptions")
     pkg.ca = types.ModuleType("pymobiledevice3.ca")
 
@@ -43,8 +38,6 @@ def _make_pymobiledevice3_stub():
     pkg.usbmux.list_devices = AsyncMock(return_value=[])
     pkg.lockdown.create_using_usbmux = AsyncMock()
     pkg.services.mobilebackup2.Mobilebackup2Service = MagicMock()
-    pkg.remote.utils.get_rsds = MagicMock(return_value=[])
-    pkg.remote.remote_service_discovery.RemoteServiceDiscoveryService = MagicMock()
     pkg.ca.generate_pairing_cert_chain = MagicMock()
 
     # Exception classes used in device_backup.py
@@ -67,9 +60,6 @@ def _install_stub():
         "pymobiledevice3.lockdown",
         "pymobiledevice3.services",
         "pymobiledevice3.services.mobilebackup2",
-        "pymobiledevice3.remote",
-        "pymobiledevice3.remote.utils",
-        "pymobiledevice3.remote.remote_service_discovery",
         "pymobiledevice3.exceptions",
         "pymobiledevice3.ca",
     ]:
@@ -140,7 +130,6 @@ class TestListDevices(unittest.TestCase):
         with (
             patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[usbmux_dev]),
             patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
-            patch("pymobiledevice3.remote.utils.get_rsds", return_value=[]),
         ):
             result = self.manager.list_devices()
 
@@ -159,77 +148,10 @@ class TestListDevices(unittest.TestCase):
         with (
             patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[usbmux_dev]),
             patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
-            patch("pymobiledevice3.remote.utils.get_rsds", return_value=[]),
         ):
             result = self.manager.list_devices()
 
         self.assertEqual(result["devices"][0]["connection_type"], "wifi")
-
-    def test_rsd_wifi_device_included(self):
-        """
-        An iOS 17+ device found via RSD (not visible in usbmuxd) should be
-        listed with connection_type='wifi'.
-        """
-        rsd_mock = MagicMock()
-        rsd_mock.hostname = "192.168.1.5"
-        rsd_mock.port = 58783
-
-        rsd_service_mock = MagicMock()
-        rsd_service_mock.__enter__ = MagicMock(return_value=rsd_service_mock)
-        rsd_service_mock.__exit__ = MagicMock(return_value=False)
-        rsd_service_mock.udid = "RSD-DEV-99"
-        rsd_service_mock.get_value = lambda key: {
-            "DeviceName": "Carol's iPhone",
-            "ProductVersion": "17.5",
-        }.get(key, "")
-
-        with (
-            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[]),
-            patch("pymobiledevice3.remote.utils.get_rsds", return_value=[rsd_mock]),
-            patch(
-                "pymobiledevice3.remote.remote_service_discovery.RemoteServiceDiscoveryService",
-                return_value=rsd_service_mock,
-            ),
-        ):
-            result = self.manager.list_devices()
-
-        self.assertEqual(len(result["devices"]), 1)
-        dev = result["devices"][0]
-        self.assertEqual(dev["udid"], "RSD-DEV-99")
-        self.assertEqual(dev["name"], "Carol's iPhone")
-        self.assertEqual(dev["connection_type"], "wifi")
-
-    def test_no_rsd_duplicates(self):
-        """
-        A device visible via both usbmuxd and RSD should appear only once
-        (USB entry wins).
-        """
-        usbmux_dev = _make_usbmux_device("SHARED-UDID", "USB")
-        lockdown = _make_lockdown_mock("SHARED-UDID", "Dave's iPhone", "17.4")
-
-        rsd_mock = MagicMock()
-        rsd_mock.hostname = "192.168.1.10"
-        rsd_mock.port = 58783
-        rsd_service_mock = MagicMock()
-        rsd_service_mock.__enter__ = MagicMock(return_value=rsd_service_mock)
-        rsd_service_mock.__exit__ = MagicMock(return_value=False)
-        rsd_service_mock.udid = "SHARED-UDID"
-        rsd_service_mock.get_value = lambda key: ""
-
-        with (
-            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[usbmux_dev]),
-            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
-            patch("pymobiledevice3.remote.utils.get_rsds", return_value=[rsd_mock]),
-            patch(
-                "pymobiledevice3.remote.remote_service_discovery.RemoteServiceDiscoveryService",
-                return_value=rsd_service_mock,
-            ),
-        ):
-            result = self.manager.list_devices()
-
-        # Should appear only once, with connection_type=usb (from usbmuxd)
-        self.assertEqual(len(result["devices"]), 1)
-        self.assertEqual(result["devices"][0]["connection_type"], "usb")
 
     def test_broken_device_skipped(self):
         """A device that raises during lockdown connection should be silently skipped."""
@@ -245,7 +167,6 @@ class TestListDevices(unittest.TestCase):
         with (
             patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[good_dev, bad_dev]),
             patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, side_effect=_create_lockdown),
-            patch("pymobiledevice3.remote.utils.get_rsds", return_value=[]),
         ):
             result = self.manager.list_devices()
 
@@ -277,7 +198,6 @@ class TestListDevices(unittest.TestCase):
             patch.object(device_backup, "_ANSWER_TIMEOUT_S", 0.5),
             patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[silent_dev, good_dev]),
             patch("pymobiledevice3.lockdown.create_using_usbmux", side_effect=create_lockdown),
-            patch("pymobiledevice3.remote.utils.get_rsds", return_value=[]),
         ):
             t0 = time.monotonic()
             result = self.manager.list_devices()
@@ -316,34 +236,10 @@ class TestListDevices(unittest.TestCase):
             patch.object(device_backup, "_USB_SEARCH_TIMEOUT_S", 0.3),
             patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[dev]),
             patch("pymobiledevice3.lockdown.create_using_usbmux", side_effect=blocks),
-            patch("pymobiledevice3.remote.utils.get_rsds", return_value=[]),
         ):
             [device] = self.manager.list_devices()["devices"]
         self.assertEqual((device["udid"], device["connection_type"], device["answering"]), ("STUCK", "wifi", False))
         self.assertIn("Plug it into this computer with a cable", device["message"])
-
-    def test_wifi_search_that_never_ends_is_left_behind(self):
-        """The RSD step blocks in system tools asyncio can't interrupt, so it has a limit of its own."""
-        import time
-
-        lockdown = _make_lockdown_mock("DEV-1")
-
-        def blocks(*args, **kwargs):
-            time.sleep(1.5)
-            return []
-
-        with (
-            patch.object(device_backup, "_RSD_TIMEOUT_S", 0.3),
-            patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock,
-                  return_value=[_make_usbmux_device("DEV-1")]),
-            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
-            patch("pymobiledevice3.remote.utils.get_rsds", side_effect=blocks),
-        ):
-            t0 = time.monotonic()
-            result = self.manager.list_devices()
-            seconds = time.monotonic() - t0
-        self.assertLess(seconds, 1.2)
-        self.assertEqual([d["udid"] for d in result["devices"]], ["DEV-1"])
 
     def test_device_service_that_never_answers_is_a_plain_error(self):
         import asyncio
@@ -371,7 +267,6 @@ class TestListDevices(unittest.TestCase):
             patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock, return_value=[usbmux_dev]),
             patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock,
                   return_value=lockdown) as create,
-            patch("pymobiledevice3.remote.utils.get_rsds", return_value=[]),
         ):
             result = self.manager.list_devices()
 
@@ -387,7 +282,6 @@ class TestListDevices(unittest.TestCase):
             patch("pymobiledevice3.usbmux.list_devices", new_callable=AsyncMock,
                   return_value=[_make_usbmux_device("DEV-1", "USB")]),
             patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
-            patch("pymobiledevice3.remote.utils.get_rsds", return_value=[]),
         ):
             return self.manager.list_devices()["devices"]
 
@@ -635,6 +529,27 @@ class TestPairDevice(unittest.TestCase):
         self.assertEqual(self._pair(lockdown), "denied")
         self.assertEqual(self._pair(lockdown), "trusted")
         self.assertEqual(self.certs.call_count, 2)
+
+    def test_step_that_blocks_is_left_behind(self):
+        """A step asyncio can't interrupt (it blocks rather than awaits) ends at the whole call's limit."""
+        import time
+
+        async def blocks(*args, **kwargs):
+            time.sleep(1.5)
+            return {}
+
+        lockdown = self._lockdown(blocks)
+        with (
+            patch.object(device_backup, "_PAIR_TIMEOUT_S", 0.3),
+            patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock, return_value=lockdown),
+            patch("pymobiledevice3.ca.generate_pairing_cert_chain", self.certs),
+        ):
+            t0 = time.monotonic()
+            result = self.manager.pair_device("DEV-1")
+            seconds = time.monotonic() - t0
+        self.assertLess(seconds, 1.2)
+        self.assertEqual(result["state"], "not_answering")
+        self.assertIn("isn't answering", result["message"])
 
     def test_no_device_service_is_a_setup_step(self):
         with patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock,
