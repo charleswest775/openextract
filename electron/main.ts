@@ -423,7 +423,7 @@ app.whenReady().then(async () => {
         : method === 'backup.install_device_support' ? 900_000 // winget may download slowly
         : method.startsWith('export_') ? 21_600_000 // a whole photo library to a slow drive can take hours
         // The engine gives each step of the search its own limit and lists an iPhone that
-        // doesn't answer, so a search ends within about 50 seconds (python/device_backup.py,
+        // doesn't answer, so a search ends within about 40 seconds (python/device_backup.py,
         // _ANSWER_TIMEOUT_S). This is in case it doesn't: before, one silent iPhone held the
         // search for the 5-minute default (OE-37, OE-8, OE-31). It leaves room for the first
         // search on Windows, which may have to start Apple Devices first.
