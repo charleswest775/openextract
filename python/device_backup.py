@@ -14,9 +14,10 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import warnings
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import backup_status
 
@@ -445,6 +446,141 @@ async def _will_encrypt(lockdown) -> bool:
         return False
 
 
+# Searching for iPhones waited as long as an iPhone took to answer, with no limit of its own.
+# One that never answered kept the search going until the app gave up 5 minutes later, and
+# everything else the app asked for waited behind it, since the engine works on one call at a
+# time (OE-37, OE-8, OE-31, all on Windows). Now each step has a time limit: an iPhone that
+# misses one is listed as not answering, with what to do, and the search goes on without it.
+_ANSWER_TIMEOUT_S = 10  # usbmuxd's device list, each iPhone's handshake, each question after it
+_CLOSE_TIMEOUT_S = 3
+_USB_SEARCH_TIMEOUT_S = 25  # all the USB iPhones, asked at once: a handshake, a question, closing
+_RSD_TIMEOUT_S = 10  # the whole iOS 17+ Wi-Fi search (RSD over Bonjour)
+
+
+def _not_answering_message(connection_type: str) -> str:
+    """What to tell the user about an iPhone that's connected but didn't answer the search."""
+    if connection_type == "wifi":
+        first = ("Your iPhone was found over Wi-Fi but isn't answering. Plug it into this computer "
+                 "with a cable, unlock it, then click Refresh.")
+    else:
+        first = ("Your iPhone is plugged in but isn't answering. Unplug it, unlock it, plug it back "
+                 "in, then click Refresh.")
+    if sys.platform == "win32":
+        # Closing the Apple Devices window doesn't restart the part of it that talks to the
+        # iPhone (AppleMobileDeviceProcess); restarting the PC does.
+        return (f"{first} If it still doesn't answer, restart your iPhone and your PC, which also "
+                "restarts Apple Devices, then try again.")
+    return f"{first} If it still doesn't answer, restart your iPhone, then try again."
+
+
+def _not_answering_device(udid: str, connection_type: str, name: str = "", ios_version: str = "") -> dict:
+    """The device list's entry for an iPhone that's connected but didn't answer in time."""
+    return {
+        "udid": udid,
+        "name": name or "iPhone",
+        "ios_version": ios_version,
+        "connection_type": connection_type,
+        "trusted": None,  # unknown, and pair_device would wait on it too
+        "encrypts_backups": None,
+        "answering": False,
+        "message": _not_answering_message(connection_type),
+    }
+
+
+def _device_service_not_answering() -> RuntimeError:
+    """usbmuxd took the connection but didn't send the list of devices."""
+    if sys.platform == "win32":
+        detail = ("Apple Devices, which Windows uses to talk to iPhones, isn't answering. Restart "
+                  "your PC, then click Refresh.")
+    elif sys.platform == "darwin":
+        detail = ("The part of macOS that talks to iPhones (usbmuxd) isn't answering. Restart your "
+                  "Mac, then click Refresh.")
+    else:
+        detail = ("usbmuxd, the service that talks to iPhones, isn't answering. Restart it (sudo "
+                  "systemctl restart usbmuxd) or restart your computer, then click Refresh.")
+    return RuntimeError(detail)
+
+
+def _run_bounded(make_coro: Callable[[], Any], seconds: float) -> Any:
+    """
+    asyncio.run(make_coro()) in a thread of its own, waiting for it at most `seconds`.
+
+    asyncio.wait_for can't stop a step that blocks without awaiting (pymobiledevice3's RSD search
+    runs system tools), nor one whose own clean-up waits on the iPhone, and asyncio.run waits for
+    both before it returns. This stops waiting either way, raising TimeoutError, and leaves the
+    stuck step to end in the background. Otherwise it returns or raises what the coroutine did.
+    """
+    outcome: dict[str, Any] = {}
+
+    def run() -> None:
+        try:
+            outcome["result"] = asyncio.run(make_coro())
+        except BaseException as e:  # handed to the caller below
+            outcome["error"] = e
+
+    thread = threading.Thread(target=run, name="device-search", daemon=True)
+    thread.start()
+    thread.join(seconds)
+    if thread.is_alive():
+        raise TimeoutError(f"no answer within {seconds:g}s")
+    if "error" in outcome:
+        raise outcome["error"]
+    return outcome.get("result")
+
+
+async def _describe_usb_device(dev, create_using_usbmux) -> Optional[dict]:
+    """
+    The device list's entry for one iPhone usbmuxd lists, or None to leave it out (an error
+    other than not answering in time, as before).
+    """
+    # usbmuxd exposes connection_type as "USB" or "Network"
+    conn_raw = str(getattr(dev, "connection_type", "USB")).upper()
+    conn_type = "wifi" if conn_raw in ("NETWORK", "WIFI") else "usb"
+    serial = getattr(dev, "serial", "?")
+    try:
+        # autopair=False: searching never shows "Trust This Computer?" (see
+        # _new_pair_request). The model and iOS version don't need pairing.
+        lockdown = await asyncio.wait_for(create_using_usbmux(serial=dev.serial, autopair=False),
+                                          _ANSWER_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        _dev_log(f"device {serial} didn't answer its handshake within {_ANSWER_TIMEOUT_S}s")
+        return _not_answering_device(serial, conn_type)
+    except Exception as e:
+        _dev_log(f"skipped device {serial}: {e!r}")
+        return None
+    udid = serial
+    try:
+        udid = lockdown.udid or serial
+        name = lockdown.display_name or udid
+        ios_version = lockdown.product_version or ""
+        encrypts_backups = None
+        if lockdown.paired:
+            try:
+                encrypts_backups = await asyncio.wait_for(_will_encrypt(lockdown), _ANSWER_TIMEOUT_S)
+            except asyncio.TimeoutError:
+                _dev_log(f"device {udid} didn't say whether it encrypts its backups within {_ANSWER_TIMEOUT_S}s")
+                return _not_answering_device(udid, conn_type, name, ios_version)
+            except Exception as e:
+                _dev_log(f"couldn't read whether {udid} encrypts its backups: {e!r}")
+        return {
+            "udid": udid,
+            "name": name,
+            "ios_version": ios_version,
+            "connection_type": conn_type,
+            "trusted": bool(lockdown.paired),
+            "encrypts_backups": encrypts_backups,
+            "answering": True,
+        }
+    except Exception as e:
+        _dev_log(f"skipped device {serial}: {e!r}")
+        return None
+    finally:
+        try:
+            await asyncio.wait_for(lockdown.close(), _CLOSE_TIMEOUT_S)
+        except Exception as e:
+            _dev_log(f"couldn't close the connection to {udid}: {e!r}")
+
+
 class DeviceBackupManager:
     """Manages live-device detection and backup operations via pymobiledevice3."""
 
@@ -458,12 +594,16 @@ class DeviceBackupManager:
         Detect all connected iPhone/iPad devices via USB and Wi-Fi.
 
         Returns a list of device dicts: { udid, name, ios_version, connection_type, trusted,
-        encrypts_backups }. A device that doesn't trust this computer yet is listed with
-        trusted=False, and searching doesn't ask it to: pair_device does.
+        encrypts_backups, answering }. A device that doesn't trust this computer yet is listed
+        with trusted=False, and searching doesn't ask it to: pair_device does.
 
         encrypts_backups is True when the iPhone already has a backup password (its "Encrypt
         local backup" setting), so every backup uses that password and the app can't set a new
         one (OE-68). None when it couldn't be read: not trusted yet, or found over Wi-Fi by RSD.
+
+        answering is False for an iPhone usbmuxd lists that didn't answer in time (see
+        _ANSWER_TIMEOUT_S). It has trusted=None, and `message` says what to do. Its name and
+        iOS version are only known if it stopped answering after its handshake.
 
         Two discovery paths are used:
 
@@ -482,67 +622,77 @@ class DeviceBackupManager:
         try:
             from pymobiledevice3.usbmux import list_devices
             from pymobiledevice3.lockdown import create_using_usbmux
+            from pymobiledevice3.exceptions import ConnectionFailedToUsbmuxdError
         except ImportError as e:
             raise _device_code_import_error(e) from e
 
-        devices = []
-        seen_udids: set = set()
+        # ── Path 1: usbmuxd (USB cable + legacy Wi-Fi sync) ──────────────────
+        async def _usbmux_list():
+            return await asyncio.wait_for(list_devices(), _ANSWER_TIMEOUT_S)
 
-        async def _collect_usb_devices():
-            # ── Path 1: usbmuxd (USB cable + legacy Wi-Fi sync) ──────────────────
+        def _usbmux_devices():
             try:
-                usb_devs = await list_devices()
-            except Exception as e:
-                from pymobiledevice3.exceptions import ConnectionFailedToUsbmuxdError
-                if not isinstance(e, ConnectionFailedToUsbmuxdError):
-                    raise
-                status = _start_apple_devices() if sys.platform == "win32" else "missing"
-                if status == "missing":
-                    raise _device_service_error() from None
-                if status == "failed":
-                    raise RuntimeError(_APPLE_DEVICES_DID_NOT_START) from None
-                usb_devs = await list_devices()
+                return _run_bounded(_usbmux_list, _ANSWER_TIMEOUT_S + 2)
+            except (TimeoutError, asyncio.TimeoutError):
+                _dev_log(f"usbmuxd didn't list the devices within {_ANSWER_TIMEOUT_S}s")
+                raise _device_service_not_answering() from None
 
-            for dev in usb_devs:
-                try:
-                    # autopair=False: searching never shows "Trust This Computer?" (see
-                    # _new_pair_request). The model and iOS version don't need pairing.
-                    lockdown = await create_using_usbmux(serial=dev.serial, autopair=False)
-                    try:
-                        udid = lockdown.udid or dev.serial
-                        if udid in seen_udids:
-                            continue
-                        seen_udids.add(udid)
-                        # usbmuxd exposes connection_type as "USB" or "Network"
-                        conn_raw = getattr(dev, "connection_type", "USB").upper()
-                        conn_type = "wifi" if conn_raw in ("NETWORK", "WIFI") else "usb"
-                        encrypts_backups = None
-                        if lockdown.paired:
-                            try:
-                                encrypts_backups = await _will_encrypt(lockdown)
-                            except Exception as e:
-                                _dev_log(f"couldn't read whether {udid} encrypts its backups: {e!r}")
-                        devices.append({
-                            "udid": udid,
-                            "name": lockdown.display_name or udid,
-                            "ios_version": lockdown.product_version or "",
-                            "connection_type": conn_type,
-                            "trusted": bool(lockdown.paired),
-                            "encrypts_backups": encrypts_backups,
-                        })
-                    finally:
-                        await lockdown.close()
-                except Exception as e:
-                    _dev_log(f"skipped device {getattr(dev, 'serial', '?')}: {e!r}")
+        try:
+            usb_devs = _usbmux_devices()
+        except ConnectionFailedToUsbmuxdError:
+            status = _start_apple_devices() if sys.platform == "win32" else "missing"
+            if status == "missing":
+                raise _device_service_error() from None
+            if status == "failed":
+                raise RuntimeError(_APPLE_DEVICES_DID_NOT_START) from None
+            usb_devs = _usbmux_devices()
 
-            # ── Path 2: iOS 17+ RSD over Wi-Fi ───────────────────────────────────
-            #
-            # Starting with iOS 17, Apple introduced the CoreDevice framework and
-            # Remote Service Discovery (RSD) as the replacement for the legacy
-            # lockdown-over-mDNS (port 62078) Wi-Fi protocol.
-            #
-            # Devices already seen via usbmuxd are de-duplicated by UDID so that
-            # a cable-connected device isn't listed twice.
+        # Every iPhone is asked at once, so one that doesn't answer holds up no other. Each
+        # entry is kept as it comes in: if the whole step runs out of time, the iPhones that
+        # hadn't answered by then are listed as not answering.
+        described: dict[int, Optional[dict]] = {}
+
+        async def _describe(i, dev):
+            described[i] = await _describe_usb_device(dev, create_using_usbmux)
+
+        async def _describe_all():
+            await asyncio.gather(*(_describe(i, dev) for i, dev in enumerate(usb_devs)))
+
+        try:
+            _run_bounded(_describe_all, _USB_SEARCH_TIMEOUT_S)
+        except (TimeoutError, asyncio.TimeoutError):
+            _dev_log(f"the USB search was still running after {_USB_SEARCH_TIMEOUT_S}s")
+        found = dict(described)
+
+        devices: list[dict] = []
+        by_udid: dict[str, int] = {}
+        for i, dev in enumerate(usb_devs):
+            if i in found:
+                entry = found[i]
+            else:
+                conn_raw = str(getattr(dev, "connection_type", "USB")).upper()
+                entry = _not_answering_device(dev.serial, "wifi" if conn_raw in ("NETWORK", "WIFI") else "usb")
+            if entry is None:
+                continue
+            # usbmuxd can list one iPhone twice, on the cable and over Wi-Fi: keep the first
+            # entry, unless only a later one answered.
+            kept = by_udid.get(entry["udid"])
+            if kept is None:
+                by_udid[entry["udid"]] = len(devices)
+                devices.append(entry)
+            elif not devices[kept]["answering"] and entry["answering"]:
+                devices[kept] = entry
+
+        # ── Path 2: iOS 17+ RSD over Wi-Fi ───────────────────────────────────
+        #
+        # Starting with iOS 17, Apple introduced the CoreDevice framework and
+        # Remote Service Discovery (RSD) as the replacement for the legacy
+        # lockdown-over-mDNS (port 62078) Wi-Fi protocol.
+        #
+        # Devices already seen via usbmuxd are de-duplicated by UDID so that
+        # a cable-connected device isn't listed twice.
+        async def _collect_rsd_devices():
+            rsd_devices = []
             try:
                 from pymobiledevice3.remote.utils import get_rsds
                 from pymobiledevice3.remote.remote_service_discovery import (
@@ -560,10 +710,7 @@ class DeviceBackupManager:
                             (rsd.hostname, rsd.port)
                         ) as rsd_service:
                             udid = rsd_service.udid
-                            if udid in seen_udids:
-                                continue
-                            seen_udids.add(udid)
-                            devices.append({
+                            rsd_devices.append({
                                 "udid": udid,
                                 "name": rsd_service.get_value("DeviceName") or udid,
                                 "ios_version": rsd_service.get_value("ProductVersion") or "",
@@ -571,6 +718,7 @@ class DeviceBackupManager:
                                 # RSD only connects with an existing pairing.
                                 "trusted": True,
                                 "encrypts_backups": None,
+                                "answering": True,
                             })
                     except Exception:
                         pass
@@ -578,8 +726,18 @@ class DeviceBackupManager:
                 # RSD discovery is optional; missing Bonjour/Avahi or old pymobiledevice3
                 # versions that lack the remote sub-package are not fatal.
                 pass
+            return rsd_devices
 
-        asyncio.run(_collect_usb_devices())
+        try:
+            rsd_devices = _run_bounded(_collect_rsd_devices, _RSD_TIMEOUT_S)
+        except (TimeoutError, asyncio.TimeoutError):
+            _dev_log(f"the Wi-Fi (RSD) search was still running after {_RSD_TIMEOUT_S}s")
+            rsd_devices = []
+        for entry in rsd_devices:
+            if entry["udid"] not in by_udid:
+                by_udid[entry["udid"]] = len(devices)
+                devices.append(entry)
+
         return {"devices": devices}
 
     def pair_device(self, udid: str) -> dict:

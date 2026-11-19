@@ -10,6 +10,7 @@ DeviceLink and ServiceConnection all run as they do with a phone on the cable.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 import threading
@@ -43,6 +44,9 @@ class FakeIPhone:
                       this error, e.g. {0: {"ErrorCode": 208}} for "backup lock busy" once
     sync_lock_busy    times the iPhone's sync lock answers "would block" (another sync running)
     locked            the iPhone is locked: lockdown refuses to start services
+    stops_answering   "handshake": the iPhone takes the connection but never answers lockdown's
+                      handshake; "questions": it answers that, then never answers a question
+                      (lockdown get_value). Either way it waits until it's unplugged (OE-37)
     close_after_finish  the iPhone closes the connection right after its final answer
     pace              replay a recorded trace at its own pace, sped up this many times
     size_cap          send at most this many bytes of each file, to replay a big trace quickly
@@ -62,6 +66,7 @@ class FakeIPhone:
         will_encrypt: bool = False,
         paired: bool = True,
         locked: bool = False,
+        stops_answering: Optional[str] = None,
         drop_after_bytes: Optional[int] = None,
         unplug_on_drop: bool = False,
         reset_on_drop: bool = False,
@@ -97,6 +102,8 @@ class FakeIPhone:
         self.password_changes: list[dict] = []
         self.paired = paired
         self.locked = locked
+        assert stops_answering in (None, "handshake", "questions"), stops_answering
+        self.stops_answering = stops_answering
         self.drop_after_bytes = drop_after_bytes
         self.unplug_on_drop = unplug_on_drop
         self.reset_on_drop = reset_on_drop
@@ -153,6 +160,13 @@ class FakeIPhone:
                 self.log(f"nobody observes {name}")
                 return
             time.sleep(0.01)
+
+    async def never_answer(self, what: str) -> None:
+        """Leave the computer waiting for `what`, as an iPhone that has stopped answering does."""
+        self.log(f"{what}: no answer")
+        while not self.gone.is_set():
+            await asyncio.sleep(0.05)
+        raise module("pymobiledevice3.exceptions").ConnectionTerminatedError()
 
     def log(self, event: str) -> None:
         self.events.append((round(time.monotonic() - self._t0, 3), event))
@@ -242,6 +256,8 @@ class FakeIPhone:
         exceptions = module("pymobiledevice3.exceptions")
         if not self.connected or (serial is not None and serial != self.udid):
             raise exceptions.NoDeviceConnectedError()
+        if self.stops_answering == "handshake":
+            await self.never_answer("lockdown handshake")
         return make_lockdown_client(self)
 
 
@@ -280,6 +296,8 @@ def make_lockdown_client(phone: FakeIPhone):
             self.product_type = phone.values["ProductType"]
 
         async def get_value(self, domain: Optional[str] = None, key: Optional[str] = None) -> Any:
+            if phone.stops_answering == "questions":
+                await phone.never_answer(f"lockdown get_value {domain}/{key}")
             if domain is None and key is None:
                 return dict(phone.values)
             if domain == "com.apple.mobile.backup":

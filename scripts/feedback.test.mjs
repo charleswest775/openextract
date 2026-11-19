@@ -694,6 +694,15 @@ const REAL_ERRORS = [
     details: OLD_NO_DEVICE_SERVICE,
     errors: [['backup.list_devices', OLD_NO_DEVICE_SERVICE]],
   },
+  // electron/sidecar.ts call() giving up on the iPhone search after 5 minutes, when an iPhone never
+  // answered (OE-37, OE-8, OE-31).
+  {
+    fix: 'iphone-search-timed-out',
+    os: WINDOWS,
+    area: 'create_backup',
+    version: '0.13.0',
+    errors: [['backup.list_devices', 'Sidecar call timed out: backup.list_devices']],
+  },
   // electron/sidecar.ts call() giving up on a photo save after 5 minutes in 0.10.2, and the
   // thumbnails that waited behind it (OE-14).
   {
@@ -769,6 +778,15 @@ test('reports about something else get no known fix', async () => {
   }
   for (const version of ['0.9.1', '0.10.2', '0.11.0', '0.12.0']) {
     assert.deepEqual(await knownFixesFor({ ...twoHours, version }), ['backup-stopped-after-2-hours'], version);
+  }
+  // Up to 0.17.0 one silent iPhone held the search for 5 minutes. Later versions stop waiting
+  // sooner and say why, so the 5-minute answer doesn't fit them (OE-37).
+  const search = REAL_ERRORS.find(c => c.fix === 'iphone-search-timed-out');
+  for (const version of ['0.10.0', '0.12.0', '0.13.0', '0.17.0']) {
+    assert.deepEqual(await knownFixesFor({ ...search, version }), ['iphone-search-timed-out'], version);
+  }
+  for (const version of ['0.17.1', '0.18.0', '1.0.0']) {
+    assert.deepEqual(await knownFixesFor({ ...search, version }), [], version);
   }
   // Only 0.15.0's engine was built without pyimg4's metadata. Another version saying pymobiledevice3
   // is missing is a source checkout without it, where pip install is the right answer.

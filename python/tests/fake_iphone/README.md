@@ -2,7 +2,8 @@
 
 A scripted iPhone that OpenExtract's engine backs up as if one were plugged in, so the whole
 backup path runs in CI on Windows, macOS and Linux without a phone. The scenarios are in
-[`../test_fake_iphone_backup.py`](../test_fake_iphone_backup.py).
+[`../test_fake_iphone_backup.py`](../test_fake_iphone_backup.py), and searching for iPhones
+(`backup.list_devices`) in [`../test_fake_iphone_search.py`](../test_fake_iphone_search.py).
 
 ```bash
 pytest python/tests/test_fake_iphone_backup.py -v    # or: pytest python/tests -m fake_iphone
@@ -59,8 +60,8 @@ A second backup into the same folder hasn't been traced.
    and `{"op": "Sleep", "seconds": 1}` for a passcode prompt.
 2. Add faults:
    - on the iPhone: `drop_after_bytes`, `unplug_on_drop`, `drop_everything`, `reset_on_drop`,
-     `stall_timeout`, `refuse_attempts={0: {"ErrorCode": 208}}`, `sync_lock_busy`, `locked`
-     (see `FakeIPhone`'s docstring);
+     `stall_timeout`, `refuse_attempts={0: {"ErrorCode": 208}}`, `sync_lock_busy`, `locked`,
+     `stops_answering="handshake"` or `"questions"` (see `FakeIPhone`'s docstring);
    - on the computer: `slow_disk()`, `stalling_disk()`, `failing_disk()` (monkeypatch
      pymobiledevice3's writes), and `InUse` / `in_use()` for a file or folder another program has
      open. On Windows that's a real open handle; elsewhere the folder is made read-only;
@@ -69,7 +70,8 @@ A second backup into the same folder hasn't been traced.
 3. `run = run_backup(phone, out)` and assert what the app would get: `run.error` (the text the
    app shows) or `run.result`, `run.progress` (every `backup.progress` notification, with `t`),
    `run.phases`, `run.files()`, and `run.assert_progress_never_goes_back()`. The phone's side is
-   in `phone.final_answers`, `phone.statuses`, `phone.events`.
+   in `phone.final_answers`, `phone.statuses`, `phone.events`. For a search, `run = run_search(phone)`
+   gives `run.devices` (or `run.error`) and `run.seconds`.
 
 A scenario that shows a bug nobody has fixed yet gets `@pytest.mark.xfail(strict=True, reason=...)`
 (see `docs/TESTING.md`). If the iPhone's own side fails (`phone.errors`), `run_backup` fails the
