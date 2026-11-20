@@ -160,7 +160,7 @@ export function listOf(items: string[]): string {
 
 /** Where to land when opening a screen from somewhere else. */
 export interface OpenOptions {
-  /** Timeline filters to start from, e.g. one day, one person or a search. */
+  /** Timeline filters to start from, e.g. one day or a search. */
   timeline?: Partial<TimelineFilters>;
   /** Messages: the conversation to open (an sms.db chat). */
   chatId?: number;
@@ -170,6 +170,8 @@ export interface OpenOptions {
   select?: TimelineEntry;
   /** People: who to open, by phone number or email. */
   person?: string;
+  /** People: the dates to start their page on, e.g. a day opened from Year. */
+  days?: { from: string; to: string };
   /** Address book: the card to show. */
   contactId?: number;
   /** Keep what's in the search box, so the screen opens filtered to it. */

@@ -1,4 +1,12 @@
-import type { WhatsAppCallOutcome } from './whatsapp';
+import type { WhatsAppAttachment, WhatsAppCallOutcome } from './whatsapp';
+
+/** A photo sent in a Messages conversation: an sms.db attachment, read with get_attachment. */
+export interface MessagePhoto {
+  attachment_id: number;
+  filename: string;
+  mime_type: string;
+  transfer_name: string;
+}
 
 export type TimelineEntryType = 'message' | 'whatsapp' | 'call' | 'photo' | 'voicemail' | 'note' | 'browser';
 
@@ -19,6 +27,8 @@ export interface TimelineEntry {
     service: string;
     chatId?: number;
     isGroup?: boolean;
+    /** The photos sent with it, when there are any. */
+    photos?: MessagePhoto[];
   };
   /**
    * A WhatsApp message. Its id is "whatsapp:<ChatStorage Z_PK>" and its chatId is a
@@ -48,6 +58,8 @@ export interface TimelineEntry {
       isVideo: boolean | null;
       duration: number | null;
     } | null;
+    /** The photo sent with it, on a photo message whose file is in the backup. */
+    photos?: WhatsAppAttachment[];
   };
   call?: {
     direction: string;
@@ -74,6 +86,11 @@ export interface TimelineEntry {
     bodyPreview: string;
     body: string;
     modified: string;
+    /**
+     * The numbers and email addresses of the people it's shared with (not the
+     * phone's owner), so it's in their stream. Absent when it isn't shared.
+     */
+    sharedWith?: string[];
   };
   browser?: {
     url: string;

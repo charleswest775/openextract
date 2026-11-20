@@ -38,10 +38,10 @@ interface Tile {
 }
 
 /**
- * The People tile's line. It names no kinds: People gathers Messages, WhatsApp,
- * calls and voicemail, and a list of them doesn't fit on the tile.
+ * The People tile's line: what a person's page there holds. It names no kinds:
+ * messages, WhatsApp, calls, voicemail, photos and shared notes don't fit on the tile.
  */
-export const PEOPLE_LINE = 'Everyone you were in touch with';
+export const PEOPLE_LINE = 'Everything with each person';
 
 /**
  * The way into a backup: one large tile per kind of data with what's in it,

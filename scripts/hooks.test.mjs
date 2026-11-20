@@ -308,7 +308,7 @@ test('the type filter and the search box narrow the list', () => {
   assert.deepEqual(filtered(index, { searchQuery: 'nothing like this' }), []);
 });
 
-test('picking a person shows their records, and undated-by-person ones from while you were in touch', () => {
+test("picking a person shows their records, and never camera-roll photos from while you were in touch", () => {
   const DAD_CHAT = { ...MOM_CHAT, chat_id: 13, chat_identifier: '+15035550188', display_name: 'Dad' };
   const photo = (uuid, date) => normalizePhoto({ uuid, filename: `${uuid}.HEIC`, file_hash: uuid, kind: 'photo', width: 1, height: 1, duration: 0, date_created: engine(date) });
   const entries = [
@@ -325,11 +325,11 @@ test('picking a person shows their records, and undated-by-person ones from whil
   const card = [{ phones: ['+1 503 555 0123'], emails: ['mom@icloud.com'] }];
   const { index } = indexOf(entries, card);
   assert.deepEqual(filtered(index, { contactIdentifier: '+15035550123' }),
-    ['voicemail:3', 'message:5', 'call:2', 'photo:inside', 'message:1']);
+    ['voicemail:3', 'message:5', 'call:2', 'message:1']);
   // Without the address book her email isn't hers
   const { index: noCard } = indexOf(entries);
   assert.deepEqual(filtered(noCard, { contactIdentifier: '+15035550123' }),
-    ['voicemail:3', 'call:2', 'photo:inside', 'message:1']);
+    ['voicemail:3', 'call:2', 'message:1']);
 });
 
 test('WhatsApp messages are in the Timeline by default, filtered and searched like the rest', () => {
@@ -417,6 +417,140 @@ test("picking a phone number never brings in a WhatsApp group whose address ends
   const { index } = indexOf(entries);
   assert.deepEqual(filtered(index, { contactIdentifier: '+15246125486' }), ['message:2']);
   assert.deepEqual(filtered(index, { contactIdentifier: '120363025246125486@g.us' }), ['whatsapp:1']);
+});
+
+test("each kind's count is what ticking it would show: the person, dates and search apply, the kinds ticked don't", () => {
+  const DAD_CHAT = { ...MOM_CHAT, chat_id: 13, chat_identifier: '+15035550188', display_name: 'Dad' };
+  const vm = (id, number, date, transcript = '') => normalizeVoicemail({ id, phone_number: number, contact_name: '', date_received: engine(date), duration: 20, is_read: true, transcript });
+  const entries = [
+    normalizeMessage(msg(1, local(2024, 3, 1, 9), 'first'), MOM_CHAT),
+    normalizeMessage(msg(2, local(2024, 4, 1, 9), 'tent?'), MOM_CHAT),
+    normalizeCall({ call_id: 3, address: '+15035550123', contact_name: 'Mom', date: engine(local(2024, 3, 5, 9)), duration: 60, direction: 'incoming', status: 'answered', app: '' }),
+    vm(4, '+15035550123', local(2024, 3, 9, 9), 'call me back'),
+    normalizeMessage(msg(5, local(2024, 3, 2, 9), 'from Dad'), DAD_CHAT),
+    vm(6, '+15035550188', local(2024, 3, 3, 9)),
+    vm(7, '+15035550188', local(2024, 3, 4, 9)),
+    vm(8, '+15035550188', local(2024, 3, 6, 9)),
+  ];
+  const { index } = indexOf(entries);
+  const backup = { message: 3, whatsapp: 0, call: 1, photo: 0, voicemail: 4, note: 0, browser: 0 };
+  index.counts = backup;
+  const view = filters => useTimeline(index, filters);
+  const zero = { message: 0, whatsapp: 0, call: 0, photo: 0, voicemail: 0, note: 0, browser: 0 };
+
+  // No person, dates or search: the backup's own totals, whatever kinds are ticked
+  assert.equal(view({}).counts, backup);
+  assert.equal(view({ types: new Set(['call']) }).counts, backup);
+  assert.equal(view({}).totals, backup);
+
+  // Mom, with only Messages ticked: the list is her texts, the chips count all of hers
+  const mom = view({ types: new Set(['message']), contactIdentifier: '+15035550123' });
+  assert.deepEqual(mom.filteredEntries.map(e => e.id), ['message:2', 'message:1']);
+  assert.deepEqual(mom.counts, { ...zero, message: 2, call: 1, voicemail: 1 });
+  assert.equal(mom.totals, backup, 'the totals stay the whole backup');
+
+  // Dad's three voicemails aren't Mom's
+  assert.deepEqual(view({ contactIdentifier: '+15035550188' }).counts, { ...zero, message: 1, voicemail: 3 });
+
+  // Dates and search narrow the counts too
+  assert.deepEqual(view({ dateFrom: '2024-03-04', dateTo: '2024-03-31' }).counts, { ...zero, call: 1, voicemail: 3 });
+  assert.deepEqual(view({ searchQuery: 'tent' }).counts, { ...zero, message: 1 });
+  assert.deepEqual(view({ contactIdentifier: '+15035550123', searchQuery: 'call me' }).counts, { ...zero, voicemail: 1 });
+});
+
+// sms.db attachments as get_messages lists them
+const smsPhoto = (id, name = `IMG_${id}.HEIC`) => ({ attachment_id: id, filename: `~/Library/SMS/Attachments/${name}`, mime_type: 'image/heic', transfer_name: name, total_bytes: 1000 });
+const smsFile = id => ({ attachment_id: id, filename: `~/Library/SMS/Attachments/plan${id}.pdf`, mime_type: 'application/pdf', transfer_name: `plan${id}.pdf`, total_bytes: 1000 });
+const waPicture = (id, over = {}) => ({
+  attachment_id: id, filename: `Message/Media/${id}.jpg`, mime_type: 'image/jpeg', transfer_name: 'Photo', total_bytes: 1000,
+  thumbnail_path: `Message/Media/${id}.thumb`, width: 800, height: 600, duration: null, available: true, ...over,
+});
+
+test('a text carries the photos sent with it, and only photos', () => {
+  const e = normalizeMessage(msg(1, local(2024, 3, 10, 12), null, { message_type: 'attachment', has_attachments: true, attachments: [smsPhoto(7), smsFile(8)] }), MOM_CHAT);
+  assert.deepEqual(e.message.photos, [{ attachment_id: 7, filename: '~/Library/SMS/Attachments/IMG_7.HEIC', mime_type: 'image/heic', transfer_name: 'IMG_7.HEIC' }]);
+  assert.equal(timeline.photosIn(e), 1);
+  // A name is enough when the type is missing
+  const named = normalizeMessage(msg(2, local(2024, 3, 10, 12), null, { attachments: [{ ...smsPhoto(9, 'beach.jpg'), mime_type: '' }] }), MOM_CHAT);
+  assert.equal(timeline.photosIn(named), 1);
+  // Most texts have none, and carry nothing for it
+  const plain = normalizeMessage(msg(3, local(2024, 3, 10, 12), 'hi'), MOM_CHAT);
+  assert.equal('photos' in plain.message, false);
+  assert.equal(timeline.photosIn(plain), 0);
+  const fileOnly = normalizeMessage(msg(4, local(2024, 3, 10, 12), null, { attachments: [smsFile(10)] }), MOM_CHAT);
+  assert.equal(timeline.photosIn(fileOnly), 0);
+});
+
+test("a WhatsApp photo message carries its picture when it's in the backup", () => {
+  const photo = normalizeWhatsApp(waMsg(1, local(2024, 3, 10, 12), null, { message_type: 'image', has_attachments: true, attachments: [waPicture(5)] }), WA_RILEY);
+  assert.deepEqual(photo.whatsapp.photos.map(a => a.attachment_id), [5]);
+  assert.equal(timeline.photosIn(photo), 1);
+  const gone = normalizeWhatsApp(waMsg(2, local(2024, 3, 10, 12), null, { message_type: 'image', has_attachments: true, attachments: [waPicture(6, { available: false })] }), WA_RILEY);
+  assert.equal(timeline.photosIn(gone), 0);
+  // A sticker is a picture, not a photo someone sent
+  const sticker = normalizeWhatsApp(waMsg(3, local(2024, 3, 10, 12), null, { message_type: 'sticker', has_attachments: true, attachments: [waPicture(7, { mime_type: 'image/webp' })] }), WA_RILEY);
+  assert.equal(timeline.photosIn(sticker), 0);
+});
+
+test('a shared note knows who it is shared with', () => {
+  const shared = normalizeNote({
+    note_id: 1, title: 'Trip', body: 'tents', created: '2024-03-01T00:00:00+00:00', modified: '2024-03-02T00:00:00+00:00',
+    shared_with: [{ name: 'Mom', email: 'mom@icloud.com', phone: null }, { name: 'Riley', email: null, phone: '+15035550142' }],
+  });
+  assert.deepEqual(shared.note.sharedWith, ['mom@icloud.com', '+15035550142']);
+  const mine = normalizeNote({ note_id: 2, title: 'Mine', body: '', created: '', modified: '', shared_with: [] });
+  assert.equal('sharedWith' in mine.note, false);
+  // An engine that doesn't say who a note is shared with
+  assert.equal('sharedWith' in normalizeNote({ note_id: 3, title: 'Old', body: '', created: '', modified: '' }).note, false);
+});
+
+test("someone's stream is only what passed between you: chat photos yes, camera roll, your own notes and web visits no", () => {
+  const RILEY_SMS = { ...MOM_CHAT, chat_id: 7, chat_identifier: '+15035550142', display_name: 'Riley' };
+  const photoAsset = (uuid, date) => normalizePhoto({ uuid, filename: `${uuid}.HEIC`, file_hash: uuid, kind: 'photo', width: 1, height: 1, duration: 0, date_created: engine(date) });
+  const note = (id, date, shared_with) => normalizeNote({ note_id: id, title: id, body: id, created: engine(date), modified: engine(date), shared_with });
+  const visit = (id, date) => normalizeBrowserVisit({ visit_id: id, url: `https://${id}.test`, title: id, domain: `${id}.test`, visit_date: engine(date), browser: 'safari', visit_count: 1 });
+  const entries = [
+    normalizeMessage(msg(1, local(2024, 3, 1, 9), 'first'), MOM_CHAT),
+    normalizeMessage(msg(2, local(2024, 3, 2, 9), null, { message_type: 'attachment', attachments: [smsPhoto(20), smsPhoto(21)] }), MOM_CHAT),
+    normalizeMessage(msg(3, local(2024, 3, 3, 9), 'the plan', { attachments: [smsFile(22)] }), MOM_CHAT),
+    normalizeMessage(msg(4, local(2024, 3, 4, 9), 'for Riley', { attachments: [smsPhoto(23)] }), RILEY_SMS),
+    normalizeVoicemail({ id: 5, phone_number: '+15035550123', contact_name: '', date_received: engine(local(2024, 3, 5, 9)), duration: 20, is_read: true }),
+    // Between her first and last text, but not hers
+    photoAsset('camera', local(2024, 3, 3, 12)),
+    note('mine', local(2024, 3, 3, 12), []),
+    visit('news', local(2024, 3, 3, 12)),
+    // Shared with her, by the address on her card; and with Riley only
+    note('ours', local(2024, 3, 4, 12), [{ name: 'Mom', email: 'mom@icloud.com', phone: null }]),
+    note('rileys', local(2024, 3, 4, 13), [{ name: 'Riley', email: null, phone: '(503) 555-0142' }]),
+  ];
+  const card = [{ phones: ['+1 503 555 0123'], emails: ['mom@icloud.com'] }];
+  const { index } = indexOf(entries, card);
+  const mom = '+15035550123';
+  const zero = { message: 0, whatsapp: 0, call: 0, photo: 0, voicemail: 0, note: 0, browser: 0 };
+
+  const all = useTimeline(index, { types: ALL_TYPES, contactIdentifier: mom });
+  assert.deepEqual(all.filteredEntries.map(e => e.id), ['voicemail:5', 'note:ours', 'message:3', 'message:2', 'message:1']);
+  // Photos counts the photos in her texts, not the texts
+  assert.deepEqual(all.counts, { ...zero, message: 3, photo: 2, voicemail: 1, note: 1 });
+
+  // Photos alone: the texts the photos came in
+  assert.deepEqual(filtered(index, { types: new Set(['photo']), contactIdentifier: mom }), ['message:2']);
+  // Messages without Photos still has the text that carried them
+  assert.deepEqual(filtered(index, { types: new Set(['message']), contactIdentifier: mom }), ['message:3', 'message:2', 'message:1']);
+  // Riley's note is Riley's, found by a number written differently
+  assert.deepEqual(filtered(index, { contactIdentifier: '+15035550142' }), ['note:rileys', 'message:4']);
+
+  // With no one picked, Photos is the camera roll, and every note and visit shows
+  assert.deepEqual(filtered(index, { types: new Set(['photo']) }), ['photo:camera']);
+  assert.deepEqual(filtered(index, { types: new Set(['note', 'browser']) }), ['note:rileys', 'note:ours', 'note:mine', 'browser:news']);
+});
+
+test('searching for "photo" finds texts with photos', () => {
+  const { index } = indexOf([
+    normalizeMessage(msg(1, local(2024, 3, 2, 9), null, { message_type: 'attachment', attachments: [smsPhoto(20)] }), MOM_CHAT),
+    normalizeMessage(msg(2, local(2024, 3, 3, 9), 'hello'), MOM_CHAT),
+  ]);
+  assert.deepEqual(filtered(index, { searchQuery: 'photo' }), ['message:1']);
 });
 
 test('the list is shown 100 at a time', () => {
