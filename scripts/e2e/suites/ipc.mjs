@@ -17,6 +17,8 @@ export const BRIDGE = [
   'feedback.getDiagnostics', 'feedback.send', 'feedback.savedEmail', 'feedback.fixedReports',
   'feedback.markAnnounced', 'feedback.onFixed', 'feedback.optOutOfExportCheck',
   'feedback.onExportCheck', 'copyText',
+  // Media in the window (MediaAttachment.tsx, electron/localMedia.ts)
+  'mediaThumbnail',
 ];
 
 export default {
@@ -168,6 +170,23 @@ export default {
       fs.mkdirSync(pdfDir, { recursive: true });
       const pdf = await app.api('exportPdf', 'export_conversation', { udid: path.basename(b.dir), chat_id: first?.chat_id ?? first?.id, output_dir: pdfDir, display_name: first?.display_name });
       check('exportPdf writes a PDF', pdf.value?.success && fs.readdirSync(pdfDir).some(f => f.endsWith('.pdf')), pdf.value?.error ?? fs.readdirSync(pdfDir));
+
+      // ── Media in the window: a poster from a copy the engine made, and nothing from anywhere else ──
+      // A photo copied out by get_photo_path lands in the engine's copy folder (python/app_copies.py),
+      // as a video copied for a poster does.
+      const photos = (await app.api('call', 'list_photos', { udid: path.basename(b.dir), offset: 0, limit: 1 })).value?.data;
+      const photo = photos?.photos?.[0];
+      const copied = photo && (await app.api('call', 'get_photo_path', { udid: path.basename(b.dir), file_hash: photo.file_hash })).value?.data;
+      const drawn = copied?.path ? (await app.api('mediaThumbnail', copied.path, 64)).value : undefined;
+      const previewer = process.platform === 'darwin' || process.platform === 'win32';
+      check('mediaThumbnail draws a copy the engine made (nothing on Linux, which has no previewer)',
+        previewer ? /^data:image\/jpeg;base64,/.test(drawn ?? '') : drawn === null, { path: copied?.path, drawn: drawn?.slice?.(0, 40) ?? drawn });
+      const elsewhere = path.join(scratch, 'clip.mp4');
+      fs.copyFileSync(file, elsewhere);
+      check('mediaThumbnail draws nothing outside the engine\'s copy folders', (await app.api('mediaThumbnail', elsewhere, 64)).value === null);
+      const served = await app.app.evaluate(async ({ net }, url) => (await net.fetch(url, { headers: { Range: 'bytes=0-9' } })).status,
+        'local-media://media/' + elsewhere.split(path.sep).filter(Boolean).map(encodeURIComponent).join('/'));
+      check('local-media:// serves nothing outside the engine\'s copy folders', served === 404, served);
 
       // relaunch and updates.check/download/install restart or reach the network, so they are
       // only checked for existence above. The updater's logic is unit tested in scripts/updater.test.mjs.

@@ -176,19 +176,27 @@ export interface WhatsAppSearchResult {
 }
 
 /**
- * get_whatsapp_attachment. Default: the file as base64 `data`. With
- * `as_file: true`: a copy on disk named with its real extension (`path`), to
- * open in another app. A file too big to send inline comes back with
- * `too_large: true` and no data: ask again with `as_file: true`.
+ * get_whatsapp_attachment and Messages' get_attachment. Default: the file as
+ * base64 `data`. With `thumbnail: true`: a small picture of it (WhatsApp's own
+ * stored thumbnail; for Messages a JPEG made from a photo, with the photo's
+ * own `width` and `height`), or `no_thumbnail: true` when there's none to make.
+ * With `as_file: true`: a copy on disk named with its real extension (`path`),
+ * to open in another app or play in the window. A file too big to send inline
+ * comes back with `too_large: true` and no data: ask again with `as_file: true`.
  * A file that isn't in the backup is `{error, empty_reason: 'not_in_backup'}`.
  */
-export interface WhatsAppAttachmentResult {
+export interface AttachmentResult {
   data?: string;
   path?: string;
   mime_type?: string;
   filename?: string;
   size?: number;
   too_large?: boolean;
+  /** Messages, with `thumbnail`: no picture can be made of this file (it isn't a photo). Not an error. */
+  no_thumbnail?: boolean;
+  /** Messages, with `thumbnail`: the photo's own size, after turning it upright. */
+  width?: number;
+  height?: number;
   /**
    * With `as_file`: the copy is a photo, video, audio file or document another app
    * can safely open. When false (a program, script, shortcut, archive or anything
@@ -198,6 +206,9 @@ export interface WhatsAppAttachmentResult {
   error?: string;
   empty_reason?: 'not_in_backup';
 }
+
+/** The older name, from when only WhatsApp had media. */
+export type WhatsAppAttachmentResult = AttachmentResult;
 
 /** What get_backup_stats says about WhatsApp, in its overview. */
 /**
