@@ -5,6 +5,7 @@ import { formatRelative } from '../../lib/dates';
 import { groupByDay, isOffDay } from '../../lib/dayGroups';
 import { LinesIcon } from '../shared/Icons';
 import ChatBubble, { type AttachmentProps, type BubbleMessage, type MapPreviewProps } from './ChatBubble';
+import { MessagesAttachment } from './MediaAttachment';
 import PageHeader from '../shared/PageHeader';
 import EmptyState from '../shared/EmptyState';
 import Highlight from '../shared/Highlight';
@@ -130,7 +131,7 @@ export const MESSAGES_SOURCE: ChatSource = {
   saveOneTitle: name => `Save your conversation with ${name}`,
   saveOne: saveConversation,
   saveMany: saveConversations,
-  bubble: { variant: 'messages' },
+  bubble: { variant: 'messages', Attachment: MessagesAttachment },
 };
 
 interface PageResult {
@@ -788,6 +789,7 @@ export default function MessageExplorer({ udid, index, query, openChatId, openMe
             <div
               ref={messageContainerRef}
               data-thread-scroll=""
+              data-scroll-root=""
               className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4"
               onScroll={handleScroll}
             >

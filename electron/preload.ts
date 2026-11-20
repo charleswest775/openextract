@@ -29,6 +29,9 @@ contextBridge.exposeInMainWorld('openextract', {
   // Reveal a saved file or folder in Finder / Explorer
   showInFolder: (filePath: string) => ipcRenderer.invoke('shell:showItemInFolder', filePath),
 
+  // A video's poster frame from a copy the engine made: a data: URL, or null (Linux, or it can't be drawn)
+  mediaThumbnail: (filePath: string, size?: number) => ipcRenderer.invoke('media:thumbnail', filePath, size),
+
   // 'darwin', 'win32' or 'linux', for platform-specific window chrome
   platform: process.platform,
 

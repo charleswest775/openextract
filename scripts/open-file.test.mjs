@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadTs } from './test-helpers/load-ts.mjs';
 
-const { handOver, SHOWN_IN_FOLDER } = loadTs('src/lib/openFile.ts');
+const { handOver, SHOWN_IN_FOLDER, localMediaUrl } = loadTs('src/lib/openFile.ts');
 const { videoProblem, VIDEO_GETTING_READY } = loadTs('src/lib/photoCounts.ts');
 const whatsapp = loadTs('src/lib/whatsapp.ts');
 
@@ -81,4 +81,14 @@ test("WhatsApp's files go the same way", () => {
   // src/lib/whatsapp.ts passes these on, so the WhatsApp screen and its tests use the one function.
   assert.equal(whatsapp.SHOWN_IN_FOLDER, SHOWN_IN_FOLDER);
   assert.equal(typeof whatsapp.handOver, 'function');
+});
+
+test('a copy the window plays itself is addressed through local-media://, every part of its path escaped', () => {
+  // electron/localMedia.ts reads it back (scripts/local-media.test.mjs checks the round trip)
+  assert.equal(localMediaUrl(COPY), 'local-media://media/tmp/openextract-photos-4242-ab12cd34/00008120-0001/46ad145c3bed7be5/IMG_0042.MOV');
+  assert.equal(localMediaUrl('/tmp/openextract-messages-1-a/u/7/Clip #1 100%?.mov'),
+    'local-media://media/tmp/openextract-messages-1-a/u/7/Clip%20%231%20100%25%3F.mov');
+  assert.equal(localMediaUrl('/tmp/a\\b.mov'), 'local-media://media/tmp/a%5Cb.mov', 'on macOS and Linux a backslash is part of a name');
+  assert.equal(localMediaUrl('C:\\Users\\Ana\\AppData\\Local\\Temp\\openextract-whatsapp-9-q\\u\\3\\VID.mp4'),
+    'local-media://media/C%3A/Users/Ana/AppData/Local/Temp/openextract-whatsapp-9-q/u/3/VID.mp4');
 });

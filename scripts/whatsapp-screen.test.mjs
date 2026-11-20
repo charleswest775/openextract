@@ -1,9 +1,11 @@
 // Tests for the WhatsApp screen's components (src/components/explore/
-// MessageExplorer, WhatsAppExplorer, WhatsAppAttachment, ChatBubble, BackupHome):
-// which chats the list keeps while searching, the engine's whole-store search
-// past the index's limit, how a copied file is handed to the computer, the
-// hooks that outlive an await, the photo viewer's focus, and what screen
-// readers hear. Components render with react-dom/server for their markup;
+// MessageExplorer, WhatsAppExplorer, WhatsAppAttachment, MediaAttachment,
+// ChatBubble, BackupHome) and src/hooks/useNearScreen: which chats the list keeps
+// while searching, the engine's whole-store search past the index's limit, how a
+// copied file is handed to the computer, the hooks that outlive an await, the
+// photo viewer's focus, Messages' and WhatsApp's media (thumbnails, posters, video
+// in the app, tiles on cards), and what screen readers hear. Components render
+// with react-dom/server for their markup;
 // hooks run in a small stand-in for React (below) that can mount, unmount and
 // mount again the way StrictMode does in development. Data is fictional.
 // Run with: node --test scripts/whatsapp-screen.test.mjs
@@ -404,6 +406,294 @@ test('the photo viewer takes focus, keeps Tab inside, and gives focus back to th
 
   viewer.unmount();
   assert.equal(globalThis.document.activeElement, thumbnail, 'closing gives focus back to the photo');
+});
+
+// ── Media from Messages and WhatsApp (MediaAttachment.tsx) ───────────────────
+// One component draws both sources' files. Each file is asked for from its own
+// source only (sms.db and WhatsApp number their files separately), pictures load
+// small first, videos play in the app from a copy, and on a Timeline or People
+// card a click on a file is the file's, not the card's.
+
+const MEDIA = 'src/components/explore/MediaAttachment.tsx';
+const photo = (id, extra = {}) => ({ attachment_id: id, filename: `~/Library/SMS/Attachments/ab/${id}/IMG_${id}.jpeg`, mime_type: 'image/jpeg', transfer_name: `IMG_${id}.jpeg`, total_bytes: 2048, ...extra });
+const video = (id, extra = {}) => ({ attachment_id: id, filename: `~/Library/SMS/Attachments/cd/${id}/IMG_${id}.MOV`, mime_type: 'video/quicktime', transfer_name: `IMG_${id}.MOV`, total_bytes: 9_000_000, ...extra });
+const JPEG = Buffer.from('jpeg').toString('base64');
+
+/** A bridge whose engine answers by (method, params); every call is recorded. */
+function mediaBridge(t, answer, extra = {}) {
+  const bridge = fakeBridge({
+    call: async (method, params) => ({ success: true, data: await answer(method, params) }),
+    openPath: async () => '',
+    showInFolder: async () => {},
+    mediaThumbnail: async () => 'data:image/jpeg;base64,UE9TVEVS',
+    ...extra,
+  });
+  bridge.api.platform = 'darwin';
+  t.after(bridge.restore);
+  return bridge;
+}
+
+const engineCalls = bridge => bridge.calls.filter(c => c[0] === 'call').map(([, method, params]) => [method, params]);
+
+async function settle(times = 6) {
+  for (let i = 0; i < times; i++) await tick();
+}
+
+/** All the words in a tree of elements. */
+function textOf(tree) {
+  if (tree == null || typeof tree === 'boolean') return '';
+  if (typeof tree === 'string' || typeof tree === 'number') return String(tree);
+  if (Array.isArray(tree)) return tree.map(textOf).join('');
+  return textOf(tree.props?.children);
+}
+
+/** The window and document a viewer needs (focus, Escape) in node. */
+function viewerGlobals(t) {
+  globalThis.window.addEventListener = () => {};
+  globalThis.window.removeEventListener = () => {};
+  const hadDocument = 'document' in globalThis;
+  if (!hadDocument) globalThis.document = { activeElement: null };
+  t.after(() => { if (!hadDocument) delete globalThis.document; });
+}
+
+test('a file is asked for from its own source: Messages from get_attachment, WhatsApp from get_whatsapp_attachment', async (t) => {
+  const bridge = mediaBridge(t, () => ({ path: '/tmp/openextract-messages-1-a/u/5/Lease.pdf', openable: true }));
+  const { R, mount } = hooksRuntime();
+  const { useOpener } = loadTs(MEDIA, { stubs: { react: R } });
+  await mount(() => useOpener('u', 5, 'messages'), {}).out.open();
+  await mount(() => useOpener('u', 5, 'whatsapp'), {}).out.open();
+  await mount(() => useOpener('u', 5), {}).out.open();
+  assert.deepEqual(engineCalls(bridge).map(([m]) => m), ['get_attachment', 'get_whatsapp_attachment', 'get_whatsapp_attachment'],
+    'the same id goes to each source separately; the default is WhatsApp, as before');
+  assert.ok(engineCalls(bridge).every(([, p]) => p.as_file === true && p.attachment_id === 5));
+});
+
+test('a Messages photo loads as the thumbnail the engine makes, then full size only in the viewer, each kept by source', async (t) => {
+  const bridge = mediaBridge(t, (method, p) => (p.thumbnail
+    ? { data: JPEG, mime_type: 'image/jpeg', width: 3024, height: 4032 }
+    : { data: Buffer.from(`full ${method}`).toString('base64'), mime_type: 'image/jpeg' }));
+  viewerGlobals(t);
+  const { R, mount } = hooksRuntime();
+  const { Picture, Viewer } = loadTs(MEDIA, { stubs: { react: R }, expose: ['Picture'] });
+  const props = { source: 'messages', udid: 'u', attachment: photo(5), kind: 'image', onColour: false, tile: false };
+  const bubble = mount(Picture, props);
+  await settle();
+  const img = find(bubble.rerender(), el => el.type === 'img');
+  assert.equal(img?.props.src, `data:image/jpeg;base64,${JPEG}`);
+  assert.deepEqual(engineCalls(bridge), [['get_attachment', { udid: 'u', attachment_id: 5, thumbnail: true }]]);
+  const button = find(bubble.out, el => el.type === 'button');
+  assert.deepEqual(button.props.style, { width: 220, height: 220 }, 'a fixed box before the shape is known, so the chat doesn\'t move');
+
+  // Drawn again (scrolled back, chat reopened): the thumbnail is kept, and the box now has the photo's shape
+  const again = mount(Picture, props);
+  await settle();
+  assert.equal(engineCalls(bridge).length, 1, 'not asked again');
+  assert.deepEqual(find(again.out, el => el.type === 'button').props.style, { width: 192, height: 256 });
+
+  // The viewer shows the kept thumbnail at once, then asks for the full photo
+  const viewer = mount(Viewer, { source: 'messages', udid: 'u', attachment: photo(5), label: 'Photo', onClose: () => {} });
+  assert.equal(find(viewer.out, el => el.type === 'img')?.props.src, `data:image/jpeg;base64,${JPEG}`);
+  await settle();
+  assert.equal(find(viewer.rerender(), el => el.type === 'img')?.props.src, `data:image/jpeg;base64,${Buffer.from('full get_attachment').toString('base64')}`);
+  // WhatsApp's file 5 is somebody else's: not served from Messages' cache
+  const wa = mount(Viewer, { source: 'whatsapp', udid: 'u', attachment: photo(5), label: 'Photo', onClose: () => {} });
+  await settle();
+  assert.equal(find(wa.rerender(), el => el.type === 'img')?.props.src, `data:image/jpeg;base64,${Buffer.from('full get_whatsapp_attachment').toString('base64')}`);
+  assert.deepEqual(engineCalls(bridge).map(([m, p]) => `${m}${p.thumbnail ? ' thumbnail' : ''}`),
+    ['get_attachment thumbnail', 'get_attachment', 'get_whatsapp_attachment']);
+});
+
+test('a Messages file the engine has no thumbnail for is shown from the file itself; a missing one says so', async (t) => {
+  const bridge = mediaBridge(t, (_m, p) => (p.attachment_id === 9
+    ? { error: "This file isn't in the backup", empty_reason: 'not_in_backup' }
+    : p.thumbnail ? { no_thumbnail: true, mime_type: 'image/gif', filename: 'a.gif', size: 10 } : { data: JPEG, mime_type: 'image/gif' }));
+  const { R, mount } = hooksRuntime();
+  const { Picture } = loadTs(MEDIA, { stubs: { react: R }, expose: ['Picture'] });
+  const gif = mount(Picture, { source: 'messages', udid: 'u', attachment: photo(8, { mime_type: 'image/gif' }), kind: 'image', onColour: false, tile: false });
+  await settle();
+  assert.equal(find(gif.rerender(), el => el.type === 'img')?.props.src, `data:image/gif;base64,${JPEG}`);
+  const gone = mount(Picture, { source: 'messages', udid: 'u', attachment: photo(9), kind: 'image', onColour: false, tile: false });
+  await settle();
+  const missing = gone.rerender();
+  assert.equal(missing.props.kind, 'image', 'the Missing note, not an empty box');
+  assert.deepEqual(engineCalls(bridge).map(([, p]) => [p.attachment_id, !!p.thumbnail]), [[8, true], [8, false], [9, true]],
+    'a file not in the backup isn\'t asked for again in full');
+});
+
+test('a file the engine says isn\'t in the backup is never asked for', (t) => {
+  const bridge = mediaBridge(t, () => assert.fail('nothing should be asked'));
+  const { default: MediaAttachment } = loadTs(MEDIA);
+  const html = renderToStaticMarkup(createElement(MediaAttachment, {
+    source: 'messages', udid: 'u', isMine: false, messageType: 'attachment', attachment: photo(4, { available: false }),
+  }));
+  assert.match(html, /Photo not in this backup/);
+  const tile = renderToStaticMarkup(createElement(MediaAttachment, {
+    source: 'messages', size: 'tile', udid: 'u', isMine: true, messageType: 'attachment', attachment: video(4, { available: false }),
+  }));
+  assert.match(tile, /Not in backup/);
+  assert.match(tile, /aria-label="Video not in this backup"/);
+  assert.deepEqual(bridge.calls, []);
+});
+
+test('a video without a stored thumbnail gets a poster from a copy, one copy at a time, only for tiles still on screen', async (t) => {
+  const copying = [];
+  const bridge = mediaBridge(t, (_m, p) => new Promise(resolve => copying.push(() => resolve({ path: `/tmp/openextract-messages-1-a/u/${p.attachment_id}/IMG.MOV`, openable: true }))));
+  const { R, mount } = hooksRuntime();
+  const { VideoTile } = loadTs(MEDIA, { stubs: { react: R }, expose: ['VideoTile'] });
+  const tile = id => mount(VideoTile, { source: 'messages', udid: 'u', attachment: video(id), kind: 'video', onColour: false, tile: false });
+  const first = tile(1);
+  const second = tile(2);
+  const third = tile(3);
+  await settle();
+  assert.equal(copying.length, 1, 'one copy at a time');
+  second.unmount(); // scrolled away (another chat opened) before its turn
+  copying.shift()();
+  await settle();
+  assert.equal(find(first.rerender(), el => el.type === 'img')?.props.src, 'data:image/jpeg;base64,UE9TVEVS');
+  assert.equal(copying.length, 1);
+  copying.shift()();
+  await settle();
+  assert.equal(find(third.rerender(), el => el.type === 'img')?.props.src, 'data:image/jpeg;base64,UE9TVEVS');
+  assert.deepEqual(engineCalls(bridge).map(([m, p]) => [m, p.attachment_id, p.as_file]), [['get_attachment', 1, true], ['get_attachment', 3, true]],
+    'the tile that left before its turn was never copied');
+  assert.deepEqual(bridge.calls.filter(c => c[0] === 'mediaThumbnail').map(c => c.slice(1)),
+    [['/tmp/openextract-messages-1-a/u/1/IMG.MOV', 480], ['/tmp/openextract-messages-1-a/u/3/IMG.MOV', 480]]);
+  // Kept: drawn again, it isn't copied again
+  tile(1);
+  await settle();
+  assert.equal(engineCalls(bridge).length, 2);
+});
+
+test('no copy for a poster of a very big video, on Linux, or when WhatsApp stored a thumbnail', async (t) => {
+  const bridge = mediaBridge(t, (_m, p) => (p.thumbnail ? { data: JPEG, mime_type: 'image/jpeg' } : { path: '/tmp/x.mov' }));
+  const { R, mount } = hooksRuntime();
+  const { VideoTile } = loadTs(MEDIA, { stubs: { react: R }, expose: ['VideoTile'] });
+  mount(VideoTile, { source: 'messages', udid: 'u', attachment: video(1, { total_bytes: 400_000_000 }), kind: 'video', onColour: false, tile: false });
+  const stored = mount(VideoTile, { source: 'whatsapp', udid: 'u', attachment: video(2, { thumbnail_path: 'Media/x.thumb', total_bytes: null }), kind: 'video', onColour: false, tile: false });
+  await settle();
+  assert.equal(find(stored.rerender(), el => el.type === 'img')?.props.src, `data:image/jpeg;base64,${JPEG}`);
+  bridge.api.platform = 'linux';
+  mount(VideoTile, { source: 'messages', udid: 'u', attachment: video(3), kind: 'video', onColour: false, tile: false });
+  await settle();
+  assert.deepEqual(engineCalls(bridge), [['get_whatsapp_attachment', { udid: 'u', attachment_id: 2, thumbnail: true }]]);
+  assert.equal(bridge.calls.filter(c => c[0] === 'mediaThumbnail').length, 0);
+});
+
+test('a video plays in the app from its copy; one that can\'t play here offers another app', async (t) => {
+  const copy = '/private/var/folders/T/openextract-messages-1-a/u/7/Clip #7.MOV';
+  const bridge = mediaBridge(t, () => ({ path: copy, openable: true }));
+  viewerGlobals(t);
+  const { R, mount } = hooksRuntime();
+  const { VideoViewer } = loadTs(MEDIA, { stubs: { react: R } });
+  const viewer = mount(VideoViewer, { source: 'messages', udid: 'u', attachment: video(7), label: 'Video', onClose: () => {} });
+  assert.match(textOf(viewer.out), /Getting the video ready…/, 'the copy can take a moment for a long video');
+  await settle();
+  const player = find(viewer.rerender(), el => el.type === 'video');
+  assert.equal(player?.props.src, 'local-media://media/private/var/folders/T/openextract-messages-1-a/u/7/Clip%20%237.MOV');
+  assert.equal(player.props.autoPlay, true);
+  assert.equal(player.props.controls, true);
+  assert.deepEqual(engineCalls(bridge), [['get_attachment', { udid: 'u', attachment_id: 7, as_file: true }]]);
+
+  player.props.onError(); // a codec this computer doesn't have
+  const out = viewer.rerender();
+  assert.equal(find(out, el => el.type === 'video'), null);
+  assert.match(textOf(out), /This video can't play here. Open it in another app to watch it./);
+  const other = find(out, el => el.type === 'button' && textOf(el).includes('Open in another app'));
+  await other.props.onClick();
+  assert.deepEqual(bridge.calls.filter(c => c[0] === 'openPath').map(c => c[1]), [copy]);
+});
+
+test('on a card a file is a small square, and clicking it (or Enter on it) doesn\'t open the card; Escape still closes its viewer', () => {
+  const { default: MediaAttachment } = loadTs(MEDIA);
+  const html = renderToStaticMarkup(createElement(MediaAttachment, {
+    source: 'messages', size: 'tile', udid: 'u', isMine: true, messageType: 'attachment', attachment: photo(3),
+  }));
+  assert.match(html, /style="width:72px;height:72px"/);
+  assert.doesNotMatch(html, /text-white/, 'a card has no bubble colour behind it');
+  const wrapper = MediaAttachment({ source: 'messages', size: 'tile', udid: 'u', isMine: false, messageType: 'attachment', attachment: photo(3) });
+  const stopped = [];
+  const event = key => ({ key, stopPropagation: () => stopped.push(key ?? 'click') });
+  wrapper.props.onClick(event());
+  wrapper.props.onKeyDown(event('Enter'));
+  wrapper.props.onKeyDown(event(' '));
+  wrapper.props.onKeyDown(event('Escape'));
+  assert.deepEqual(stopped, ['click', 'Enter', ' ']);
+  // In a chat bubble there's no wrapper: the file is the bubble's own
+  const bubble = MediaAttachment({ source: 'messages', udid: 'u', isMine: false, messageType: 'attachment', attachment: photo(3) });
+  assert.equal(bubble.props.onClick, undefined);
+});
+
+test('Messages voice messages, stickers and documents look like what they are', () => {
+  const { default: MediaAttachment } = loadTs(MEDIA);
+  const draw = (attachment, messageType = 'attachment', size = 'bubble') =>
+    renderToStaticMarkup(createElement(MediaAttachment, { source: 'messages', size, udid: 'u', isMine: false, messageType, attachment }));
+  const caf = { attachment_id: 1, filename: '~/Library/SMS/Attachments/a/1/Audio Message.caf', mime_type: 'audio/x-caf', transfer_name: 'Audio Message.caf', total_bytes: 9000 };
+  assert.match(draw(caf, 'audio'), /Play voice message/);
+  assert.match(draw({ ...caf, filename: 'x/Song.mp3', mime_type: 'audio/mpeg', transfer_name: 'Song.mp3' }), /Play audio/);
+  assert.match(draw(photo(2, { is_sticker: true, mime_type: 'image/png', transfer_name: 'sticker.png' })), /style="width:128px;height:128px"/);
+  const pdf = draw({ attachment_id: 3, filename: 'x/Lease.pdf', mime_type: 'application/pdf', transfer_name: 'Lease.pdf', total_bytes: 52_000 });
+  assert.match(pdf, /Lease<\/span><span class="flex-shrink-0">\.pdf<\/span>/);
+  assert.match(pdf, /PDF file · 51 KB/);
+  assert.match(draw({ attachment_id: 3, filename: 'x/Lease.pdf', mime_type: 'application/pdf', transfer_name: 'Lease.pdf' }, 'attachment', 'tile'), />PDF</);
+});
+
+test('useNearScreen waits for the element to come near its scrolling pane, then stays true', (t) => {
+  const made = [];
+  const had = 'IntersectionObserver' in globalThis;
+  globalThis.IntersectionObserver = class {
+    constructor(cb, options) { Object.assign(this, { cb, options, watched: [], disconnected: false }); made.push(this); }
+    observe(el) { this.watched.push(el); }
+    disconnect() { this.disconnected = true; }
+  };
+  t.after(() => { if (!had) delete globalThis.IntersectionObserver; });
+  const { R, mount } = hooksRuntime();
+  const { useNearScreen } = loadTs('src/hooks/useNearScreen.ts', { stubs: { react: R } });
+  const pane = { name: 'pane' };
+  const asked = [];
+  const ref = { current: { closest: sel => { asked.push(sel); return pane; } } };
+  const probe = mount(() => useNearScreen(ref, 600), {});
+  assert.equal(probe.out, false);
+  assert.deepEqual(asked, ['[data-scroll-root],[data-thread-scroll]']);
+  assert.equal(made[0].options.root, pane);
+  assert.equal(made[0].options.rootMargin, '600px 0px');
+  assert.deepEqual(made[0].watched, [ref.current]);
+  made[0].cb([{ isIntersecting: false }]);
+  assert.equal(probe.rerender(), false);
+  made[0].cb([{ isIntersecting: true }]);
+  assert.equal(probe.rerender(), true);
+  assert.equal(made[0].disconnected, true, 'one look is enough');
+  assert.equal(made.length, 1, 'no new watcher once near');
+
+  // The default look-ahead, and no pane: the window
+  const free = { current: { closest: () => null } };
+  mount(() => useNearScreen(free), {});
+  assert.equal(made[1].options.rootMargin, '800px 0px');
+  assert.equal(made[1].options.root, null);
+});
+
+test('useNearScreen is true at once where IntersectionObserver is missing', () => {
+  assert.equal(typeof IntersectionObserver, 'undefined', 'node has none (the test above puts its fake back)');
+  const { R, mount } = hooksRuntime();
+  const { useNearScreen } = loadTs('src/hooks/useNearScreen.ts', { stubs: { react: R } });
+  assert.equal(mount(() => useNearScreen({ current: null }), {}).out, true);
+});
+
+test('Messages photos, videos and stickers sent on their own sit outside a bubble; text and other files keep it', () => {
+  const { default: ChatBubble } = loadTs('src/components/explore/ChatBubble.tsx');
+  const seen = [];
+  const Attachment = ({ attachment, isMine }) => { seen.push([attachment.attachment_id, isMine]); return createElement('i', null, 'file'); };
+  const msg = (id, text, attachments, type = 'attachment') => ({
+    message_id: id, text, message_type: type, date: null, is_from_me: true, sender: 'Me', has_attachments: true, is_reaction: false, attachments,
+  });
+  const draw = m => renderToStaticMarkup(createElement(ChatBubble, { udid: 'u', variant: 'messages', message: m, Attachment }));
+  assert.doesNotMatch(draw(msg(1, null, [photo(1), video(2)])), /--bubble-me/, 'photos and videos alone: no bubble');
+  assert.match(draw(msg(2, 'Look!', [photo(3)], 'text')), /--bubble-me/, 'with words: in the bubble');
+  assert.match(draw(msg(3, null, [{ attachment_id: 4, filename: 'x/Lease.pdf', mime_type: 'application/pdf', transfer_name: 'Lease.pdf' }])), /--bubble-me/);
+  assert.deepEqual(seen, [[1, false], [2, false], [3, true], [4, true]], 'outside a bubble a file isn\'t drawn on the bubble\'s colour');
+  // Without a source to read from (a recovered message), only the file's name, nothing fetched
+  const plain = renderToStaticMarkup(createElement(ChatBubble, { udid: 'u', message: msg(5, 'x', [photo(6, { transfer_name: 'IMG‮gpj.exe' })], 'text') }));
+  assert.match(plain, /IMG/);
+  assert.doesNotMatch(plain, /‮/, 'without the marks that disguise a name');
 });
 
 // ── What screen readers hear ─────────────────────────────────────────────────

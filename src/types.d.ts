@@ -19,6 +19,11 @@ declare global {
       openPath: (filePath: string) => Promise<string>;
       /** Reveal a file or folder in Finder / Explorer. */
       showInFolder: (filePath: string) => Promise<void>;
+      /**
+       * A poster frame (JPEG data: URL, at most `size` px on its longer side) for a video the
+       * engine copied out with as_file. Null on Linux, for any other path, or when it can't be drawn.
+       */
+      mediaThumbnail: (filePath: string, size?: number) => Promise<string | null>;
       platform: 'darwin' | 'win32' | 'linux' | string;
       textSize: {
         get: () => Promise<TextSize>;

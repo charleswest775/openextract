@@ -119,26 +119,42 @@ const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'heic', 'heif', 'webp', 'bmp', 
 const VIDEO_EXTS = ['mp4', 'mov', 'm4v', '3gp', 'avi', 'mkv', 'webm'];
 const AUDIO_EXTS = ['opus', 'ogg', 'oga', 'm4a', 'mp3', 'aac', 'wav', 'amr', 'caf'];
 
-type AttachmentLike = Pick<WhatsAppAttachment, 'mime_type' | 'transfer_name' | 'filename'>;
+type AttachmentLike = Pick<WhatsAppAttachment, 'mime_type' | 'transfer_name' | 'filename'> & {
+  /** Messages: the file is a sticker someone placed (sms.db attachment.is_sticker). */
+  is_sticker?: boolean | null;
+};
 
-/** What kind of file an attachment is, from its type and name, and the message it came with. */
-export function attachmentKind(a: AttachmentLike, messageType?: string | null): AttachmentKind {
+/**
+ * Which database an attachment belongs to: Messages' sms.db or WhatsApp's
+ * ChatStorage. Their ids collide, so a file is only ever asked for from its own.
+ */
+export type MediaSource = 'messages' | 'whatsapp';
+
+/**
+ * What kind of file an attachment is, from its type and name, and the message it came with.
+ *
+ * A voice message is Opus in Ogg on WhatsApp, and CAF on Messages, whose recorded
+ * audio messages also come with message type "audio". WhatsApp gives every sound
+ * file that type, a song as well as a voice note, so there it says nothing.
+ */
+export function attachmentKind(a: AttachmentLike, messageType?: string | null, source: MediaSource = 'whatsapp'): AttachmentKind {
   const mime = (a.mime_type || '').toLowerCase();
   const ext = EXT(a.filename || '') || EXT(a.transfer_name || '');
-  if (messageType === 'sticker') return 'sticker';
+  const recordedAudio = source === 'messages' && messageType === 'audio';
+  if (messageType === 'sticker' || a.is_sticker) return 'sticker';
   if (messageType === 'gif') return 'gif';
   if (messageType === 'document') return 'document';
   const major = mime.split('/')[0];
   if (major === 'image' || (!mime && IMAGE_EXTS.includes(ext))) return 'image';
   if (major === 'video' || (!mime && VIDEO_EXTS.includes(ext))) return 'video';
   if (major === 'audio' || (!mime && AUDIO_EXTS.includes(ext))) {
-    // WhatsApp records voice messages as Opus in Ogg; other sound files are just audio
-    return ext === 'opus' || mime === 'audio/ogg' ? 'voice' : 'audio';
+    const voice = ext === 'opus' || mime === 'audio/ogg' || ext === 'caf' || mime === 'audio/x-caf' || recordedAudio;
+    return voice ? 'voice' : 'audio';
   }
   if (!mime && !ext) {
     if (messageType === 'image') return 'image';
     if (messageType === 'video') return 'video';
-    if (messageType === 'audio') return 'audio';
+    if (messageType === 'audio') return recordedAudio ? 'voice' : 'audio';
   }
   return 'document';
 }
