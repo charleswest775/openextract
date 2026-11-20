@@ -14,6 +14,7 @@ import {
   buildContactOptions,
   getContactGroup,
   matchPerson,
+  namedByNumber,
   normPhone,
 } from '../lib/people';
 import { matchesTerms, parseQuery, searchText } from '../lib/search';
@@ -813,6 +814,8 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
             if (identifiersMatch(cid, e.contactIdentifier)) return true;
           }
           if (e.type === 'whatsapp') return onTheirCards(e.contactIdentifier);
+          // As is a record named only by its number (gather.ts counts it for them too)
+          if (namedByNumber(e) && onTheirCards(e.contactIdentifier)) return true;
           if (selectedName && e.contactName?.toLowerCase() === selectedName) return true;
           return false;
         }
@@ -822,7 +825,9 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
         if (e.contactName) {
           return selectedName ? e.contactName.toLowerCase() === selectedName : false;
         }
-        // Unattributed entries (photos, notes, browser): show within communication window
+        // Unattributed entries (photos, notes, browser): show within communication window.
+        // A text, call or voicemail with no number and no name is no one's.
+        if (e.type !== 'photo' && e.type !== 'note' && e.type !== 'browser') return false;
         if (e.timestamp && minTs !== Infinity) {
           const ts = new Date(e.timestamp).getTime();
           return ts >= minTs && ts <= maxTs;

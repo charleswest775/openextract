@@ -55,8 +55,19 @@ def id_key(identifier: str) -> str:
 
 
 def _person_key(name: str) -> str:
+    """A name that is a number by its digits, any other without case (personKey)."""
     digits = norm_phone(name)
     return digits if _LOOKS_LIKE_A_NUMBER.fullmatch(name) and len(digits) >= 7 else name.strip().lower()
+
+
+def named_by_number(e: dict) -> bool:
+    """A text, call or voicemail the address book had no name for: no name, or only its
+    own number or address (namedByNumber). Never a group conversation."""
+    identifier = e.get("contactIdentifier")
+    if not identifier or (e.get("message") or {}).get("isGroup"):
+        return False
+    name = e.get("contactName")
+    return not name or _person_key(name) == _person_key(identifier)
 
 
 def _locale_key(name: str):
@@ -78,11 +89,13 @@ def _new_person(key: str, e: dict) -> dict:
 
 
 def _tally(p: dict, e: dict) -> None:
-    identifier = e["contactIdentifier"]
-    p["ids"].add(id_key(identifier))
-    # A WhatsApp group's address isn't a number to search by
-    if not is_whatsapp_address(identifier):
-        p["numbers"].add(identifier)
+    identifier = e.get("contactIdentifier")
+    # A call with a name and no number adds no number
+    if identifier:
+        p["ids"].add(id_key(identifier))
+        # A WhatsApp group's address isn't a number to search by
+        if not is_whatsapp_address(identifier):
+            p["numbers"].add(identifier)
     # "count" (Python only): one entry standing for that many alike, e.g. a whole
     # conversation's messages, so a big backup needn't hold an entry per message.
     # The same as that many entries with its timestamp as the latest.
@@ -116,10 +129,15 @@ def gather_people(entries: list, cards: Optional[list] = None) -> list:
     """Everyone the entries are with, most in touch first (gatherPeople).
 
     Texts, calls and voicemail are one person per name, as the address book names
-    them. A WhatsApp chat goes by its address: a group, broadcast list or channel is
-    its own entry, and a one-to-one chat joins whoever already has its number (on
-    their texts, calls, voicemail or card), or else is a person of its own.
-    ``cards`` are list_contacts cards ({id, phones, emails}).
+    them. One the address book had no name for (named_by_number) is whoever has that
+    number, or else whoever has another number on its card; with no one, the numbers
+    on one card are one person, and a number on no card is a person of its own. A
+    WhatsApp chat goes by its address: a group, broadcast list or channel is its own
+    entry, and a one-to-one chat joins whoever already has its number (on their
+    texts, calls, voicemail or card), or else is a person of its own. A call with a
+    name but no number (an app's call) is the person of that name, if there is one;
+    a record with neither is no one's. ``cards`` are list_contacts cards
+    ({id, phones, emails}).
     """
     cards = cards or []
     by_key: dict = {}
@@ -130,49 +148,82 @@ def gather_people(entries: list, cards: Optional[list] = None) -> list:
             p = by_key[key] = _new_person(key, e)
         _tally(p, e)
 
-    whatsapp = []
+    by_number, whatsapp, name_only = [], [], []
     for e in entries:
-        if e.get("type") not in PERSON_KINDS or not e.get("contactIdentifier"):
+        if e.get("type") not in PERSON_KINDS:
             continue
-        if e["type"] == "whatsapp":
+        if not e.get("contactIdentifier"):
+            # A WhatsApp chat with no number WhatsApp could tie it to isn't anyone's
+            if e.get("contactName") and e["type"] != "whatsapp":
+                name_only.append(e)
+        elif e["type"] == "whatsapp":
             whatsapp.append(e)
+        elif named_by_number(e):
+            by_number.append(e)
         else:
             into(_person_key(e.get("contactName") or e["contactIdentifier"]), e)
-    if not whatsapp:
-        return _sorted(by_key)
-
-    # Who has each number already, and which card each number is on (the card read last)
-    holder: dict = {}
+    # Everyone so far has the address book's name for them (not WhatsApp's): a call
+    # with only a name is the first of them by that name
+    by_name: dict = {}
     for p in by_key.values():
-        if p["isGroup"]:
-            continue
-        for i in p["ids"]:
-            holder.setdefault(i, p)
+        by_name.setdefault(p["name"].lower(), p)
+
+    # Which card each number is on (the card read last)
     card_of: dict = {}
     for c in cards:
         for i in list(c.get("phones") or []) + list(c.get("emails") or []):
             card_of[id_key(i)] = c
 
-    def whatsapp_key(e: dict) -> str:
-        i = id_key(e["contactIdentifier"])
-        chat = e.get("whatsapp")
-        if is_whatsapp_address(e["contactIdentifier"]) or (chat and chat.get("chatType") != "individual"):
-            return f"wa:{i}"
-        known = holder.get(i)
-        if known:
-            return known["key"]
-        card = card_of.get(i)
-        if not card:
-            return f"wa:{i}"
-        for other in list(card.get("phones") or []) + list(card.get("emails") or []):
-            p = holder.get(id_key(other))
-            if p:
-                return p["key"]
-        # Only on WhatsApp, with one card: its numbers are one person
-        return f"wa-card:{card['id']}"
+    def holders():
+        """Who has a number already, or else another number on its card (never a group)."""
+        holder: dict = {}
+        for p in by_key.values():
+            if p["isGroup"]:
+                continue
+            for i in p["ids"]:
+                holder.setdefault(i, p)
 
-    for e in whatsapp:
-        into(whatsapp_key(e), e)
+        def holder_of(i: str, card: Optional[dict]) -> Optional[dict]:
+            known = holder.get(i)
+            if known or not card:
+                return known
+            for other in list(card.get("phones") or []) + list(card.get("emails") or []):
+                p = holder.get(id_key(other))
+                if p:
+                    return p
+            return None
+        return holder_of
+
+    if by_number:
+        holder_of = holders()
+        for e in by_number:
+            i = id_key(e["contactIdentifier"])
+            card = card_of.get(i)
+            known = holder_of(i, card)
+            into(known["key"] if known else f"card:{card['id']}" if card else _person_key(e["contactIdentifier"]), e)
+
+    if whatsapp:
+        holder_of = holders()
+
+        def whatsapp_key(e: dict) -> str:
+            i = id_key(e["contactIdentifier"])
+            chat = e.get("whatsapp")
+            if is_whatsapp_address(e["contactIdentifier"]) or (chat and chat.get("chatType") != "individual"):
+                return f"wa:{i}"
+            card = card_of.get(i)
+            known = holder_of(i, card)
+            if known:
+                return known["key"]
+            # Only on WhatsApp, with one card: its numbers are one person
+            return f"wa-card:{card['id']}" if card else f"wa:{i}"
+
+        for e in whatsapp:
+            into(whatsapp_key(e), e)
+
+    for e in name_only:
+        p = by_name.get(e["contactName"].lower())
+        if p is not None:
+            _tally(p, e)
     return _sorted(by_key)
 
 
