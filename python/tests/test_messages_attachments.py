@@ -458,6 +458,23 @@ class TestAsFile(Case):
             self.copy(1, on_progress=lambda done, total: seen.append((done, total)))
         self.assertEqual(seen, [(4096, 10_000), (8192, 10_000), (10_000, 10_000)])
 
+    def test_a_long_sessions_copies_keep_within_the_budget(self):
+        # app_copies.BUDGET_BYTES (2 GB in the app): the copies handed out longest ago go
+        clock = [0.0]
+        for rowid in (1, 2, 3):
+            self.folder.attach(rowid, f"clip{rowid}.mov", os.urandom(1000), mime="video/quicktime")
+        with mock.patch.object(app_copies, "BUDGET_BYTES", 2500), \
+                mock.patch.object(app_copies, "_now", lambda: clock[0]):
+            paths = []
+            for rowid in (1, 2, 3):
+                clock[0] += app_copies.IN_USE_SECONDS
+                paths.append(self.copy(rowid)["path"])
+            self.assertEqual([os.path.exists(p) for p in paths], [False, True, True])
+            clock[0] += app_copies.IN_USE_SECONDS
+            again = self.copy(1)["path"]  # opened again: copied again
+        self.assertEqual(again, paths[0])
+        self.assertEqual([os.path.exists(p) for p in paths], [True, False, True])
+
     def test_no_room_says_so(self):
         self.folder.attach(1, "clip.mov", os.urandom(100), mime="video/quicktime")
         with mock.patch.object(app_copies, "_check_space", side_effect=app_copies.NotEnoughSpace(4_200_000_000, 310_000_000)):
