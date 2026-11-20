@@ -31,6 +31,24 @@ export interface PdfExportResult {
   count?: number;
   /** Where export_person copied a person's photos and files (it's given media_dir). */
   media_folder?: string;
+  /** export_person: how many files were copied, weren't in the backup, or couldn't be copied. */
+  media?: { copied: number; not_in_backup: number; failed: number };
+  /** export_person: the parts that couldn't be read (e.g. WhatsApp), in plain words, by kind. */
+  errors?: Record<string, string>;
+}
+
+/** export_person's file counts, when the engine sent numbers. */
+function mediaCounts(m: any): PdfExportResult['media'] | undefined {
+  if (!m || typeof m !== 'object') return undefined;
+  const n = (v: unknown) => (typeof v === 'number' && isFinite(v) ? v : 0);
+  return { copied: n(m.copied), not_in_backup: n(m.not_in_backup), failed: n(m.failed) };
+}
+
+/** export_person's unreadable parts, keeping only text. */
+function partErrors(e: any): Record<string, string> | undefined {
+  if (!e || typeof e !== 'object') return undefined;
+  const out = Object.fromEntries(Object.entries(e).filter(([, v]) => typeof v === 'string')) as Record<string, string>;
+  return Object.keys(out).length ? out : undefined;
 }
 
 const STAGING_PREFIX = 'openextract-pdf-';
@@ -239,6 +257,8 @@ export async function exportMessagesPdf(
       message_count: result?.message_count ?? 0,
       ...(typeof result?.count === 'number' ? { count: result.count } : {}),
       ...(typeof result?.media_folder === 'string' ? { media_folder: result.media_folder } : {}),
+      ...(mediaCounts(result?.media) ? { media: mediaCounts(result?.media) } : {}),
+      ...(partErrors(result?.errors) ? { errors: partErrors(result?.errors) } : {}),
     };
   } finally {
     activeStagingDirs.delete(staging);

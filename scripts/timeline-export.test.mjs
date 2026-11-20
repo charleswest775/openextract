@@ -113,6 +113,13 @@ test('what each kind of entry says', () => {
   assert.equal(describe(message(DAY, 'See you soon')), 'Received: See you soon');
   assert.equal(describe(message(DAY, 'On my way', { isFromMe: true })), 'Sent: On my way');
   assert.equal(describe(message(DAY, null, { messageType: 'attachment' })), 'Received: [Attachment]');
+  // A message's files are named, after its words or in place of them
+  const heic = { attachment_id: 1, filename: '~/Library/SMS/Attachments/a/1/X/IMG_4127.HEIC', mime_type: 'image/heic', transfer_name: 'IMG_4127.HEIC' };
+  const mp4 = { attachment_id: 2, filename: '~/Library/SMS/Attachments/a/2/Y/trail-cam.mp4', mime_type: 'video/mp4', transfer_name: 'trail-cam.mp4' };
+  assert.equal(describe(message(DAY, null, { messageType: 'attachment', attachments: [heic, mp4] })), 'Received: [Photo: IMG_4127.HEIC] [Video: trail-cam.mp4]');
+  assert.equal(describe(message(DAY, 'Look at this', { isFromMe: true, attachments: [heic] })), 'Sent: Look at this [Photo: IMG_4127.HEIC]');
+  const caf = { attachment_id: 3, filename: '~/Library/SMS/Attachments/a/3/Z/Audio Message.caf', mime_type: 'audio/x-caf', transfer_name: 'Audio Message.caf' };
+  assert.equal(describe(message(DAY, null, { messageType: 'audio', attachments: [caf] })), 'Received: [Voice message: Audio Message.caf]');
   assert.equal(describe(message(DAY, null, { messageType: 'digital_touch' })), 'Received: [Digital Touch]');
   assert.equal(describe(message(DAY, '', { messageType: 'sticker' })), 'Received: [sticker]');
   assert.equal(describe(message(DAY, null, { messageType: '' })), 'Received: [No text]');

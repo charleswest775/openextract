@@ -1,4 +1,5 @@
 import { TimelineEntry } from '../types/timeline';
+import { attachmentLabels } from './attachmentSummary';
 import { formatDate, formatTime, formatDuration } from './dates';
 
 export type ExportFormat = 'pdf' | 'html' | 'csv' | 'txt';
@@ -96,6 +97,9 @@ function entryDescription(e: TimelineEntry): string {
         handwriting: '[Handwriting]',
         system: '[System message]',
       };
+      // Its files by name ("[Photo: IMG_4127.HEIC]"), after its words or in place of them
+      const files = attachmentLabels(m.attachments, m.messageType).map(l => `[${l}]`).join(' ');
+      if (files) return `${dir}: ${m.text ? `${m.text} ${files}` : files}`;
       const text = m.text || (m.eventText && `[${m.eventText}]`) || typeLabels[m.messageType]
         || `[${m.messageType || 'No text'}]`;
       return `${dir}: ${text}`;

@@ -4,14 +4,14 @@ import type { TimelineEntry, TimelineEntryType } from '../../types/timeline';
 import { formatPhone } from '../../lib/people';
 import { matches } from '../../lib/search';
 import { formatDate } from '../../lib/dates';
-import { saveFolder } from '../../lib/ipc';
-import type { ExportFormat } from '../../lib/timelineExport';
-import { plural, writeTimeline } from '../../lib/saveData';
+import { percentDone } from '../../lib/exportProgress';
+import { personExportSpec, plural, savePerson, type RecordFormat } from '../../lib/saveData';
 import { useSaveAction } from '../../hooks/useSaveAction';
+import { useExportProgress } from '../../hooks/useExportProgress';
 import Highlight from '../shared/Highlight';
 import EmptyState from '../shared/EmptyState';
 import OrganicLoader from '../shared/OrganicLoader';
-import SaveDialog, { RECORD_FORMATS, SaveButton } from '../shared/SaveDialog';
+import SaveDialog, { RECORD_FORMATS, SaveButton, SaveProgress } from '../shared/SaveDialog';
 import { CallIcon, ChevronRightIcon, ContactIcon, PeopleIcon, LinesIcon, VoicemailIcon, WhatsAppIcon } from '../shared/Icons';
 import EventStream from '../timeline/EventStream';
 import type { ExploreContext } from '../explore/sections';
@@ -59,6 +59,7 @@ export default function PeopleView({ ctx, query, person }: Props) {
   const [kinds, setKinds] = useState<PersonKind | 'all'>('all');
   const [choosing, setChoosing] = useState(false);
   const { busy, run } = useSaveAction('timeline');
+  const saving = useExportProgress('person', busy);
 
   const shown = people.filter(p => p.key === asked?.key || matches(query, p.name, ...p.numbers, ...p.ids));
   const individuals = shown.filter(p => !p.isGroup);
@@ -78,18 +79,15 @@ export default function PeopleView({ ctx, query, person }: Props) {
     });
   }, [selected?.key, kinds, setFilters]);
 
-  function save(format: ExportFormat) {
+  // What's shown is what's saved: the kind picked under the name, or everything,
+  // with every photo, video, voice message, document and recording beside the file
+  function save(format: RecordFormat) {
     setChoosing(false);
     if (!selected) return;
-    const entries = timeline.filteredEntries;
-    run(async () => {
-      const folder = await saveFolder();
-      if (!folder) return null;
-      const safe = selected.name.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'person';
-      // Text built here for now, the PDF printed by Chromium like the Timeline's
-      const path = await writeTimeline(entries, format, folder, safe, `Everything with ${formatPhone(selected.name)}`);
-      return { title: `Saved everything with ${selected.name}`, detail: plural(entries.length, 'event'), path };
-    });
+    const name = formatPhone(selected.name);
+    const spec = personExportSpec(name, timeline.filteredEntries);
+    const what = kinds === 'all' ? 'everything' : plural(selected.counts[kinds], KIND_LABEL[kinds][0], KIND_LABEL[kinds][1]);
+    run(() => savePerson(ctx.udid, spec, format, `Saved ${what} with ${name}`));
   }
 
   const listRow = (p: Person) => {
@@ -206,6 +204,12 @@ export default function PeopleView({ ctx, query, person }: Props) {
                   <SaveButton primary onClick={() => setChoosing(true)} busy={busy} disabled={timeline.loading} label={saveLabel} />
                 </div>
               </div>
+              {saving && (
+                <SaveProgress
+                  text={`Saving ${saving.done.toLocaleString()} of ${plural(saving.total, 'message, call or file', 'messages, calls and files')}…`}
+                  percent={percentDone(saving)}
+                />
+              )}
               <div role="radiogroup" aria-label="Show" className="flex flex-wrap gap-2">
                 {(['all', ...PERSON_KINDS] as const).map(k => {
                   const on = kinds === k;
@@ -250,11 +254,15 @@ export default function PeopleView({ ctx, query, person }: Props) {
 
       {choosing && selected && (
         <SaveDialog
-          title={`Save everything with ${formatPhone(selected.name)}`}
+          title={`${saveLabel} with ${formatPhone(selected.name)}`}
           formats={RECORD_FORMATS}
           onSave={save}
           onCancel={() => setChoosing(false)}
-        />
+        >
+          <p className="text-xs text-text-secondary">
+            Photos, videos, voice messages, documents and voicemail recordings are copied into a folder beside it.
+          </p>
+        </SaveDialog>
       )}
     </div>
   );

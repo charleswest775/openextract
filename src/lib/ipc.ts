@@ -32,6 +32,10 @@ export interface PdfExportResult {
   message_count: number;
   count?: number;
   media_folder?: string;
+  /** export_person: how many files were copied, weren't in the backup, or couldn't be copied. */
+  media?: { copied: number; not_in_backup: number; failed: number };
+  /** export_person: the parts that couldn't be read, by kind. */
+  errors?: Record<string, string>;
 }
 
 /** Save an engine export (conversations, chats, notes, calls…) as PDF. Resolves to the PDF paths written. */

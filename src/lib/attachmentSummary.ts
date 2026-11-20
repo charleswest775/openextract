@@ -29,3 +29,16 @@ export function attachmentSummary(attachments: Attachment[] | null | undefined, 
   }
   return `${files.length} attachments`;
 }
+
+/**
+ * Each file named with what it is, for a saved text: ["Photo: IMG_4127.HEIC",
+ * "Video: trail-cam.mp4"]. A file with no name of its own is just its kind ("Photo").
+ */
+export function attachmentLabels(attachments: Attachment[] | null | undefined, messageType?: string | null): string[] {
+  return (attachments ?? []).map(a => {
+    let kind = attachmentKind({ mime_type: a.mime_type ?? null, transfer_name: a.transfer_name ?? '', filename: a.filename ?? '' }, messageType === 'audio' ? 'audio' : null);
+    if (messageType === 'audio' && kind === 'audio') kind = 'voice';
+    const name = documentName({ transfer_name: a.transfer_name ?? '', filename: a.filename ?? '' });
+    return name ? `${kindLabel(kind)}: ${name}` : kindLabel(kind);
+  });
+}

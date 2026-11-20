@@ -189,6 +189,89 @@ export async function writeTimeline(
   return path;
 }
 
+// ── One person: everything with them, photos and files included ───────────────
+
+/**
+ * What export_person needs to save one person's history: their Messages
+ * conversations and WhatsApp chats whole (a person's messages are whole chats,
+ * as People matches them), and their calls and voicemails one by one. Messages
+ * and WhatsApp chat ids are separate lists because the two databases' ids
+ * collide. Call and voicemail ids stay text: they aren't always numbers
+ * ("ft_3", "A-…7").
+ */
+export interface PersonExportSpec {
+  display_name: string;
+  chat_ids: number[];
+  conversation_names: Record<number, string>;
+  whatsapp_chat_ids: number[];
+  whatsapp_names: Record<number, string>;
+  call_ids: string[];
+  voicemail_ids: string[];
+}
+
+/** The save request for a person's stream, from the entries People shows for them. */
+export function personExportSpec(displayName: string, entries: TimelineEntry[]): PersonExportSpec {
+  const spec: PersonExportSpec = {
+    display_name: displayName, chat_ids: [], conversation_names: {},
+    whatsapp_chat_ids: [], whatsapp_names: {}, call_ids: [], voicemail_ids: [],
+  };
+  const calls = new Set<string>();
+  const voicemails = new Set<string>();
+  for (const e of entries) {
+    const id = e.id.slice(e.id.indexOf(':') + 1);
+    if (e.type === 'message' && e.message?.chatId != null) {
+      const chat = e.message.chatId;
+      if (!(chat in spec.conversation_names)) {
+        spec.chat_ids.push(chat);
+        spec.conversation_names[chat] = e.message.conversationName;
+      }
+    } else if (e.type === 'whatsapp' && e.whatsapp) {
+      const chat = e.whatsapp.chatId;
+      if (!(chat in spec.whatsapp_names)) {
+        spec.whatsapp_chat_ids.push(chat);
+        spec.whatsapp_names[chat] = e.whatsapp.conversationName;
+      }
+    } else if (e.type === 'call' && id) {
+      calls.add(id);
+    } else if (e.type === 'voicemail' && id) {
+      voicemails.add(id);
+    }
+  }
+  spec.call_ids = [...calls];
+  spec.voicemail_ids = [...voicemails];
+  return spec;
+}
+
+/** "214 photos and files", plus what couldn't be saved, for the notice. */
+function personSaveDetail(result: any): string {
+  const parts = [plural(result?.message_count ?? 0, 'event')];
+  const media = result?.media;
+  if (media?.copied) parts.push(plural(media.copied, 'photo or file', 'photos and files'));
+  const notes: string[] = [];
+  if (media?.not_in_backup) notes.push(`${plural(media.not_in_backup, 'file')} ${media.not_in_backup === 1 ? "wasn't" : "weren't"} in the backup`);
+  if (media?.failed) notes.push(`${plural(media.failed, 'file')} couldn't be copied`);
+  for (const why of Object.values(result?.errors ?? {})) if (typeof why === 'string') notes.push(why);
+  return [parts.join(' and '), ...notes].join('. ');
+}
+
+/**
+ * Save everything with one person into a folder the person picks: one file
+ * (PDF, web page, spreadsheet or text) and a folder of every photo, video,
+ * voice message, document and voicemail recording beside it.
+ */
+export async function savePerson(udid: string, spec: PersonExportSpec, format: RecordFormat, title: string): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const params = { udid, output_dir: outputDir, ...spec };
+  const result: any = format === 'pdf'
+    // The page is printed from a temporary folder; the originals go beside the PDF
+    ? await exportMessagesPdf('export_person', { ...params, media_dir: outputDir })
+    : await sidecarCall('export_person', { ...params, format });
+  // Nothing could be saved: { error, errors }
+  if (result?.error) throw new Error(result.error);
+  return { title, detail: personSaveDetail(result), path: savedFile(result) ?? outputDir };
+}
+
 // ── Conversations ──────────────────────────────────────────────────────────────
 
 export type ConversationFormat = RecordFormat;

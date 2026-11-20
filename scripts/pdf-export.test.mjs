@@ -146,7 +146,10 @@ describe('exportMessagesPdf', () => {
   test('a person, notes, call history, web history and recovered messages print the same way', async () => {
     const { pdf, temp, outputDir } = setup();
     const cases = [
-      ['export_person', ['Karin Lindqvist, Jul 5 2024 - Jun 21 2026.html'], { message_count: 120, media_folder: '/Users/jane/Desktop/Karin_attachments' }],
+      ['export_person', ['Karin Lindqvist, Jul 5 2024 - Jun 21 2026.html'], {
+        message_count: 120, media_folder: '/Users/jane/Desktop/Karin_attachments',
+        media: { copied: 40, not_in_backup: 2, failed: 0 }, errors: { whatsapp: "WhatsApp's chats couldn't be read", junk: 7 },
+      }],
       ['export_notes', ['Groceries.html', 'Trip.html'], { count: 2 }],
       ['export_calls', ['call_history.html'], { count: 1532 }],
       ['export_browser_history', ['browser_history_export.html'], { count: 40 }],
@@ -170,6 +173,9 @@ describe('exportMessagesPdf', () => {
       // A count of records and a person's media folder are passed on when the engine gives them
       assert.equal(result.count, extra.count, method);
       assert.equal(result.media_folder, extra.media_folder, method);
+      // A person's file counts and unreadable parts too (only text kept from the parts)
+      assert.deepEqual(result.media, extra.media, method);
+      assert.deepEqual(result.errors, extra.errors ? { whatsapp: extra.errors.whatsapp } : undefined, method);
     }
     assert.deepEqual(stagingDirsIn(temp), []);
   });

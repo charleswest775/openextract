@@ -11,7 +11,7 @@ import { loadTs } from './test-helpers/load-ts.mjs';
 import { rerunInTimeZones } from './test-helpers/time-zones.mjs';
 
 const { streamDays } = loadTs('src/lib/eventStream.ts');
-const { attachmentSummary } = loadTs('src/lib/attachmentSummary.ts');
+const { attachmentSummary, attachmentLabels } = loadTs('src/lib/attachmentSummary.ts');
 const { formatDate } = loadTs('src/lib/dates.ts');
 
 const at = (y, mo, d, h = 12, mi = 0) => new Date(y, mo - 1, d, h, mi).toISOString();
@@ -96,6 +96,15 @@ test('no files, no summary', () => {
 
 test('a file with no type or name is a document, named by what the engine calls it', () => {
   assert.equal(attachmentSummary([{ transfer_name: '', filename: '', mime_type: null }]), 'Document');
+});
+
+test('attachmentLabels names each file with what it is, for saved text', () => {
+  assert.deepEqual(attachmentLabels([file('IMG_4127.HEIC', 'image/heic'), file('trail-cam.mp4', 'video/mp4'), file('Lease.pdf', 'application/pdf')]),
+    ['Photo: IMG_4127.HEIC', 'Video: trail-cam.mp4', 'Document: Lease.pdf']);
+  assert.deepEqual(attachmentLabels([file('Audio Message.caf', 'audio/x-caf')], 'audio'), ['Voice message: Audio Message.caf']);
+  // The engine's label for a file with no name ("Photo") isn't repeated as a name
+  assert.deepEqual(attachmentLabels([{ transfer_name: 'Photo', filename: '', mime_type: 'image/jpeg' }]), ['Photo']);
+  assert.deepEqual(attachmentLabels(undefined), []);
 });
 
 rerunInTimeZones(import.meta.url);

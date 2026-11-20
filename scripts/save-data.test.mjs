@@ -578,3 +578,79 @@ test('writeTimeline passes on a PDF that couldn\'t be printed', async t => {
   const { lib: save } = loadWith(t, { exportHtmlPdf: async () => ({ success: false, error: 'Choose a folder to save the PDF in.' }) });
   await assert.rejects(save.writeTimeline([ENTRY], 'pdf', '/gone', 'x'), { message: 'Choose a folder to save the PDF in.' });
 });
+
+// ── One person (People's Save everything, export_person) ─────────────────────
+const msgEntry = (id, chatId, name) => ({ id: `message:${id}`, type: 'message', timestamp: '2026-11-17T10:00:00Z', contactName: name, contactIdentifier: '+15035550102', message: { text: 'hi', isFromMe: false, sender: '', messageType: 'text', conversationName: name, service: 'iMessage', chatId } });
+const waEntry = (id, chatId, name) => ({ id: `whatsapp:${id}`, type: 'whatsapp', timestamp: '2026-11-17T10:00:00Z', contactName: name, contactIdentifier: '+15035550102', whatsapp: { text: 'hi', isFromMe: false, sender: '', messageType: 'text', eventText: null, attachmentLabel: null, conversationName: name, chatId, chatType: 'individual', isGroup: false, sort: 1 } });
+const simple = (type, id) => ({ id: `${type}:${id}`, type, timestamp: '2026-11-17T10:00:00Z', contactName: 'Theo', contactIdentifier: '+15035550102' });
+
+test("personExportSpec: whole chats per source, each once, and calls and voicemails by their own ids, as text", () => {
+  const { personExportSpec } = lib;
+  const spec = personExportSpec('Theo Navarro', [
+    msgEntry(1, 17, 'Theo Navarro'), msgEntry(2, 17, 'Theo Navarro'), msgEntry(3, 21, 'theo@icloud.com'),
+    // A WhatsApp chat whose id is the same number as a Messages chat: never mixed up
+    waEntry(9, 17, 'Theo (WhatsApp)'), waEntry(10, 17, 'Theo (WhatsApp)'),
+    simple('call', 12), simple('call', 'ft_3'), simple('call', 12),
+    simple('voicemail', 7), simple('voicemail', 'A-0D1F2E3C-4B5A-6978-8796-A5B4C3D2E1F0.7'),
+  ]);
+  assert.deepEqual(spec, {
+    display_name: 'Theo Navarro',
+    chat_ids: [17, 21], conversation_names: { 17: 'Theo Navarro', 21: 'theo@icloud.com' },
+    whatsapp_chat_ids: [17], whatsapp_names: { 17: 'Theo (WhatsApp)' },
+    call_ids: ['12', 'ft_3'],
+    voicemail_ids: ['7', 'A-0D1F2E3C-4B5A-6978-8796-A5B4C3D2E1F0.7'],
+  });
+  assert.deepEqual(personExportSpec('Nobody', []), {
+    display_name: 'Nobody', chat_ids: [], conversation_names: {}, whatsapp_chat_ids: [], whatsapp_names: {}, call_ids: [], voicemail_ids: [],
+  });
+});
+
+const PERSON = { display_name: 'Theo', chat_ids: [17], conversation_names: { 17: 'Theo' }, whatsapp_chat_ids: [], whatsapp_names: {}, call_ids: ['12'], voicemail_ids: [] };
+
+test('savePerson: the engine saves the file and a folder of photos and files, and the notice says how many', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => '/Users/jane/Desktop',
+    call: async () => ({ success: true, data: {
+      file: '/Users/jane/Desktop/Theo, Jul 5 2024 - Nov 17 2026.html', message_count: 3083,
+      counts: { message: 3001, whatsapp: 0, call: 73, voicemail: 9 }, media: { copied: 214, not_in_backup: 0, failed: 0 }, errors: {},
+    } }),
+    exportPdf: async () => assert.fail('only a PDF is printed'),
+  });
+  const result = await save.savePerson('u', PERSON, 'html', 'Saved everything with Theo');
+  assert.deepEqual(result, {
+    title: 'Saved everything with Theo',
+    detail: `${(3083).toLocaleString()} events and 214 photos and files`,
+    path: '/Users/jane/Desktop/Theo, Jul 5 2024 - Nov 17 2026.html',
+  });
+  assert.deepEqual(calls[1], ['call', 'export_person', { udid: 'u', output_dir: '/Users/jane/Desktop', ...PERSON, format: 'html' }]);
+});
+
+test('savePerson as PDF: printed by Chromium, with the originals copied beside the PDF', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => '/Users/jane/Desktop',
+    exportPdf: async () => ({ success: true, data: {
+      files: ['/Users/jane/Desktop/Theo.pdf'], message_count: 10, media_folder: '/Users/jane/Desktop/Theo_attachments',
+      media: { copied: 3, not_in_backup: 1, failed: 0 }, errors: { whatsapp: "WhatsApp's chats couldn't be read" },
+    } }),
+    call: async () => assert.fail('PDF goes through exportPdf'),
+  });
+  const result = await save.savePerson('u', PERSON, 'pdf', 'Saved everything with Theo');
+  assert.deepEqual(result, {
+    title: 'Saved everything with Theo',
+    detail: "10 events and 3 photos and files. 1 file wasn't in the backup. WhatsApp's chats couldn't be read",
+    path: '/Users/jane/Desktop/Theo.pdf',
+  });
+  // The page is printed from a temporary folder; media_dir is where the originals go
+  assert.deepEqual(calls[1], ['exportPdf', 'export_person', { udid: 'u', output_dir: '/Users/jane/Desktop', ...PERSON, media_dir: '/Users/jane/Desktop' }]);
+});
+
+test('savePerson: nothing saved is an error, and cancelling the folder saves nothing', async t => {
+  const { lib: save } = loadWith(t, {
+    saveFolder: async () => '/tmp/out',
+    call: async () => ({ success: true, data: { error: 'There was nothing to save with this person.', errors: {} } }),
+  });
+  await assert.rejects(save.savePerson('u', PERSON, 'csv', 'Saved'), /nothing to save/);
+  const { lib: cancelled, calls } = loadWith(t, { saveFolder: async () => null, call: async () => assert.fail('no folder, no save') });
+  assert.equal(await cancelled.savePerson('u', PERSON, 'txt', 'Saved'), null);
+  assert.equal(calls.length, 1);
+});

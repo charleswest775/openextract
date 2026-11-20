@@ -9,7 +9,8 @@ declare global {
       /**
        * Save an engine export as PDF; same params as the method's own save minus format.
        * `count` is the engine's count of records (notes, calls, page visits) when it gives one;
-       * `media_folder` where export_person copied a person's photos and files.
+       * `media_folder` where export_person copied a person's photos and files, `media` how many
+       * files it copied or couldn't, `errors` the parts it couldn't read.
        */
       exportPdf: (
         method: 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats'
@@ -17,7 +18,11 @@ declare global {
         params: any,
       ) => Promise<{
         success: boolean;
-        data?: { files: string[]; message_count: number; count?: number; media_folder?: string };
+        data?: {
+          files: string[]; message_count: number; count?: number; media_folder?: string;
+          media?: { copied: number; not_in_backup: number; failed: number };
+          errors?: Record<string, string>;
+        };
         error?: string;
       }>;
       /** Print a page the window built (the Timeline) to `<outputDir>/<baseName>.pdf`, never overwriting a file. */
