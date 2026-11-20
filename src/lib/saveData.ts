@@ -173,8 +173,16 @@ export async function saveRecoveredMessages(udid: string, format: RecordFormat):
 // ── Pages built here: the Timeline (and, for now, a person's history) ──────────
 
 /**
+ * The most Timeline events one PDF holds. Chromium prints the whole page at once:
+ * 50,000 events printed reliably, 100,000 took ~4 GB, 200,000 crashed after minutes
+ * (electron/pdfExport.ts has the backstop). The web page and the spreadsheet have no limit.
+ */
+export const MAX_PDF_EVENTS = 25_000;
+
+/**
  * Write Timeline entries into `folder` as `<baseName>.<ext>`, the PDF printed by
  * Chromium. Resolves to the file written. `title` heads the page and the text.
+ * More events than a PDF holds are refused before the page is built.
  */
 export async function writeTimeline(
   entries: TimelineEntry[],
@@ -183,7 +191,13 @@ export async function writeTimeline(
   baseName: string,
   title?: string,
 ): Promise<string> {
-  if (format === 'pdf') return (await exportHtmlPdf(formatTimeline(entries, 'pdf', { title }), folder, baseName)).file;
+  if (format === 'pdf') {
+    if (entries.length > MAX_PDF_EVENTS) {
+      throw new Error(`This is too much for one PDF: ${plural(entries.length, 'event')}, and one PDF holds up to ${MAX_PDF_EVENTS.toLocaleString()}. `
+        + 'Narrow it down to a date range, a person or fewer kinds, or save it as a web page or spreadsheet, which have no limit.');
+    }
+    return (await exportHtmlPdf(formatTimeline(entries, 'pdf', { title }), folder, baseName)).file;
+  }
   const path = `${folder}/${baseName}.${FORMAT_FILTERS[format].extensions[0]}`;
   await window.openextract.writeFile(path, formatTimeline(entries, format, { title }));
   return path;

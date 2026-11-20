@@ -579,6 +579,29 @@ test('writeTimeline passes on a PDF that couldn\'t be printed', async t => {
   await assert.rejects(save.writeTimeline([ENTRY], 'pdf', '/gone', 'x'), { message: 'Choose a folder to save the PDF in.' });
 });
 
+test('writeTimeline: more events than one PDF holds are refused before the page is built; the other formats have no limit', async t => {
+  assert.equal(lib.MAX_PDF_EVENTS, 25_000);
+  const { lib: save, calls } = loadWith(t, {
+    writeFile: async () => {},
+    exportHtmlPdf: async (_html, dir, base) => ({ success: true, data: { file: `${dir}/${base}.pdf` } }),
+  });
+  const many = n => Array.from({ length: n }, (_, i) => ({ ...ENTRY, id: `message:${i}` }));
+  const tooMany = many(lib.MAX_PDF_EVENTS + 1);
+  await assert.rejects(save.writeTimeline(tooMany, 'pdf', '/tmp/out', 'timeline-export'), {
+    message: `This is too much for one PDF: ${(25_001).toLocaleString()} events, and one PDF holds up to ${(25_000).toLocaleString()}. `
+      + 'Narrow it down to a date range, a person or fewer kinds, or save it as a web page or spreadsheet, which have no limit.',
+  });
+  assert.equal(calls.length, 0, 'nothing was sent to be printed');
+
+  // The other formats save them all (one is checked: formatting 25,000 events takes a moment)
+  assert.equal(await save.writeTimeline(tooMany, 'csv', '/tmp/out', 'timeline-export'), '/tmp/out/timeline-export.csv');
+  assert.deepEqual(calls.map(c => c[0]), ['writeFile']);
+
+  // Right at the limit it prints
+  assert.equal(await save.writeTimeline(many(lib.MAX_PDF_EVENTS), 'pdf', '/tmp/out', 'timeline-export'), '/tmp/out/timeline-export.pdf');
+  assert.equal(calls.at(-1)[0], 'exportHtmlPdf');
+});
+
 // ── One person (People's Save everything, export_person) ─────────────────────
 const msgEntry = (id, chatId, name) => ({ id: `message:${id}`, type: 'message', timestamp: '2026-11-17T10:00:00Z', contactName: name, contactIdentifier: '+15035550102', message: { text: 'hi', isFromMe: false, sender: '', messageType: 'text', conversationName: name, service: 'iMessage', chatId } });
 const waEntry = (id, chatId, name) => ({ id: `whatsapp:${id}`, type: 'whatsapp', timestamp: '2026-11-17T10:00:00Z', contactName: name, contactIdentifier: '+15035550102', whatsapp: { text: 'hi', isFromMe: false, sender: '', messageType: 'text', eventText: null, attachmentLabel: null, conversationName: name, chatId, chatType: 'individual', isGroup: false, sort: 1 } });
@@ -642,6 +665,15 @@ test('savePerson as PDF: printed by Chromium, with the originals copied beside t
   });
   // The page is printed from a temporary folder; media_dir is where the originals go
   assert.deepEqual(calls[1], ['exportPdf', 'export_person', { udid: 'u', output_dir: '/Users/jane/Desktop', ...PERSON, media_dir: '/Users/jane/Desktop' }]);
+});
+
+test('savePerson as PDF: a PDF that can\'t be made says why (its copied files are taken away by the main process)', async t => {
+  const tooMany = 'Too many photos for one PDF. Save it as a web page instead, which keeps every photo and video beside it.';
+  const { lib: save } = loadWith(t, {
+    saveFolder: async () => '/Users/jane/Desktop',
+    exportPdf: async () => ({ success: false, error: tooMany }),
+  });
+  await assert.rejects(save.savePerson('u', PERSON, 'pdf', 'Saved everything with Theo'), { message: tooMany });
 });
 
 test('savePerson: nothing saved is an error, and cancelling the folder saves nothing', async t => {
