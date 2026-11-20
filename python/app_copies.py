@@ -9,8 +9,12 @@ a video opened Terminal (issue #297).
 
 So nothing is opened in place. The file is copied to the system's temp folder
 under its own name, without its permissions, and the copy is what another app
-opens. WhatsApp's media (whatsapp.py) and the Photos screen's videos
-(photos.py) both come through here.
+opens. Messages' and WhatsApp's attachments (messages.py, whatsapp.py) and the
+Photos screen's videos (photos.py) all come through here.
+
+A long session that opens or plays many videos would fill the temp folder's
+disk, so each part of the app keeps its copies to BUDGET_BYTES: past that, the
+copies handed out longest ago are removed (see AppCopies).
 """
 
 import atexit
@@ -18,10 +22,12 @@ import errno
 import os
 import re
 import shutil
+import sys
 import tempfile
 import time
 import unicodedata
 import uuid
+from collections import OrderedDict
 from typing import Callable, Iterable, Optional
 
 from messages import _FILE_NAME_UNSAFE, _WINDOWS_DEVICE_NAMES, _without_lone_surrogates
@@ -72,6 +78,16 @@ _CHUNK_BYTES = 8 * 1024 * 1024
 # has to leave as much again as its own size, so a nearly full disk can still
 # open a document.
 _SPARE_BYTES = 200 * 1024 * 1024
+
+# Most bytes one part of the app keeps in copies while the engine runs. Past
+# this, the copies handed out longest ago are removed until the rest fits (see
+# AppCopies._make_room): opening or playing a video again copies it again.
+BUDGET_BYTES = 2 * 1024 ** 3
+
+# A copy handed out this recently is never removed to make room, even past the
+# budget: it may be playing in the app, which reads it as it plays, or be open
+# in another app.
+IN_USE_SECONDS = 10 * 60
 
 # on_progress(bytes copied so far, bytes in all)
 ProgressCallback = Callable[[int, int], None]
@@ -204,6 +220,18 @@ def _check_space(folder: str, src: str) -> None:
         raise NotEnoughSpace(size, free)
 
 
+def _now() -> float:
+    """The clock copies are timed by (a test sets it)."""
+    return time.monotonic()
+
+
+def _size(path: str) -> int:
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return 0
+
+
 def _remove_dir(get_path) -> None:
     path = get_path()
     if path:
@@ -273,11 +301,21 @@ def remove_stale_temp_dirs(prefix: str) -> None:
 
 
 class AppCopies:
-    """One part of the app's copies ("whatsapp", "photos"), in this engine's folder for them."""
+    """One part of the app's copies ("whatsapp", "photos"), in this engine's folder for them.
+
+    The copies are kept to BUDGET_BYTES. The engine remembers when it last
+    handed out each copy (not the file's modification time, which same_file
+    reads to know a copy), and past the budget it removes the copies handed
+    out longest ago, never one handed out in the last IN_USE_SECONDS.
+    """
 
     def __init__(self, label: str):
+        self.label = label
         self.prefix = temp_prefix(label)
         self.folder: Optional[str] = None
+        # Each copy this engine has handed out, the one handed out longest ago
+        # first: path -> (when it was last handed out, by _now(); its bytes).
+        self._handed_out: "OrderedDict[str, tuple]" = OrderedDict()
         # Made once, as the engine starts: copies an earlier engine left behind
         # (decrypted, under readable names) shouldn't wait for a file to be opened.
         remove_stale_temp_dirs(self.prefix)
@@ -289,6 +327,8 @@ class AppCopies:
         if self.folder is None:
             # Runs only when the engine exits on its own; see STALE_SECONDS.
             atexit.register(_remove_dir, lambda: self.folder)
+        else:
+            self._handed_out.clear()  # gone with the folder
         self.folder = tempfile.mkdtemp(prefix=f"{self.prefix}{os.getpid()}-")
         return self.folder
 
@@ -301,6 +341,9 @@ class AppCopies:
         with one name don't collide. A copy that is already there is used
         again. Raises OSError when the copy can't be made, NotEnoughSpace
         when the disk has no room for it.
+
+        Older copies may be removed first to keep within BUDGET_BYTES (see
+        _make_room), which never makes this fail.
         """
         root = self.root()
         try:
@@ -310,7 +353,10 @@ class AppCopies:
         folder = os.path.join(root, *(safe_part(part) for part in parts))
         dest = os.path.join(folder, file_name)
         if same_file(src, dest):
+            self._hand_out(dest)
             return dest
+        # Room for the new copy first, which may also be what lets it fit on the disk.
+        self._make_room(dest, _size(src))
         _check_space(root, src)
         os.makedirs(folder, exist_ok=True)
         try:
@@ -322,4 +368,65 @@ class AppCopies:
             os.makedirs(folder, exist_ok=True)
             dest = os.path.join(folder, file_name)
             replace_with_copy(src, dest, on_progress)
+        self._hand_out(dest)
         return dest
+
+    def _hand_out(self, path: str) -> None:
+        """Note that ``path`` is handed out now, then keep the copies within the budget."""
+        size = _size(path)
+        self._handed_out[path] = (_now(), size)
+        self._handed_out.move_to_end(path)
+        self._make_room(path, size)
+
+    def _make_room(self, keep: str, keep_bytes: int) -> None:
+        """Remove copies, the one handed out longest ago first, until the rest fit in BUDGET_BYTES.
+
+        ``keep`` (the copy being made or handed out, ``keep_bytes`` big) stays,
+        as does any copy handed out in the last IN_USE_SECONDS, so the copies
+        may stay over the budget for a while. A copy the system won't let go
+        (Windows keeps a file that is open in another app) stays until a later
+        try. Never raises: a copy that can't be removed mustn't stop one being
+        handed out. Folders left empty go too.
+        """
+        try:
+            total = keep_bytes + sum(size for path, (_, size) in self._handed_out.items() if path != keep)
+            if total <= BUDGET_BYTES:
+                return
+            in_use_since = _now() - IN_USE_SECONDS
+            removed = freed = 0
+            for path, (when, size) in list(self._handed_out.items()):
+                if total <= BUDGET_BYTES:
+                    break
+                if path == keep or when > in_use_since:
+                    continue
+                try:
+                    os.remove(path)
+                except FileNotFoundError:
+                    pass  # already gone
+                except OSError:
+                    continue  # open in another app: next time
+                del self._handed_out[path]
+                total -= size
+                removed += 1
+                freed += size
+                self._remove_empty_folders(os.path.dirname(path))
+            if removed:
+                print(f"[{self.label}] removed {removed} older copies ({freed} bytes) to keep within "
+                      f"{BUDGET_BYTES} bytes", file=sys.stderr, flush=True)
+        except Exception as e:  # noqa: BLE001 - see above
+            print(f"[{self.label}] could not remove older copies: {e}", file=sys.stderr, flush=True)
+
+    def _remove_empty_folders(self, folder: str) -> None:
+        """Remove ``folder`` and then each folder above it while empty, up to (never including) this engine's folder."""
+        if not self.folder:
+            return
+        root = os.path.abspath(self.folder)
+        folder = os.path.abspath(folder)
+        while folder != root and os.path.dirname(folder) != folder:
+            try:
+                if os.path.commonpath([root, folder]) != root:
+                    return
+                os.rmdir(folder)  # only when empty
+            except (OSError, ValueError):  # not empty; or (ValueError) on another drive
+                return
+            folder = os.path.dirname(folder)

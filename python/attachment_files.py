@@ -188,6 +188,36 @@ def _flatten(Image, img):
     return img
 
 
+def _decode_small(img, max_px: int) -> bool:
+    """Have a HEIC or HEIF photo decode only its embedded preview, when that is at least ``max_px`` on its longest side.
+
+    Decoding a whole photo for a 400-pixel thumbnail is slow and takes a lot
+    of memory: about 400 MB for a 48-megapixel one. pillow-heif, where it can
+    (1.8.1 does), picks the smallest preview the file holds that is at least
+    as big as asked and a scaled copy of the photo (the same turn, crop and
+    colours); Pillow's thumbnail() asks it for twice the size, which a
+    preview rarely is. Without one big enough (an iPhone's is 320 by 240), or
+    with a pillow-heif that can't, nothing changes: the whole photo is
+    decoded, as before. Only for HEIF: a JPEG already decodes at a smaller
+    size in thumbnail(). Returns whether the preview will be decoded.
+    """
+    if getattr(img, "format", None) != "HEIF":
+        return False
+    width, height = img.size
+    if max(width, height) <= max_px:
+        return False
+    # The thumbnail's size, rounded down: the preview's longest side must be
+    # at least max_px, and its shorter side may round a pixel the other way.
+    if width >= height:
+        box = (max_px, max(1, height * max_px // width))
+    else:
+        box = (max(1, width * max_px // height), max_px)
+    try:
+        return img.draft(None, box) is not None
+    except Exception:
+        return False
+
+
 def _render_jpeg(source, max_px: int, quality: int) -> Optional[tuple]:
     """(JPEG bytes, width, height) of a picture, upright, at most ``max_px`` on its longest side; None if it can't be read.
 
@@ -205,6 +235,8 @@ def _render_jpeg(source, max_px: int, quality: int) -> Optional[tuple]:
             width, height = opened.size
             source_mode = opened.mode
             icc = opened.info.get("icc_profile")
+            # Before anything decodes the picture: a HEIC's preview may be enough.
+            _decode_small(opened, max_px)
             img = opened
             if img.mode in ("P", "1"):
                 # A palette or 1-bit picture scales by dropping pixels; in colour it scales smoothly.

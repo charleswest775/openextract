@@ -105,6 +105,112 @@ class TestPictures(unittest.TestCase):
             self.assertIsNone(files.thumbnail(_picture()))
 
 
+RED, BLUE = (220, 30, 30), (30, 30, 220)
+
+
+def _heic(size=(1600, 1200), previews=(512,), orientation=None):
+    """A HEIC photo, red on its left half and blue on its right, holding a preview per size in ``previews``.
+
+    ``orientation`` is an EXIF orientation, which pillow-heif writes as the
+    HEIF turn both the photo and its previews are shown with, as an iPhone does.
+    """
+    try:
+        import pillow_heif
+        pillow_heif.register_heif_opener()
+        img = Image.new("RGB", size, RED)
+        img.paste(BLUE, (size[0] // 2, 0, size[0], size[1]))
+        save = {"thumbnails": list(previews)}
+        if orientation:
+            exif = Image.Exif()
+            exif[0x0112] = orientation
+            save["exif"] = exif.tobytes()
+        buf = io.BytesIO()
+        img.save(buf, "HEIF", **save)
+        return buf.getvalue()
+    except Exception as e:  # no HEIF encoder in this Pillow build
+        raise unittest.SkipTest(f"can't write a HEIC here: {e}")
+
+
+def _near(colour, want):
+    return all(abs(a - b) <= 40 for a, b in zip(colour, want))
+
+
+class TestHeicPreviews(unittest.TestCase):
+    """A thumbnail of a HEIC photo comes from the preview the file holds, when that is big enough.
+
+    Decoding a whole 48-megapixel photo for a 400-pixel thumbnail took about a
+    quarter of a second and 400 MB on an Apple M5 (more on a slower
+    computer); its 512-pixel preview, a hundredth of a second and 15 MB.
+    """
+
+    def setUp(self):
+        files._pillow()  # pillow-heif's opener
+        with Image.open(io.BytesIO(_heic())) as img:
+            if not files._decode_small(img, files.THUMBNAIL_PX):
+                self.skipTest("this pillow-heif can't decode a preview on its own (1.8.1 can)")
+
+    def test_a_preview_big_enough_is_decoded_instead_of_the_photo(self):
+        for size, preview in (((1600, 1200), (512, 384)), ((1200, 1600), (384, 512))):
+            with self.subTest(size=size):
+                data = _heic(size)
+                with Image.open(io.BytesIO(data)) as img:
+                    self.assertTrue(files._decode_small(img, files.THUMBNAIL_PX))
+                    self.assertEqual(img.size, preview, "only the preview is decoded")
+                jpeg, width, height = files.thumbnail(data)
+                self.assertEqual((width, height), size, "the whole photo's size, not the preview's")
+                with Image.open(io.BytesIO(jpeg)) as img:
+                    self.assertEqual((img.format, max(img.size)), ("JPEG", files.THUMBNAIL_PX))
+
+    def test_a_preview_smaller_than_the_thumbnail_isnt_used(self):
+        # An iPhone's preview is 320 by 240: the whole photo is decoded, as before
+        data = _heic(previews=(320,))
+        with Image.open(io.BytesIO(data)) as img:
+            self.assertFalse(files._decode_small(img, files.THUMBNAIL_PX))
+            self.assertEqual(img.size, (1600, 1200))
+        jpeg, width, height = files.thumbnail(data)
+        self.assertEqual((width, height), (1600, 1200))
+        with Image.open(io.BytesIO(jpeg)) as img:
+            self.assertEqual(img.size, (400, 300))
+
+    def test_turned_upright_the_same_as_the_whole_photo(self):
+        # orientation: (size shown, colour at the top left, colour at the bottom right)
+        for orientation, shown, top_left, bottom_right in ((None, (1600, 1200), RED, BLUE), (6, (1200, 1600), RED, BLUE),
+                                                           (3, (1600, 1200), BLUE, RED), (8, (1200, 1600), BLUE, RED)):
+            for previews in ((512,), ()):
+                with self.subTest(orientation=orientation, previews=previews):
+                    data = _heic(previews=previews, orientation=orientation)
+                    with Image.open(io.BytesIO(data)) as img:
+                        self.assertEqual(files._decode_small(img, files.THUMBNAIL_PX), bool(previews))
+                    jpeg, width, height = files.thumbnail(data)
+                    self.assertEqual((width, height), shown)
+                    with Image.open(io.BytesIO(jpeg)) as img:
+                        img = img.convert("RGB")
+                        self.assertEqual(img.size, (shown[0] // 4, shown[1] // 4))
+                        self.assertTrue(_near(img.getpixel((5, 5)), top_left), img.getpixel((5, 5)))
+                        self.assertTrue(_near(img.getpixel((img.width - 5, img.height - 5)), bottom_right))
+
+    def test_the_photo_sent_full_size_is_never_a_preview(self):
+        # A HEIC sent as JPEG (up to JPEG_MAX_PX) is the photo itself
+        jpeg = files.jpeg_copy(_heic(previews=(512, 1024)))
+        with Image.open(io.BytesIO(jpeg)) as img:
+            self.assertEqual(img.size, (1600, 1200))
+
+    def test_only_for_heif(self):
+        # A JPEG already decodes at a smaller size in thumbnail(), and a small photo needs no preview
+        with Image.open(io.BytesIO(_picture(size=(1600, 1200)))) as img:
+            self.assertFalse(files._decode_small(img, files.THUMBNAIL_PX))
+            self.assertEqual(img.size, (1600, 1200))
+        with Image.open(io.BytesIO(_heic(size=(400, 300), previews=(200,)))) as img:
+            self.assertFalse(files._decode_small(img, files.THUMBNAIL_PX))
+            self.assertEqual(img.size, (400, 300))
+
+    def test_a_preview_that_cant_be_chosen_leaves_the_photo(self):
+        with Image.open(io.BytesIO(_heic())) as img, \
+                mock.patch.object(type(img), "draft", side_effect=RuntimeError("damaged preview")):
+            self.assertFalse(files._decode_small(img, files.THUMBNAIL_PX))
+            self.assertEqual(img.size, (1600, 1200))
+
+
 class TestThumbnailCache(unittest.TestCase):
 
     def test_least_recently_used_goes_first(self):
