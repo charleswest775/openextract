@@ -307,7 +307,7 @@ class MessageRecoveryExtractor:
         the computer's time zone. Returns {file, message_count,
         conversation_count}; an unknown format is {error}.
         """
-        fmt = (fmt or "").lower()
+        fmt = str(fmt or "").lower()
         if fmt not in FORMATS:
             return {"error": f"Unsupported format: {fmt}"}
 

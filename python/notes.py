@@ -56,7 +56,7 @@ class NoteExtractor:
         file; an unknown format or mode is {error}; no matching note is
         {status: 'error', message}. Never overwrites a file.
         """
-        fmt = (format or "").lower()
+        fmt = str(format or "").lower()
         if fmt not in FORMATS:
             return {"error": f"Unsupported format: {format}"}
         if mode not in MODES:

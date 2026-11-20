@@ -78,7 +78,7 @@ class BrowserHistoryExtractor:
         {success: True, path, file, count}; no history is {success: False,
         error}; an unknown format is {error}.
         """
-        fmt = (fmt or "csv").lower()
+        fmt = str(fmt or "csv").lower()
         if fmt not in FORMATS:
             return {"error": f"Unsupported format: {fmt}"}
 
