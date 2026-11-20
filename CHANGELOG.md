@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- People: a person's page now shows everything between you, not only messages, WhatsApp, calls and voicemail. Photos sent in your chats and notes you share with them over iCloud are there too, each with a chip of its own. A date range and a search box narrow the page to a stretch of time or to the words you're after, and the chips count what's left. Save these saves what's on screen. The page says what it is ("Everything between you and Karin"), and the list explains what picking someone shows
+- People and Timeline: everything with one person is on People now. The Timeline no longer has a person picker: it shows the whole backup by day, with a link to People, and when you type someone's name in its search, the link opens their page. The picker also used to add every photo, note and web visit from between your first and last contact with them, which People leaves out. In the Year view, clicking a day with someone picked opens that day on their page in People
+- Timeline and People: a text or WhatsApp message with a photo shows it, small in the list and full size when you open the message
+
+### Fixed
+- Timeline: the number beside each kind of event now counts only what the dates and search leave, so it's how many ticking that kind would show. It used to count the whole backup whatever the filters were
+
 ## [0.18.0] - 2026-11-19
 
 Voicemail transcripts now show, under each voicemail and in search. Back up my iPhone no longer hangs for up to 5 minutes when a connected iPhone doesn't answer, and on Windows a backup the iPhone has finished no longer fails at the very last step. Videos in a backup that isn't encrypted open in your video player. Saved call history, web history, notes and voicemail lists show times in your own time zone instead of UTC, a backup whose folder is missing files now says so, and when WhatsApp's chats aren't in a backup, the app says why. New and experimental: Export a data bundle saves messages, calls, voicemail, contacts and photo details in one documented folder that other tools can read.

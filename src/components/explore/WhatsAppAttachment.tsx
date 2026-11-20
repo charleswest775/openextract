@@ -23,7 +23,7 @@ import type { AttachmentProps, MapPreviewProps } from './ChatBubble';
  * that aren't in the backup are never asked for.
  */
 
-type Loaded = { url: string } | { missing: true } | { tooLarge: true } | { error: string };
+export type Loaded = { url: string } | { missing: true } | { tooLarge: true } | { error: string };
 
 // Pictures already read, so scrolling back or reopening a chat doesn't ask again.
 // Thumbnails are small; full-size photos are kept only a few at a time.
@@ -52,8 +52,8 @@ function readResult(r: WhatsAppAttachmentResult | null | undefined): Loaded {
   return { url: `data:${r.mime_type || 'application/octet-stream'};base64,${r.data}` };
 }
 
-/** A picture as a data: URL, read once and kept. Errors aren't kept, so a later look tries again. */
-function loadPicture(udid: string, attachmentId: number, thumbnail: boolean): Promise<Loaded> {
+/** A picture as a data: URL, read once and kept. Errors aren't kept, so a later look tries again. The Timeline uses it too. */
+export function loadPicture(udid: string, attachmentId: number, thumbnail: boolean): Promise<Loaded> {
   const key = `${udid}:${attachmentId}:${thumbnail ? 'thumb' : 'full'}`;
   const cache = thumbnail ? thumbs : fulls;
   const known = cache.get(key);
