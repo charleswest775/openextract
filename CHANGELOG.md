@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
-- Say thanks and Pay it forward: after you send a thank-you, or say you've paid, the app offers two more ways to help the next person find OpenExtract, a like on AlternativeTo and a star on GitHub. Both open in your browser; the app sends nothing
+- Say thanks and Pay it forward: after you send a thank-you, or say you've paid, two buttons, Like it on AlternativeTo and Star it on GitHub, help the next person find OpenExtract. On the thank-you screen they come after Pay $5. Both open in your browser; the app sends nothing
 
 ## [0.18.0] - 2026-11-19
 

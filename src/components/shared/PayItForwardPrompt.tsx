@@ -77,16 +77,16 @@ export default function PayItForwardPrompt() {
     return (
       <NoticeCard title="Thank you, truly" icon={<Heart size={16} fill="currentColor" />} onClose={() => setRequest(null)}>
         <p className="text-xs text-text-secondary leading-relaxed mb-3">
-          You just helped keep OpenExtract free for someone who can't pay. I won't ask again.
+          You just helped keep OpenExtract free for someone who can't pay. I won't ask
+          again. <span className="text-text-primary whitespace-nowrap">— Charles</span>
         </p>
-        <p className="text-xs text-text-secondary leading-relaxed mb-1.5">
-          If you have one more minute: a like on AlternativeTo or a star on GitHub helps the next
-          person find it.
+        <p className="text-xs text-text-secondary leading-relaxed mb-2">
+          If you have one more minute: OpenExtract doesn't pay for ads, so a like on AlternativeTo
+          or a star on GitHub is how the next person finds it.
         </p>
-        <HelpOthersFindIt className="mb-3" />
-        <p className="text-xs text-text-primary mb-3">— Charles</p>
+        <HelpOthersFindIt stack className="mb-3" />
         <div className="flex justify-end">
-          <button className="hearth-primary-btn" onClick={() => setRequest(null)}>Close</button>
+          <button className="hearth-ghost-btn" onClick={() => setRequest(null)}>Close</button>
         </div>
       </NoticeCard>
     );

@@ -194,22 +194,24 @@ test('once a thank-you went out from this computer, the card asks only to pay, a
   assert.ok(c.bridge.calls.some(([m]) => m === 'support.snooze'));
 });
 
-test('after "I\'ve paid": the thank-you offers a like on AlternativeTo and a star on GitHub, and still one way out', async t => {
+test('after "I\'ve paid": the thank-you has Like on AlternativeTo and Star on GitHub buttons, then one way out', async t => {
   const c = card(t);
   const out = await c.afterExport('photos', false);
   button(out, 'Already paid? Stop asking').props.onClick();
   const paid = c.probe.rerender();
   const page = html(paid);
   assert.match(page, /Thank you, truly/);
-  assert.match(page, /I won't ask again\./);
-  assert.match(page, /a like on AlternativeTo or a star on GitHub helps the next\s+person find it/);
+  assert.match(page, /I won't ask\s+again\./);
+  assert.match(page, /a like on AlternativeTo\s+or a star on GitHub is how the next person finds it/);
   assert.match(page, />Like it on AlternativeTo</);
   assert.match(page, />Star it on GitHub</);
-  assert.deepEqual(buttons(paid), ['Close'], 'the links are small links, not more buttons');
+  assert.ok(page.indexOf('Like it on AlternativeTo') < page.indexOf('>Close<'), 'like and star come before Close');
+  assert.deepEqual(buttons(paid), ['Close'], "the card's own button; like and star are HelpOthersFindIt's");
 
   const help = findAll(paid, el => typeof el.type === 'function' && el.type.name === 'HelpOthersFindIt')[0];
-  assert.ok(help, 'the card shows the links');
+  assert.ok(help, 'the card shows the like and star buttons');
   const links = help.type(help.props);
+  assert.deepEqual(buttons(links), ['Like it on AlternativeTo', 'Star it on GitHub'], 'real buttons, not small links');
   button(links, 'Like it on AlternativeTo').props.onClick();
   button(links, 'Star it on GitHub').props.onClick();
   assert.deepEqual(c.bridge.calls.filter(([m]) => m === 'openExternal'), [

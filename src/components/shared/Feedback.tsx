@@ -159,45 +159,51 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
     return (
       <Shell onClose={onClose} thanks>
         <p className="text-sm text-text-primary mb-1">Thank you. Your message was sent.</p>
-        <p className="text-xs text-text-secondary leading-relaxed mb-1.5">
-          Hearing that OpenExtract helped is what keeps it going. It doesn't pay for ads, so it gets
-          found when people like you vouch for it. If you have a minute, a like on AlternativeTo, where
-          people look for alternatives to paid apps, or a star on GitHub helps the next person find it.
-          So does passing on the link.
+        {/* Paying first, then the like and star buttons, then Done. */}
+        <p className="text-xs text-text-secondary leading-relaxed mb-3">
+          Hearing that OpenExtract helped is what keeps it going. If it was worth something to you and
+          you can afford it, pay what it was worth. If you can't, your thank-you is
+          plenty. <span className="text-text-primary whitespace-nowrap">— Charles</span>
         </p>
-        <HelpOthersFindIt className="mb-3" />
-        <p className="text-xs text-text-secondary leading-relaxed mb-4">
-          And if it was worth something to you and you can afford it, pay what it was worth. If you
-          can't, your thank-you is plenty. <span className="text-text-primary whitespace-nowrap">— Charles</span>
-        </p>
-        <div className="flex justify-end gap-2">
-          <button
-            className="hearth-ghost-btn"
-            aria-live="polite"
-            onClick={async () => {
-              try {
-                await window.openextract.copyText(SITE_URL);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2500);
-              } catch {
-                // Clipboard unavailable: leave the button as it was.
-              }
-            }}
-          >
-            {copied ? 'Link copied' : 'Copy link'}
-          </button>
+        <button
+          className="hearth-primary-btn mb-4"
+          onClick={() => {
+            window.openextract.openExternal(SUPPORT_PAY_URL);
+            onClose();
+            showAsk({ mode: 'header', stage: 'opened' });
+          }}
+        >
+          <Heart size={14} fill="currentColor" aria-hidden="true" />
+          Pay $5
+        </button>
+        <div className="pt-3 mb-4" style={{ borderTop: '1px solid var(--border-default)' }}>
+          <p className="text-xs text-text-secondary leading-relaxed mb-2.5">
+            OpenExtract doesn't pay for ads, so it gets found when people like you vouch for it. A like
+            on AlternativeTo, where people look for alternatives to paid apps, or a star on GitHub helps
+            the next person find it. So does passing on the link.
+          </p>
+          <HelpOthersFindIt
+            extra={(
+              <button
+                className="hearth-ghost-btn"
+                aria-live="polite"
+                onClick={async () => {
+                  try {
+                    await window.openextract.copyText(SITE_URL);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2500);
+                  } catch {
+                    // Clipboard unavailable: leave the button as it was.
+                  }
+                }}
+              >
+                {copied ? 'Link copied' : 'Copy link'}
+              </button>
+            )}
+          />
+        </div>
+        <div className="flex justify-end">
           <button className="hearth-ghost-btn" onClick={onClose}>Done</button>
-          <button
-            className="hearth-primary-btn"
-            onClick={() => {
-              window.openextract.openExternal(SUPPORT_PAY_URL);
-              onClose();
-              showAsk({ mode: 'header', stage: 'opened' });
-            }}
-          >
-            <Heart size={14} fill="currentColor" aria-hidden="true" />
-            Pay $5
-          </button>
         </div>
       </Shell>
     );

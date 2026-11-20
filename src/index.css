@@ -222,6 +222,28 @@ h1.text-lg, h1.text-base, h2.text-lg {
   box-shadow: none;
 }
 
+/* A tinted pill, louder than a ghost button and quieter than the filled primary one:
+   the like and star buttons after a thank-you or a payment (HelpOthersFindIt.tsx). */
+.hearth-soft-btn {
+  background: var(--accent-wash);
+  border: 1px solid var(--accent-line);
+  color: var(--accent);
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.hearth-soft-btn:hover {
+  background: var(--accent-line);
+}
+
 /* "Pay it forward" in the title bar: always there, never moving, except one soft
    glow after an export (PayItForwardButton.tsx). The ask card gets one glow as it
    appears (NoticeCard highlight). Neither animates under reduced motion. */
