@@ -30,9 +30,11 @@ nothing but JSON-RPC, and the common calls stay fast (PERF_BUDGETS).
 
 from __future__ import annotations
 
+import hashlib
 import html
 import io
 import json
+import os
 import re
 import shutil
 import sys
@@ -45,7 +47,7 @@ from pathlib import Path
 from typing import Callable
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageOps
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rpc_contract_support import (  # noqa: E402
@@ -84,8 +86,9 @@ import podcasts_backup as pb  # noqa: E402
 # include the JSON-RPC round trip. Measured on an M-series Mac (2026-11, worst
 # of 3 runs): engine start 0.24 s; open_backup 0.002; list_conversations 0.005;
 # get_messages 0.004; list_photos 0.012; get_photo_thumbnail 0.056;
-# search_messages 0.014; get_backup_stats 0.013; get_year_counts 0.013. On a
-# Windows 11 PC: start 0.27 s, every call 0.025 s or less.
+# search_messages 0.014; get_backup_stats 0.013; get_year_counts 0.013;
+# get_attachment's thumbnail 0.011. On a Windows 11 PC: start 0.27 s, every
+# call 0.025 s or less.
 # A budget is 4x that, rounded up, but never under 1 s for a call (10 s to
 # start): hosted CI runners are several times slower and Windows ones add
 # Defender scans and slow first file opens, and a flaky budget is worse than
@@ -97,6 +100,7 @@ PERF_BUDGETS = {
     "open_backup": 1.0,
     "list_conversations": 1.0,
     "get_messages": 1.0,         # first page (50) of the biggest conversation
+    "get_attachment_thumb": 1.0,  # a message photo's first thumbnail: decode a 1600 px JPEG, scale, re-encode
     "list_photos": 1.0,          # first page (100)
     "get_photo_thumbnail": 1.0,  # first thumbnail: decode a 1600 px JPEG, scale, re-encode
     "search_messages": 1.0,      # a common word across every conversation
@@ -350,13 +354,62 @@ def case_get_attachment(ctx):
     for engine in (ctx.maren, ctx.maren_enc):
         with_attachment = [msg for msg in engine.expected["messages"] if msg["attachment"]]
         assert len(engine.attachments) == len(with_attachment) > 0
+        # get_messages says what each one is and that its file is in the backup
+        for _, _, att in engine.attachments:
+            assert att["available"] is True and att["is_sticker"] is False, att
+            assert att["uti"] == "public.jpeg", att
         for _, _, att in engine.attachments[:6]:
+            what = f"attachment {att['attachment_id']}"
             result = engine.rpc("get_attachment", attachment_id=att["attachment_id"])
-            data = decoded(result, f"attachment {att['attachment_id']}")
+            data = decoded(result, what)
             assert result["filename"] == att["transfer_name"]
             assert result["mime_type"] == att["mime_type"] == "image/jpeg"
-            assert data.startswith(JPEG_MAGIC) and len(data) == att["total_bytes"]
-        assert engine.rpc("get_attachment", attachment_id=10 ** 9) == {"error": "Attachment not found"}
+            assert data.startswith(JPEG_MAGIC) and len(data) == att["total_bytes"] == result["size"]
+            # A thumbnail: a small JPEG, with the whole photo's size as it is shown
+            thumb = engine.rpc("get_attachment", attachment_id=att["attachment_id"], thumbnail=True)
+            small = decoded(thumb, f"{what} thumbnail")
+            assert thumb["mime_type"] == "image/jpeg" and small.startswith(JPEG_MAGIC) and len(small) < len(data)
+            assert (thumb["filename"], thumb["size"]) == (att["transfer_name"], att["total_bytes"])
+            with Image.open(io.BytesIO(small)) as img, Image.open(io.BytesIO(data)) as photo:
+                assert max(img.size) <= 400, img.size
+                assert (thumb["width"], thumb["height"]) == ImageOps.exif_transpose(photo).size
+            assert engine.rpc("get_attachment", attachment_id=att["attachment_id"], thumbnail=True) == thumb  # kept
+            # A copy under its own name, outside the backup, in the engine's folder of copies
+            copy = engine.rpc("get_attachment", attachment_id=att["attachment_id"], as_file=True)
+            path = Path(copy["path"])
+            assert path.name == att["transfer_name"] and path.read_bytes() == data
+            assert (copy["mime_type"], copy["filename"], copy["size"], copy["openable"]) == \
+                ("image/jpeg", att["transfer_name"], att["total_bytes"], True)
+            assert engine.backup_dir.resolve() not in path.resolve().parents
+            assert path.parent.parent.parent.name.startswith("openextract-messages-"), path
+        for flags in ({}, {"thumbnail": True}, {"as_file": True}):
+            assert engine.rpc("get_attachment", attachment_id=10 ** 9, **flags) == {"error": "Attachment not found"}
+
+    # A backup copied only partway (OE-102): one photo's file isn't in its folder
+    m = ctx.maren
+    _, _, gone = m.attachments[0]
+    partial = ctx.tmp / "partial" / m.udid
+    shutil.copytree(m.backup_dir, partial, copy_function=_link_or_copy)
+    file_id = hashlib.sha1(f"MediaDomain-{gone['filename'].removeprefix('~/')}".encode()).hexdigest()
+    (partial / file_id[:2] / file_id).unlink()
+    engine = ctx.runtime.fresh("partial")
+    assert engine.call("open_backup", {"udid": m.udid, "backup_dir": str(partial)})["status"] == "open"
+    page = engine.call("get_messages", {"udid": m.udid, "chat_id": next(c for c, msg, a in m.attachments if a is gone),
+                                        "offset": 0, "limit": 10_000})
+    found = {a["attachment_id"]: a["available"] for msg in page["messages"] for a in msg["attachments"]}
+    assert found[gone["attachment_id"]] is False and sum(found.values()) == len(found) - 1, found
+    for flags in ({}, {"thumbnail": True}, {"as_file": True}):
+        result = engine.call("get_attachment", {"udid": m.udid, "attachment_id": gone["attachment_id"], **flags})
+        assert result == {"error": "This file isn't in the backup", "empty_reason": "not_in_backup"}, (flags, result)
+
+
+def _link_or_copy(src, dest):
+    """Copy a backup's file for a test that changes the copy: a hard link where the disk allows one (quick)."""
+    try:
+        os.link(src, dest)
+    except OSError:
+        shutil.copy2(src, dest)
+    return dest
 
 
 @contract("get_message_offset")
@@ -1888,6 +1941,7 @@ def test_unknown_method_gets_method_not_found(runtime):
     ("open_backup", {}, "udid"),
     ("get_messages", {"udid": FAKE_UDID}, "chat_id"),
     ("get_whatsapp_messages", {"udid": FAKE_UDID}, "chat_id"),
+    ("get_attachment", {"udid": FAKE_UDID}, "attachment_id"),
     ("get_whatsapp_attachment", {"udid": FAKE_UDID}, "attachment_id"),
     ("write_file", {"path": "never-written.txt"}, "content"),
     ("get_backup_size", {}, "backup_dir"),
@@ -2045,6 +2099,13 @@ def test_performance_budgets(runtime, record_property, capsys):
     conversations = timed("list_conversations", "list_conversations", udid=udid)["conversations"]
     biggest = max(conversations, key=lambda c: c["message_count"])
     assert timed("get_messages", "get_messages", udid=udid, chat_id=biggest["chat_id"], offset=0, limit=50)["messages"]
+    attachment = next(
+        a for c in conversations
+        for msg in engine.call("get_messages", {"udid": udid, "chat_id": c["chat_id"], "offset": 0, "limit": 10_000})["messages"]
+        for a in msg["attachments"]
+    )
+    assert "data" in timed("get_attachment_thumb", "get_attachment", udid=udid,
+                           attachment_id=attachment["attachment_id"], thumbnail=True)
     photos = timed("list_photos", "list_photos", udid=udid, offset=0, limit=100)["photos"]
     assert "data" in timed("get_photo_thumbnail", "get_photo_thumbnail", udid=udid, file_hash=photos[0]["file_hash"], size=200)
     assert timed("search_messages", "search_messages", udid=udid, query="the")["results"]
