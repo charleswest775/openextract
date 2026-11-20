@@ -96,7 +96,9 @@ function entryDescription(e: TimelineEntry): string {
         handwriting: '[Handwriting]',
         system: '[System message]',
       };
-      const text = m.text || (m.eventText && `[${m.eventText}]`) || typeLabels[m.messageType]
+      const photos = m.photos?.length ?? 0;
+      const photoLabel = photos > 1 ? `[${photos} photos]` : photos === 1 ? '[Photo]' : null;
+      const text = m.text || (m.eventText && `[${m.eventText}]`) || photoLabel || typeLabels[m.messageType]
         || `[${m.messageType || 'No text'}]`;
       return `${dir}: ${text}`;
     }

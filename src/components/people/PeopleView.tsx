@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useTimeline } from '../../hooks/useTimeline';
-import type { TimelineEntry, TimelineEntryType } from '../../types/timeline';
+import type { TimelineEntry } from '../../types/timeline';
 import { formatPhone } from '../../lib/people';
 import { matches } from '../../lib/search';
 import { formatDate } from '../../lib/dates';
@@ -12,17 +12,17 @@ import Highlight from '../shared/Highlight';
 import EmptyState from '../shared/EmptyState';
 import OrganicLoader from '../shared/OrganicLoader';
 import SaveDialog, { FORMATS, SaveButton } from '../shared/SaveDialog';
-import { CallIcon, ChevronRightIcon, ContactIcon, PeopleIcon, LinesIcon, VoicemailIcon, WhatsAppIcon } from '../shared/Icons';
+import DateRange from '../shared/DateRange';
+import { SearchField } from '../shared/PageHeader';
+import { CallIcon, CameraIcon, ChevronRightIcon, ContactIcon, NoteIcon, PeopleIcon, LinesIcon, VoicemailIcon, WhatsAppIcon } from '../shared/Icons';
 import TimelineEntryCard from '../timeline/TimelineEntryCard';
 import { groupByDay } from '../timeline/TimelineView';
 import type { ExploreContext } from '../explore/sections';
-import { gatherPeople, idKey, initials, linkCards, PERSON_KINDS, type Person, type PersonKind } from './gather';
+import { gatherPeople, idKey, initials, linkCards, PERSON_KINDS, type Person } from './gather';
+import { countOf, kindChips, nothingBetween, streamTypes, type StreamKind } from './stream';
 
-const KIND_LABEL: Record<PersonKind, [string, string]> = {
-  message: ['message', 'messages'],
-  whatsapp: ['WhatsApp message', 'WhatsApp messages'],
-  call: ['call', 'calls'],
-  voicemail: ['voicemail', 'voicemails'],
+const KIND_ICON: Record<StreamKind, typeof LinesIcon> = {
+  message: LinesIcon, whatsapp: WhatsAppIcon, call: CallIcon, voicemail: VoicemailIcon, photo: CameraIcon, note: NoteIcon,
 };
 
 // What a group-like row is, under its name
@@ -33,9 +33,7 @@ function groupLine(p: Person): string {
 }
 
 function summary(p: Person): string {
-  return PERSON_KINDS.filter(k => p.counts[k] > 0)
-    .map(k => plural(p.counts[k], KIND_LABEL[k][0], KIND_LABEL[k][1]))
-    .join(' · ');
+  return PERSON_KINDS.filter(k => p.counts[k] > 0).map(k => countOf(k, p.counts[k])).join(' · ');
 }
 
 interface Props {
@@ -44,20 +42,29 @@ interface Props {
   query: string;
   /** Who to open, by phone number or email. */
   person?: string;
+  /** The dates to start from: a day opened from the Year view with someone picked. */
+  days?: { from: string; to: string };
 }
 
+const ANY_DATE = { from: '', to: '' };
+
 /**
- * Who you were in touch with, most first, and one page per person with their
- * messages, WhatsApp, calls and voicemail in one stream. Saved cards are in the address book.
+ * Who you were in touch with, most first, and one page per person with
+ * everything between you in one stream: messages, WhatsApp, calls, voicemail,
+ * the photos sent in your chats and the notes you share. Saved cards are in the address book.
  */
-export default function PeopleView({ ctx, query, person }: Props) {
+export default function PeopleView({ ctx, query, person, days }: Props) {
   const timeline = useTimeline(ctx.index);
   const cards = ctx.index.addressBook;
   const people = useMemo(() => gatherPeople(timeline.allEntries, cards ?? []), [timeline.allEntries, cards]);
   const { cardOf } = useMemo(() => linkCards(people, cards ?? []), [people, cards]);
   const asked = person ? people.find(p => p.ids.has(idKey(person))) : undefined;
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [kinds, setKinds] = useState<PersonKind | 'all'>('all');
+  // What of theirs to show: one kind or everything, which dates, and words to find
+  const [kinds, setKinds] = useState<StreamKind | 'all'>('all');
+  const [range, setRange] = useState(days ?? ANY_DATE);
+  const [within, setWithin] = useState('');
+  const searchWithin = useDeferredValue(within);
   const [choosing, setChoosing] = useState(false);
   const { busy, run } = useSaveAction('timeline');
 
@@ -74,10 +81,25 @@ export default function PeopleView({ ctx, query, person }: Props) {
     if (!selected) return;
     setFilters({
       contactIdentifier: selected.identifier,
-      types: new Set<TimelineEntryType>(kinds === 'all' ? PERSON_KINDS : [kinds]),
-      searchQuery: '', dateFrom: '', dateTo: '',
+      types: streamTypes(kinds),
+      searchQuery: searchWithin, dateFrom: range.from, dateTo: range.to,
     });
-  }, [selected?.key, kinds, setFilters]);
+  }, [selected?.key, kinds, searchWithin, range.from, range.to, setFilters]);
+  // Until the filter has caught up with who's picked, the Timeline's numbers are the whole backup's
+  const ready = selected != null && timeline.filters.contactIdentifier === selected.identifier;
+  const dated = !!(range.from || range.to);
+  const narrowed = kinds !== 'all' || dated || !!within.trim();
+
+  function pick(p: Person) {
+    setSelectedKey(p.key);
+    showEverything();
+  }
+
+  function showEverything() {
+    setKinds('all');
+    setRange(ANY_DATE);
+    setWithin('');
+  }
 
   function save(format: ExportFormat) {
     setChoosing(false);
@@ -89,7 +111,9 @@ export default function PeopleView({ ctx, query, person }: Props) {
       const safe = selected.name.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'person';
       const path = `${folder}/${safe}.${FORMAT_FILTERS[format].extensions[0]}`;
       await window.openextract.writeFile(path, formatTimeline(entries, format));
-      return { title: `Saved everything with ${selected.name}`, detail: plural(entries.length, 'event'), path };
+      return narrowed
+        ? { title: `Saved ${plural(entries.length, 'event')} with ${selected.name}`, path }
+        : { title: `Saved everything with ${selected.name}`, detail: plural(entries.length, 'event'), path };
     });
   }
 
@@ -98,7 +122,7 @@ export default function PeopleView({ ctx, query, person }: Props) {
     return (
       <button
         key={p.key}
-        onClick={() => { setSelectedKey(p.key); setKinds('all'); }}
+        onClick={() => pick(p)}
         aria-current={on ? 'true' : undefined}
         className={`w-full px-4 py-2.5 flex items-center gap-3 text-left transition-colors ${on ? 'bg-accent-wash' : 'hover:bg-surface'}`}
       >
@@ -115,7 +139,8 @@ export default function PeopleView({ ctx, query, person }: Props) {
     );
   };
 
-  const groupsOfDays = groupByDay(timeline.entries);
+  const groupsOfDays = ready ? groupByDay(timeline.entries) : [];
+  const name = selected ? formatPhone(selected.name) : '';
   // A WhatsApp message opens in its chat, at that message
   const openWhatsApp = (entry: TimelineEntry) => ctx.openTab('whatsapp', { select: entry });
   const totalPages = Math.ceil(timeline.totalFiltered / timeline.pageSize);
@@ -129,7 +154,10 @@ export default function PeopleView({ ctx, query, person }: Props) {
             <h1 className="text-2xl text-text-primary">People</h1>
             <span className="text-xs text-text-tertiary">Most in touch first</span>
           </div>
-          <p className="text-xs text-text-secondary">Everyone you were in touch with by Messages, WhatsApp, calls or voicemail. Saved cards are in the address book.</p>
+          <p className="text-sm text-text-secondary">
+            Pick anyone to see everything between you in one stream: messages, WhatsApp, calls, voicemail, the photos you sent each other and the notes you share.
+          </p>
+          <p className="text-xs text-text-tertiary">Saved cards are in the address book.</p>
         </div>
         <div className="flex-1 overflow-y-auto">
           {timeline.loading && people.length === 0 && (
@@ -167,7 +195,8 @@ export default function PeopleView({ ctx, query, person }: Props) {
                   className="w-16 h-16 rounded-full bg-accent-wash flex items-center justify-center flex-shrink-0 text-xl font-medium text-accent before:content-[attr(data-initials)]"
                 />
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-3xl text-text-primary truncate">{formatPhone(selected.name)}</h2>
+                  <div className="hearth-eyebrow">{selected.isGroup ? 'Everything in' : 'Everything between you and'}</div>
+                  <h2 className="text-3xl text-text-primary truncate">{name}</h2>
                   <div className="text-sm text-text-secondary truncate">
                     {selected.isGroup ? groupLine(selected) : formatPhone(selected.identifier)}
                     {selected.last && ` · last in touch ${formatDate(selected.last)}`}
@@ -195,35 +224,58 @@ export default function PeopleView({ ctx, query, person }: Props) {
                     Open WhatsApp chat
                   </button>
                 )}
-                <SaveButton primary onClick={() => setChoosing(true)} busy={busy} disabled={timeline.loading} label="Save everything" />
+                <SaveButton
+                  primary
+                  onClick={() => setChoosing(true)}
+                  busy={busy}
+                  disabled={timeline.loading || !ready || timeline.totalFiltered === 0}
+                  label={narrowed ? 'Save these' : 'Save everything'}
+                />
               </div>
-              <div role="radiogroup" aria-label="Show" className="flex flex-wrap gap-2">
-                {(['all', ...PERSON_KINDS] as const).map(k => {
-                  const on = kinds === k;
-                  const n = k === 'all' ? selected.total : selected.counts[k];
-                  if (k !== 'all' && n === 0) return null;
-                  const Icon = k === 'message' ? LinesIcon : k === 'whatsapp' ? WhatsAppIcon : k === 'call' ? CallIcon : k === 'voicemail' ? VoicemailIcon : null;
-                  return (
-                    <button
-                      key={k}
-                      role="radio"
-                      aria-checked={on}
-                      onClick={() => setKinds(k)}
-                      className={`h-9 px-4 rounded-full border text-sm flex items-center gap-2 transition-colors ${
-                        on ? 'border-accent bg-accent-wash text-text-primary font-medium' : 'border-rule text-text-secondary hover:bg-surface'
-                      }`}
-                    >
-                      {Icon && <Icon size={18} />}
-                      {k === 'all' ? `Everything · ${n.toLocaleString()}` : plural(n, KIND_LABEL[k][0], KIND_LABEL[k][1])}
-                    </button>
-                  );
-                })}
+              <div className="flex flex-col gap-3">
+                <div role="radiogroup" aria-label="Show" className="flex flex-wrap gap-2">
+                  {ready && kindChips(timeline.counts, kinds).map(({ kind, label }) => {
+                    const on = kinds === kind;
+                    const Icon = kind === 'all' ? null : KIND_ICON[kind];
+                    return (
+                      <button
+                        key={kind}
+                        role="radio"
+                        aria-checked={on}
+                        onClick={() => setKinds(kind)}
+                        title={kind === 'photo' ? 'Photos sent in your messages and WhatsApp chats' : kind === 'note' ? 'Notes you share over iCloud' : undefined}
+                        className={`h-9 px-4 rounded-full border text-sm flex items-center gap-2 transition-colors ${
+                          on ? 'border-accent bg-accent-wash text-text-primary font-medium' : 'border-rule text-text-secondary hover:bg-surface'
+                        }`}
+                      >
+                        {Icon && <Icon size={18} />}
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+                  <SearchField
+                    value={within}
+                    onChange={setWithin}
+                    placeholder={selected.isGroup ? 'Search this group' : 'Search everything between you'}
+                    className="w-80"
+                  />
+                  <DateRange from={range.from} to={range.to} onChange={setRange} />
+                </div>
               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto px-7 pb-6">
-              {timeline.loading && timeline.entries.length === 0 && (
+              {(!ready || timeline.loading) && groupsOfDays.length === 0 && (
                 <div className="flex justify-center py-12 text-accent"><OrganicLoader size={64} /></div>
+              )}
+              {ready && !timeline.loading && groupsOfDays.length === 0 && (
+                <EmptyState
+                  icon={PeopleIcon}
+                  title={nothingBetween(name, { kind: kinds, dates: dated, within: searchWithin })}
+                  action={<button onClick={showEverything} className="hearth-ghost-btn">Show everything</button>}
+                />
               )}
               {groupsOfDays.map(group => (
                 <div key={group.date}>
@@ -251,7 +303,7 @@ export default function PeopleView({ ctx, query, person }: Props) {
 
       {choosing && selected && (
         <SaveDialog
-          title={`Save everything with ${formatPhone(selected.name)}`}
+          title={narrowed ? `Save ${plural(timeline.totalFiltered, 'event')} with ${name}` : `Save everything with ${name}`}
           formats={[FORMATS.html, FORMATS.csv, { id: 'md', label: 'Markdown', detail: 'MD, for notes apps and text editors' }]}
           onSave={id => save(id as ExportFormat)}
           onCancel={() => setChoosing(false)}

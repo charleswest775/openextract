@@ -6,6 +6,7 @@ import {
   TimelineFilters,
   ContactOption,
   DEFAULT_FILTERS,
+  MessagePhoto,
 } from '../types/timeline';
 import {
   identifiersMatch,
@@ -17,6 +18,7 @@ import {
   normPhone,
 } from '../lib/people';
 import { matchesTerms, parseQuery, searchText } from '../lib/search';
+import { attachmentKind } from '../lib/whatsapp';
 import type { Conversation, Message } from './useMessages';
 import type { PhotoAsset } from '../types';
 import type { WhatsAppChatsResult, WhatsAppConversation, WhatsAppMessage, WhatsAppMessagesResult } from '../types/whatsapp';
@@ -43,7 +45,21 @@ const ALL_KINDS: TimelineEntryType[] = ['message', 'whatsapp', 'call', 'photo', 
 
 // ── Normalizers ────────────────────────────────────────────────────────────────
 
+/** The photos among a text's attachments, or undefined when there are none (most texts). */
+function messagePhotos(msg: Message): MessagePhoto[] | undefined {
+  const photos = (msg.attachments ?? [])
+    .filter(a => attachmentKind(a) === 'image')
+    .map(({ attachment_id, filename, mime_type, transfer_name }) => ({ attachment_id, filename, mime_type, transfer_name }));
+  return photos.length > 0 ? photos : undefined;
+}
+
+/** How many photos were sent with a text or WhatsApp message: what it adds to Photos in someone's stream. */
+export function photosIn(e: TimelineEntry): number {
+  return e.message?.photos?.length ?? e.whatsapp?.photos?.length ?? 0;
+}
+
 export function normalizeMessage(msg: Message, conv: Conversation): TimelineEntry {
+  const photos = messagePhotos(msg);
   return {
     id: `message:${msg.message_id}`,
     type: 'message',
@@ -60,6 +76,7 @@ export function normalizeMessage(msg: Message, conv: Conversation): TimelineEntr
       service: conv.service,
       chatId: conv.chat_id,
       isGroup: conv.is_group,
+      ...(photos && { photos }),
     },
   };
 }
@@ -86,6 +103,10 @@ export function normalizeWhatsApp(msg: WhatsAppMessage, conv: WhatsAppConversati
   const call = msg.call
     ? { outcome: msg.call.outcome, direction: msg.call.direction, isVideo: msg.call.is_video, duration: msg.call.duration }
     : null;
+  // A photo message's picture, when it's in the backup (stickers and view-once photos aren't photo messages)
+  const photos = msg.message_type === 'image'
+    ? (msg.attachments ?? []).filter(a => a.available && attachmentKind(a, msg.message_type) === 'image')
+    : [];
   return {
     id: `whatsapp:${msg.message_id}`,
     type: 'whatsapp',
@@ -105,6 +126,7 @@ export function normalizeWhatsApp(msg: WhatsAppMessage, conv: WhatsAppConversati
       isGroup: chatType === 'group',
       sort: msg.sort ?? null,
       call,
+      ...(photos.length > 0 && { photos }),
     },
   };
 }
@@ -189,12 +211,21 @@ export function normalizeVoicemail(vm: RawVoicemail): TimelineEntry {
   };
 }
 
+/** Someone a note is shared with, as list_notes gives them. */
+interface RawNoteParticipant {
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+}
+
 interface RawNote {
   note_id: number | string;
   title: string;
   body: string;
   created: string;
   modified: string;
+  /** Who it's shared with, besides the phone's owner; empty or absent when it isn't shared. */
+  shared_with?: RawNoteParticipant[];
 }
 
 // The first `n` characters, counted by code point so an emoji isn't cut in half.
@@ -209,6 +240,7 @@ function firstCodePoints(s: string, n: number): string {
 }
 
 function normalizeNote(note: RawNote): TimelineEntry {
+  const sharedWith = (note.shared_with ?? []).flatMap(p => [p.phone, p.email]).filter((x): x is string => !!x);
   return {
     id: `note:${note.note_id}`,
     type: 'note',
@@ -221,6 +253,7 @@ function normalizeNote(note: RawNote): TimelineEntry {
       bodyPreview: firstCodePoints(note.body || '', 120),
       body: note.body || '',
       modified: note.modified,
+      ...(sharedWith.length > 0 && { sharedWith }),
     },
   };
 }
@@ -724,7 +757,10 @@ export interface UseTimelineReturn {
   entries: TimelineEntry[];
   filteredEntries: TimelineEntry[];
   allContacts: ContactOption[];
+  /** Of each kind, how many the person, dates and search leave: what ticking that kind would show. */
   counts: Record<TimelineEntryType, number>;
+  /** Of each kind, how many the whole backup has. */
+  totals: Record<TimelineEntryType, number>;
   totalFiltered: number;
   loading: boolean;
   loadingTypes: Set<TimelineEntryType>;
@@ -744,7 +780,7 @@ export interface UseTimelineReturn {
 export function useTimeline(index: BackupIndex, startingFilters?: Partial<TimelineFilters>): UseTimelineReturn {
   const [filters, setFiltersState] = useState<TimelineFilters>({ ...DEFAULT_FILTERS, ...startingFilters });
   const [page, setPage] = useState(0);
-  const { entries: allEntries, contacts: allContacts, identifierGroupMap, loadDay } = index;
+  const { entries: allEntries, contacts: allContacts, identifierGroupMap, loadDay, counts: totals } = index;
 
   // Opening on one day with messages showing: read that day ahead of the rest
   const openDay = filters.dateFrom && filters.dateFrom === filters.dateTo && filters.types.has('message')
@@ -754,8 +790,13 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
     if (openDay) loadDay(openDay);
   }, [openDay, loadDay]);
 
-  // ── Filtered entries, newest first ────────────────────────────────────────
-  const filteredEntries = useMemo((): TimelineEntry[] => {
+  // ── Filtered entries, newest first, and what each kind would add ──────────
+  // `counts` goes through every filter but the kinds: it's how many of each
+  // kind ticking its chip would show, so with someone chosen a chip counts only
+  // what's with them.
+  const { filteredEntries, counts } = useMemo((): {
+    filteredEntries: TimelineEntry[]; counts: Record<TimelineEntryType, number>;
+  } => {
     const { types, contactIdentifier, dateFrom, dateTo, searchQuery } = filters;
     const terms = parseQuery(searchQuery);
     // Use local midnight for both bounds so the user's chosen calendar day is
@@ -765,36 +806,27 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
     const toMs = dateTo ? new Date(dateTo + 'T23:59:59.999').getTime() : null;
 
     // ── Contact matching ───────────────────────────────────────────────────
-    // When a contact is selected we match entries three ways:
-    //  1. Identifier match (exact, normalised phone, or address-book group)
-    //  2. Name match (same resolved display name), for texts, calls and voicemail
-    //  3. Unattributed entries (photos, notes, browser) shown within the
-    //     communication window of matched entries.
+    // Someone's stream is only what passed between you: texts and WhatsApp
+    // messages (with the photos sent in them), calls, voicemail and the notes
+    // you share. A text, call or voicemail is theirs by its identifier (exact,
+    // normalised phone, or on the same address-book card) or by their name.
     // A WhatsApp message is theirs by its number (or a number on their card)
-    // only, never by name: People counts it the same way (gather.ts).
+    // only, never by name: People counts it the same way (gather.ts). A shared
+    // note is theirs when one of its people is them. Camera-roll photos, notes
+    // no one else has and web visits are yours alone, so they're never in it.
     let matchesContact: ((e: TimelineEntry) => boolean) | null = null;
 
     if (contactIdentifier) {
       const { rows: theirs, name: selectedName } = matchPerson(contactIdentifier, allEntries, allContacts, identifierGroupMap);
 
-      // Collect every raw identifier seen in the entries that belongs to
-      // this contact, plus track the communication-window timestamps.
+      // Every raw identifier seen in the entries that belongs to this contact
       const contactIds = new Set<string>();
-      let minTs = Infinity;
-      let maxTs = -Infinity;
-
-      for (const e of theirs) {
-        contactIds.add(e.contactIdentifier!);
-        if (e.timestamp) {
-          const ts = new Date(e.timestamp).getTime();
-          if (ts < minTs) minTs = ts;
-          if (ts > maxTs) maxTs = ts;
-        }
-      }
+      for (const e of theirs) contactIds.add(e.contactIdentifier!);
 
       // Every number and address on the cards of the identifiers above, worked
-      // out the first time a WhatsApp message needs it: their WhatsApp number
-      // can be on their card without being on any of their texts or calls.
+      // out the first time something needs it: their WhatsApp number, or the
+      // address a note is shared with, can be on their card without being on
+      // any of their texts or calls.
       let cardIds: Set<string> | null = null;
       const onTheirCards = (id: string): boolean => {
         if (cardIds === null) {
@@ -803,37 +835,31 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
         }
         return cardIds.has(id) || cardIds.has(id.toLowerCase()) || cardIds.has(normPhone(id));
       };
-
-      matchesContact = (e: TimelineEntry): boolean => {
-        // Entries with an identifier: check against collected set
-        if (e.contactIdentifier) {
-          if (contactIds.has(e.contactIdentifier)) return true;
-          // Normalised phone fallback for slight formatting differences
-          for (const cid of contactIds) {
-            if (identifiersMatch(cid, e.contactIdentifier)) return true;
-          }
-          if (e.type === 'whatsapp') return onTheirCards(e.contactIdentifier);
-          if (selectedName && e.contactName?.toLowerCase() === selectedName) return true;
-          return false;
-        }
-        // A WhatsApp chat with no number WhatsApp could tie it to isn't anyone's
-        if (e.type === 'whatsapp') return false;
-        // Entries with a name but no identifier
-        if (e.contactName) {
-          return selectedName ? e.contactName.toLowerCase() === selectedName : false;
-        }
-        // Unattributed entries (photos, notes, browser): show within communication window
-        if (e.timestamp && minTs !== Infinity) {
-          const ts = new Date(e.timestamp).getTime();
-          return ts >= minTs && ts <= maxTs;
+      const isTheirs = (id: string): boolean => {
+        if (contactIds.has(id)) return true;
+        // Normalised phone fallback for slight formatting differences
+        for (const cid of contactIds) {
+          if (identifiersMatch(cid, id)) return true;
         }
         return false;
       };
+
+      matchesContact = (e: TimelineEntry): boolean => {
+        if (e.type === 'photo' || e.type === 'browser') return false;
+        if (e.type === 'note') return (e.note?.sharedWith ?? []).some(id => isTheirs(id) || onTheirCards(id));
+        if (e.contactIdentifier) {
+          if (isTheirs(e.contactIdentifier)) return true;
+          if (e.type === 'whatsapp') return onTheirCards(e.contactIdentifier);
+          return !!selectedName && e.contactName?.toLowerCase() === selectedName;
+        }
+        // A WhatsApp chat with no number WhatsApp could tie it to isn't anyone's
+        if (e.type === 'whatsapp') return false;
+        // A call or voicemail with a name but no identifier
+        return !!selectedName && e.contactName?.toLowerCase() === selectedName;
+      };
     }
 
-    return allEntries.filter(e => {
-      if (!types.has(e.type)) return false;
-
+    const inView = (e: TimelineEntry): boolean => {
       if (matchesContact && !matchesContact(e)) return false;
 
       if (fromMs || toMs) {
@@ -844,8 +870,31 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
       }
 
       return terms.length === 0 || matchesTerms(searchText(e), terms);
-    });
-  }, [allEntries, filters, allContacts, identifierGroupMap]);
+    };
+
+    // Nothing but the kinds chosen: every entry is in view, and the backup's
+    // own totals stand (they count capped messages in full).
+    if (!matchesContact && !fromMs && !toMs && terms.length === 0) {
+      return { filteredEntries: allEntries.filter(e => types.has(e.type)), counts: totals };
+    }
+
+    // In someone's stream, Photos are the photos sent in your chats with them:
+    // with Photos ticked, a text or WhatsApp message that carries one shows
+    // even when its own kind isn't ticked.
+    const photosOn = !!matchesContact && types.has('photo');
+    const c: Record<TimelineEntryType, number> = {
+      message: 0, whatsapp: 0, call: 0, photo: 0, voicemail: 0, note: 0, browser: 0,
+    };
+    const out: TimelineEntry[] = [];
+    for (const e of allEntries) {
+      if (!inView(e)) continue;
+      c[e.type]++;
+      const photos = matchesContact ? photosIn(e) : 0;
+      c.photo += photos;
+      if (types.has(e.type) || (photosOn && photos > 0)) out.push(e);
+    }
+    return { filteredEntries: out, counts: c };
+  }, [allEntries, filters, allContacts, identifierGroupMap, totals]);
 
   // ── Paginated slice ───────────────────────────────────────────────────────
   const entries = useMemo(() => {
@@ -863,7 +912,8 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
     entries,
     filteredEntries,
     allContacts,
-    counts: index.counts,
+    counts,
+    totals,
     totalFiltered: filteredEntries.length,
     loading: index.loading,
     loadingTypes: index.loadingTypes,
