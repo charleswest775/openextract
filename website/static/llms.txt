@@ -55,6 +55,7 @@ OpenExtract is made by Charles West, an independent developer, with help from co
 - [OpenExtract vs iBackup Viewer](https://www.openextract.app/vs-ibackup-viewer)
 - [OpenExtract vs Reincubate](https://www.openextract.app/vs-reincubate)
 - [iMazing alternatives compared](https://www.openextract.app/imazing-alternatives): free and paid apps for reading backups or managing an iPhone, with prices and what each one's free version does.
+- [iMazing's free version and trial limits](https://www.openextract.app/imazing-trial-limits): every cap in iMazing's trial, what it costs, and how to open a backup iMazing made in OpenExtract.
 - [Kostenlose iMazing-Alternative (Deutsch)](https://www.openextract.app/de/imazing-alternative): the free iMazing alternative page in German. The app itself is in English.
 - [Export WhatsApp chats from an iPhone backup](https://www.openextract.app/use-cases/export-whatsapp-chats-from-iphone-backup): reading WhatsApp chats in a backup and saving them as a web page, PDF, CSV or text, with what is and isn't in the backup.
 - [WhatsApp-Chats exportieren (Deutsch)](https://www.openextract.app/de/whatsapp-chats-exportieren): the WhatsApp guide in German. The app itself is in English.

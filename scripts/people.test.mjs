@@ -12,6 +12,7 @@ import { loadTs } from './test-helpers/load-ts.mjs';
 const {
   normPhone, identifiersMatch, buildIdentifierGroupMap, getContactGroup,
   buildContactOptions, rowsForPerson, identifiersForPerson, formatPhone, displayName, isWhatsAppAddress,
+  namedByNumber, personKey,
 } = loadTs('src/lib/people.ts');
 const { gatherPeople, linkCards, idKey, PERSON_KINDS } = loadTs('src/components/people/gather.ts');
 const { matches } = loadTs('src/lib/search.ts');
@@ -114,6 +115,44 @@ test('the picker lists each person once, by name, across number formats', () => 
 test('the first name seen for a number is the one listed', () => {
   const options = buildContactOptions([row('Mom', '+15035550123'), row('Mother', '503-555-0123')]);
   assert.deepEqual(options, [{ identifier: '+15035550123', name: 'Mom' }]);
+});
+
+test('a real name is listed over the number itself, whichever is read first', () => {
+  // A call the engine had no name for is named by its number; People goes by "Mom"
+  const options = buildContactOptions([row('5035550123', '5035550123'), row('+1 (503) 555-0123', '+1 (503) 555-0123'), row('Mom', '+15035550123')]);
+  assert.deepEqual(options, [{ identifier: '+15035550123', name: 'Mom' }]);
+  // With no real name anywhere, the first number seen
+  assert.deepEqual(buildContactOptions([row('5035550199', '5035550199'), row('+15035550199', '+15035550199')]),
+    [{ identifier: '5035550199', name: '5035550199' }]);
+  // An email named by itself, any case, is the same
+  assert.deepEqual(buildContactOptions([row('MOM@icloud.com', 'mom@icloud.com'), row('Mom', 'mom@icloud.com')]),
+    [{ identifier: 'mom@icloud.com', name: 'Mom' }]);
+});
+
+test("namedByNumber: a record the address book had no name for", () => {
+  for (const [name, id] of [
+    [null, '+15035550123'], ['', '+15035550123'], ['+15035550123', '+15035550123'], ['(503) 555-0123', '+15035550123'],
+    ['5035550123', '+1 503 555 0123'], ['Mom@iCloud.com', 'mom@icloud.com'], ['72727', '72727'],
+  ]) {
+    assert.ok(namedByNumber(row(name, id, { type: 'call' })), `${name} / ${id}`);
+  }
+  for (const [name, id] of [
+    ['Mom', '+15035550123'], ['Unknown', '+15035550123'], ['+15035550100', '+15035550123'], ['Mom', 'mom@icloud.com'],
+    ['Diane', null], ['Diane', ''], [null, null], ['', ''],
+  ]) {
+    assert.ok(!namedByNumber(row(name, id, { type: 'call' })), `${name} / ${id}`);
+  }
+  // A group conversation is never anyone's number, whatever it's called
+  assert.ok(!namedByNumber(row('chat123456789012345678', 'chat123456789012345678', { type: 'message', message: { isGroup: true } })));
+  assert.ok(!namedByNumber(row(null, 'chat123456789012345678', { type: 'message', message: { isGroup: true } })));
+  assert.ok(namedByNumber(row(null, '+15035550123', { type: 'message', message: { isGroup: false } })));
+});
+
+test('personKey: a name that is a number goes by its digits, any other without case', () => {
+  assert.equal(personKey('+1 (503) 555-0123'), personKey('5035550123'));
+  assert.equal(personKey('Theo Navarro'), personKey(' theo navarro '));
+  assert.notEqual(personKey('72727'), personKey('+72727 0'));
+  assert.equal(personKey('Pizza 5035550123'), 'pizza 5035550123');
 });
 
 // One person's records across a backup
@@ -377,6 +416,45 @@ test("texts, calls and voicemail are still one person per name; WhatsApp's other
   const moms = people.filter(p => p.name === 'Mom');
   assert.equal(moms.length, 2, "texts and calls together; WhatsApp's other number on its own");
   assert.deepEqual(moms.map(p => p.total).sort(), [1, 2]);
+});
+
+test('a call with only a name is the person the address book calls that, never one of its own', () => {
+  // An app's call (WhatsApp, FaceTime) keeps an id in place of the number
+  const people = gatherPeople([
+    call('Riley Okafor', null, 9),
+    call('riley okafor', null, 8),
+    sms('Riley Okafor', '+15035550142', 7, { chatId: 7 }),
+    call('Somebody Else', null, 6),
+    call(null, null, 5),
+    wa('Pip', '+15035550177', 4, { chatId: 5 }),
+    call('Pip', null, 3),   // WhatsApp's name for someone isn't the address book's
+  ]);
+  assert.deepEqual(people.map(p => [p.name, p.total]), [['Riley Okafor', 3], ['Pip', 1]]);
+  const [riley] = people;
+  assert.deepEqual(riley.counts, { message: 1, whatsapp: 0, call: 2, voicemail: 0 });
+  assert.equal(riley.last, at(9));
+  assert.equal(riley.identifier, '+15035550142');
+  assert.deepEqual([...riley.ids], ['5035550142']);
+});
+
+test('a record named only by its number is whoever has the number, or another number on its card', () => {
+  const card = { id: 1, display_name: 'Riley Okafor', phones: ['+1 503 555 0142', '+1 503 555 0143'], emails: [] };
+  const entries = [
+    call('+15035550142', '+15035550142', 9),          // her number, no name on it
+    call('(503) 555-0143', '(503) 555-0143', 8),       // her other number
+    sms(null, '+15035550143', 7, { chatId: 8 }),
+    sms('Riley Okafor', '+15035550142', 6, { chatId: 7 }),
+  ];
+  const [riley, ...rest] = gatherPeople(entries, [card]);
+  assert.equal(rest.length, 0);
+  assert.deepEqual([riley.name, riley.identifier, riley.chatId, riley.total], ['Riley Okafor', '+15035550142', 7, 4]);
+  assert.deepEqual(riley.counts, { message: 2, whatsapp: 0, call: 2, voicemail: 0 });
+  // Without the card, only the number she has by name is hers
+  assert.deepEqual(gatherPeople(entries).map(p => [p.name, p.total]), [['(503) 555-0143', 2], ['Riley Okafor', 2]]);
+  // A group named by its id never joins anyone, whatever its digits end in
+  const group = sms('chat111111111115035550142', 'chat111111111115035550142', 5, { isGroup: true, chatId: 9 });
+  assert.deepEqual(gatherPeople([...entries, group], [card]).map(p => [p.name, p.total, p.isGroup]),
+    [['Riley Okafor', 4, false], ['chat111111111115035550142', 1, true]]);
 });
 
 test('the picker and the Timeline never tie WhatsApp rows together by name', () => {
