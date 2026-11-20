@@ -31,9 +31,19 @@ if (info !== 0) process.exit(info);
 // metadata when asked. pymobiledevice3 11.54 began importing pyimg4 on its way to a backup,
 // so 0.15.0's engine couldn't make one (OE-50, OE-51, OE-54). This collects the metadata of
 // pymobiledevice3 and every package it needs on this OS (apple_compress only on macOS).
+//
+// The time zone database (the tzdata package), which Calendar reads its events' zones from
+// (zoneinfo). Windows has none of its own, so Python reads the package's files there, and
+// PyInstaller only bundles a package's data files when asked; --collect-all takes its modules
+// too, which zoneinfo opens them through. macOS and Linux have /usr/share/zoneinfo, and the
+// package as well when it's installed (pydantic and arrow pull it in): bundled then too, so
+// the engine never depends on where the system keeps its own. self_check.py checks a zone resolves.
+const hasTzdata = spawnSync('python', ['-c', 'import tzdata'], { cwd: pythonDir, stdio: 'ignore' }).status === 0;
+const tzdata = process.platform === 'win32' || hasTzdata ? ['--collect-all', 'tzdata'] : [];
 const built = run('pyinstaller', [
   '--onedir', '--noconfirm', '--name', 'openextract-engine',
   '--recursive-copy-metadata', 'pymobiledevice3',
+  ...tzdata,
   // SOURCE<sep>DEST, with the OS's own separator (";" on Windows), which every PyInstaller accepts
   '--add-data', `build_info.json${path.delimiter}.`,
   'main.py',

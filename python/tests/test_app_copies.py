@@ -199,7 +199,8 @@ class TestNames(unittest.TestCase):
         self.assertFalse(app_copies.is_openable(name))
 
     def test_what_another_app_may_open(self):
-        for name in ("IMG_0042.MOV", "clip.mp4", "IMG_0001.HEIC", "a.jpg", "Lease.pdf"):
+        for name in ("IMG_0042.MOV", "clip.mp4", "IMG_0001.HEIC", "a.jpg", "Lease.pdf", "Memo.m4a", "Song.qta",
+                     "Memo.qt"):
             self.assertTrue(app_copies.is_openable(name), name)
         for name in ("46ad145c3bed7be57c9541aee31e9fc641c8ccfd", "run.command", "a.exe", "IMG_0042.MOV.sh", "x.app", ""):
             self.assertFalse(app_copies.is_openable(name), name)

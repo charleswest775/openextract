@@ -188,12 +188,26 @@ def test_dashboard_and_timeline(server, opened):
         assert sum(len(c["messages"]) for c in on_day["conversations"]) == count, day
 
 
-def test_what_old_backups_lack_is_empty_not_an_error(server, opened):
+def test_what_old_backups_lack_is_empty_not_an_error(server, opened, tmp_path):
     udid = opened["udid"]
     assert _call(server, "list_voicemails", udid=udid)["empty_reason"] == "not_in_backup"
     assert _call(server, "has_browser_history", udid=udid)["has_any"] is False
     recovered = _call(server, "recover_messages", udid=udid)
     assert recovered["conversations"] == [] and "error" not in recovered
+    # Voice Memos and Calendar: backupgen.legacy writes neither, so both are calmly not there
+    # (a Manifest.mbdb listing is searched like a Manifest.db one).
+    assert _call(server, "list_voice_memos", udid=udid) == {"voice_memos": [], "empty_reason": "not_in_backup"}
+    assert _call(server, "get_voice_memo_audio", udid=udid, memo_id=1) == {"error": "Recording not found."}
+    assert _call(server, "list_calendars", udid=udid) == {"calendars": [], "empty_reason": "not_in_backup"}
+    assert _call(server, "list_calendar_events", udid=udid) == {"events": [], "empty_reason": "not_in_backup"}
+    out = tmp_path / "never"
+    assert _call(server, "export_voice_memos", udid=udid, output_dir=str(out), format="recordings")["empty_reason"] \
+        == "not_in_backup"
+    assert _call(server, "export_calendar", udid=udid, output_dir=str(out), format="ics")["empty_reason"] \
+        == "not_in_backup"
+    assert not out.exists()
+    overview = _call(server, "get_backup_stats", udid=udid)["overview"]
+    assert (overview["voice_memos_status"], overview["calendar_status"]) == ("not_in_backup", "not_in_backup")
 
 
 def test_export(server, opened, tmp_path):

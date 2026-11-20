@@ -176,6 +176,20 @@ class ItemContext:
     def podcast_episodes_result(self) -> dict:
         return self.rpc("list_podcast_episodes")
 
+    # Voice Memos and Calendar: each list in one answer, as the screens ask for it.
+
+    @cached_property
+    def voice_memos_result(self) -> dict:
+        return self.rpc("list_voice_memos")
+
+    @cached_property
+    def calendars_result(self) -> dict:
+        return self.rpc("list_calendars")
+
+    @cached_property
+    def calendar_events_result(self) -> dict:
+        return self.rpc("list_calendar_events")
+
     def _paged(self, method: str, key: str, **params) -> dict:
         items, offset = [], 0
         while True:

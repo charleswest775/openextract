@@ -14,6 +14,10 @@ from the standard library, and returns 1 if any fails, which stops the build.
 
 A third-party import that only exists on one OS would fail this check on the others. There
 isn't one yet; if one is added, skip it here by name and say why.
+
+It also checks that the built engine can resolve a time zone name: Calendar reads each event's
+zone with zoneinfo, which on Windows needs the tzdata package's files bundled
+(scripts/bundle-engine.mjs). Without them every timed event would quietly read as UTC.
 """
 
 import ast
@@ -61,8 +65,29 @@ def _statement(module: str, names: tuple) -> str:
     return f"from {module} import {', '.join(names)}" if names else f"import {module}"
 
 
+# A zone every time zone database has, with daylight saving time (so its data is really read).
+CHECK_ZONE = "America/New_York"
+
+
+def zone_problem(name: str = CHECK_ZONE):
+    """Why ``name`` can't be resolved with zoneinfo in this engine, or None when it can."""
+    try:
+        from datetime import datetime, timezone
+        from zoneinfo import ZoneInfo
+
+        zone = ZoneInfo(name)
+        # July: daylight saving time, -4 hours. A zone read from no data at all would say 0.
+        offset = datetime(2024, 7, 1, 12, tzinfo=timezone.utc).astimezone(zone).utcoffset()
+        if offset is None or offset.total_seconds() != -4 * 3600:
+            return f"{name} has the wrong offset in July 2024: {offset}"
+    except Exception as e:  # noqa: BLE001  ZoneInfoNotFoundError, a missing tzdata, anything
+        return f"{type(e).__name__}: {e}"
+    return None
+
+
 def run(source_dir) -> int:
-    """Runs every import in the engine's files. Returns 0 if they all work, 1 if any fails."""
+    """Runs every import in the engine's files and resolves a time zone. Returns 0 if they all
+    work, 1 if any fails."""
     imports = engine_imports(source_dir)
     if not imports:
         print(f"Engine self-check: no engine source files in {source_dir!r}", file=sys.stderr)
@@ -75,6 +100,14 @@ def run(source_dir) -> int:
             failed.append(_statement(module, names))
             print(f"\nEngine self-check FAILED: {_statement(module, names)}", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
+    zone = zone_problem()
+    if zone:
+        print(
+            f"\nEngine self-check FAILED: the time zone {CHECK_ZONE} can't be resolved ({zone}). Calendar "
+            "needs the tzdata package bundled on Windows (--collect-all tzdata in scripts/bundle-engine.mjs).",
+            file=sys.stderr,
+        )
+        return 1
     if failed:
         print(
             f"\nEngine self-check: {len(failed)} of {len(imports)} imports failed in the built engine:\n  "
@@ -84,5 +117,6 @@ def run(source_dir) -> int:
             file=sys.stderr,
         )
         return 1
-    print(f"Engine self-check: all {len(imports)} imports work in the built engine.", file=sys.stderr)
+    print(f"Engine self-check: all {len(imports)} imports work in the built engine, and time zones resolve.",
+          file=sys.stderr)
     return 0
