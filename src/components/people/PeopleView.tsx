@@ -5,13 +5,13 @@ import { formatPhone } from '../../lib/people';
 import { matches } from '../../lib/search';
 import { formatDate } from '../../lib/dates';
 import { saveFolder } from '../../lib/ipc';
-import { formatTimeline, FORMAT_FILTERS, type ExportFormat } from '../../lib/timelineExport';
-import { plural } from '../../lib/saveData';
+import type { ExportFormat } from '../../lib/timelineExport';
+import { plural, writeTimeline } from '../../lib/saveData';
 import { useSaveAction } from '../../hooks/useSaveAction';
 import Highlight from '../shared/Highlight';
 import EmptyState from '../shared/EmptyState';
 import OrganicLoader from '../shared/OrganicLoader';
-import SaveDialog, { FORMATS, SaveButton } from '../shared/SaveDialog';
+import SaveDialog, { RECORD_FORMATS, SaveButton } from '../shared/SaveDialog';
 import { CallIcon, ChevronRightIcon, ContactIcon, PeopleIcon, LinesIcon, VoicemailIcon, WhatsAppIcon } from '../shared/Icons';
 import TimelineEntryCard from '../timeline/TimelineEntryCard';
 import { groupByDay } from '../timeline/TimelineView';
@@ -87,8 +87,8 @@ export default function PeopleView({ ctx, query, person }: Props) {
       const folder = await saveFolder();
       if (!folder) return null;
       const safe = selected.name.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'person';
-      const path = `${folder}/${safe}.${FORMAT_FILTERS[format].extensions[0]}`;
-      await window.openextract.writeFile(path, formatTimeline(entries, format));
+      // Text built here for now, the PDF printed by Chromium like the Timeline's
+      const path = await writeTimeline(entries, format, folder, safe, `Everything with ${formatPhone(selected.name)}`);
       return { title: `Saved everything with ${selected.name}`, detail: plural(entries.length, 'event'), path };
     });
   }
@@ -252,8 +252,8 @@ export default function PeopleView({ ctx, query, person }: Props) {
       {choosing && selected && (
         <SaveDialog
           title={`Save everything with ${formatPhone(selected.name)}`}
-          formats={[FORMATS.html, FORMATS.csv, { id: 'md', label: 'Markdown', detail: 'MD, for notes apps and text editors' }]}
-          onSave={id => save(id as ExportFormat)}
+          formats={RECORD_FORMATS}
+          onSave={save}
           onCancel={() => setChoosing(false)}
         />
       )}

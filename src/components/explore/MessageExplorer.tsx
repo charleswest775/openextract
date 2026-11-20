@@ -9,7 +9,7 @@ import PageHeader from '../shared/PageHeader';
 import EmptyState from '../shared/EmptyState';
 import Highlight from '../shared/Highlight';
 import { ReportProblemButton } from '../shared/Feedback';
-import SaveDialog, { ConversationModeChoice, FORMATS, SaveButton } from '../shared/SaveDialog';
+import SaveDialog, { ConversationModeChoice, RECORD_FORMATS, SaveButton } from '../shared/SaveDialog';
 import { useSaveAction } from '../../hooks/useSaveAction';
 import type { BackupIndex } from '../../hooks/useTimeline';
 import type { TimelineEntry, TimelineEntryType } from '../../types/timeline';
@@ -211,8 +211,6 @@ export function chatAfterSearch(visible: ChatListItem[], activeChat: number | nu
   if (!query || activeChat === null || visible.length === 0) return null;
   return visible.some(c => c.chat_id === activeChat) ? null : visible[0].chat_id;
 }
-
-const CONVERSATION_FORMATS = [FORMATS.html, FORMATS.pdf, FORMATS.csv, FORMATS.txt];
 
 const PAGE_SIZE = 200;
 const LOAD_MORE_SIZE = 200;
@@ -846,7 +844,7 @@ export default function MessageExplorer({ udid, index, query, openChatId, openMe
       {choosing === 'one' && activeConvo && (
         <SaveDialog
           title={source.saveOneTitle(source.name(activeConvo))}
-          formats={CONVERSATION_FORMATS}
+          formats={RECORD_FORMATS}
           onSave={saveOne}
           onCancel={() => setChoosing(null)}
         />
@@ -854,7 +852,7 @@ export default function MessageExplorer({ udid, index, query, openChatId, openMe
       {choosing === 'selected' && (
         <SaveDialog
           title={`Save ${plural(selectedChats.size, noun)}`}
-          formats={CONVERSATION_FORMATS}
+          formats={RECORD_FORMATS}
           onSave={saveSelected}
           onCancel={() => setChoosing(null)}
         >

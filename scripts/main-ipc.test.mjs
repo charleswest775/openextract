@@ -25,7 +25,7 @@ import {
 // make sure they're wired through preload.
 const EXPECTED_CHANNELS = [
   'add-session', 'app:get-version', 'app:relaunch', 'clipboard:writeText', 'dialog:saveFile',
-  'dialog:saveFolder', 'dialog:selectFolder', 'export:pdf', 'feedback:export-check-opt-out',
+  'dialog:saveFolder', 'dialog:selectFolder', 'export:pdf', 'export:pdf-html', 'feedback:export-check-opt-out',
   'feedback:fixed-reports', 'feedback:get-diagnostics', 'feedback:mark-announced', 'feedback:saved-email',
   'feedback:send', 'fs:writeFile', 'get-app-state', 'get-recent-sessions', 'increment-export-count',
   'remove-session', 'set-first-launch-completed', 'shell:openExternal', 'shell:openPath',
@@ -45,8 +45,9 @@ process.on('exit', () => quiet.restore());
 // ── Fakes for main.ts's own modules ─────────────────────────────────────────
 
 function fakeModules() {
-  const f = { sidecars: [], updaterInits: [], pdfCalls: [], staleCleanups: 0, recorders: [], reports: [] };
+  const f = { sidecars: [], updaterInits: [], pdfCalls: [], pageCalls: [], staleCleanups: 0, recorders: [], reports: [] };
   f.pdfAnswer = async () => ({ files: ['Mom.pdf'], message_count: 3 });
+  f.pageAnswer = async (_html, dir, base) => ({ file: `${dir}/${base}.pdf` });
 
   class PythonSidecar {
     constructor(pythonPath, pythonArgs, logPath) {
@@ -114,6 +115,10 @@ function fakeModules() {
       exportMessagesPdf: async (sidecar, method, params) => {
         f.pdfCalls.push({ sidecar, method, params });
         return f.pdfAnswer(method, params);
+      },
+      exportHtmlToPdf: async (html, outputDir, baseName) => {
+        f.pageCalls.push({ html, outputDir, baseName });
+        return f.pageAnswer(html, outputDir, baseName);
       },
       removeStaleStagingDirs: () => f.staleCleanups++,
     },
@@ -1019,6 +1024,38 @@ describe('export:pdf', () => {
     assert.deepEqual(m.recorder.recorded, [
       { method: 'pdf:export_conversations', params: { output_dir: '' }, outcome: { ok: false, error: 'Choose a folder to save the PDF in.' } },
     ]);
+  });
+});
+
+describe('export:pdf-html', () => {
+  test('passes the page, folder and name through and wraps the answer', async () => {
+    const m = await loadMain();
+    const page = '<!DOCTYPE html><h1>Timeline</h1>';
+    assert.deepEqual(await m.invoke('export:pdf-html', page, m.userData, 'timeline-export'), {
+      success: true,
+      data: { file: `${m.userData}/timeline-export.pdf` },
+    });
+    assert.deepEqual(m.fakes.pageCalls, [{ html: page, outputDir: m.userData, baseName: 'timeline-export' }]);
+    assert.equal(m.fakes.pdfCalls.length, 0, 'the engine is not asked');
+  });
+
+  test('a failure is wrapped and recorded for feedback, without the page itself', async () => {
+    const m = await loadMain();
+    m.fakes.pageAnswer = async () => {
+      throw new Error('Printing failed');
+    };
+    const page = '<p>Messages from the backup</p>';
+    assert.deepEqual(await m.invoke('export:pdf-html', page, '/Users/jane/Desktop', 'Mom'), { success: false, error: 'Printing failed' });
+    assert.deepEqual(m.recorder.recorded, [
+      { method: 'pdf:page', params: { output_dir: '/Users/jane/Desktop' }, outcome: { ok: false, error: 'Printing failed' } },
+    ]);
+    assert.ok(!JSON.stringify(m.recorder.recorded).includes('Messages from the backup'));
+  });
+
+  test('the real exporter refuses a folder that doesn\'t exist, before printing anything', async () => {
+    const m = await loadMain({ real: true });
+    const answer = await m.invoke('export:pdf-html', '<p>x</p>', path.join(m.userData, 'not-there'), 'x');
+    assert.deepEqual(answer, { success: false, error: 'Choose a folder to save the PDF in.' });
   });
 });
 

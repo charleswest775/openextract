@@ -158,7 +158,7 @@ class TestWriting(_TempDir):
         self.assertEqual(rd.file_base("  ..hidden. ", "x"), "hidden")
         self.assertEqual(rd.file_base("CON", "x"), "_CON")
         self.assertEqual(rd.file_base("con.txt notes", "x"), "_con.txt notes")
-        self.assertEqual(rd.file_base("‮evil‬", "x"), "evil")
+        self.assertEqual(rd.file_base("\u202eevil\u202c", "x"), "evil")
         self.assertEqual(rd.file_base(None, "Note_7"), "Note_7")
         self.assertEqual(rd.file_base("???", "Note_7"), "Note_7")
         self.assertEqual(rd.file_base("a" * 80, "x"), "a" * 60)

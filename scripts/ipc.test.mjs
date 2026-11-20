@@ -76,6 +76,33 @@ test('exportMessagesPdf returns the files written, or throws', async t => {
   await assert.rejects(ipc.exportMessagesPdf('export_whatsapp_chats', { chat_id: 2 }), { message: 'No printer-ready page' });
 });
 
+test('exportMessagesPdf: every other PDF the engine prepares goes through the same bridge, its count kept', async t => {
+  const { ipc, calls } = loadWith(t, {
+    exportPdf: async method => ({ success: true, data: { files: [`/out/${method}.pdf`], message_count: 0, count: 3 } }),
+  });
+  for (const method of ['export_person', 'export_notes', 'export_calls', 'export_browser_history', 'export_recovered_messages']) {
+    assert.deepEqual(await ipc.exportMessagesPdf(method, { output_dir: '/out' }), { files: [`/out/${method}.pdf`], message_count: 0, count: 3 });
+    assert.deepEqual(calls.at(-1), ['exportPdf', method, { output_dir: '/out' }]);
+  }
+});
+
+test('exportHtmlPdf prints a page the window built, or throws', async t => {
+  const { ipc, calls } = loadWith(t, {
+    exportHtmlPdf: async (html, dir, base) => {
+      if (base === 'fails') return { success: false, error: 'Choose a folder to save the PDF in.' };
+      if (base === 'empty') return { success: true };
+      if (base === 'silent') return { success: false };
+      return { success: true, data: { file: `${dir}/${base}.pdf` } };
+    },
+  });
+  const page = '<!DOCTYPE html><h1>Timeline</h1>';
+  assert.deepEqual(await ipc.exportHtmlPdf(page, 'C:\\Users\\Jane\\Desktop', 'timeline-export'), { file: 'C:\\Users\\Jane\\Desktop/timeline-export.pdf' });
+  assert.deepEqual(calls[0], ['exportHtmlPdf', page, 'C:\\Users\\Jane\\Desktop', 'timeline-export']);
+  await assert.rejects(ipc.exportHtmlPdf(page, '/gone', 'fails'), { message: 'Choose a folder to save the PDF in.' });
+  await assert.rejects(ipc.exportHtmlPdf(page, '/out', 'empty'), { message: 'PDF export failed' });
+  await assert.rejects(ipc.exportHtmlPdf(page, '/out', 'silent'), { message: 'PDF export failed' });
+});
+
 test('folder pickers pass the chosen folder through, or null when cancelled', async t => {
   const { ipc } = loadWith(t, { selectFolder: async () => '/Volumes/Backup Drive/MobileSync', saveFolder: async () => null });
   assert.equal(await ipc.selectFolder(), '/Volumes/Backup Drive/MobileSync');
@@ -95,6 +122,7 @@ test('outside Electron, calls fail with how to start the app, and pickers give n
   for (const ipc of loaded) {
     await assert.rejects(ipc.sidecarCall('list_backups'), { message: 'Not running in Electron. Start with: npm run dev' });
     await assert.rejects(ipc.exportMessagesPdf('export_conversation', {}), { message: 'Not running in Electron. Start with: npm run dev' });
+    await assert.rejects(ipc.exportHtmlPdf('<p>x</p>', '/out', 'x'), { message: 'Not running in Electron. Start with: npm run dev' });
     assert.equal(await ipc.selectFolder(), null);
     assert.equal(await ipc.saveFolder(), null);
   }

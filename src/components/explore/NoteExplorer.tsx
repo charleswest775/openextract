@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { sidecarCall, saveFolder } from '../../lib/ipc';
+import { sidecarCall } from '../../lib/ipc';
 import { NoteIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
 import { formatDate } from '../../lib/dates';
@@ -7,7 +7,7 @@ import PageHeader from '../shared/PageHeader';
 import EmptyState from '../shared/EmptyState';
 import SaveDialog, { FORMATS, SaveButton } from '../shared/SaveDialog';
 import { useSaveAction } from '../../hooks/useSaveAction';
-import { checkEngineResult, plural } from '../../lib/saveData';
+import { plural, saveNote, type NotesFormat } from '../../lib/saveData';
 import { matches } from '../../lib/search';
 import Highlight from '../shared/Highlight';
 
@@ -56,18 +56,12 @@ export default function NoteExplorer({ udid, query, openNoteId }: Props) {
     }
   }
 
-  function save(format: 'pdf' | 'txt') {
+  function save(format: NotesFormat) {
     setChoosing(false);
     const note = selected;
     if (!note) return;
-    run(async () => {
-      const outputDir = await saveFolder();
-      if (!outputDir) return null;
-      const result = checkEngineResult(await sidecarCall<{ exported?: string[] }>('export_notes', {
-        udid, note_ids: [note.note_id], format, output_dir: outputDir,
-      }));
-      return { title: `Saved "${note.title || 'Untitled'}"`, path: result.exported?.[0] ?? outputDir };
-    });
+    // The engine writes every format; the PDF is printed by Chromium from its print-ready page
+    run(() => saveNote(udid, note, format));
   }
 
   const filtered = useMemo(() => notes.filter(n => matches(query, n.title, n.body)), [notes, query]);
@@ -139,7 +133,7 @@ export default function NoteExplorer({ udid, query, openNoteId }: Props) {
       {choosing && selected && (
         <SaveDialog
           title={`Save "${selected.title || 'Untitled'}"`}
-          formats={[FORMATS.pdf, FORMATS.txt]}
+          formats={[FORMATS.pdf, FORMATS.html, FORMATS.txt]}
           onSave={save}
           onCancel={() => setChoosing(false)}
         />
