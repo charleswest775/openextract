@@ -54,6 +54,10 @@ function extensionOf(file: string): string {
   return path.extname(file).toLowerCase();
 }
 
+// This computer's own path rules, from the path module itself, fixed when the module loads:
+// real paths are always this computer's, even when a caller (or a test) names another system.
+const HOST_PATHS = path.sep === '\\' ? 'win32' : process.platform === 'linux' ? 'linux' : 'darwin';
+
 /**
  * The real path of `candidate` when it is a file inside one of the engine's copy
  * folders in one of `tempDirs`, else null. `tempDirs` are the system's temp
@@ -80,7 +84,7 @@ export function appCopyPath(candidate: unknown, tempDirs: string[], _platform: s
     } catch {
       continue;
     }
-    if (!isInsideFolder(real, root)) continue;
+    if (!isInsideFolder(real, root, HOST_PATHS)) continue;
     const [top, ...below] = path.relative(root, real).split(path.sep);
     // A file in the folder (or below it), never the folder itself
     if (below.length > 0 && (APP_COPY_FOLDER.test(top) || DECRYPTED_FOLDER.test(top))) return real;
