@@ -26,18 +26,21 @@ export const TYPE_CONFIG: { type: TimelineEntryType; label: string; color: strin
 
 interface Props {
   active: Set<TimelineEntryType>;
+  /** The number on each chip. */
   counts: Record<TimelineEntryType, number>;
+  /** How many of each kind the backup has, when that isn't `counts`: a kind it has none of gets no chip. */
+  totals?: Record<TimelineEntryType, number>;
   onToggle: (type: TimelineEntryType) => void;
   // Types that can't be chosen right now, with the reason shown on hover.
   unavailable?: Set<TimelineEntryType>;
   unavailableReason?: string;
 }
 
-export default function TimelineTypeChips({ active, counts, onToggle, unavailable, unavailableReason }: Props) {
+export default function TimelineTypeChips({ active, counts, totals = counts, onToggle, unavailable, unavailableReason }: Props) {
   return (
     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-      {/* Kinds the backup has none of are left out */}
-      {TYPE_CONFIG.filter(({ type }) => counts[type] > 0).map(({ type, label, color }) => {
+      {/* Kinds the backup has none of are left out; a kind the filters leave none of stays, at 0 */}
+      {TYPE_CONFIG.filter(({ type }) => totals[type] > 0).map(({ type, label, color }) => {
         const off = unavailable?.has(type) ?? false;
         const on = active.has(type) && !off;
         return (

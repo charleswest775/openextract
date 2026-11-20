@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - Saving a conversation or WhatsApp chat as a PDF: one too big for a single sensible PDF is now saved as one PDF per year, and the notice says why, for example "One PDF of it all would be about 1 GB and 6,300 pages, so it's split by year: 2020, 2021, 2022, 2023 and 2024–2026". A PDF holds its photos whole, so a long, busy chat used to make one file of a gigabyte or more that was hard to open, share or print. Everything still goes in one file when it fits (up to about 1,000 photos or 2,000 pages), however many years it covers. Once a chat is split, quiet years share a file, and a year too big on its own is split into runs of months. Each part is saved on its own, so if something goes wrong late in a long save, the PDFs already saved stay, and the error says how many there are
+- People: a person's page now shows everything between you, not only messages, WhatsApp, calls and voicemail. Photos sent in your chats and notes you share with them over iCloud are there too, each with a chip of its own. A date range and a search box narrow the page to a stretch of time or to the words you're after, and the chips count what's left. Save these saves what's on screen. The page says what it is ("Everything between you and Karin"), and the list explains what picking someone shows
+- People and Timeline: everything with one person is on People now. The Timeline no longer has a person picker: it shows the whole backup by day, with a link to People, and when you type someone's name in its search, the link opens their page. The picker also used to add every photo, note and web visit from between your first and last contact with them, which People leaves out. In the Year view, clicking a day with someone picked opens that day on their page in People
+- Timeline and People: a text or WhatsApp message with a photo shows it, small in the list and full size when you open the message
+
+### Fixed
+- Timeline: the number beside each kind of event now counts only what the dates and search leave, so it's how many ticking that kind would show. It used to count the whole backup whatever the filters were
 
 ## [0.18.0] - 2026-11-19
 

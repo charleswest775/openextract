@@ -196,7 +196,15 @@ export default function ExploreLayout({ udid, session, onBack, unfinished = fals
       case 'dashboard':
         return <BackupDashboard {...backupStats} onNavigate={t => openTab(t as Tab)} hasBrowserHistory={hasBrowserHistory} />;
       case 'people':
-        return <PeopleView key={target.person ?? ''} ctx={ctx} query={screenQuery} person={target.person} />;
+        return (
+          <PeopleView
+            key={`${target.person ?? ''}|${target.days?.from ?? ''}|${target.days?.to ?? ''}`}
+            ctx={ctx}
+            query={screenQuery}
+            person={target.person}
+            days={target.days}
+          />
+        );
       case 'timeline':
         return (
           <TimelineView
@@ -205,6 +213,7 @@ export default function ExploreLayout({ udid, session, onBack, unfinished = fals
             index={index}
             startingFilters={target.timeline}
             query={screenQuery}
+            onOpenPerson={person => openTab('people', person ? { person } : {})}
             onOpenWhatsApp={entry => openTab('whatsapp', { select: entry })}
           />
         );
@@ -214,7 +223,10 @@ export default function ExploreLayout({ udid, session, onBack, unfinished = fals
             udid={udid}
             selection={yearSelection}
             onSelectionChange={setYearSelection}
-            onOpenDay={filters => openTab('timeline', { timeline: filters })}
+            onOpenDay={filters => filters.contactIdentifier
+              // Someone picked: that day on their page in People, where everything with one person is
+              ? openTab('people', { person: filters.contactIdentifier, days: { from: filters.dateFrom ?? '', to: filters.dateTo ?? '' } })
+              : openTab('timeline', { timeline: filters })}
           />
         );
       case 'messages':

@@ -105,6 +105,10 @@ test('what each kind of entry says', () => {
   assert.equal(describe(message(DAY, 'See you soon')), 'Received: See you soon');
   assert.equal(describe(message(DAY, 'On my way', { isFromMe: true })), 'Sent: On my way');
   assert.equal(describe(message(DAY, null, { messageType: 'attachment' })), 'Received: [Attachment]');
+  const pic = { attachment_id: 1, filename: '~/Library/SMS/Attachments/a.jpg', mime_type: 'image/jpeg', transfer_name: 'a.jpg' };
+  assert.equal(describe(message(DAY, null, { messageType: 'attachment', photos: [pic] })), 'Received: [Photo]');
+  assert.equal(describe(message(DAY, null, { messageType: 'attachment', photos: [pic, { ...pic, attachment_id: 2 }] })), 'Received: [2 photos]');
+  assert.equal(describe(message(DAY, 'Look!', { messageType: 'attachment', photos: [pic] })), 'Received: Look!');
   assert.equal(describe(message(DAY, null, { messageType: 'digital_touch' })), 'Received: [Digital Touch]');
   assert.equal(describe(message(DAY, '', { messageType: 'sticker' })), 'Received: [sticker]');
   assert.equal(describe(message(DAY, null, { messageType: '' })), 'Received: [No text]');

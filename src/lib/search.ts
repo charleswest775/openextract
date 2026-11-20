@@ -258,6 +258,7 @@ function kindWords(e: TimelineEntry): string {
       return `${c.status === 'missed' ? 'missed' : c.direction} call`;
     }
     case 'voicemail': return 'voicemail';
+    case 'message': return e.message?.photos ? 'photo' : '';
     case 'photo': return e.photo!.duration > 0 || e.photo!.kind === 'video' ? 'video' : `${e.photo!.kind.replace('_', ' ')} photo`;
     case 'whatsapp': {
       const w = e.whatsapp;

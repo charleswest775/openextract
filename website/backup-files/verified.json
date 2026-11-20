@@ -1,0 +1,3202 @@
+{
+  "about": "Written by scripts/verify-backup-files.py from the public backups in corpus/manifest.json. Structure only (table, column and key names); no row data.",
+  "backups": [
+    {
+      "item": "pub-hickman-13.3.1",
+      "ios": "13.3.1",
+      "encrypted": true,
+      "contents": "read"
+    },
+    {
+      "item": "pub-hickman-13.4.1",
+      "ios": "13.4.1",
+      "encrypted": true,
+      "contents": "read"
+    },
+    {
+      "item": "pub-hickman-15.3.1",
+      "ios": "15.3.1",
+      "encrypted": true,
+      "contents": "read"
+    },
+    {
+      "item": "pub-fcsc25-16.0",
+      "ios": "16.0",
+      "encrypted": true,
+      "contents": "file list only"
+    },
+    {
+      "item": "pub-hickman-16.1.2",
+      "ios": "16.1.2",
+      "encrypted": true,
+      "contents": "read"
+    },
+    {
+      "item": "pub-hickman-17.3",
+      "ios": "17.3",
+      "encrypted": true,
+      "contents": "read"
+    }
+  ],
+  "files": {
+    "sms-db": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "15.3.1",
+        "16.0",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [],
+      "tables": {
+        "13.3.1": [
+          "_SqliteDatabaseProperties",
+          "attachment",
+          "chat",
+          "chat_handle_join",
+          "chat_message_join",
+          "deleted_messages",
+          "handle",
+          "kvtable",
+          "message",
+          "message_attachment_join",
+          "message_processing_task",
+          "sync_deleted_attachments",
+          "sync_deleted_chats",
+          "sync_deleted_messages"
+        ],
+        "13.4.1": [
+          "_SqliteDatabaseProperties",
+          "attachment",
+          "chat",
+          "chat_handle_join",
+          "chat_message_join",
+          "deleted_messages",
+          "handle",
+          "kvtable",
+          "message",
+          "message_attachment_join",
+          "message_processing_task",
+          "sync_deleted_attachments",
+          "sync_deleted_chats",
+          "sync_deleted_messages"
+        ],
+        "15.3.1": [
+          "_SqliteDatabaseProperties",
+          "attachment",
+          "chat",
+          "chat_handle_join",
+          "chat_message_join",
+          "deleted_messages",
+          "handle",
+          "kvtable",
+          "message",
+          "message_attachment_join",
+          "message_processing_task",
+          "sync_deleted_attachments",
+          "sync_deleted_chats",
+          "sync_deleted_messages"
+        ],
+        "16.1.2": [
+          "_SqliteDatabaseProperties",
+          "attachment",
+          "chat",
+          "chat_handle_join",
+          "chat_message_join",
+          "chat_recoverable_message_join",
+          "deleted_messages",
+          "handle",
+          "kvtable",
+          "message",
+          "message_attachment_join",
+          "message_processing_task",
+          "recoverable_message_part",
+          "sync_deleted_attachments",
+          "sync_deleted_chats",
+          "sync_deleted_messages",
+          "unsynced_removed_recoverable_messages"
+        ],
+        "17.3": [
+          "_SqliteDatabaseProperties",
+          "attachment",
+          "chat",
+          "chat_handle_join",
+          "chat_message_join",
+          "chat_recoverable_message_join",
+          "deleted_messages",
+          "handle",
+          "kvtable",
+          "message",
+          "message_attachment_join",
+          "message_processing_task",
+          "recoverable_message_part",
+          "sync_deleted_attachments",
+          "sync_deleted_chats",
+          "sync_deleted_messages",
+          "unsynced_removed_recoverable_messages"
+        ]
+      },
+      "columns": {
+        "13.3.1": {
+          "message": [
+            "text",
+            "date",
+            "is_from_me",
+            "handle_id"
+          ],
+          "handle": [
+            "id"
+          ],
+          "attachment": [
+            "filename"
+          ]
+        },
+        "13.4.1": {
+          "message": [
+            "text",
+            "date",
+            "is_from_me",
+            "handle_id"
+          ],
+          "handle": [
+            "id"
+          ],
+          "attachment": [
+            "filename"
+          ]
+        },
+        "15.3.1": {
+          "message": [
+            "text",
+            "date",
+            "is_from_me",
+            "handle_id"
+          ],
+          "handle": [
+            "id"
+          ],
+          "attachment": [
+            "filename"
+          ]
+        },
+        "16.1.2": {
+          "message": [
+            "text",
+            "date",
+            "is_from_me",
+            "handle_id"
+          ],
+          "handle": [
+            "id"
+          ],
+          "attachment": [
+            "filename"
+          ]
+        },
+        "17.3": {
+          "message": [
+            "text",
+            "date",
+            "is_from_me",
+            "handle_id"
+          ],
+          "handle": [
+            "id"
+          ],
+          "attachment": [
+            "filename"
+          ]
+        }
+      },
+      "companions": {
+        "Library/SMS/sms.db-wal": {
+          "13.3.1": false,
+          "13.4.1": false,
+          "15.3.1": false,
+          "16.0": false,
+          "16.1.2": false,
+          "17.3": false
+        }
+      }
+    },
+    "addressbook-sqlitedb": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "15.3.1",
+        "16.0",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [],
+      "tables": {
+        "13.3.1": [
+          "ABAccount",
+          "ABGroup",
+          "ABGroupChanges",
+          "ABGroupMembers",
+          "ABMultiValue",
+          "ABMultiValueEntry",
+          "ABMultiValueEntryKey",
+          "ABMultiValueLabel",
+          "ABPerson",
+          "ABPersonChanges",
+          "ABPersonFullTextSearch",
+          "ABPersonFullTextSearch_content",
+          "ABPersonFullTextSearch_docsize",
+          "ABPersonFullTextSearch_segdir",
+          "ABPersonFullTextSearch_segments",
+          "ABPersonFullTextSearch_stat",
+          "ABPersonLink",
+          "ABPersonMultiValueDeletes",
+          "ABPersonSearchKey",
+          "ABPhoneLastFour",
+          "ABStore",
+          "ClientCursor",
+          "ClientCursorConsumed",
+          "ClientSequence",
+          "FirstSortSectionCount",
+          "FirstSortSectionCountTotal",
+          "LastSortSectionCount",
+          "LastSortSectionCountTotal",
+          "_SqliteDatabaseProperties"
+        ],
+        "13.4.1": [
+          "ABAccount",
+          "ABGroup",
+          "ABGroupChanges",
+          "ABGroupMembers",
+          "ABMultiValue",
+          "ABMultiValueEntry",
+          "ABMultiValueEntryKey",
+          "ABMultiValueLabel",
+          "ABPerson",
+          "ABPersonChanges",
+          "ABPersonFullTextSearch",
+          "ABPersonFullTextSearch_content",
+          "ABPersonFullTextSearch_docsize",
+          "ABPersonFullTextSearch_segdir",
+          "ABPersonFullTextSearch_segments",
+          "ABPersonFullTextSearch_stat",
+          "ABPersonLink",
+          "ABPersonMultiValueDeletes",
+          "ABPersonSearchKey",
+          "ABPhoneLastFour",
+          "ABStore",
+          "ClientCursor",
+          "ClientCursorConsumed",
+          "ClientSequence",
+          "FirstSortSectionCount",
+          "FirstSortSectionCountTotal",
+          "LastSortSectionCount",
+          "LastSortSectionCountTotal",
+          "_SqliteDatabaseProperties"
+        ],
+        "15.3.1": [
+          "ABAccount",
+          "ABGroup",
+          "ABGroupChanges",
+          "ABGroupMembers",
+          "ABMultiValue",
+          "ABMultiValueEntry",
+          "ABMultiValueEntryKey",
+          "ABMultiValueLabel",
+          "ABPerson",
+          "ABPersonChanges",
+          "ABPersonFullTextSearch",
+          "ABPersonFullTextSearch_content",
+          "ABPersonFullTextSearch_docsize",
+          "ABPersonFullTextSearch_segdir",
+          "ABPersonFullTextSearch_segments",
+          "ABPersonFullTextSearch_stat",
+          "ABPersonLink",
+          "ABPersonMultiValueDeletes",
+          "ABPersonSearchKey",
+          "ABPhoneLastFour",
+          "ABStore",
+          "ClientCursor",
+          "ClientCursorConsumed",
+          "ClientSequence",
+          "FirstSortSectionCount",
+          "FirstSortSectionCountTotal",
+          "LastSortSectionCount",
+          "LastSortSectionCountTotal",
+          "_SqliteDatabaseProperties"
+        ],
+        "16.1.2": [
+          "ABAccount",
+          "ABGroup",
+          "ABGroupChanges",
+          "ABGroupMembers",
+          "ABMultiValue",
+          "ABMultiValueEntry",
+          "ABMultiValueEntryKey",
+          "ABMultiValueLabel",
+          "ABPerson",
+          "ABPersonChanges",
+          "ABPersonFullTextSearch",
+          "ABPersonFullTextSearch_content",
+          "ABPersonFullTextSearch_docsize",
+          "ABPersonFullTextSearch_segdir",
+          "ABPersonFullTextSearch_segments",
+          "ABPersonFullTextSearch_stat",
+          "ABPersonLink",
+          "ABPersonMultiValueDeletes",
+          "ABPersonSearchKey",
+          "ABPhoneLastFour",
+          "ABStore",
+          "ClientCursor",
+          "ClientCursorConsumed",
+          "ClientSequence",
+          "FirstSortSectionCount",
+          "FirstSortSectionCountTotal",
+          "LastSortSectionCount",
+          "LastSortSectionCountTotal",
+          "_SqliteDatabaseProperties"
+        ],
+        "17.3": [
+          "ABAccount",
+          "ABGroup",
+          "ABGroupChanges",
+          "ABGroupMembers",
+          "ABMultiValue",
+          "ABMultiValueEntry",
+          "ABMultiValueEntryKey",
+          "ABMultiValueLabel",
+          "ABPerson",
+          "ABPersonChanges",
+          "ABPersonFullTextSearch",
+          "ABPersonFullTextSearch_content",
+          "ABPersonFullTextSearch_docsize",
+          "ABPersonFullTextSearch_segdir",
+          "ABPersonFullTextSearch_segments",
+          "ABPersonFullTextSearch_stat",
+          "ABPersonLink",
+          "ABPersonMultiValueDeletes",
+          "ABPersonSearchKey",
+          "ABPhoneLastFour",
+          "ABStore",
+          "ClientCursor",
+          "ClientCursorConsumed",
+          "ClientSequence",
+          "FirstSortSectionCount",
+          "FirstSortSectionCountTotal",
+          "LastSortSectionCount",
+          "LastSortSectionCountTotal",
+          "_SqliteDatabaseProperties"
+        ]
+      },
+      "columns": {
+        "13.3.1": {
+          "ABPerson": [
+            "First",
+            "Last",
+            "Organization"
+          ],
+          "ABMultiValue": [
+            "record_id",
+            "property",
+            "value"
+          ]
+        },
+        "13.4.1": {
+          "ABPerson": [
+            "First",
+            "Last",
+            "Organization"
+          ],
+          "ABMultiValue": [
+            "record_id",
+            "property",
+            "value"
+          ]
+        },
+        "15.3.1": {
+          "ABPerson": [
+            "First",
+            "Last",
+            "Organization"
+          ],
+          "ABMultiValue": [
+            "record_id",
+            "property",
+            "value"
+          ]
+        },
+        "16.1.2": {
+          "ABPerson": [
+            "First",
+            "Last",
+            "Organization"
+          ],
+          "ABMultiValue": [
+            "record_id",
+            "property",
+            "value"
+          ]
+        },
+        "17.3": {
+          "ABPerson": [
+            "First",
+            "Last",
+            "Organization"
+          ],
+          "ABMultiValue": [
+            "record_id",
+            "property",
+            "value"
+          ]
+        }
+      }
+    },
+    "addressbookimages-sqlitedb": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "15.3.1",
+        "16.0",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [],
+      "tables": {
+        "13.3.1": [
+          "ABFullSizeImage",
+          "ABThumbnailImage",
+          "_SqliteDatabaseProperties"
+        ],
+        "13.4.1": [
+          "ABFullSizeImage",
+          "ABThumbnailImage",
+          "_SqliteDatabaseProperties"
+        ],
+        "15.3.1": [
+          "ABFullSizeImage",
+          "ABThumbnailImage",
+          "_SqliteDatabaseProperties"
+        ],
+        "16.1.2": [
+          "ABFullSizeImage",
+          "ABThumbnailImage",
+          "_SqliteDatabaseProperties"
+        ],
+        "17.3": [
+          "ABFullSizeImage",
+          "ABThumbnailImage",
+          "_SqliteDatabaseProperties"
+        ]
+      },
+      "columns": {
+        "13.3.1": {
+          "ABThumbnailImage": [
+            "record_id",
+            "data"
+          ],
+          "ABFullSizeImage": [
+            "record_id",
+            "data"
+          ]
+        },
+        "13.4.1": {
+          "ABThumbnailImage": [
+            "record_id",
+            "data"
+          ],
+          "ABFullSizeImage": [
+            "record_id",
+            "data"
+          ]
+        },
+        "15.3.1": {
+          "ABThumbnailImage": [
+            "record_id",
+            "data"
+          ],
+          "ABFullSizeImage": [
+            "record_id",
+            "data"
+          ]
+        },
+        "16.1.2": {
+          "ABThumbnailImage": [
+            "record_id",
+            "data"
+          ],
+          "ABFullSizeImage": [
+            "record_id",
+            "data"
+          ]
+        },
+        "17.3": {
+          "ABThumbnailImage": [
+            "record_id",
+            "data"
+          ],
+          "ABFullSizeImage": [
+            "record_id",
+            "data"
+          ]
+        }
+      }
+    },
+    "callhistory-storedata": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "15.3.1",
+        "16.0",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [],
+      "tables": {
+        "13.3.1": [
+          "ZCALLDBPROPERTIES",
+          "ZCALLRECORD",
+          "ZHANDLE",
+          "Z_2REMOTEPARTICIPANTHANDLES",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "13.4.1": [
+          "ZCALLDBPROPERTIES",
+          "ZCALLRECORD",
+          "ZHANDLE",
+          "Z_2REMOTEPARTICIPANTHANDLES",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "15.3.1": [
+          "ZCALLDBPROPERTIES",
+          "ZCALLRECORD",
+          "ZHANDLE",
+          "Z_2REMOTEPARTICIPANTHANDLES",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "16.1.2": [
+          "ZCALLDBPROPERTIES",
+          "ZCALLRECORD",
+          "ZHANDLE",
+          "Z_2REMOTEPARTICIPANTHANDLES",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "17.3": [
+          "ZCALLDBPROPERTIES",
+          "ZCALLRECORD",
+          "ZHANDLE",
+          "Z_2REMOTEPARTICIPANTHANDLES",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ]
+      },
+      "columns": {
+        "13.3.1": {
+          "ZCALLRECORD": [
+            "ZADDRESS",
+            "ZDATE",
+            "ZDURATION",
+            "ZORIGINATED",
+            "ZANSWERED",
+            "ZSERVICE_PROVIDER"
+          ]
+        },
+        "13.4.1": {
+          "ZCALLRECORD": [
+            "ZADDRESS",
+            "ZDATE",
+            "ZDURATION",
+            "ZORIGINATED",
+            "ZANSWERED",
+            "ZSERVICE_PROVIDER"
+          ]
+        },
+        "15.3.1": {
+          "ZCALLRECORD": [
+            "ZADDRESS",
+            "ZDATE",
+            "ZDURATION",
+            "ZORIGINATED",
+            "ZANSWERED",
+            "ZSERVICE_PROVIDER"
+          ]
+        },
+        "16.1.2": {
+          "ZCALLRECORD": [
+            "ZADDRESS",
+            "ZDATE",
+            "ZDURATION",
+            "ZORIGINATED",
+            "ZANSWERED",
+            "ZSERVICE_PROVIDER"
+          ]
+        },
+        "17.3": {
+          "ZCALLRECORD": [
+            "ZADDRESS",
+            "ZDATE",
+            "ZDURATION",
+            "ZORIGINATED",
+            "ZANSWERED",
+            "ZSERVICE_PROVIDER"
+          ]
+        }
+      },
+      "companions": {
+        "Library/CallHistoryDB/CallHistoryTemp.storedata": {
+          "13.3.1": true,
+          "13.4.1": true,
+          "15.3.1": true,
+          "16.0": false,
+          "16.1.2": true,
+          "17.3": true
+        }
+      }
+    },
+    "voicemail-db": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "15.3.1",
+        "16.0",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [],
+      "tables": {
+        "13.3.1": [
+          "_SqliteDatabaseProperties",
+          "voicemail"
+        ],
+        "13.4.1": [
+          "_SqliteDatabaseProperties",
+          "voicemail"
+        ],
+        "15.3.1": [
+          "_SqliteDatabaseProperties",
+          "deleted",
+          "map",
+          "voicemail"
+        ],
+        "16.1.2": [
+          "_SqliteDatabaseProperties",
+          "deleted",
+          "map",
+          "voicemail"
+        ],
+        "17.3": [
+          "_SqliteDatabaseProperties",
+          "deleted",
+          "map",
+          "voicemail"
+        ]
+      },
+      "columns": {
+        "13.3.1": {
+          "voicemail": [
+            "sender",
+            "date",
+            "duration",
+            "flags",
+            "trashed_date"
+          ]
+        },
+        "13.4.1": {
+          "voicemail": [
+            "sender",
+            "date",
+            "duration",
+            "flags",
+            "trashed_date"
+          ]
+        },
+        "15.3.1": {
+          "voicemail": [
+            "sender",
+            "date",
+            "duration",
+            "flags",
+            "trashed_date"
+          ]
+        },
+        "16.1.2": {
+          "voicemail": [
+            "sender",
+            "date",
+            "duration",
+            "flags",
+            "trashed_date"
+          ]
+        },
+        "17.3": {
+          "voicemail": [
+            "sender",
+            "date",
+            "duration",
+            "flags",
+            "trashed_date"
+          ]
+        }
+      }
+    },
+    "notestore-sqlite": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "15.3.1",
+        "16.0",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [],
+      "tables": {
+        "13.3.1": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZICCLOUDSTATE",
+          "ZICCLOUDSYNCINGOBJECT",
+          "ZICLOCATION",
+          "ZICNOTEDATA",
+          "ZICSERVERCHANGETOKEN",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "13.4.1": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZICCLOUDSTATE",
+          "ZICCLOUDSYNCINGOBJECT",
+          "ZICLOCATION",
+          "ZICNOTEDATA",
+          "ZICSERVERCHANGETOKEN",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "15.3.1": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZICCLOUDSTATE",
+          "ZICCLOUDSYNCINGOBJECT",
+          "ZICLOCATION",
+          "ZICNOTEDATA",
+          "ZICSERVERCHANGETOKEN",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "16.1.2": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZICCLOUDSTATE",
+          "ZICCLOUDSYNCINGOBJECT",
+          "ZICINVITATION",
+          "ZICLOCATION",
+          "ZICNOTEDATA",
+          "ZICNOTEPARTICIPANT",
+          "ZICSERVERCHANGETOKEN",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "17.3": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZICCLOUDSTATE",
+          "ZICCLOUDSYNCINGOBJECT",
+          "ZICINVITATION",
+          "ZICLOCATION",
+          "ZICNOTEDATA",
+          "ZICNOTEPARTICIPANT",
+          "ZICSERVERCHANGETOKEN",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ]
+      },
+      "columns": {
+        "13.3.1": {
+          "ZICCLOUDSYNCINGOBJECT": [
+            "ZTITLE1",
+            "ZSNIPPET"
+          ],
+          "ZICNOTEDATA": [
+            "ZNOTE",
+            "ZDATA"
+          ]
+        },
+        "13.4.1": {
+          "ZICCLOUDSYNCINGOBJECT": [
+            "ZTITLE1",
+            "ZSNIPPET"
+          ],
+          "ZICNOTEDATA": [
+            "ZNOTE",
+            "ZDATA"
+          ]
+        },
+        "15.3.1": {
+          "ZICCLOUDSYNCINGOBJECT": [
+            "ZTITLE1",
+            "ZSNIPPET"
+          ],
+          "ZICNOTEDATA": [
+            "ZNOTE",
+            "ZDATA"
+          ]
+        },
+        "16.1.2": {
+          "ZICCLOUDSYNCINGOBJECT": [
+            "ZTITLE1",
+            "ZSNIPPET"
+          ],
+          "ZICNOTEDATA": [
+            "ZNOTE",
+            "ZDATA"
+          ]
+        },
+        "17.3": {
+          "ZICCLOUDSYNCINGOBJECT": [
+            "ZTITLE1",
+            "ZSNIPPET"
+          ],
+          "ZICNOTEDATA": [
+            "ZNOTE",
+            "ZDATA"
+          ]
+        }
+      }
+    },
+    "notes-sqlite": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "15.3.1",
+        "16.0",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [],
+      "tables": {
+        "13.3.1": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZACCOUNT",
+          "ZNEXTID",
+          "ZNOTE",
+          "ZNOTEATTACHMENT",
+          "ZNOTEBODY",
+          "ZNOTECHANGE",
+          "ZPROPERTY",
+          "ZSTORE",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "13.4.1": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZACCOUNT",
+          "ZNEXTID",
+          "ZNOTE",
+          "ZNOTEATTACHMENT",
+          "ZNOTEBODY",
+          "ZNOTECHANGE",
+          "ZPROPERTY",
+          "ZSTORE",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "15.3.1": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZACCOUNT",
+          "ZNEXTID",
+          "ZNOTE",
+          "ZNOTEATTACHMENT",
+          "ZNOTEBODY",
+          "ZNOTECHANGE",
+          "ZPROPERTY",
+          "ZSTORE",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "16.1.2": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZACCOUNT",
+          "ZNEXTID",
+          "ZNOTE",
+          "ZNOTEATTACHMENT",
+          "ZNOTEBODY",
+          "ZNOTECHANGE",
+          "ZPROPERTY",
+          "ZSTORE",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "17.3": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZACCOUNT",
+          "ZNEXTID",
+          "ZNOTE",
+          "ZNOTEATTACHMENT",
+          "ZNOTEBODY",
+          "ZNOTECHANGE",
+          "ZPROPERTY",
+          "ZSTORE",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ]
+      },
+      "columns": {
+        "13.3.1": {
+          "ZNOTE": [
+            "ZTITLE",
+            "ZCREATIONDATE",
+            "ZMODIFICATIONDATE"
+          ],
+          "ZNOTEBODY": [
+            "ZOWNER",
+            "ZCONTENT"
+          ]
+        },
+        "13.4.1": {
+          "ZNOTE": [
+            "ZTITLE",
+            "ZCREATIONDATE",
+            "ZMODIFICATIONDATE"
+          ],
+          "ZNOTEBODY": [
+            "ZOWNER",
+            "ZCONTENT"
+          ]
+        },
+        "15.3.1": {
+          "ZNOTE": [
+            "ZTITLE",
+            "ZCREATIONDATE",
+            "ZMODIFICATIONDATE"
+          ],
+          "ZNOTEBODY": [
+            "ZOWNER",
+            "ZCONTENT"
+          ]
+        },
+        "16.1.2": {
+          "ZNOTE": [
+            "ZTITLE",
+            "ZCREATIONDATE",
+            "ZMODIFICATIONDATE"
+          ],
+          "ZNOTEBODY": [
+            "ZOWNER",
+            "ZCONTENT"
+          ]
+        },
+        "17.3": {
+          "ZNOTE": [
+            "ZTITLE",
+            "ZCREATIONDATE",
+            "ZMODIFICATIONDATE"
+          ],
+          "ZNOTEBODY": [
+            "ZOWNER",
+            "ZCONTENT"
+          ]
+        }
+      }
+    },
+    "photos-sqlite": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "15.3.1",
+        "16.0",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [],
+      "tables": {
+        "13.3.1": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZADDITIONALASSETATTRIBUTES",
+          "ZADJUSTMENT",
+          "ZALBUMLIST",
+          "ZASSETANALYSISSTATE",
+          "ZASSETDESCRIPTION",
+          "ZCLOUDFEEDENTRY",
+          "ZCLOUDMASTER",
+          "ZCLOUDMASTERMEDIAMETADATA",
+          "ZCLOUDRESOURCE",
+          "ZCLOUDSHAREDALBUMINVITATIONRECORD",
+          "ZCLOUDSHAREDCOMMENT",
+          "ZCODEC",
+          "ZCOMPUTEDASSETATTRIBUTES",
+          "ZDEFERREDREBUILDFACE",
+          "ZDETECTEDFACE",
+          "ZDETECTEDFACEGROUP",
+          "ZDETECTEDFACEPRINT",
+          "ZEDITEDIPTCATTRIBUTES",
+          "ZEXTENDEDATTRIBUTES",
+          "ZFACECROP",
+          "ZFILESYSTEMBOOKMARK",
+          "ZFILESYSTEMVOLUME",
+          "ZGENERICALBUM",
+          "ZGENERICASSET",
+          "ZINTERNALRESOURCE",
+          "ZKEYWORD",
+          "ZLEGACYFACE",
+          "ZMEDIAANALYSISASSETATTRIBUTES",
+          "ZMEMORY",
+          "ZMOMENT",
+          "ZMOMENTLIST",
+          "ZMOMENTSHARE",
+          "ZMOMENTSHAREPARTICIPANT",
+          "ZPERSON",
+          "ZPERSONREFERENCE",
+          "ZPHOTOSHIGHLIGHT",
+          "ZSCENECLASSIFICATION",
+          "ZSCENEPRINT",
+          "ZSEARCHDATA",
+          "ZSUGGESTION",
+          "ZUNIFORMTYPEIDENTIFIER",
+          "ZUNMANAGEDADJUSTMENT",
+          "Z_17CLUSTERREJECTEDPERSONS",
+          "Z_17REJECTEDPERSONS",
+          "Z_17REJECTEDPERSONSNEEDINGFACECROPS",
+          "Z_1KEYWORDS",
+          "Z_25ALBUMLISTS",
+          "Z_26ASSETS",
+          "Z_34MEMORIESBEINGCURATEDASSETS",
+          "Z_34MEMORIESBEINGEXTENDEDCURATEDASSETS",
+          "Z_34MEMORIESBEINGMOVIECURATEDASSETS",
+          "Z_34MEMORIESBEINGREPRESENTATIVEASSETS",
+          "Z_34SUGGESTIONSBEINGKEYASSETS",
+          "Z_34SUGGESTIONSBEINGREPRESENTATIVEASSETS",
+          "Z_45INVALIDMERGECANDIDATES",
+          "Z_45MERGECANDIDATES",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY",
+          "Z_RT_GenericAsset_boundedByRect",
+          "Z_RT_GenericAsset_boundedByRect_node",
+          "Z_RT_GenericAsset_boundedByRect_parent",
+          "Z_RT_GenericAsset_boundedByRect_rowid"
+        ],
+        "13.4.1": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZADDITIONALASSETATTRIBUTES",
+          "ZADJUSTMENT",
+          "ZALBUMLIST",
+          "ZASSETANALYSISSTATE",
+          "ZASSETDESCRIPTION",
+          "ZCLOUDFEEDENTRY",
+          "ZCLOUDMASTER",
+          "ZCLOUDMASTERMEDIAMETADATA",
+          "ZCLOUDRESOURCE",
+          "ZCLOUDSHAREDALBUMINVITATIONRECORD",
+          "ZCLOUDSHAREDCOMMENT",
+          "ZCODEC",
+          "ZCOMPUTEDASSETATTRIBUTES",
+          "ZDEFERREDREBUILDFACE",
+          "ZDETECTEDFACE",
+          "ZDETECTEDFACEGROUP",
+          "ZDETECTEDFACEPRINT",
+          "ZEDITEDIPTCATTRIBUTES",
+          "ZEXTENDEDATTRIBUTES",
+          "ZFACECROP",
+          "ZFILESYSTEMBOOKMARK",
+          "ZFILESYSTEMVOLUME",
+          "ZGENERICALBUM",
+          "ZGENERICASSET",
+          "ZINTERNALRESOURCE",
+          "ZKEYWORD",
+          "ZLEGACYFACE",
+          "ZMEDIAANALYSISASSETATTRIBUTES",
+          "ZMEMORY",
+          "ZMOMENT",
+          "ZMOMENTLIST",
+          "ZMOMENTSHARE",
+          "ZMOMENTSHAREPARTICIPANT",
+          "ZPERSON",
+          "ZPERSONREFERENCE",
+          "ZPHOTOSHIGHLIGHT",
+          "ZQUESTION",
+          "ZSCENECLASSIFICATION",
+          "ZSCENEPRINT",
+          "ZSEARCHDATA",
+          "ZSUGGESTION",
+          "ZUNIFORMTYPEIDENTIFIER",
+          "ZUNMANAGEDADJUSTMENT",
+          "Z_17CLUSTERREJECTEDPERSONS",
+          "Z_17REJECTEDPERSONS",
+          "Z_17REJECTEDPERSONSNEEDINGFACECROPS",
+          "Z_1KEYWORDS",
+          "Z_25ALBUMLISTS",
+          "Z_26ASSETS",
+          "Z_34MEMORIESBEINGCURATEDASSETS",
+          "Z_34MEMORIESBEINGEXTENDEDCURATEDASSETS",
+          "Z_34MEMORIESBEINGMOVIECURATEDASSETS",
+          "Z_34MEMORIESBEINGREPRESENTATIVEASSETS",
+          "Z_34SUGGESTIONSBEINGKEYASSETS",
+          "Z_34SUGGESTIONSBEINGREPRESENTATIVEASSETS",
+          "Z_45INVALIDMERGECANDIDATES",
+          "Z_45MERGECANDIDATES",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY",
+          "Z_RT_GenericAsset_boundedByRect",
+          "Z_RT_GenericAsset_boundedByRect_node",
+          "Z_RT_GenericAsset_boundedByRect_parent",
+          "Z_RT_GenericAsset_boundedByRect_rowid"
+        ],
+        "15.3.1": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZADDITIONALASSETATTRIBUTES",
+          "ZALBUMLIST",
+          "ZASSET",
+          "ZASSETANALYSISSTATE",
+          "ZASSETDESCRIPTION",
+          "ZCHARACTERRECOGNITIONATTRIBUTES",
+          "ZCLOUDFEEDENTRY",
+          "ZCLOUDMASTER",
+          "ZCLOUDMASTERMEDIAMETADATA",
+          "ZCLOUDRESOURCE",
+          "ZCLOUDSHAREDALBUMINVITATIONRECORD",
+          "ZCLOUDSHAREDCOMMENT",
+          "ZCOMPUTEDASSETATTRIBUTES",
+          "ZDEFERREDREBUILDFACE",
+          "ZDETECTEDFACE",
+          "ZDETECTEDFACEGROUP",
+          "ZDETECTEDFACEPRINT",
+          "ZDETECTIONTRAIT",
+          "ZEDITEDIPTCATTRIBUTES",
+          "ZEXTENDEDATTRIBUTES",
+          "ZFACECROP",
+          "ZFILESYSTEMBOOKMARK",
+          "ZFILESYSTEMVOLUME",
+          "ZGENERICALBUM",
+          "ZGLOBALKEYVALUE",
+          "ZINTERNALRESOURCE",
+          "ZKEYWORD",
+          "ZLEGACYFACE",
+          "ZLIMITEDLIBRARYFETCHFILTER",
+          "ZMEDIAANALYSISASSETATTRIBUTES",
+          "ZMEMORY",
+          "ZMIGRATIONHISTORY",
+          "ZMOMENT",
+          "ZPERSON",
+          "ZPERSONREFERENCE",
+          "ZPHOTOSHIGHLIGHT",
+          "ZQUESTION",
+          "ZSCENECLASSIFICATION",
+          "ZSCENEPRINT",
+          "ZSHARE",
+          "ZSHAREPARTICIPANT",
+          "ZSUGGESTION",
+          "ZUNMANAGEDADJUSTMENT",
+          "ZUSERFEEDBACK",
+          "ZVISUALSEARCHATTRIBUTES",
+          "Z_17CLUSTERREJECTEDPERSONS",
+          "Z_17REJECTEDPERSONS",
+          "Z_17REJECTEDPERSONSNEEDINGFACECROPS",
+          "Z_1KEYWORDS",
+          "Z_26ALBUMLISTS",
+          "Z_27ASSETS",
+          "Z_3MEMORIESBEINGCURATEDASSETS",
+          "Z_3MEMORIESBEINGEXTENDEDCURATEDASSETS",
+          "Z_3MEMORIESBEINGMOVIECURATEDASSETS",
+          "Z_3MEMORIESBEINGREPRESENTATIVEASSETS",
+          "Z_3MEMORIESBEINGUSERCURATEDASSETS",
+          "Z_3SUGGESTIONSBEINGKEYASSETS",
+          "Z_3SUGGESTIONSBEINGREPRESENTATIVEASSETS",
+          "Z_45INVALIDMERGECANDIDATES",
+          "Z_45MERGECANDIDATES",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY",
+          "Z_RT_Asset_boundedByRect",
+          "Z_RT_Asset_boundedByRect_node",
+          "Z_RT_Asset_boundedByRect_parent",
+          "Z_RT_Asset_boundedByRect_rowid"
+        ],
+        "16.1.2": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZADDITIONALASSETATTRIBUTES",
+          "ZALBUMLIST",
+          "ZASSET",
+          "ZASSETANALYSISSTATE",
+          "ZASSETCONTRIBUTOR",
+          "ZASSETDESCRIPTION",
+          "ZCHARACTERRECOGNITIONATTRIBUTES",
+          "ZCLOUDFEEDENTRY",
+          "ZCLOUDMASTER",
+          "ZCLOUDMASTERMEDIAMETADATA",
+          "ZCLOUDRESOURCE",
+          "ZCLOUDSHAREDALBUMINVITATIONRECORD",
+          "ZCLOUDSHAREDCOMMENT",
+          "ZCOMPUTEDASSETATTRIBUTES",
+          "ZDEFERREDREBUILDFACE",
+          "ZDETECTEDFACE",
+          "ZDETECTEDFACEGROUP",
+          "ZDETECTEDFACEPRINT",
+          "ZDETECTIONTRAIT",
+          "ZEDITEDIPTCATTRIBUTES",
+          "ZEXTENDEDATTRIBUTES",
+          "ZFACECROP",
+          "ZFILESYSTEMBOOKMARK",
+          "ZFILESYSTEMVOLUME",
+          "ZGENERICALBUM",
+          "ZGLOBALKEYVALUE",
+          "ZINTERNALRESOURCE",
+          "ZKEYWORD",
+          "ZLEGACYFACE",
+          "ZLIMITEDLIBRARYFETCHFILTER",
+          "ZMEDIAANALYSISASSETATTRIBUTES",
+          "ZMEMORY",
+          "ZMIGRATIONHISTORY",
+          "ZMOMENT",
+          "ZPERSON",
+          "ZPERSONREFERENCE",
+          "ZPHOTOANALYSISASSETATTRIBUTES",
+          "ZPHOTOSHIGHLIGHT",
+          "ZQUESTION",
+          "ZSCENECLASSIFICATION",
+          "ZSCENEPRINT",
+          "ZSHARE",
+          "ZSHAREPARTICIPANT",
+          "ZSUGGESTION",
+          "ZUNMANAGEDADJUSTMENT",
+          "ZUSERFEEDBACK",
+          "ZVISUALSEARCHATTRIBUTES",
+          "Z_18CLUSTERREJECTEDPERSONS",
+          "Z_18REJECTEDPERSONS",
+          "Z_18REJECTEDPERSONSNEEDINGFACECROPS",
+          "Z_1KEYWORDS",
+          "Z_27ALBUMLISTS",
+          "Z_28ASSETS",
+          "Z_3MEMORIESBEINGCURATEDASSETS",
+          "Z_3MEMORIESBEINGCUSTOMUSERASSETS",
+          "Z_3MEMORIESBEINGEXTENDEDCURATEDASSETS",
+          "Z_3MEMORIESBEINGMOVIECURATEDASSETS",
+          "Z_3MEMORIESBEINGREPRESENTATIVEASSETS",
+          "Z_3MEMORIESBEINGUSERCURATEDASSETS",
+          "Z_3SUGGESTIONSBEINGKEYASSETS",
+          "Z_3SUGGESTIONSBEINGREPRESENTATIVEASSETS",
+          "Z_47INVALIDMERGECANDIDATES",
+          "Z_47MERGECANDIDATES",
+          "Z_47MERGECANDIDATESWITHCONFIDENCE",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY",
+          "Z_RT_Asset_boundedByRect",
+          "Z_RT_Asset_boundedByRect_node",
+          "Z_RT_Asset_boundedByRect_parent",
+          "Z_RT_Asset_boundedByRect_rowid"
+        ],
+        "17.3": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZADDITIONALASSETATTRIBUTES",
+          "ZALBUMLIST",
+          "ZASSET",
+          "ZASSETANALYSISSTATE",
+          "ZASSETCONTRIBUTOR",
+          "ZASSETDESCRIPTION",
+          "ZCHARACTERRECOGNITIONATTRIBUTES",
+          "ZCLOUDFEEDENTRY",
+          "ZCLOUDMASTER",
+          "ZCLOUDMASTERMEDIAMETADATA",
+          "ZCLOUDRESOURCE",
+          "ZCLOUDSHAREDALBUMINVITATIONRECORD",
+          "ZCLOUDSHAREDCOMMENT",
+          "ZCOMPUTEDASSETATTRIBUTES",
+          "ZDEFERREDREBUILDFACE",
+          "ZDETECTEDFACE",
+          "ZDETECTEDFACEGROUP",
+          "ZDETECTEDFACEPRINT",
+          "ZDETECTIONTRAIT",
+          "ZEDITEDIPTCATTRIBUTES",
+          "ZEXTENDEDATTRIBUTES",
+          "ZFACECROP",
+          "ZFILESYSTEMBOOKMARK",
+          "ZFILESYSTEMVOLUME",
+          "ZGENERICALBUM",
+          "ZGLOBALKEYVALUE",
+          "ZINTERNALRESOURCE",
+          "ZKEYWORD",
+          "ZLEGACYFACE",
+          "ZLIMITEDLIBRARYFETCHFILTER",
+          "ZMEDIAANALYSISASSETATTRIBUTES",
+          "ZMEMORY",
+          "ZMIGRATIONHISTORY",
+          "ZMOMENT",
+          "ZPERSON",
+          "ZPERSONREFERENCE",
+          "ZPHOTOANALYSISASSETATTRIBUTES",
+          "ZPHOTOSHIGHLIGHT",
+          "ZQUESTION",
+          "ZSCENECLASSIFICATION",
+          "ZSCENEPRINT",
+          "ZSHARE",
+          "ZSHAREPARTICIPANT",
+          "ZSUGGESTION",
+          "ZUNMANAGEDADJUSTMENT",
+          "ZUSERFEEDBACK",
+          "ZVISUALSEARCHATTRIBUTES",
+          "Z_18CLUSTERREJECTEDPERSONS",
+          "Z_18REJECTEDPERSONS",
+          "Z_18REJECTEDPERSONSNEEDINGFACECROPS",
+          "Z_1KEYWORDS",
+          "Z_27ALBUMLISTS",
+          "Z_28ASSETS",
+          "Z_3HIGHLIGHTSBEINGADAPTIVEASSETS",
+          "Z_3HIGHLIGHTSBEINGADAPTIVEEXPLICITLYADDEDASSETS",
+          "Z_3HIGHLIGHTSBEINGADAPTIVEEXPLICITLYREMOVEDASSETS",
+          "Z_3HIGHLIGHTSBEINGADAPTIVEEXTENDEDASSETS",
+          "Z_3HIGHLIGHTSBEINGADAPTIVESUMMARYASSETS",
+          "Z_3MEMORIESBEINGCURATEDASSETS",
+          "Z_3MEMORIESBEINGCUSTOMUSERASSETS",
+          "Z_3MEMORIESBEINGEXTENDEDCURATEDASSETS",
+          "Z_3MEMORIESBEINGMOVIECURATEDASSETS",
+          "Z_3MEMORIESBEINGREPRESENTATIVEASSETS",
+          "Z_3MEMORIESBEINGUSERCURATEDASSETS",
+          "Z_3SUGGESTIONSBEINGKEYASSETS",
+          "Z_3SUGGESTIONSBEINGREPRESENTATIVEASSETS",
+          "Z_47INVALIDMERGECANDIDATES",
+          "Z_47MERGECANDIDATES",
+          "Z_47MERGECANDIDATESWITHCONFIDENCE",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY",
+          "Z_RT_Asset_boundedByRect",
+          "Z_RT_Asset_boundedByRect_node",
+          "Z_RT_Asset_boundedByRect_parent",
+          "Z_RT_Asset_boundedByRect_rowid"
+        ]
+      },
+      "columns": {
+        "13.3.1": {
+          "ZGENERICASSET": [
+            "ZDIRECTORY",
+            "ZFILENAME",
+            "ZDATECREATED",
+            "ZFAVORITE",
+            "ZHIDDEN",
+            "ZTRASHEDSTATE"
+          ]
+        },
+        "13.4.1": {
+          "ZGENERICASSET": [
+            "ZDIRECTORY",
+            "ZFILENAME",
+            "ZDATECREATED",
+            "ZFAVORITE",
+            "ZHIDDEN",
+            "ZTRASHEDSTATE"
+          ]
+        },
+        "15.3.1": {
+          "ZASSET": [
+            "ZDIRECTORY",
+            "ZFILENAME",
+            "ZDATECREATED",
+            "ZFAVORITE",
+            "ZHIDDEN",
+            "ZTRASHEDSTATE"
+          ]
+        },
+        "16.1.2": {
+          "ZASSET": [
+            "ZDIRECTORY",
+            "ZFILENAME",
+            "ZDATECREATED",
+            "ZFAVORITE",
+            "ZHIDDEN",
+            "ZTRASHEDSTATE"
+          ]
+        },
+        "17.3": {
+          "ZASSET": [
+            "ZDIRECTORY",
+            "ZFILENAME",
+            "ZDATECREATED",
+            "ZFAVORITE",
+            "ZHIDDEN",
+            "ZTRASHEDSTATE"
+          ]
+        }
+      }
+    },
+    "safari-history-db": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "15.3.1",
+        "16.0",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [],
+      "tables": {
+        "13.3.1": [
+          "history_client_versions",
+          "history_event_listeners",
+          "history_events",
+          "history_items",
+          "history_items_to_tags",
+          "history_tags",
+          "history_tombstones",
+          "history_visits",
+          "metadata"
+        ],
+        "13.4.1": [
+          "history_client_versions",
+          "history_event_listeners",
+          "history_events",
+          "history_items",
+          "history_items_to_tags",
+          "history_tags",
+          "history_tombstones",
+          "history_visits",
+          "metadata"
+        ],
+        "15.3.1": [
+          "history_client_versions",
+          "history_event_listeners",
+          "history_events",
+          "history_items",
+          "history_items_to_tags",
+          "history_tags",
+          "history_tombstones",
+          "history_visits",
+          "metadata"
+        ],
+        "16.1.2": [
+          "history_client_versions",
+          "history_event_listeners",
+          "history_events",
+          "history_items",
+          "history_items_to_tags",
+          "history_tags",
+          "history_tombstones",
+          "history_visits",
+          "metadata"
+        ],
+        "17.3": [
+          "history_client_versions",
+          "history_event_listeners",
+          "history_events",
+          "history_items",
+          "history_items_to_tags",
+          "history_tags",
+          "history_tombstones",
+          "history_visits",
+          "metadata"
+        ]
+      },
+      "columns": {
+        "13.3.1": {
+          "history_items": [
+            "url",
+            "visit_count"
+          ],
+          "history_visits": [
+            "history_item",
+            "visit_time",
+            "title"
+          ]
+        },
+        "13.4.1": {
+          "history_items": [
+            "url",
+            "visit_count"
+          ],
+          "history_visits": [
+            "history_item",
+            "visit_time",
+            "title"
+          ]
+        },
+        "15.3.1": {
+          "history_items": [
+            "url",
+            "visit_count"
+          ],
+          "history_visits": [
+            "history_item",
+            "visit_time",
+            "title"
+          ]
+        },
+        "16.1.2": {
+          "history_items": [
+            "url",
+            "visit_count"
+          ],
+          "history_visits": [
+            "history_item",
+            "visit_time",
+            "title"
+          ]
+        },
+        "17.3": {
+          "history_items": [
+            "url",
+            "visit_count"
+          ],
+          "history_visits": [
+            "history_item",
+            "visit_time",
+            "title"
+          ]
+        }
+      }
+    },
+    "safari-bookmarks-db": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "15.3.1",
+        "16.0",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [],
+      "tables": {
+        "13.3.1": [
+          "bookmark_title_words",
+          "bookmarks",
+          "folder_ancestors",
+          "generations",
+          "sync_properties"
+        ],
+        "13.4.1": [
+          "bookmark_title_words",
+          "bookmarks",
+          "folder_ancestors",
+          "generations",
+          "sync_properties"
+        ],
+        "15.3.1": [
+          "bookmark_title_words",
+          "bookmarks",
+          "folder_ancestors",
+          "generations",
+          "sync_properties"
+        ],
+        "16.1.2": [
+          "bookmark_title_words",
+          "bookmarks",
+          "folder_ancestors",
+          "generations",
+          "participant_presence",
+          "sync_properties"
+        ],
+        "17.3": [
+          "bookmark_title_words",
+          "bookmarks",
+          "folder_ancestors",
+          "generations",
+          "participant_presence",
+          "sync_properties"
+        ]
+      },
+      "columns": {
+        "13.3.1": {
+          "bookmarks": [
+            "title",
+            "url",
+            "parent"
+          ]
+        },
+        "13.4.1": {
+          "bookmarks": [
+            "title",
+            "url",
+            "parent"
+          ]
+        },
+        "15.3.1": {
+          "bookmarks": [
+            "title",
+            "url",
+            "parent"
+          ]
+        },
+        "16.1.2": {
+          "bookmarks": [
+            "title",
+            "url",
+            "parent"
+          ]
+        },
+        "17.3": {
+          "bookmarks": [
+            "title",
+            "url",
+            "parent"
+          ]
+        }
+      }
+    },
+    "calendar-sqlitedb": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "15.3.1",
+        "16.0",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [],
+      "tables": {
+        "13.3.1": [
+          "Alarm",
+          "AlarmChanges",
+          "Attachment",
+          "AttachmentChanges",
+          "Calendar",
+          "CalendarChanges",
+          "CalendarItem",
+          "CalendarItemChanges",
+          "Category",
+          "CategoryLink",
+          "ClientCursor",
+          "ClientCursorConsumed",
+          "ClientSequence",
+          "Contact",
+          "ContactChanges",
+          "EventAction",
+          "EventActionChanges",
+          "ExceptionDate",
+          "ExceptionDateChanges",
+          "Identity",
+          "Location",
+          "Notification",
+          "NotificationChanges",
+          "OccurrenceCache",
+          "OccurrenceCacheDays",
+          "Participant",
+          "ParticipantChanges",
+          "Recurrence",
+          "RecurrenceChanges",
+          "ResourceChange",
+          "ScheduledTaskCache",
+          "Sharee",
+          "ShareeChanges",
+          "Store",
+          "StoreChanges",
+          "SuggestedEventInfo",
+          "_SqliteDatabaseProperties"
+        ],
+        "13.4.1": [
+          "Alarm",
+          "AlarmChanges",
+          "Attachment",
+          "AttachmentChanges",
+          "Calendar",
+          "CalendarChanges",
+          "CalendarItem",
+          "CalendarItemChanges",
+          "Category",
+          "CategoryLink",
+          "ClientCursor",
+          "ClientCursorConsumed",
+          "ClientSequence",
+          "Contact",
+          "ContactChanges",
+          "EventAction",
+          "EventActionChanges",
+          "ExceptionDate",
+          "ExceptionDateChanges",
+          "Identity",
+          "Location",
+          "Notification",
+          "NotificationChanges",
+          "OccurrenceCache",
+          "OccurrenceCacheDays",
+          "Participant",
+          "ParticipantChanges",
+          "Recurrence",
+          "RecurrenceChanges",
+          "ResourceChange",
+          "ScheduledTaskCache",
+          "Sharee",
+          "ShareeChanges",
+          "Store",
+          "StoreChanges",
+          "SuggestedEventInfo",
+          "_SqliteDatabaseProperties"
+        ],
+        "15.3.1": [
+          "Alarm",
+          "AlarmChanges",
+          "Attachment",
+          "AttachmentChanges",
+          "Calendar",
+          "CalendarChanges",
+          "CalendarItem",
+          "CalendarItemChanges",
+          "Category",
+          "CategoryLink",
+          "ClientCursor",
+          "ClientCursorConsumed",
+          "ClientSequence",
+          "Conference",
+          "Contact",
+          "ContactChanges",
+          "EventAction",
+          "EventActionChanges",
+          "ExceptionDate",
+          "ExceptionDateChanges",
+          "Identity",
+          "Location",
+          "Notification",
+          "NotificationChanges",
+          "OccurrenceCache",
+          "OccurrenceCacheDays",
+          "Participant",
+          "ParticipantChanges",
+          "Recurrence",
+          "RecurrenceChanges",
+          "ResourceChange",
+          "ScheduledTaskCache",
+          "Sharee",
+          "ShareeChanges",
+          "Store",
+          "StoreChanges",
+          "SuggestedEventInfo",
+          "_SqliteDatabaseProperties"
+        ],
+        "16.1.2": [
+          "Alarm",
+          "AlarmChanges",
+          "Attachment",
+          "AttachmentChanges",
+          "AttachmentFile",
+          "AuxDatabase",
+          "AuxDatabaseAccount",
+          "Calendar",
+          "CalendarChanges",
+          "CalendarItem",
+          "CalendarItemChanges",
+          "Category",
+          "CategoryLink",
+          "ClientCursor",
+          "ClientCursorConsumed",
+          "ClientSequence",
+          "Conference",
+          "Contact",
+          "ContactChanges",
+          "Error",
+          "EventAction",
+          "EventActionChanges",
+          "ExceptionDate",
+          "ExceptionDateChanges",
+          "Identity",
+          "Location",
+          "Notification",
+          "NotificationChanges",
+          "OccurrenceCache",
+          "OccurrenceCacheDays",
+          "Participant",
+          "ParticipantChanges",
+          "Recurrence",
+          "RecurrenceChanges",
+          "ResourceChange",
+          "ScheduledTaskCache",
+          "Sharee",
+          "ShareeChanges",
+          "Store",
+          "StoreChanges",
+          "SuggestedEventInfo",
+          "_SqliteDatabaseProperties"
+        ],
+        "17.3": [
+          "Alarm",
+          "AlarmChanges",
+          "Attachment",
+          "AttachmentChanges",
+          "AttachmentFile",
+          "AuxDatabase",
+          "AuxDatabaseAccount",
+          "AuxDatabaseChanges",
+          "Calendar",
+          "CalendarChanges",
+          "CalendarItem",
+          "CalendarItemChanges",
+          "Category",
+          "CategoryLink",
+          "ClientCursor",
+          "ClientCursorConsumed",
+          "ClientSequence",
+          "Conference",
+          "Contact",
+          "ContactChanges",
+          "Error",
+          "EventAction",
+          "EventActionChanges",
+          "ExceptionDate",
+          "ExceptionDateChanges",
+          "Identity",
+          "Image",
+          "Location",
+          "Notification",
+          "NotificationChanges",
+          "OccurrenceCache",
+          "OccurrenceCacheDays",
+          "Participant",
+          "ParticipantChanges",
+          "Recurrence",
+          "RecurrenceChanges",
+          "ResourceChange",
+          "ScheduledTaskCache",
+          "Sharee",
+          "ShareeChanges",
+          "Store",
+          "StoreChanges",
+          "SuggestedEventInfo",
+          "_SqliteDatabaseProperties"
+        ]
+      },
+      "columns": {
+        "13.3.1": {
+          "CalendarItem": [
+            "summary",
+            "start_date",
+            "end_date",
+            "calendar_id"
+          ],
+          "Calendar": [
+            "title"
+          ]
+        },
+        "13.4.1": {
+          "CalendarItem": [
+            "summary",
+            "start_date",
+            "end_date",
+            "calendar_id"
+          ],
+          "Calendar": [
+            "title"
+          ]
+        },
+        "15.3.1": {
+          "CalendarItem": [
+            "summary",
+            "start_date",
+            "end_date",
+            "calendar_id"
+          ],
+          "Calendar": [
+            "title"
+          ]
+        },
+        "16.1.2": {
+          "CalendarItem": [
+            "summary",
+            "start_date",
+            "end_date",
+            "calendar_id"
+          ],
+          "Calendar": [
+            "title"
+          ]
+        },
+        "17.3": {
+          "CalendarItem": [
+            "summary",
+            "start_date",
+            "end_date",
+            "calendar_id"
+          ],
+          "Calendar": [
+            "title"
+          ]
+        }
+      }
+    },
+    "whatsapp-chatstorage-sqlite": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "15.3.1",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [
+        "16.0"
+      ],
+      "tables": {
+        "13.3.1": [
+          "ZWABLACKLISTITEM",
+          "ZWACHATPROPERTIES",
+          "ZWACHATPUSHCONFIG",
+          "ZWACHATSESSION",
+          "ZWAGROUPINFO",
+          "ZWAGROUPMEMBER",
+          "ZWAGROUPMEMBERSCHANGE",
+          "ZWAMEDIAITEM",
+          "ZWAMESSAGE",
+          "ZWAMESSAGEDATAITEM",
+          "ZWAMESSAGEINFO",
+          "ZWAPROFILEPICTUREITEM",
+          "ZWAPROFILEPUSHNAME",
+          "ZWAVCARDMENTION",
+          "ZWAZ1PAYMENTTRANSACTION",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "13.4.1": [
+          "ZWABLACKLISTITEM",
+          "ZWACHATPROPERTIES",
+          "ZWACHATPUSHCONFIG",
+          "ZWACHATSESSION",
+          "ZWAGROUPINFO",
+          "ZWAGROUPMEMBER",
+          "ZWAGROUPMEMBERSCHANGE",
+          "ZWAMEDIAITEM",
+          "ZWAMESSAGE",
+          "ZWAMESSAGEDATAITEM",
+          "ZWAMESSAGEINFO",
+          "ZWAPROFILEPICTUREITEM",
+          "ZWAPROFILEPUSHNAME",
+          "ZWAVCARDMENTION",
+          "ZWAZ1PAYMENTTRANSACTION",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "15.3.1": [
+          "ZWABLACKLISTITEM",
+          "ZWACHATPROPERTIES",
+          "ZWACHATPUSHCONFIG",
+          "ZWACHATSESSION",
+          "ZWAGROUPINFO",
+          "ZWAGROUPMEMBER",
+          "ZWAGROUPMEMBERSCHANGE",
+          "ZWAMEDIAITEM",
+          "ZWAMESSAGE",
+          "ZWAMESSAGEDATAITEM",
+          "ZWAMESSAGEINFO",
+          "ZWAPROFILEPICTUREITEM",
+          "ZWAPROFILEPUSHNAME",
+          "ZWAVCARDMENTION",
+          "ZWAZ1PAYMENTTRANSACTION",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "16.1.2": [
+          "ZWABLACKLISTITEM",
+          "ZWACHATPROPERTIES",
+          "ZWACHATPUSHCONFIG",
+          "ZWACHATSESSION",
+          "ZWAGROUPINFO",
+          "ZWAGROUPMEMBER",
+          "ZWAGROUPMEMBERSCHANGE",
+          "ZWAMEDIAITEM",
+          "ZWAMESSAGE",
+          "ZWAMESSAGEDATAITEM",
+          "ZWAMESSAGEINFO",
+          "ZWAPROFILEPICTUREITEM",
+          "ZWAPROFILEPUSHNAME",
+          "ZWAVCARDMENTION",
+          "ZWAZ1PAYMENTTRANSACTION",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "17.3": [
+          "ZWABLACKLISTITEM",
+          "ZWACHATPROPERTIES",
+          "ZWACHATPUSHCONFIG",
+          "ZWACHATSESSION",
+          "ZWAGROUPINFO",
+          "ZWAGROUPMEMBER",
+          "ZWAGROUPMEMBERSCHANGE",
+          "ZWAMEDIAITEM",
+          "ZWAMESSAGE",
+          "ZWAMESSAGEDATAITEM",
+          "ZWAMESSAGEINFO",
+          "ZWAPROFILEPICTUREITEM",
+          "ZWAPROFILEPUSHNAME",
+          "ZWAVCARDMENTION",
+          "ZWAZ1PAYMENTTRANSACTION",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ]
+      },
+      "columns": {
+        "13.3.1": {
+          "ZWACHATSESSION": [
+            "ZCONTACTJID",
+            "ZPARTNERNAME"
+          ],
+          "ZWAMESSAGE": [
+            "ZTEXT",
+            "ZISFROMME",
+            "ZMESSAGEDATE",
+            "ZSORT"
+          ],
+          "ZWAMEDIAITEM": [
+            "ZMEDIALOCALPATH"
+          ]
+        },
+        "13.4.1": {
+          "ZWACHATSESSION": [
+            "ZCONTACTJID",
+            "ZPARTNERNAME"
+          ],
+          "ZWAMESSAGE": [
+            "ZTEXT",
+            "ZISFROMME",
+            "ZMESSAGEDATE",
+            "ZSORT"
+          ],
+          "ZWAMEDIAITEM": [
+            "ZMEDIALOCALPATH"
+          ]
+        },
+        "15.3.1": {
+          "ZWACHATSESSION": [
+            "ZCONTACTJID",
+            "ZPARTNERNAME"
+          ],
+          "ZWAMESSAGE": [
+            "ZTEXT",
+            "ZISFROMME",
+            "ZMESSAGEDATE",
+            "ZSORT"
+          ],
+          "ZWAMEDIAITEM": [
+            "ZMEDIALOCALPATH"
+          ]
+        },
+        "16.1.2": {
+          "ZWACHATSESSION": [
+            "ZCONTACTJID",
+            "ZPARTNERNAME"
+          ],
+          "ZWAMESSAGE": [
+            "ZTEXT",
+            "ZISFROMME",
+            "ZMESSAGEDATE",
+            "ZSORT"
+          ],
+          "ZWAMEDIAITEM": [
+            "ZMEDIALOCALPATH"
+          ]
+        },
+        "17.3": {
+          "ZWACHATSESSION": [
+            "ZCONTACTJID",
+            "ZPARTNERNAME"
+          ],
+          "ZWAMESSAGE": [
+            "ZTEXT",
+            "ZISFROMME",
+            "ZMESSAGEDATE",
+            "ZSORT"
+          ],
+          "ZWAMEDIAITEM": [
+            "ZMEDIALOCALPATH"
+          ]
+        }
+      }
+    },
+    "whatsapp-contactsv2-sqlite": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "15.3.1"
+      ],
+      "notSeenIn": [
+        "16.0",
+        "16.1.2",
+        "17.3"
+      ],
+      "tables": {
+        "13.3.1": [
+          "ZWAADDRESSBOOKCONTACT",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "13.4.1": [
+          "ZWAADDRESSBOOKCONTACT",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "15.3.1": [
+          "ZWAADDRESSBOOKCONTACT",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ]
+      },
+      "columns": {
+        "13.3.1": {
+          "ZWAADDRESSBOOKCONTACT": [
+            "ZWHATSAPPID",
+            "ZFULLNAME"
+          ]
+        },
+        "13.4.1": {
+          "ZWAADDRESSBOOKCONTACT": [
+            "ZWHATSAPPID",
+            "ZFULLNAME"
+          ]
+        },
+        "15.3.1": {
+          "ZWAADDRESSBOOKCONTACT": [
+            "ZWHATSAPPID",
+            "ZFULLNAME"
+          ]
+        }
+      }
+    },
+    "whatsapp-lid-sqlite": {
+      "seenIn": [
+        "15.3.1",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [
+        "13.3.1",
+        "13.4.1",
+        "16.0"
+      ],
+      "tables": {
+        "15.3.1": [
+          "ZWALIDPROPERTIES",
+          "ZWALIDTHREADPROPERTIES",
+          "ZWAPHONENUMBERLIDPAIR",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "16.1.2": [
+          "ZWALIDPROPERTIES",
+          "ZWALIDTHREADPROPERTIES",
+          "ZWAPHONENUMBERLIDPAIR",
+          "ZWASINTEROPINTEGRATORPROPERTIES",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "17.3": [
+          "ZWALIDPROPERTIES",
+          "ZWALIDTHREADPROPERTIES",
+          "ZWAPHONENUMBERLIDPAIR",
+          "ZWASINTEROPINTEGRATORPROPERTIES",
+          "ZWAZACCOUNT",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ]
+      },
+      "columns": {
+        "15.3.1": {
+          "ZWAPHONENUMBERLIDPAIR": [
+            "ZLID",
+            "ZPHONENUMBER"
+          ],
+          "ZWALIDPROPERTIES": [
+            "ZLID",
+            "ZDISPLAYNAME"
+          ]
+        },
+        "16.1.2": {
+          "ZWAPHONENUMBERLIDPAIR": [
+            "ZLID",
+            "ZPHONENUMBER"
+          ],
+          "ZWALIDPROPERTIES": [
+            "ZLID",
+            "ZDISPLAYNAME"
+          ]
+        },
+        "17.3": {
+          "ZWAPHONENUMBERLIDPAIR": [
+            "ZLID",
+            "ZPHONENUMBER"
+          ],
+          "ZWALIDPROPERTIES": [
+            "ZLID",
+            "ZDISPLAYNAME"
+          ]
+        }
+      }
+    },
+    "whatsapp-shared-plist": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "15.3.1",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [
+        "16.0"
+      ],
+      "tables": {},
+      "keys": {
+        "13.3.1": [
+          "OwnJabberID",
+          "FullUserName"
+        ],
+        "13.4.1": [
+          "OwnJabberID",
+          "FullUserName"
+        ],
+        "15.3.1": [
+          "OwnJabberID",
+          "FullUserName",
+          "lid"
+        ],
+        "16.1.2": [
+          "OwnJabberID",
+          "FullUserName",
+          "lid"
+        ],
+        "17.3": [
+          "OwnJabberID",
+          "FullUserName",
+          "lid"
+        ]
+      }
+    },
+    "podcasts-mtlibrary-sqlite": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [
+        "15.3.1",
+        "16.0"
+      ],
+      "tables": {
+        "13.3.1": [
+          "ZMTCATEGORY",
+          "ZMTEPISODE",
+          "ZMTPLAYLIST",
+          "ZMTPODCAST",
+          "ZMTPODCASTCATEGORY",
+          "ZMTPODCASTPLAYLISTSETTINGS",
+          "ZMTSYNCINFO",
+          "ZMTTHEME",
+          "ZMTUPPMETADATA",
+          "Z_2ADDEDTOPLAYLISTS",
+          "Z_2PLAYLISTS",
+          "Z_2SETTINGS",
+          "Z_3PODCASTS",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "13.4.1": [
+          "ZMTCATEGORY",
+          "ZMTEPISODE",
+          "ZMTPLAYLIST",
+          "ZMTPODCAST",
+          "ZMTPODCASTCATEGORY",
+          "ZMTPODCASTPLAYLISTSETTINGS",
+          "ZMTSYNCINFO",
+          "ZMTTHEME",
+          "ZMTUPPMETADATA",
+          "Z_2ADDEDTOPLAYLISTS",
+          "Z_2PLAYLISTS",
+          "Z_2SETTINGS",
+          "Z_3PODCASTS",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "16.1.2": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZMTCHANNEL",
+          "ZMTEPISODE",
+          "ZMTOFFLINEKEYDATA",
+          "ZMTPLAYLIST",
+          "ZMTPODCAST",
+          "ZMTPODCASTCATEGORY",
+          "ZMTPODCASTPLAYLISTSETTINGS",
+          "ZMTSYNCINFO",
+          "ZMTTHEME",
+          "ZMTUPPMETADATA",
+          "Z_2ADDEDTOPLAYLISTS",
+          "Z_2PLAYLISTS",
+          "Z_2SETTINGS",
+          "Z_4PODCASTS",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ],
+        "17.3": [
+          "ACHANGE",
+          "ATRANSACTION",
+          "ATRANSACTIONSTRING",
+          "ZMTCHANNEL",
+          "ZMTEPISODE",
+          "ZMTOFFLINEKEYDATA",
+          "ZMTPLAYLIST",
+          "ZMTPODCAST",
+          "ZMTPODCASTCATEGORY",
+          "ZMTPODCASTPLAYLISTSETTINGS",
+          "ZMTSYNCINFO",
+          "ZMTTHEME",
+          "ZMTUPPMETADATA",
+          "Z_2ADDEDTOPLAYLISTS",
+          "Z_2PLAYLISTS",
+          "Z_2SETTINGS",
+          "Z_4PODCASTS",
+          "Z_METADATA",
+          "Z_MODELCACHE",
+          "Z_PRIMARYKEY"
+        ]
+      },
+      "columns": {
+        "13.3.1": {
+          "ZMTPODCAST": [
+            "ZTITLE",
+            "ZFEEDURL",
+            "ZSUBSCRIBED"
+          ],
+          "ZMTEPISODE": [
+            "ZTITLE",
+            "ZPLAYCOUNT",
+            "ZLASTDATEPLAYED"
+          ]
+        },
+        "13.4.1": {
+          "ZMTPODCAST": [
+            "ZTITLE",
+            "ZFEEDURL",
+            "ZSUBSCRIBED"
+          ],
+          "ZMTEPISODE": [
+            "ZTITLE",
+            "ZPLAYCOUNT",
+            "ZLASTDATEPLAYED"
+          ]
+        },
+        "16.1.2": {
+          "ZMTPODCAST": [
+            "ZTITLE",
+            "ZFEEDURL",
+            "ZSUBSCRIBED"
+          ],
+          "ZMTEPISODE": [
+            "ZTITLE",
+            "ZPLAYCOUNT",
+            "ZLASTDATEPLAYED"
+          ]
+        },
+        "17.3": {
+          "ZMTPODCAST": [
+            "ZTITLE",
+            "ZFEEDURL",
+            "ZSUBSCRIBED"
+          ],
+          "ZMTEPISODE": [
+            "ZTITLE",
+            "ZPLAYCOUNT",
+            "ZLASTDATEPLAYED"
+          ]
+        }
+      }
+    },
+    "firefox-browser-db": {
+      "seenIn": [
+        "15.3.1",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [
+        "13.3.1",
+        "13.4.1",
+        "16.0"
+      ],
+      "tables": {
+        "15.3.1": [
+          "activity_stream_blocklist",
+          "bookmarksBuffer",
+          "bookmarksBufferStructure",
+          "bookmarksLocal",
+          "bookmarksLocalStructure",
+          "bookmarksMirror",
+          "bookmarksMirrorStructure",
+          "cached_top_sites",
+          "clients",
+          "commands",
+          "domains",
+          "favicon_site_urls",
+          "favicon_sites",
+          "favicons",
+          "highlights",
+          "history",
+          "history_fts",
+          "history_fts_docsize",
+          "history_fts_segdir",
+          "history_fts_segments",
+          "history_fts_stat",
+          "matview_awesomebar_bookmarks_with_favicons",
+          "page_metadata",
+          "pending_deletions",
+          "pinned_top_sites",
+          "queue",
+          "remote_devices",
+          "tabs",
+          "visits"
+        ],
+        "16.1.2": [
+          "activity_stream_blocklist",
+          "bookmarksBuffer",
+          "bookmarksBufferStructure",
+          "bookmarksLocal",
+          "bookmarksLocalStructure",
+          "bookmarksMirror",
+          "bookmarksMirrorStructure",
+          "cached_top_sites",
+          "clients",
+          "commands",
+          "domains",
+          "favicon_site_urls",
+          "favicon_sites",
+          "favicons",
+          "highlights",
+          "history",
+          "history_fts",
+          "history_fts_docsize",
+          "history_fts_segdir",
+          "history_fts_segments",
+          "history_fts_stat",
+          "matview_awesomebar_bookmarks_with_favicons",
+          "page_metadata",
+          "pending_deletions",
+          "pinned_top_sites",
+          "queue",
+          "remote_devices",
+          "tabs",
+          "visits"
+        ],
+        "17.3": [
+          "activity_stream_blocklist",
+          "bookmarksBuffer",
+          "bookmarksBufferStructure",
+          "bookmarksLocal",
+          "bookmarksLocalStructure",
+          "bookmarksMirror",
+          "bookmarksMirrorStructure",
+          "cached_top_sites",
+          "clients",
+          "commands",
+          "domains",
+          "favicon_site_urls",
+          "favicon_sites",
+          "favicons",
+          "highlights",
+          "history",
+          "history_fts",
+          "history_fts_docsize",
+          "history_fts_segdir",
+          "history_fts_segments",
+          "history_fts_stat",
+          "matview_awesomebar_bookmarks_with_favicons",
+          "page_metadata",
+          "pending_deletions",
+          "pinned_top_sites",
+          "queue",
+          "remote_devices",
+          "tabs",
+          "visits"
+        ]
+      },
+      "columns": {
+        "15.3.1": {
+          "history": [
+            "url",
+            "title"
+          ],
+          "visits": [
+            "siteID",
+            "date"
+          ]
+        },
+        "16.1.2": {
+          "history": [
+            "url",
+            "title"
+          ],
+          "visits": [
+            "siteID",
+            "date"
+          ]
+        },
+        "17.3": {
+          "history": [
+            "url",
+            "title"
+          ],
+          "visits": [
+            "siteID",
+            "date"
+          ]
+        }
+      }
+    },
+    "firefox-places-db": {
+      "seenIn": [
+        "15.3.1",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [
+        "13.3.1",
+        "13.4.1",
+        "16.0"
+      ],
+      "tables": {
+        "15.3.1": [
+          "moz_bookmarks",
+          "moz_bookmarks_deleted",
+          "moz_bookmarks_synced",
+          "moz_bookmarks_synced_structure",
+          "moz_bookmarks_synced_tag_relation",
+          "moz_historyvisit_tombstones",
+          "moz_historyvisits",
+          "moz_inputhistory",
+          "moz_keywords",
+          "moz_meta",
+          "moz_origins",
+          "moz_places",
+          "moz_places_metadata",
+          "moz_places_metadata_search_queries",
+          "moz_places_stale_frecencies",
+          "moz_places_tombstones",
+          "moz_tags",
+          "moz_tags_relation"
+        ],
+        "16.1.2": [
+          "moz_bookmarks",
+          "moz_bookmarks_deleted",
+          "moz_bookmarks_synced",
+          "moz_bookmarks_synced_structure",
+          "moz_bookmarks_synced_tag_relation",
+          "moz_historyvisit_tombstones",
+          "moz_historyvisits",
+          "moz_inputhistory",
+          "moz_keywords",
+          "moz_meta",
+          "moz_origins",
+          "moz_places",
+          "moz_places_metadata",
+          "moz_places_metadata_search_queries",
+          "moz_places_stale_frecencies",
+          "moz_places_tombstones",
+          "moz_tags",
+          "moz_tags_relation"
+        ],
+        "17.3": [
+          "moz_bookmarks",
+          "moz_bookmarks_deleted",
+          "moz_bookmarks_synced",
+          "moz_bookmarks_synced_structure",
+          "moz_bookmarks_synced_tag_relation",
+          "moz_historyvisit_tombstones",
+          "moz_historyvisits",
+          "moz_inputhistory",
+          "moz_keywords",
+          "moz_meta",
+          "moz_origins",
+          "moz_places",
+          "moz_places_metadata",
+          "moz_places_metadata_search_queries",
+          "moz_places_stale_frecencies",
+          "moz_places_tombstones",
+          "moz_tags",
+          "moz_tags_relation"
+        ]
+      },
+      "columns": {
+        "15.3.1": {
+          "moz_places": [
+            "url",
+            "title"
+          ],
+          "moz_historyvisits": [
+            "place_id",
+            "visit_date"
+          ]
+        },
+        "16.1.2": {
+          "moz_places": [
+            "url",
+            "title"
+          ],
+          "moz_historyvisits": [
+            "place_id",
+            "visit_date"
+          ]
+        },
+        "17.3": {
+          "moz_places": [
+            "url",
+            "title"
+          ],
+          "moz_historyvisits": [
+            "place_id",
+            "visit_date"
+          ]
+        }
+      }
+    },
+    "healthdb-secure-sqlite": {
+      "seenIn": [
+        "13.3.1",
+        "13.4.1",
+        "15.3.1",
+        "16.0",
+        "16.1.2",
+        "17.3"
+      ],
+      "notSeenIn": [],
+      "tables": {
+        "13.3.1": [
+          "ACHAchievementsPlugin_earned_instances",
+          "ACHAchievementsPlugin_templates",
+          "account_owner_samples",
+          "activity_caches",
+          "activitysharing_competition_lists",
+          "activitysharing_competitions",
+          "allergy_record_samples",
+          "binary_samples",
+          "category_samples",
+          "cda_documents",
+          "clinical_accounts",
+          "clinical_authorization_sessions",
+          "clinical_credentials",
+          "clinical_deleted_accounts",
+          "clinical_gateways",
+          "clinical_record_samples",
+          "concept_index",
+          "condition_record_samples",
+          "correlations",
+          "data_provenances",
+          "data_series",
+          "devices",
+          "diagnostic_test_report_samples",
+          "diagnostic_test_result_samples",
+          "external_sync_ids",
+          "fitness_friend_achievements",
+          "fitness_friend_activity_snapshots",
+          "fitness_friend_workouts",
+          "key_value_secure",
+          "medical_records",
+          "medication_dispense_record_samples",
+          "medication_order_samples",
+          "medication_record_samples",
+          "metadata_keys",
+          "metadata_values",
+          "object_authorizations",
+          "objects",
+          "original_fhir_resources",
+          "original_fhir_resources_last_seen",
+          "pending_associations",
+          "procedure_record_samples",
+          "quantity_sample_series",
+          "quantity_sample_statistics",
+          "quantity_samples",
+          "samples",
+          "schema_user_versions",
+          "unit_strings",
+          "unknown_record_samples",
+          "vaccination_record_samples",
+          "workout_events",
+          "workouts"
+        ],
+        "13.4.1": [
+          "ACHAchievementsPlugin_earned_instances",
+          "ACHAchievementsPlugin_templates",
+          "account_owner_samples",
+          "activity_caches",
+          "activitysharing_competition_lists",
+          "activitysharing_competitions",
+          "allergy_record_samples",
+          "binary_samples",
+          "category_samples",
+          "cda_documents",
+          "clinical_accounts",
+          "clinical_authorization_sessions",
+          "clinical_credentials",
+          "clinical_deleted_accounts",
+          "clinical_gateways",
+          "clinical_record_samples",
+          "concept_index",
+          "condition_record_samples",
+          "correlations",
+          "data_provenances",
+          "data_series",
+          "devices",
+          "diagnostic_test_report_samples",
+          "diagnostic_test_result_samples",
+          "external_sync_ids",
+          "fitness_friend_achievements",
+          "fitness_friend_activity_snapshots",
+          "fitness_friend_workouts",
+          "key_value_secure",
+          "medical_records",
+          "medication_dispense_record_samples",
+          "medication_order_samples",
+          "medication_record_samples",
+          "metadata_keys",
+          "metadata_values",
+          "object_authorizations",
+          "objects",
+          "original_fhir_resources",
+          "original_fhir_resources_last_seen",
+          "pending_associations",
+          "procedure_record_samples",
+          "quantity_sample_series",
+          "quantity_sample_statistics",
+          "quantity_samples",
+          "samples",
+          "schema_user_versions",
+          "unit_strings",
+          "unknown_record_samples",
+          "vaccination_record_samples",
+          "workout_events",
+          "workouts"
+        ],
+        "15.3.1": [
+          "ACHAchievementsPlugin_earned_instances",
+          "ACHAchievementsPlugin_templates",
+          "account_owner_samples",
+          "activity_caches",
+          "activitysharing_competition_lists",
+          "activitysharing_competitions",
+          "ad_hoc_concepts",
+          "allergy_record_samples",
+          "binary_samples",
+          "cached_queries",
+          "category_samples",
+          "cda_documents",
+          "ck_record_cache_secure",
+          "clinical_accounts",
+          "clinical_authorization_sessions",
+          "clinical_credentials",
+          "clinical_deleted_accounts",
+          "clinical_gateways",
+          "clinical_record_samples",
+          "concept_index",
+          "condition_record_samples",
+          "contributors",
+          "correlations",
+          "coverage_record_samples",
+          "data_provenances",
+          "data_series",
+          "devices",
+          "diagnostic_test_report_samples",
+          "diagnostic_test_result_samples",
+          "ecg_samples",
+          "external_sync_ids",
+          "fitness_friend_achievements",
+          "fitness_friend_activity_snapshots",
+          "fitness_friend_workouts",
+          "heart_sample_classifications",
+          "key_value_secure",
+          "list_user_domain_concepts",
+          "location_series_data",
+          "medical_records",
+          "medical_user_domain_concept_category_types",
+          "medical_user_domain_concept_mappings",
+          "medical_user_domain_concepts",
+          "medication_dispense_record_samples",
+          "medication_order_samples",
+          "medication_record_samples",
+          "metadata_keys",
+          "metadata_values",
+          "object_authorizations",
+          "objects",
+          "original_fhir_resources",
+          "original_fhir_resources_last_seen",
+          "original_signed_clinical_data_records",
+          "pending_associations",
+          "procedure_record_samples",
+          "quantity_sample_series",
+          "quantity_sample_statistics",
+          "quantity_samples",
+          "quantity_series_data",
+          "sample_aggregate_caches",
+          "samples",
+          "schema_user_versions",
+          "shared_summaries",
+          "shared_summary_authorization_categories",
+          "shared_summary_object_types",
+          "shared_summary_transaction_metadata",
+          "shared_summary_transactions",
+          "sharing_authorizations",
+          "sharing_relationship",
+          "signed_clinical_data_issuer",
+          "signed_clinical_data_record_samples",
+          "sleep_schedule_samples",
+          "summary_sharing_entry",
+          "unit_strings",
+          "unknown_record_samples",
+          "user_domain_concept_links",
+          "user_domain_concept_properties",
+          "user_domain_concepts",
+          "user_domain_medical_coding_strings",
+          "user_domain_medical_codings",
+          "vaccination_record_samples",
+          "verifiable_clinical_record_samples",
+          "workout_events",
+          "workouts"
+        ],
+        "16.1.2": [
+          "ACHAchievementsPlugin_earned_instances",
+          "ACHAchievementsPlugin_templates",
+          "RacePreviousRoute_concrete_cluster",
+          "RacePreviousRoute_generation_queue",
+          "RacePreviousRoute_location_series",
+          "RacePreviousRoute_route_snapshot",
+          "RacePreviousRoute_workout_cluster",
+          "RacePreviousRoute_workout_cluster_components",
+          "account_owner_samples",
+          "activity_caches",
+          "activitysharing_competition_lists",
+          "activitysharing_competitions",
+          "ad_hoc_concepts",
+          "allergy_record_samples",
+          "attachment_references",
+          "attachments",
+          "binary_samples",
+          "cached_queries",
+          "category_samples",
+          "cda_documents",
+          "ck_record_cache_secure",
+          "clinical_account_events",
+          "clinical_accounts",
+          "clinical_authorization_sessions",
+          "clinical_credentials",
+          "clinical_deleted_accounts",
+          "clinical_gateways",
+          "clinical_record_samples",
+          "concept_index",
+          "condition_record_samples",
+          "contributors",
+          "correlations",
+          "coverage_record_samples",
+          "data_provenances",
+          "data_series",
+          "devices",
+          "diagnostic_test_report_samples",
+          "diagnostic_test_result_samples",
+          "ecg_samples",
+          "external_sync_ids",
+          "fitness_friend_achievements",
+          "fitness_friend_activity_snapshots",
+          "fitness_friend_workouts",
+          "heart_sample_classifications",
+          "key_value_secure",
+          "list_user_domain_concepts",
+          "location_series_data",
+          "medical_records",
+          "medical_user_domain_concept_category_types",
+          "medical_user_domain_concept_mappings",
+          "medical_user_domain_concepts",
+          "medication_dismissed_interactions",
+          "medication_dispense_record_samples",
+          "medication_dose_event_samples",
+          "medication_order_samples",
+          "medication_record_samples",
+          "medication_schedule_interval_data",
+          "medication_schedule_items",
+          "medication_schedules",
+          "medication_user_domain_concepts",
+          "metadata_keys",
+          "metadata_values",
+          "object_authorizations",
+          "objects",
+          "original_fhir_resources",
+          "original_fhir_resources_last_seen",
+          "original_signed_clinical_data_records",
+          "pending_associations",
+          "procedure_record_samples",
+          "quantity_sample_series",
+          "quantity_sample_statistics",
+          "quantity_samples",
+          "quantity_series_data",
+          "sample_aggregate_caches",
+          "samples",
+          "schema_user_versions",
+          "shared_summaries",
+          "shared_summary_authorization_categories",
+          "shared_summary_object_types",
+          "shared_summary_transaction_metadata",
+          "shared_summary_transactions",
+          "sharing_authorizations",
+          "sharing_relationship",
+          "signed_clinical_data_issuer",
+          "signed_clinical_data_record_samples",
+          "sleep_schedule_samples",
+          "summary_sharing_entry",
+          "unit_strings",
+          "unknown_record_samples",
+          "user_domain_concept_education_content",
+          "user_domain_concept_education_content_section_data",
+          "user_domain_concept_education_content_section_data_strings",
+          "user_domain_concept_education_content_sections",
+          "user_domain_concept_links",
+          "user_domain_concept_localized_strings",
+          "user_domain_concept_named_quantities",
+          "user_domain_concept_properties",
+          "user_domain_concepts",
+          "user_domain_medical_coding_strings",
+          "user_domain_medical_codings",
+          "vaccination_record_samples",
+          "verifiable_clinical_record_samples",
+          "vision_prescription",
+          "workout_activities",
+          "workout_events",
+          "workout_statistics",
+          "workouts"
+        ],
+        "17.3": [
+          "ACHAchievementsPlugin_earned_instances",
+          "ACHAchievementsPlugin_templates",
+          "RacePreviousRoute_concrete_cluster",
+          "RacePreviousRoute_generation_queue",
+          "RacePreviousRoute_location_series",
+          "RacePreviousRoute_route_snapshot",
+          "RacePreviousRoute_workout",
+          "RacePreviousRoute_workout_cluster",
+          "RacePreviousRoute_workout_cluster_components",
+          "account_owner_samples",
+          "activity_caches",
+          "activitysharing_competition_lists",
+          "activitysharing_competitions",
+          "ad_hoc_concepts",
+          "allergy_record_samples",
+          "associations",
+          "attachment_references",
+          "attachments",
+          "binary_samples",
+          "cached_queries",
+          "category_samples",
+          "cda_documents",
+          "ck_record_cache_secure",
+          "clinical_account_events",
+          "clinical_accounts",
+          "clinical_authorization_sessions",
+          "clinical_credentials",
+          "clinical_deleted_accounts",
+          "clinical_gateways",
+          "clinical_note_record_samples",
+          "clinical_record_samples",
+          "concept_index",
+          "condition_record_samples",
+          "contributors",
+          "coverage_record_samples",
+          "data_provenances",
+          "data_series",
+          "devices",
+          "diagnostic_test_report_samples",
+          "diagnostic_test_result_samples",
+          "ecg_samples",
+          "external_sync_ids",
+          "fitness_friend_achievements",
+          "fitness_friend_activity_snapshots",
+          "fitness_friend_workouts",
+          "heart_sample_classifications",
+          "key_value_secure",
+          "list_user_domain_concepts",
+          "location_series_data",
+          "medical_downloadable_attachments",
+          "medical_records",
+          "medical_user_domain_concept_category_types",
+          "medical_user_domain_concept_mappings",
+          "medical_user_domain_concepts",
+          "medication_dismissed_interactions",
+          "medication_dispense_record_samples",
+          "medication_dose_event_samples",
+          "medication_order_samples",
+          "medication_record_samples",
+          "medication_schedule_interval_data",
+          "medication_schedule_items",
+          "medication_schedules",
+          "medication_user_domain_concepts",
+          "metadata_keys",
+          "metadata_values",
+          "object_authorizations",
+          "objects",
+          "original_fhir_resources",
+          "original_fhir_resources_last_seen",
+          "original_signed_clinical_data_records",
+          "pending_associations",
+          "procedure_record_samples",
+          "quantity_sample_series",
+          "quantity_sample_statistics",
+          "quantity_samples",
+          "quantity_series_data",
+          "sample_aggregate_caches",
+          "samples",
+          "schema_user_versions",
+          "scored_assessment_samples",
+          "secure_kv_device_storage",
+          "shared_summaries",
+          "shared_summary_authorization_categories",
+          "shared_summary_object_types",
+          "shared_summary_transaction_metadata",
+          "shared_summary_transactions",
+          "sharing_authorizations",
+          "sharing_relationship",
+          "signed_clinical_data_issuer",
+          "signed_clinical_data_record_samples",
+          "sleep_schedule_samples",
+          "state_of_mind_domains",
+          "state_of_mind_labels",
+          "state_of_mind_samples",
+          "summary_sharing_entry",
+          "unit_strings",
+          "unknown_record_samples",
+          "user_domain_concept_education_content",
+          "user_domain_concept_education_content_section_data",
+          "user_domain_concept_education_content_section_data_strings",
+          "user_domain_concept_education_content_sections",
+          "user_domain_concept_links",
+          "user_domain_concept_localized_strings",
+          "user_domain_concept_named_quantities",
+          "user_domain_concept_properties",
+          "user_domain_concepts",
+          "user_domain_medical_coding_strings",
+          "user_domain_medical_codings",
+          "vaccination_record_samples",
+          "verifiable_clinical_record_samples",
+          "vision_prescription",
+          "workout_activities",
+          "workout_events",
+          "workout_statistics",
+          "workout_zones_associations",
+          "workout_zones_samples",
+          "workouts"
+        ]
+      },
+      "columns": {
+        "13.3.1": {
+          "samples": [
+            "data_id",
+            "start_date",
+            "end_date",
+            "data_type"
+          ],
+          "quantity_samples": [
+            "data_id",
+            "quantity"
+          ]
+        },
+        "13.4.1": {
+          "samples": [
+            "data_id",
+            "start_date",
+            "end_date",
+            "data_type"
+          ],
+          "quantity_samples": [
+            "data_id",
+            "quantity"
+          ]
+        },
+        "15.3.1": {
+          "samples": [
+            "data_id",
+            "start_date",
+            "end_date",
+            "data_type"
+          ],
+          "quantity_samples": [
+            "data_id",
+            "quantity"
+          ]
+        },
+        "16.1.2": {
+          "samples": [
+            "data_id",
+            "start_date",
+            "end_date",
+            "data_type"
+          ],
+          "quantity_samples": [
+            "data_id",
+            "quantity"
+          ]
+        },
+        "17.3": {
+          "samples": [
+            "data_id",
+            "start_date",
+            "end_date",
+            "data_type"
+          ],
+          "quantity_samples": [
+            "data_id",
+            "quantity"
+          ]
+        }
+      },
+      "companions": {
+        "Health/healthdb.sqlite": {
+          "13.3.1": true,
+          "13.4.1": true,
+          "15.3.1": true,
+          "16.0": true,
+          "16.1.2": true,
+          "17.3": true
+        }
+      }
+    }
+  }
+}

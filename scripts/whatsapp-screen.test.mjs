@@ -425,9 +425,9 @@ test('reaction chips are read out: who reacted with what', () => {
 
 // ── Home ─────────────────────────────────────────────────────────────────────
 
-test("the People tile's line covers every kind People gathers and fits on the tile", () => {
+test("the People tile's line says what a person's page holds and fits on the tile", () => {
   const { PEOPLE_LINE } = loadTs('src/components/explore/BackupHome.tsx');
-  assert.equal(PEOPLE_LINE, 'Everyone you were in touch with');
+  assert.equal(PEOPLE_LINE, 'Everything with each person');
   // The tile shows about two lines of 16 characters; a longer line is cut off
   assert.ok(PEOPLE_LINE.length <= 32);
 });
