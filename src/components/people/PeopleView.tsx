@@ -181,9 +181,15 @@ export default function PeopleView({ ctx, query, person }: Props) {
                         className="mt-1 inline-flex flex-wrap items-center gap-x-1.5 text-sm text-accent font-medium hover:underline text-left"
                       >
                         <ContactIcon size={16} />
-                        <span className="whitespace-nowrap">In your address book</span>
-                        {card.organization && <span>· {card.organization}</span>}
-                        <ChevronRightIcon size={16} />
+                        {card.organization ? (
+                          <>
+                            <span className="whitespace-nowrap">In your address book</span>
+                            {/* The arrow stays with the last word, never alone on a line */}
+                            <span>· {card.organization.replace(/\s*\S+$/, '')} <span className="whitespace-nowrap">{card.organization.match(/\S+$/)?.[0]}<ChevronRightIcon size={16} className="inline align-[-3px]" /></span></span>
+                          </>
+                        ) : (
+                          <span className="whitespace-nowrap">In your address book<ChevronRightIcon size={16} className="inline align-[-3px]" /></span>
+                        )}
                       </button>
                     )}
                   </div>
