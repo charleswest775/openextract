@@ -1,4 +1,5 @@
-import { memo, useState, useEffect, useRef } from 'react';
+import { memo, useState, useEffect, useRef, type ReactElement } from 'react';
+import { createPortal } from 'react-dom';
 import { MessageCircle, MessagesSquare, PhoneCall, Image, Voicemail, NotebookPen, Globe, ChevronDown, ChevronUp, ChevronRight, Loader2, X, ZoomIn } from 'lucide-react';
 import type { TimelineAttachment, TimelineEntry } from '../../types/timeline';
 import { TYPE_COLORS } from './TimelineTypeChips';
@@ -10,6 +11,24 @@ import { useNearScreen } from '../../hooks/useNearScreen';
 import AmrPlayer from '../voicemail/AmrPlayer';
 import MediaAttachment, { type MediaSource } from '../explore/MediaAttachment';
 import type { BubbleAttachment } from '../explore/ChatBubble';
+
+/**
+ * A card's pop-ups sit over the whole window, not inside the scrolling stream:
+ * a fixed element inside the stream's pane would hide a photo viewer opened from
+ * it, and the pane would keep its pictures from ever counting as near the screen.
+ */
+function Overlay({ children }: { children: ReactElement }) {
+  return typeof document === 'undefined' || !document.body ? children : createPortal(children, document.body);
+}
+
+/** Escape closes a pop-up, unless something opened over it (a photo viewer) already took it. */
+function useEscape(onClose: () => void) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+}
 
 // ── A message's files ─────────────────────────────────────────────────────────
 
@@ -89,14 +108,10 @@ export function TimelinePhotoLightbox({ fileHash, udid, filename, onClose }: Lig
     return () => { cancelled = true; };
   }, [fileHash, udid]);
 
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+  useEscape(onClose);
 
   return (
+    <Overlay>
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
@@ -156,6 +171,7 @@ export function TimelinePhotoLightbox({ fileHash, udid, filename, onClose }: Lig
         </div>
       )}
     </div>
+    </Overlay>
   );
 }
 
@@ -185,15 +201,12 @@ function MessageViewerModal({
   text, displayText, isFromMe, conversationName, service, timestamp, onClose, sender, openLabel, onOpen,
   attachments, source, udid, messageType,
 }: MessageViewerProps) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+  useEscape(onClose);
 
   const isSpecial = !text || displayText !== text;
 
   return (
+    <Overlay>
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
@@ -253,8 +266,8 @@ function MessageViewerModal({
           </button>
         </div>
 
-        {/* Body */}
-        <div style={{
+        {/* Body: its own scroll pane, so its pictures load as they come into view */}
+        <div data-scroll-root style={{
           flex: 1, overflowY: 'auto',
           padding: '16px 20px',
           fontSize: 15, color: isSpecial ? 'var(--text-tertiary)' : 'var(--text-primary)',
@@ -281,6 +294,7 @@ function MessageViewerModal({
         </div>
       </div>
     </div>
+    </Overlay>
   );
 }
 
@@ -294,13 +308,10 @@ interface NoteViewerProps {
 }
 
 function NoteViewerModal({ title, body, modified, onClose }: NoteViewerProps) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+  useEscape(onClose);
 
   return (
+    <Overlay>
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
@@ -361,6 +372,7 @@ function NoteViewerModal({ title, body, modified, onClose }: NoteViewerProps) {
         </div>
       </div>
     </div>
+    </Overlay>
   );
 }
 

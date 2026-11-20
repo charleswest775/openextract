@@ -26,7 +26,7 @@ Made by an independent developer with help from contributors.
 - 📝 **Notes** — Read and export your iOS notes
 - 🎙️ **Podcasts** — The shows you follow and every episode you played; save your subscriptions as OPML for another podcast app, or everything as a spreadsheet ([guide](https://www.openextract.app/use-cases/export-podcasts-from-iphone-backup?ref=gh-readme))
 - 🔒 **Encrypted Backups** — Full support for password-protected backups
-- 📤 **Export** — Every save offers the same formats in the same order: PDF, web page (HTML), spreadsheet (CSV) and plain text, plus contact cards, podcast subscriptions, original photos and voicemail audio where they apply
+- 📤 **Export** — Every save lists its formats the same way and in the same order: PDF, web page (HTML), spreadsheet (CSV) and plain text for messages, WhatsApp, people, the timeline, calls and web history, with contact cards, podcast subscriptions, original photos and voicemail audio where they apply
 
 ## Writing
 

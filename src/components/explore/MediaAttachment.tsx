@@ -293,13 +293,22 @@ function Missing({ kind, attachment, onColour, tile = false }: {
 
 type Opener = ReturnType<typeof useOpener>;
 
-/** Escape closes the viewer; focus goes to Close while it's open and back afterwards. */
+/**
+ * Escape closes the viewer, and only the viewer: it's heard first (capture) and
+ * goes no further, so a message view it was opened from stays open, as Back from
+ * a photo does on a phone. Focus goes to Close while it's open and back afterwards.
+ */
 function useViewerKeys(onClose: () => void, closeRef: RefObject<HTMLButtonElement>) {
   useDialogFocus(closeRef);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
 }
 
@@ -322,7 +331,8 @@ function viewerFrame({ dialogRef, closeRef, label, onClose, opener, children }: 
       role="dialog"
       aria-modal="true"
       aria-label={label}
-      className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center p-6 gap-3"
+      // Above every other overlay (a message view it was opened from sits at 9999)
+      className="fixed inset-0 z-[10000] bg-black/80 flex flex-col items-center justify-center p-6 gap-3"
       onClick={onClose}
       onKeyDown={e => keepTabInside(e, dialogRef.current, document.activeElement)}
     >

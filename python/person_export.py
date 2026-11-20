@@ -58,6 +58,7 @@ from messages import (
     _FILE_NAME_UNSAFE,
     _HtmlAttachmentWriter,
     _PrintAttachmentWriter,
+    _visible,
     _without_lone_surrogates,
 )
 from whatsapp import (
@@ -237,7 +238,7 @@ def _messages_kind(att: dict) -> str:
 
 def _messages_label(att: dict, status: Optional[str] = None) -> str:
     """"Image: IMG_1.jpg", "Video not in this backup: clip.mov", "File couldn't be read: a.pdf"."""
-    name = att.get("transfer_name") or os.path.basename(att.get("filename") or "")
+    name = _visible(att.get("transfer_name") or os.path.basename(att.get("filename") or ""))
     kind = _messages_kind(att)
     if status == "not_in_backup":
         kind += " not in this backup"
@@ -280,10 +281,22 @@ class _Item:
             return len(self.data.get("attachments") or [])
         return 0
 
+    @property
+    def copyable_count(self) -> int:
+        """Files that may really be copied: attachments the backup has (not marked unavailable), or a recording."""
+        if self.kind == "voicemail":
+            return 1
+        if self.kind in ("message", "whatsapp"):
+            return sum(1 for a in (self.data.get("attachments") or []) if a.get("available") is not False)
+        return 0
+
 
 # ── Copying files ─────────────────────────────────────────────────────────────
 
 _TALLY_KEYS = ("copied", "not_in_backup", "failed")
+
+# Errors about one file's name (too long, or characters this file system won't take)
+_ONE_FILES_NAME = {errno.ENAMETOOLONG, errno.EINVAL, getattr(errno, "EILSEQ", -1)}
 
 
 class _TalliedCopy:
@@ -339,7 +352,8 @@ class _TalliedCopy:
                     shutil.copyfile(src, dest)
                     name, status = os.path.basename(dest), "copied"
                 except OSError as e:
-                    if _writing_failed(e, self._dir):
+                    # A name this file system won't take is that file's problem, not the save's
+                    if _writing_failed(e, self._dir) and e.errno not in _ONE_FILES_NAME:
                         raise
                     _log(f"couldn't copy attachment {att.get('attachment_id')}: {e}")
                     status = "failed"
@@ -1024,7 +1038,8 @@ class PersonExporter:
     def _write_html(self, path, items, display_name, counts, writers, fmt, folder_name, media_total, step) -> None:
         safe_name = _esc(display_name)
         title = f"Everything with {safe_name}" if safe_name else "Everything with this person"
-        note = self._files_note(fmt, folder_name, media_total, writers.files is not None)
+        # Only promise a folder when there are files the backup has: none at all means no folder
+        note = self._files_note(fmt, folder_name, sum(it.copyable_count for it in items), writers.files is not None)
         with open(path, "w", encoding="utf-8", errors="replace") as f:
             f.write(f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">

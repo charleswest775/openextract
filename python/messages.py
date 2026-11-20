@@ -33,6 +33,7 @@ import re
 import shutil
 import sys
 import uuid
+import unicodedata
 from datetime import datetime
 from typing import Optional
 from urllib.parse import quote
@@ -294,6 +295,16 @@ def _without_lone_surrogates(text):
         return text
     return "".join("�" if "\ud800" <= ch <= "\udfff" else ch for ch in text)
 
+
+
+def _visible(text: str) -> str:
+    """A sent file's name without invisible format characters, for saving and showing it.
+
+    A direction mark makes "Invoice<RLO>fdp.exe" read as "Invoiceexe.pdf", a
+    program posing as a document. The same rule as app_copies.visible, which
+    imports this module, so it can't be imported from there.
+    """
+    return "".join(ch for ch in (text or "") if unicodedata.category(ch) not in ("Cf", "Zl", "Zp"))
 
 class MessageExtractor:
     """Adapter wrapping the ios-backup-core MessageExtractor.
@@ -597,7 +608,7 @@ class MessageExtractor:
             return "[Attachment]"
         parts = []
         for a in attachments:
-            name = a.get("transfer_name") or a.get("filename") or ""
+            name = _visible(a.get("transfer_name") or a.get("filename") or "")
             mime = a.get("mime_type") or ""
             if mime.startswith("image/"):
                 kind = "Image"
@@ -991,7 +1002,7 @@ class _PrintAttachmentWriter:
     @staticmethod
     def _label(att: dict, missing: bool = False, href: Optional[str] = None) -> str:
         """``[Video: clip.mov]`` and the like; a link to the file if ``href`` is given."""
-        name = att.get("transfer_name") or os.path.basename(att.get("filename") or "")
+        name = _visible(att.get("transfer_name") or os.path.basename(att.get("filename") or ""))
         mime = (att.get("mime_type") or "").lower()
         if _PrintAttachmentWriter._is_image(att):
             kind = "Image"
@@ -1042,7 +1053,7 @@ class _PrintAttachmentWriter:
 
         if rel is None:
             return self._label(att, missing=True)
-        alt = MessageExtractor._html_escape(att.get("transfer_name") or "Image")
+        alt = MessageExtractor._html_escape(_visible(att.get("transfer_name") or "") or "Image")
         return f'<img src="{rel}" alt="{alt}">'
 
 
@@ -1082,10 +1093,16 @@ class _HtmlAttachmentWriter:
         files sent with the same name (IMG_0001.HEIC) never collide.
         """
         name = att.get("transfer_name") or os.path.basename(att.get("filename") or "") or "attachment"
+        # Nothing invisible: a direction mark makes "Invoice<RLO>fdp.exe" read as "Invoiceexe.pdf"
+        name = _visible(name)
         name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", name.replace("\\", "/").rsplit("/", 1)[-1])
         name = name.strip(" .") or "attachment"
         stem, ext = os.path.splitext(name)
-        name = stem[:80] + (ext or _HtmlAttachmentWriter._ext(att))[:16]
+        # At most 80 characters and, for file systems that count bytes (255 on Linux), 180 bytes,
+        # never cutting a character in half
+        stem = stem[:80].encode("utf-8")[:180].decode("utf-8", "ignore").rstrip(" .") or "attachment"
+        ext = (ext or _HtmlAttachmentWriter._ext(att))[:16].encode("utf-8")[:32].decode("utf-8", "ignore")
+        name = stem + ext
         att_id = att.get("attachment_id")
         prefix = str(att_id) if isinstance(att_id, int) else f"x{uuid.uuid4().hex[:12]}"
         return f"{prefix}-{name}"
@@ -1132,7 +1149,7 @@ class _HtmlAttachmentWriter:
             return _PrintAttachmentWriter._label(att, missing=True)
 
         href = self._href(name)
-        title = MessageExtractor._html_escape(att.get("transfer_name") or name)
+        title = MessageExtractor._html_escape(_visible(att.get("transfer_name") or "") or name)
         mime = (att.get("mime_type") or "").lower()
         ext = self._ext(att)
 

@@ -244,3 +244,32 @@ class TestHtmlExportAttachments(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_a_name_disguised_with_a_direction_mark_is_saved_and_shown_as_it_really_is():
+    """"Oven plans<RLO>gpj.exe" displays as "Oven plansexe.jpg": a program posing as a photo.
+
+    Saved copies, labels and links drop the invisible mark, so the real extension shows.
+    """
+    from messages import _HtmlAttachmentWriter, _PrintAttachmentWriter, MessageExtractor
+
+    disguised = {"attachment_id": 53, "transfer_name": "Oven plans‮gpj.exe", "filename": "", "mime_type": "application/octet-stream"}
+    assert _HtmlAttachmentWriter._file_name(disguised) == "53-Oven plansgpj.exe"
+    assert "‮" not in _PrintAttachmentWriter._label(disguised)
+    assert "Oven plansgpj.exe" in _PrintAttachmentWriter._label(disguised)
+    extractor = MessageExtractor.__new__(MessageExtractor)
+    assert extractor._attachment_label({"attachments": [disguised]}) == "[File: Oven plansgpj.exe]"
+    # Every other invisible format character goes too (zero-width space, isolates)
+    sneaky = dict(disguised, transfer_name="re​port⁦.pdf⁩.exe")
+    assert _HtmlAttachmentWriter._file_name(sneaky) == "53-report.pdf.exe"
+
+
+def test_a_very_long_name_is_cut_to_fit_a_file_system_that_counts_bytes():
+    from messages import _HtmlAttachmentWriter
+
+    long_emoji = {"attachment_id": 7, "transfer_name": "🌲" * 70 + ".jpg", "filename": "", "mime_type": "image/jpeg"}
+    name = _HtmlAttachmentWriter._file_name(long_emoji)
+    assert len(name.encode("utf-8")) <= 255
+    assert name.startswith("7-🌲") and name.endswith(".jpg")
+    # Cut on a character boundary: it still decodes and has no half emoji
+    assert "�" not in name

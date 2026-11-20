@@ -721,3 +721,28 @@ test("the People tile's line covers every kind People gathers and fits on the ti
   // The tile shows about two lines of 16 characters; a longer line is cut off
   assert.ok(PEOPLE_LINE.length <= 32);
 });
+
+test('a viewer opened from a message view sits above it, and Escape closes only the viewer', async (t) => {
+  mediaBridge(t, () => ({ data: JPEG, mime_type: 'image/jpeg' }));
+  const listeners = [];
+  globalThis.window.addEventListener = (type, fn, capture) => listeners.push({ type, fn, capture });
+  globalThis.window.removeEventListener = () => {};
+  const hadDocument = 'document' in globalThis;
+  if (!hadDocument) globalThis.document = { activeElement: null };
+  t.after(() => { if (!hadDocument) delete globalThis.document; });
+  const { R, mount } = hooksRuntime();
+  const { Viewer } = loadTs(MEDIA, { stubs: { react: R } });
+  let closed = 0;
+  const viewer = mount(Viewer, { source: 'messages', udid: 'u', attachment: photo(5), label: 'Photo', onClose: () => { closed++; } });
+  await settle();
+  const frame = find(viewer.rerender(), el => el.props?.role === 'dialog');
+  assert.match(frame.props.className, /z-\[10000\]/, 'above a message view (z-index 9999) it may be opened from');
+  const key = listeners.find(l => l.type === 'keydown');
+  assert.equal(key?.capture, true, 'heard before the message view underneath');
+  let prevented = false, stopped = false;
+  key.fn({ key: 'Escape', preventDefault: () => { prevented = true; }, stopPropagation: () => { stopped = true; } });
+  assert.deepEqual({ closed, prevented, stopped }, { closed: 1, prevented: true, stopped: true },
+    'the message view behind ignores an Escape the viewer took (it checks defaultPrevented)');
+  key.fn({ key: 'a', preventDefault: () => assert.fail('other keys pass'), stopPropagation: () => assert.fail('other keys pass') });
+  assert.equal(closed, 1);
+});

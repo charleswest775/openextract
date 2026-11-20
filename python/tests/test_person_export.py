@@ -650,6 +650,17 @@ class TestFiles(PersonExportCase):
         self.assertEqual(os.listdir(self.out), ["Riley Sample, Mar 1 2024.html"])
         self.assertNotIn("files-note", self.read(result["file"]).split("</style>")[1])
 
+    def test_no_files_in_the_backup_no_promise_of_a_folder(self):
+        # Every attachment kept off the backup (Messages in iCloud): nothing is copied, so the page
+        # mustn't send the reader to a folder that was never made
+        self.sms_chats[1] = [sms(1, D(0), "", attachments=[sms_att(1, "a.jpg", "image/jpeg", available=False)])]
+        self.wa_chats[1] = [wa(2, 2, D(1), "", message_type="image", attachments=[wa_att(9, "Message/Media/x/gone.jpg", "image/jpeg", available=False)])]
+        for fmt in ("html", "pdf_source"):
+            result = self.ok(fmt)
+            self.assertEqual(result["media"]["copied"], 0, fmt)
+            self.assertNotIn("media_folder", result, fmt)
+            self.assertNotIn("files-note", self.read(result["file"]).split("</style>")[1], fmt)
+
     def test_a_full_disk_stops_the_save_and_removes_what_it_wrote(self):
         self.standard()
         with mock.patch.object(person_export.shutil, "copyfile",

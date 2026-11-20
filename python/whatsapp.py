@@ -43,6 +43,7 @@ from messages import (
     _PrintAttachmentWriter,
     _VIDEO_EXTENSIONS,
     _save_as_jpeg,
+    _visible,
     _without_lone_surrogates,
 )
 
@@ -464,7 +465,7 @@ def _media_kind(msg, att) -> str:
 
 def _media_name(att) -> str:
     """The file's name, or "" when the library only has a placeholder label for it."""
-    name = att.get("transfer_name") or os.path.basename(att.get("filename") or "")
+    name = _visible(att.get("transfer_name") or os.path.basename(att.get("filename") or ""))
     if not att.get("filename") and name in _PLACEHOLDER_NAMES:
         return ""
     return name
@@ -931,7 +932,7 @@ class _WhatsAppHtmlMedia(_HtmlAttachmentWriter):
             return f'<div class="attachment-label">{label}</div>'
 
         href = self._href(name)
-        title = esc(att.get("transfer_name") or name)
+        title = esc(_visible(att.get("transfer_name") or "") or name)
         mime = (att.get("mime_type") or "").lower()
         ext = self._ext(att)
         sticker = ' class="sticker"' if msg.get("message_type") == "sticker" else ""
@@ -1006,7 +1007,7 @@ class _WhatsAppPrintMedia(_PrintAttachmentWriter):
             rel = self._jpeg(key, att.get("filename") or "")
             if rel:
                 css = ' class="sticker"' if msg.get("message_type") == "sticker" else ""
-                return f'<img{css} src="{esc(rel)}" alt="{esc(att.get("transfer_name") or "Photo")}">'
+                return f'<img{css} src="{esc(rel)}" alt="{esc(_visible(att.get("transfer_name") or "") or "Photo")}">'
             # In the backup, but it couldn't be read or converted. A document
             # that happens to be a picture (a camera's RAW file) keeps the
             # label every other document gets.
