@@ -20,12 +20,9 @@ WhatsApp id must never reach a Messages method, nor a Messages id this one:
 each would quietly return the wrong rows rather than fail.
 """
 
-import base64
 import csv
 import heapq
 import html
-import io
-import mimetypes
 import os
 import plistlib
 import shutil
@@ -33,7 +30,8 @@ import sys
 import uuid
 from typing import Optional
 
-from app_copies import AppCopies, is_openable, join_name, openable_extension, split_name, temp_prefix
+import attachment_files
+from app_copies import AppCopies, temp_prefix
 from messages import (
     EXPORT_FOOTER_HTML,
     HTML_PREVIEW_MAX_PX,
@@ -64,11 +62,12 @@ except ImportError:
 
 __all__ = ["WhatsAppExtractor", "SHARED_DOMAIN", "MAX_INLINE_BYTES"]
 
-# What the app is told, in words for people.
+# What the app is told, in words for people. The words for one file are
+# attachment_files', which Messages' attachments share.
 NOT_IN_BACKUP = "WhatsApp is not in this backup"
-FILE_NOT_IN_BACKUP = "This file isn't in the backup"
-FILE_UNREADABLE = "This file couldn't be read from the backup"
-FILE_NOT_COPIED = "This file couldn't be copied to open it"
+FILE_NOT_IN_BACKUP = attachment_files.FILE_NOT_IN_BACKUP
+FILE_UNREADABLE = attachment_files.FILE_UNREADABLE
+FILE_NOT_COPIED = attachment_files.FILE_NOT_COPIED
 
 # Why WhatsApp has nothing to show when the iPhone has WhatsApp but the backup
 # has no ChatStorage.sqlite: WhatsApp's own end-to-end encrypted chat backup
@@ -87,8 +86,9 @@ _LIB_NOT_IN_BACKUP = "WhatsApp is not in this backup"
 
 # Biggest file sent inline as base64. Base64 makes it a third bigger, and the
 # whole thing travels as one JSON line that Electron reads into memory, so a
-# long video is better opened in another app (as_file).
-MAX_INLINE_BYTES = 25 * 1024 * 1024
+# long video is better opened in another app (as_file). Read when a file is
+# asked for, so a test can lower it here.
+MAX_INLINE_BYTES = attachment_files.MAX_INLINE_BYTES
 
 # Copies made for opening in another app (as_file) are app_copies.py's: a
 # folder per engine under the system's temp folder, whose name starts with
@@ -205,56 +205,11 @@ def _problem(result: dict) -> Optional[dict]:
 
 
 # ── Media files ──────────────────────────────────────────────────────────────
+# The types, names and conversions are attachment_files', shared with Messages.
 
-def _is_heif(mime: str, name: str) -> bool:
-    return (mime or "").lower() in ("image/heic", "image/heif") or (name or "").lower().endswith((".heic", ".heif"))
-
-
-def _heif_as_jpeg(raw: bytes) -> Optional[bytes]:
-    """A HEIC/HEIF photo as JPEG, which the app can show; None if it can't be converted."""
-    try:
-        import pillow_heif
-        from PIL import Image
-
-        pillow_heif.register_heif_opener()
-        with Image.open(io.BytesIO(raw)) as img:
-            out = io.BytesIO()
-            img.convert("RGB").save(out, format="JPEG", quality=90)
-            return out.getvalue()
-    except Exception:
-        return None
-
-
-# The file types WhatsApp sends, both ways. Python's mimetypes reads the system's
-# own table, which on Windows lacks some of these (.webp, .opus), so look here first.
-_MIME_BY_EXTENSION = {
-    ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".thumb": "image/jpeg", ".png": "image/png",
-    ".gif": "image/gif", ".webp": "image/webp", ".heic": "image/heic", ".heif": "image/heif",
-    ".mp4": "video/mp4", ".mov": "video/quicktime", ".m4v": "video/x-m4v", ".3gp": "video/3gpp",
-    ".opus": "audio/ogg", ".ogg": "audio/ogg", ".m4a": "audio/mp4", ".mp3": "audio/mpeg",
-    ".aac": "audio/aac", ".amr": "audio/amr", ".caf": "audio/x-caf", ".wav": "audio/wav",
-    ".pdf": "application/pdf", ".txt": "text/plain", ".vcf": "text/vcard",
-}
-_EXTENSION_BY_MIME = {
-    "image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp",
-    "image/heic": ".heic", "image/heif": ".heif", "video/mp4": ".mp4", "video/quicktime": ".mov",
-    "video/x-m4v": ".m4v", "video/3gpp": ".3gp", "audio/ogg": ".ogg", "audio/opus": ".opus",
-    "audio/mp4": ".m4a", "audio/mpeg": ".mp3", "audio/aac": ".aac", "audio/amr": ".amr",
-    "audio/x-caf": ".caf", "audio/wav": ".wav", "application/pdf": ".pdf", "text/plain": ".txt",
-}
-
-
-def _mime_for(name: str) -> str | None:
-    """The MIME type a file name says, the same on every system."""
-    ext = os.path.splitext(name or "")[1].lower()
-    return _MIME_BY_EXTENSION.get(ext) or mimetypes.guess_type(name or "")[0]
-
-
-def _extension_for(mime: str) -> str:
-    mime = (mime or "").split(";")[0].strip().lower()
-    if not mime:
-        return ""
-    return _EXTENSION_BY_MIME.get(mime) or mimetypes.guess_extension(mime) or ""
+# The file types WhatsApp sends, both ways, the same on every system.
+_mime_for = attachment_files.mime_for
+_extension_for = attachment_files.extension_for
 
 
 def _name_for_app(name: str, mime: str, thumbnail: bool) -> str:
@@ -266,12 +221,7 @@ def _name_for_app(name: str, mime: str, thumbnail: bool) -> str:
     OPENABLE_EXTENSIONS: the sender declared that type, and "Invoice" sent as
     a program must not become "Invoice.exe".
     """
-    stem, ext = split_name(name)
-    if thumbnail or not ext or ext.lower() == ".thumb":
-        guessed = _extension_for(mime)
-        if openable_extension(guessed):
-            ext = guessed
-    return join_name(stem, ext, "WhatsApp file")
+    return attachment_files.name_for_app(name, mime, "WhatsApp file", retype=thumbnail, retype_extensions=(".thumb",))
 
 
 class WhatsAppExtractor:
@@ -346,8 +296,9 @@ class WhatsAppExtractor:
     def get_attachment(self, backup, attachment_id, thumbnail: bool = False, as_file: bool = False) -> dict:
         """A media file (or its thumbnail) for the app.
 
-        Default: ``{data (base64), mime_type, filename, size}``; HEIC photos
-        come as JPEG. ``as_file``: ``{path, mime_type, filename, size,
+        Default: ``{data (base64), mime_type, filename, size}``; HEIC, HEIF
+        and TIFF photos come as an upright JPEG (attachment_files.inline_answer).
+        ``as_file``: ``{path, mime_type, filename, size,
         openable}``, a copy named with its real extension. ``openable`` is True
         only for a photo, video, audio file or document, which the app may
         open in another app; anything else it only shows in its folder. Over
@@ -364,27 +315,17 @@ class WhatsAppExtractor:
         path, name = found.get("path"), found.get("filename") or ""
         # Without parameters ("audio/ogg; codecs=opus" is stored for voice notes):
         # the app puts it in a data: URL, where a space doesn't belong.
-        mime = (found.get("mime_type") or "").split(";")[0].strip().lower()
+        mime = attachment_files.clean_mime(found.get("mime_type"))
         mime = mime or _mime_for(name) or "application/octet-stream"
         try:
             size = os.path.getsize(path)
         except (OSError, TypeError):
-            return {"error": FILE_NOT_IN_BACKUP, "empty_reason": "not_in_backup"}
+            return attachment_files.not_in_backup()
         if as_file:
             return self._copy_for_app(backup, attachment_id, thumbnail, path, mime, name, size)
-        if size > MAX_INLINE_BYTES:
-            return {"too_large": True, "mime_type": mime, "filename": name, "size": size}
-        try:
-            with open(path, "rb") as f:
-                raw = f.read()
-        except OSError as e:
-            print(f"[whatsapp] could not read attachment {attachment_id}: {e}", file=sys.stderr, flush=True)
-            return {"error": FILE_UNREADABLE}
-        if not thumbnail and _is_heif(mime, name):
-            converted = _heif_as_jpeg(raw)
-            if converted is not None:
-                raw, mime = converted, "image/jpeg"
-        return {"data": base64.b64encode(raw).decode("ascii"), "mime_type": mime, "filename": name, "size": size}
+        # A stored thumbnail is already JPEG; a HEIC or TIFF photo comes as one.
+        return attachment_files.inline_answer(path, mime, name, size, MAX_INLINE_BYTES, convert=not thumbnail,
+                                              log_label="whatsapp")
 
     @staticmethod
     def _attachment_error(message: str) -> dict:
@@ -401,12 +342,12 @@ class WhatsAppExtractor:
         # One folder per backup and attachment: ids collide between backups.
         key = f"{attachment_id}-thumb" if thumbnail else str(attachment_id)
         file_name = _name_for_app(name, mime, thumbnail)
-        try:
-            dest = self._copies.copy(src, (getattr(backup, "udid", ""), key), file_name)
-        except OSError as e:
-            print(f"[whatsapp] could not copy attachment {attachment_id}: {e}", file=sys.stderr, flush=True)
-            return {"error": FILE_NOT_COPIED}
-        return {"path": dest, "mime_type": mime, "filename": name, "size": size, "openable": is_openable(file_name)}
+        copied = attachment_files.copy_for_app(self._copies, src, (getattr(backup, "udid", ""), key), file_name,
+                                               log_label="whatsapp")
+        if "error" in copied:
+            return copied
+        return {"path": copied["path"], "mime_type": mime, "filename": name, "size": size,
+                "openable": copied["openable"]}
 
     # ── Exports ──────────────────────────────────────────────────────────────
 

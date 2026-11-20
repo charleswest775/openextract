@@ -363,10 +363,20 @@ class SidecarServer:
         )
 
     def get_attachment(self, params):
+        """A Messages attachment as base64; a picture's thumbnail (thumbnail); or a copy on disk to open or play (as_file).
+
+        A long video copied out of the backup reports open.progress as it goes,
+        so the app keeps waiting (messages.py: get_attachment).
+        """
         udid = params["udid"]
         attachment_id = params["attachment_id"]
+        thumbnail = bool(params.get("thumbnail", False))
+        as_file = bool(params.get("as_file", False))
         backup = self.backup_manager.get_open_backup(udid)
-        return self.message_extractor.get_attachment(backup, attachment_id)
+        return self.message_extractor.get_attachment(
+            backup, attachment_id, thumbnail=thumbnail, as_file=as_file,
+            on_progress=self._open_progress("messages") if as_file else None,
+        )
 
     def get_message_offset(self, params):
         """Where one message sits in its conversation, for opening the conversation at it."""
