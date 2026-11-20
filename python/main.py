@@ -519,19 +519,27 @@ class SidecarServer:
         return self.voicemail_extractor.export_voicemails(backup, contacts, output_dir)
 
     def export_calls(self, params):
+        """Every call, as format 'csv' (default), 'html', 'txt' or 'pdf_source'
+        (Electron prints that to a PDF). Returns {success, path, file, count}."""
         udid = params["udid"]
         output_dir = params["output_dir"]
+        fmt = params.get("format", "csv")
         backup = self.backup_manager.get_open_backup(udid)
         contacts = self.contact_resolver.load_contacts(backup)
-        return self.call_extractor.export_calls_csv(backup, contacts, output_dir)
+        return self.call_extractor.export_calls(backup, contacts, output_dir, fmt)
 
     def export_notes(self, params):
+        """The notes in note_ids (every note when it's left out), one file each
+        (mode 'separate', the default) or all in one (mode 'merged'), as format
+        'pdf_source' (Electron prints it), 'html', 'txt' or 'pdf' (reportlab).
+        Returns {status, exported, files, count} and, merged, file."""
         udid = params["udid"]
-        note_ids = params["note_ids"]
+        note_ids = params.get("note_ids")
         fmt = params.get("format", "pdf")
+        mode = params.get("mode", "separate")
         output_dir = params["output_dir"]
         backup = self.backup_manager.get_open_backup(udid)
-        return self.note_extractor.export_notes(backup, note_ids, fmt, output_dir)
+        return self.note_extractor.export_notes(backup, note_ids, fmt, output_dir, mode)
 
     def export_bundle(self, params):
         """Save an OpenExtract Bundle (docs/BUNDLE.md) into a new folder in output_dir.
@@ -570,12 +578,15 @@ class SidecarServer:
         )
 
     def export_browser_history(self, params):
+        """Every visit (browser 'all', 'safari' or 'firefox'), as format 'csv'
+        (default), 'html', 'txt' or 'pdf_source'. Returns {success, path, file, count}."""
         udid = params["udid"]
         output_dir = params["output_dir"]
         browser = params.get("browser", "all")
+        fmt = params.get("format", "csv")
         backup = self.backup_manager.get_open_backup(udid)
-        return self.browser_history_extractor.export_browser_history_csv(
-            backup, output_dir, browser
+        return self.browser_history_extractor.export_browser_history(
+            backup, output_dir, browser, fmt
         )
 
     # ── WhatsApp ─────────────────────────────────────────────────────────────

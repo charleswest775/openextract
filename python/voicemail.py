@@ -82,7 +82,8 @@ class VoicemailExtractor:
         exported_count = 0
 
         try:
-            with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+            # A byte-order mark, so Excel reads names and transcripts in any alphabet right
+            with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f)
                 writer.writerow(CSV_HEADER)
 

@@ -110,7 +110,10 @@ class VoicemailListsTest(unittest.TestCase):
         out = os.path.join(self.tmp.name, "out")
         result = VoicemailExtractor().export_voicemails(self.backup, {}, out)
         self.assertEqual(result["exported"], 6)
-        with open(os.path.join(out, "voicemails.csv"), newline="", encoding="utf-8") as f:
+        # A byte-order mark first, so Excel reads it as UTF-8 (as every record CSV)
+        with open(os.path.join(out, "voicemails.csv"), "rb") as f:
+            self.assertEqual(f.read(3), b"\xef\xbb\xbf")
+        with open(os.path.join(out, "voicemails.csv"), newline="", encoding="utf-8-sig") as f:
             rows = list(csv.reader(f))
         self.assertEqual(rows[0][:2], ["ID", "List"])
         self.assertEqual(
@@ -130,7 +133,7 @@ class VoicemailListsTest(unittest.TestCase):
     def _saved_list(self):
         out = os.path.join(self.tmp.name, "out")
         VoicemailExtractor().export_voicemails(self.backup, {"+15550000002": "Dentist"}, out)
-        with open(os.path.join(out, "voicemails.csv"), newline="", encoding="utf-8") as f:
+        with open(os.path.join(out, "voicemails.csv"), newline="", encoding="utf-8-sig") as f:
             return list(csv.DictReader(f))
 
     def test_the_list_keeps_a_saved_contacts_number(self):
@@ -196,7 +199,7 @@ class VoicemailLocalTimeTest(unittest.TestCase):
         extractor.local_tz = tz
         out = os.path.join(self.tmp.name, f"out-{tz}")
         self.assertEqual(extractor.export_voicemails(self.backup, {}, out)["exported"], 2)
-        with open(os.path.join(out, "voicemails.csv"), newline="", encoding="utf-8") as f:
+        with open(os.path.join(out, "voicemails.csv"), newline="", encoding="utf-8-sig") as f:
             rows = {r["ID"]: r for r in csv.DictReader(f)}
         audio = sorted(os.listdir(os.path.join(out, "audio")))
         return rows, audio

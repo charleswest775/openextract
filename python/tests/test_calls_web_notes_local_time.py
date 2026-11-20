@@ -62,7 +62,10 @@ def _note(created, modified, note_id=1, title="Shopping"):
 
 
 def _csv_rows(path):
-    with open(path, newline="", encoding="utf-8") as f:
+    # Every record CSV starts with a byte-order mark, so Excel reads it as UTF-8
+    with open(path, "rb") as f:
+        assert f.read(3) == b"\xef\xbb\xbf", path
+    with open(path, newline="", encoding="utf-8-sig") as f:
         return list(csv.reader(f))
 
 
@@ -185,6 +188,61 @@ class TestNotesSave(_SaveTest):
         self.assertEqual(result["status"], "ok", result)
         self.assertTrue(os.path.getsize(result["exported"][0]) > 0)
         self.assertEqual(drawn[1:3], ["Created: Jul 5, 2024, 9:10 AM", "Modified: Jul 5, 2024, 5:48 PM"])
+
+
+class TestDocuments(_SaveTest):
+    """The web page, the print-ready page Electron makes the PDF from, and plain
+    text show the same local dates as the CSVs, in the words the app uses."""
+
+    def _calls(self, fmt, tz=PDT):
+        ext = CallExtractor.__new__(CallExtractor)
+        ext.local_tz = tz
+        with mock.patch.object(ext, "list_calls", return_value={"calls": _calls(UTC_DATES)}):
+            result = ext.export_calls(None, {}, self.out, fmt)
+        self.assertTrue(result["success"], result)
+        return _read(result["file"])
+
+    def _visits(self, fmt, tz=PDT):
+        ext = BrowserHistoryExtractor.__new__(BrowserHistoryExtractor)
+        ext.local_tz = tz
+        with mock.patch.object(ext, "list_browser_history", return_value={"visits": _visits(UTC_DATES)}):
+            result = ext.export_browser_history(None, self.out, "all", fmt)
+        self.assertTrue(result["success"], result)
+        return _read(result["file"])
+
+    def test_calls_show_local_dates_in_every_format(self):
+        for fmt in ("html", "pdf_source", "txt"):
+            with self.subTest(fmt=fmt):
+                page = self._calls(fmt)
+                for when in ("Jul 5, 2024, 9:10 AM", "Jul 5, 2024, 5:48 PM", "Jul 6, 2024, 12:05 AM"):
+                    self.assertIn(when, page)
+                self.assertIn("3 calls, Jul 5, 2024 to Jul 6, 2024", page)
+                self.assertNotIn("+00:00", page)
+
+    def test_web_history_shows_local_dates_in_every_format(self):
+        for fmt in ("html", "pdf_source", "txt"):
+            with self.subTest(fmt=fmt):
+                page = self._visits(fmt, tz=IST)
+                self.assertIn("Jul 5, 2024, 9:40 PM", page)
+                self.assertIn("Jul 6, 2024, 6:18 AM", page)
+                self.assertIn("3 page visits, Jul 5, 2024 to Jul 6, 2024", page)
+
+    def test_one_day_is_named_once(self):
+        ext = CallExtractor.__new__(CallExtractor)
+        ext.local_tz = PDT
+        with mock.patch.object(ext, "list_calls", return_value={"calls": _calls(UTC_DATES[:2])}):
+            result = ext.export_calls(None, {}, self.out, "html")
+        self.assertIn("2 calls, Jul 5, 2024<", _read(result["file"]))
+
+    def test_notes_documents_show_local_dates(self):
+        ext = NoteExtractor.__new__(NoteExtractor)
+        ext.local_tz = PDT
+        with mock.patch.object(ext, "list_notes", return_value={"notes": [_note(UTC_DATES[0], UTC_DATES[1])]}):
+            one = ext.export_notes(None, [1], "html", self.out)
+            merged = ext.export_notes(None, None, "pdf_source", self.out, "merged")
+        for result in (one, merged):
+            self.assertEqual(result["status"], "ok", result)
+            self.assertIn("Created Jul 5, 2024, 9:10 AM · Edited Jul 5, 2024, 5:48 PM", _read(result["exported"][0]))
 
 
 @unittest.skipUnless(hasattr(time, "tzset"), "time.tzset is POSIX-only")
