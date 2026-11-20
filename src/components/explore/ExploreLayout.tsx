@@ -22,7 +22,7 @@ import YearView, { DEFAULT_YEAR_SELECTION, YearSelection } from '../year/YearVie
 import PeopleView from '../people/PeopleView';
 import SearchBox from '../search/SearchBox';
 import SearchResults from '../search/SearchResults';
-import { DEFAULT_FILTERS } from '../../types/timeline';
+import { DEFAULT_FILTERS, type TimelineEntry } from '../../types/timeline';
 import type { HistoryVisit } from '../../lib/browserHistoryStats';
 import type { FeedbackArea } from '../../lib/feedback';
 import { useFeedback } from '../shared/Feedback';
@@ -116,6 +116,9 @@ export default function ExploreLayout({ udid, session, onBack, unfinished = fals
     }
   }, []);
   const goHome = useCallback(() => openTab('home'), [openTab]);
+  // A message in the Timeline opens in its own thread, at that message (kept the same between renders, so cards don't redraw)
+  const openMessageAt = useCallback((entry: TimelineEntry) => openTab('messages', { select: entry }), [openTab]);
+  const openWhatsAppAt = useCallback((entry: TimelineEntry) => openTab('whatsapp', { select: entry }), [openTab]);
 
   // Cmd+K (Ctrl+K) from anywhere
   useEffect(() => {
@@ -205,7 +208,8 @@ export default function ExploreLayout({ udid, session, onBack, unfinished = fals
             index={index}
             startingFilters={target.timeline}
             query={screenQuery}
-            onOpenWhatsApp={entry => openTab('whatsapp', { select: entry })}
+            onOpenWhatsApp={openWhatsAppAt}
+            onOpenMessage={openMessageAt}
           />
         );
       case 'year':

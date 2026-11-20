@@ -36,7 +36,6 @@ const MAX_MESSAGES = 200000;
 const MAX_WHATSAPP = 200000;
 // Messages per request while reading a whole chat into the index.
 const CHAT_PAGE = 500;
-const PAGE_SIZE = 100;
 
 // Every kind of record the index reads, each one "still loading" until its read ends, however it ends.
 const ALL_KINDS: TimelineEntryType[] = ['message', 'whatsapp', 'call', 'photo', 'voicemail', 'note', 'browser'];
@@ -60,6 +59,8 @@ export function normalizeMessage(msg: Message, conv: Conversation): TimelineEntr
       service: conv.service,
       chatId: conv.chat_id,
       isGroup: conv.is_group,
+      // Its files, for thumbnails and opening them; left off when there are none
+      ...(msg.has_attachments && msg.attachments?.length ? { attachments: msg.attachments } : {}),
     },
   };
 }
@@ -105,6 +106,7 @@ export function normalizeWhatsApp(msg: WhatsAppMessage, conv: WhatsAppConversati
       isGroup: chatType === 'group',
       sort: msg.sort ?? null,
       call,
+      ...(msg.attachments?.length ? { attachments: msg.attachments } : {}),
     },
   };
 }
@@ -721,7 +723,7 @@ export function useBackupIndex(udid: string): BackupIndex {
 export interface UseTimelineReturn {
   /** Everything loaded, before any filter, newest first. */
   allEntries: TimelineEntry[];
-  entries: TimelineEntry[];
+  /** What the filters let through, newest first: the whole list (the screens show it a part at a time as you scroll). */
   filteredEntries: TimelineEntry[];
   allContacts: ContactOption[];
   counts: Record<TimelineEntryType, number>;
@@ -733,9 +735,6 @@ export interface UseTimelineReturn {
   whatsappCap: { loaded: number; total: number } | null;
   filters: TimelineFilters;
   setFilters: (patch: Partial<TimelineFilters>) => void;
-  page: number;
-  setPage: (p: number) => void;
-  pageSize: number;
   loadAllMessages: () => Promise<void>;
   refresh: () => void;
 }
@@ -743,7 +742,6 @@ export interface UseTimelineReturn {
 // `startingFilters` opens the view on a filter, such as a day from the Year view.
 export function useTimeline(index: BackupIndex, startingFilters?: Partial<TimelineFilters>): UseTimelineReturn {
   const [filters, setFiltersState] = useState<TimelineFilters>({ ...DEFAULT_FILTERS, ...startingFilters });
-  const [page, setPage] = useState(0);
   const { entries: allEntries, contacts: allContacts, identifierGroupMap, loadDay } = index;
 
   // Opening on one day with messages showing: read that day ahead of the rest
@@ -847,20 +845,12 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
     });
   }, [allEntries, filters, allContacts, identifierGroupMap]);
 
-  // ── Paginated slice ───────────────────────────────────────────────────────
-  const entries = useMemo(() => {
-    const start = page * PAGE_SIZE;
-    return filteredEntries.slice(start, start + PAGE_SIZE);
-  }, [filteredEntries, page]);
-
   const setFilters = useCallback((patch: Partial<TimelineFilters>) => {
     setFiltersState(prev => ({ ...prev, ...patch }));
-    setPage(0);
   }, []);
 
   return {
     allEntries,
-    entries,
     filteredEntries,
     allContacts,
     counts: index.counts,
@@ -872,9 +862,6 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
     whatsappCap: index.whatsappCap,
     filters,
     setFilters,
-    page,
-    setPage,
-    pageSize: PAGE_SIZE,
     loadAllMessages: index.loadAllMessages,
     refresh: index.refresh,
   };

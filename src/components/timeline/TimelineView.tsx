@@ -1,10 +1,9 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
 import { useTimeline, type BackupIndex } from '../../hooks/useTimeline';
 import { TimelineEntry, TimelineEntryType, TimelineFilters } from '../../types/timeline';
 import TimelineFilterBar from './TimelineFilterBar';
-import TimelineEntryCard from './TimelineEntryCard';
-import { formatDate } from '../../lib/dates';
+import EventStream from './EventStream';
 import { saveFolder } from '../../lib/ipc';
 import { formatTimeline, FORMAT_FILTERS, ExportFormat } from '../../lib/timelineExport';
 import OrganicLoader from '../shared/OrganicLoader';
@@ -31,6 +30,8 @@ interface Props {
   query: string;
   /** Opens a WhatsApp message in its chat on the WhatsApp screen. */
   onOpenWhatsApp?: (entry: TimelineEntry) => void;
+  /** Opens a text message in its conversation on the Messages screen. */
+  onOpenMessage?: (entry: TimelineEntry) => void;
 }
 
 const LOADING_LABELS: Record<TimelineEntryType, string> = {
@@ -45,24 +46,8 @@ const LOADING_LABELS: Record<TimelineEntryType, string> = {
 
 const ALL_TYPES: TimelineEntryType[] = ['message', 'whatsapp', 'call', 'photo', 'voicemail', 'note', 'browser'];
 
-// Group entries by calendar day
-export function groupByDay(entries: TimelineEntry[]): { date: string; entries: TimelineEntry[] }[] {
-  const groups: { date: string; entries: TimelineEntry[] }[] = [];
-  let lastDate: string | null = null;
-  for (const e of entries) {
-    const d = formatDate(e.timestamp) || 'Unknown date';
-    if (d !== lastDate) {
-      lastDate = d;
-      groups.push({ date: d, entries: [] });
-    }
-    groups[groups.length - 1].entries.push(e);
-  }
-  return groups;
-}
-
-export default function TimelineView({ udid, index, startingFilters, query, onOpenWhatsApp }: Props) {
+export default function TimelineView({ udid, index, startingFilters, query, onOpenWhatsApp, onOpenMessage }: Props) {
   const {
-    entries,
     filteredEntries,
     allContacts,
     counts,
@@ -73,9 +58,6 @@ export default function TimelineView({ udid, index, startingFilters, query, onOp
     whatsappCap,
     filters,
     setFilters,
-    page,
-    setPage,
-    pageSize,
   } = useTimeline(index, startingFilters);
 
   const [choosing, setChoosing] = useState(false);
@@ -98,12 +80,6 @@ export default function TimelineView({ udid, index, startingFilters, query, onOp
       return { title: `Saved ${plural(filteredEntries.length, 'event')} from the Timeline`, path };
     });
   }
-
-  const groups = useMemo(() => groupByDay(entries), [entries]);
-
-  const start = page * pageSize + 1;
-  const end = Math.min(page * pageSize + pageSize, totalFiltered);
-  const totalPages = Math.ceil(totalFiltered / pageSize);
 
   const anyError = Object.keys(errors).length > 0;
 
@@ -160,7 +136,7 @@ export default function TimelineView({ udid, index, startingFilters, query, onOp
       )}
 
       {/* Loading progress (shown while any type is still loading AND no entries yet) */}
-      {loading && entries.length === 0 && (
+      {loading && filteredEntries.length === 0 && (
         <div style={{
           flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
@@ -201,7 +177,7 @@ export default function TimelineView({ udid, index, startingFilters, query, onOp
       )}
 
       {/* Empty state (filters returned nothing) */}
-      {!loading && entries.length === 0 && (
+      {!loading && filteredEntries.length === 0 && (
         <div style={{ flex: 1 }}>
           <EmptyState
             icon={ClockIcon}
@@ -211,61 +187,20 @@ export default function TimelineView({ udid, index, startingFilters, query, onOp
         </div>
       )}
 
-      {/* Timeline body — shown even while loading if we have partial entries */}
-      {entries.length > 0 && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 16px' }}>
-          {groups.map(group => (
-            <div key={group.date}>
-              {/* Date group header */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '14px 0 8px',
-                position: 'sticky', top: 0,
-                background: 'var(--bg-base)',
-                zIndex: 10,
-              }}>
-                <div style={{ flex: 1, height: '0.5px', background: 'var(--border-default)' }} />
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>
-                  {group.date}
-                </span>
-                <span style={{ fontSize: 13, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
-                  {group.entries.length} event{group.entries.length !== 1 ? 's' : ''}
-                </span>
-                <div style={{ flex: 1, height: '0.5px', background: 'var(--border-default)' }} />
-              </div>
-
-              {/* Entry cards */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {group.entries.map(entry => (
-                  <TimelineEntryCard key={entry.id} entry={entry} udid={udid} onOpenWhatsApp={onOpenWhatsApp} />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* Timeline body: one stream, newest first, growing as you scroll. Shown while loading once there's something to show. */}
+      {filteredEntries.length > 0 && (
+        <EventStream
+          entries={filteredEntries}
+          resetKey={filters}
+          udid={udid}
+          variant="timeline"
+          loading={loading}
+          className="px-6 pb-4"
+          onOpenWhatsApp={onOpenWhatsApp}
+          onOpenMessage={onOpenMessage}
+        />
       )}
 
-      {/* Pagination: newest first, a page at a time */}
-      {totalFiltered > 0 && (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 24px',
-          borderTop: '1px solid var(--border-default)',
-          flexShrink: 0,
-        }}>
-          <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-            {`${start.toLocaleString()}–${end.toLocaleString()} of ${plural(totalFiltered, 'event')}`}
-          </span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button disabled={page === 0} onClick={() => setPage(page - 1)} className="hearth-ghost-btn">
-              ← Newer
-            </button>
-            <button disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)} className="hearth-ghost-btn">
-              Older →
-            </button>
-          </div>
-        </div>
-      )}
       {choosing && (
         <SaveDialog
           title={`Save ${plural(totalFiltered, 'event')} from the Timeline`}

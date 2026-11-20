@@ -8,7 +8,7 @@
 //    React that keeps state between renders runs the load and reads the state;
 //  - latestYear (useYearCounts.ts) and releaseNotesUrl (useUpdates.ts).
 //  - useBackupIndex's other loads (calls) against a fake engine, the same way.
-// Other hook state over time (paging, retries) is left to the end-to-end UI tests.
+// Other hook state over time (growing the list as you scroll, retries) is left to the end-to-end UI tests.
 // Run with: node --test scripts/hooks.test.mjs (also re-runs itself in other time zones)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -72,6 +72,18 @@ test('normalizeMessage: a message in its conversation', () => {
   const unnamed = normalizeMessage(msg(1, local(2024, 1, 1), null), { ...MOM_CHAT, display_name: '' });
   assert.equal(unnamed.contactName, '+15035550123');
   assert.equal(unnamed.message.conversationName, '+15035550123');
+});
+
+test('normalizeMessage keeps the files a message came with, so People and the Timeline can show them', () => {
+  const photo = { attachment_id: 41, filename: '~/Library/SMS/Attachments/ab/11/A/IMG_0001.HEIC', mime_type: 'image/heic', transfer_name: 'IMG_0001.HEIC', total_bytes: 2_048_000, available: true, uti: 'public.heic', is_sticker: false };
+  const video = { attachment_id: 42, filename: '~/Library/SMS/Attachments/ab/12/B/IMG_0002.MOV', mime_type: 'video/quicktime', transfer_name: 'IMG_0002.MOV', total_bytes: 9_000_000, available: true, uti: 'com.apple.quicktime-movie', is_sticker: false };
+  const e = normalizeMessage(msg(9003, local(2024, 3, 10, 8, 17), null, { message_type: 'attachment', has_attachments: true, attachments: [photo, video] }), MOM_CHAT);
+  assert.deepEqual(e.message.attachments, [photo, video]);
+  // A message with no files has no attachments key at all (nothing extra held for 200,000 texts)
+  const plain = normalizeMessage(msg(9004, local(2024, 3, 10, 8, 18), 'hi'), MOM_CHAT);
+  assert.equal('attachments' in plain.message, false);
+  const flaggedButEmpty = normalizeMessage(msg(9005, local(2024, 3, 10, 8, 19), 'hi', { has_attachments: true, attachments: [] }), MOM_CHAT);
+  assert.equal('attachments' in flaggedButEmpty.message, false);
 });
 
 // ── WhatsApp, as the engine sends it (fictional people, 555 numbers) ────────────
@@ -148,6 +160,9 @@ test('normalizeWhatsApp keeps what a message without words was', () => {
     attachments: [{ attachment_id: 4, filename: '', mime_type: 'image/jpeg', transfer_name: 'Photo', total_bytes: null, thumbnail_path: null, width: null, height: null, duration: null, available: false }],
   }), WA_RILEY);
   assert.deepEqual([photo.whatsapp.text, photo.whatsapp.messageType, photo.whatsapp.attachmentLabel], [null, 'image', 'Photo']);
+  // Its media rides along, for the tiles on its card (a photo not in the backup says so instead of loading)
+  assert.equal(photo.whatsapp.attachments.length, 1);
+  assert.equal(photo.whatsapp.attachments[0].available, false);
   const call = normalizeWhatsApp(waMsg(2, at, '', {
     message_type: 'call', event_text: 'Missed voice call',
     call: { is_video: false, duration: null, outcome: 'missed', direction: 'incoming' },
@@ -419,15 +434,15 @@ test("picking a phone number never brings in a WhatsApp group whose address ends
   assert.deepEqual(filtered(index, { contactIdentifier: '120363025246125486@g.us' }), ['whatsapp:1']);
 });
 
-test('the list is shown 100 at a time', () => {
+test('the whole filtered list comes back, newest first, with no pages (the screens grow it as you scroll)', () => {
   const entries = Array.from({ length: 250 }, (_, i) => normalizeMessage(msg(i, new Date(Date.UTC(2024, 0, 1) + i * 60_000), `m${i}`), MOM_CHAT));
   const { index } = indexOf(entries);
   const view = useTimeline(index, { types: ALL_TYPES });
-  assert.equal(view.pageSize, 100);
-  assert.equal(view.page, 0);
   assert.equal(view.totalFiltered, 250);
-  assert.equal(view.entries.length, 100);
-  assert.equal(view.entries[0].id, 'message:249'); // newest first
+  assert.equal(view.filteredEntries.length, 250);
+  assert.equal(view.filteredEntries[0].id, 'message:249'); // newest first
+  assert.equal(view.filteredEntries[249].id, 'message:0');
+  for (const gone of ['page', 'setPage', 'pageSize', 'entries']) assert.equal(gone in view, false, `${gone} is gone`);
 });
 
 test("opening the Timeline on one day reads that day's messages first", () => {

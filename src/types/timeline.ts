@@ -1,5 +1,27 @@
 import type { WhatsAppCallOutcome } from './whatsapp';
 
+/**
+ * A file sent with a message, as the engine lists it: Messages' fields, and
+ * WhatsApp's extras (its own thumbnail, size, length, whether the file is in
+ * the backup) when it has them. The ids are each database's own and collide
+ * between Messages and WhatsApp, so always fetch through the message's source.
+ */
+export interface TimelineAttachment {
+  attachment_id: number;
+  filename: string;
+  mime_type: string | null;
+  transfer_name: string;
+  total_bytes?: number | null;
+  thumbnail_path?: string | null;
+  width?: number | null;
+  height?: number | null;
+  duration?: number | null;
+  /** Whether the file is in the backup; when false, don't ask for it. */
+  available?: boolean;
+  uti?: string | null;
+  is_sticker?: boolean;
+}
+
 export type TimelineEntryType = 'message' | 'whatsapp' | 'call' | 'photo' | 'voicemail' | 'note' | 'browser';
 
 export interface TimelineEntry {
@@ -19,6 +41,8 @@ export interface TimelineEntry {
     service: string;
     chatId?: number;
     isGroup?: boolean;
+    /** The message's files (photos, videos, voice messages, documents); absent when it has none. */
+    attachments?: TimelineAttachment[];
   };
   /**
    * A WhatsApp message. Its id is "whatsapp:<ChatStorage Z_PK>" and its chatId is a
@@ -48,6 +72,8 @@ export interface TimelineEntry {
       isVideo: boolean | null;
       duration: number | null;
     } | null;
+    /** The message's media; absent when it has none. */
+    attachments?: TimelineAttachment[];
   };
   call?: {
     direction: string;

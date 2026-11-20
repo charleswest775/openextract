@@ -201,6 +201,8 @@ export default {
       const people = await app.text();
       check('People lists the most-messaged person first', /Most in touch first[\s\S]*Theo Navarro/.test(people));
       check('a person opens with their history', await app.click('Theo Navarro') && !!(await app.waitForText(/Open conversation/, 10_000)));
+      check("a person's history is one scrolling list, no pages", !!(await app.waitForText(/That's all [\d,]+ events?|Loading more…/, 10_000))
+        && !/page \d+ of \d+|Older →/.test(await app.text()));
       check('"Open conversation" goes to the thread', await app.click('Open conversation') && !!(await app.waitForText(/Theo Navarro/, 10_000)));
       if (waKey) {
         // Someone who writes on both: their texts and WhatsApp chat on one page, matched by number.
@@ -311,7 +313,12 @@ export default {
       const afterChip = num((await app.text()).match(/([\d,]+) events/)?.[1]);
       check('turning off a type removes its events', afterChip === events - chips.Photos, { events, afterChip });
       await app.click(`Photos${chips.Photos}`);
-      check('older pages load', await app.click('Older →') && !!(await app.waitForText(/events/, 5000)));
+      // One stream with no pages: scrolling to the end adds older events
+      const shownCards = () => app.eval(() => document.querySelectorAll('[data-scroll-root] [data-entry-id]').length);
+      const before = await shownCards();
+      await app.eval(() => { const pane = document.querySelector('[data-scroll-root]'); if (pane) pane.scrollTop = pane.scrollHeight; });
+      const grew = events > before ? await app.waitFor(n => document.querySelectorAll('[data-scroll-root] [data-entry-id]').length > n, before, 10_000) : true;
+      check('scrolling down shows older events, with no pages', !!grew && before > 0 && !/Older →|← Newer/.test(await app.text()), { before, events });
 
       // ── Year ──
       check('Year opens', await timed('screen Year', () => app.open('Year', /\d{4} · [\d,]+ events/)));

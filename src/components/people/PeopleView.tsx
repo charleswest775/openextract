@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTimeline } from '../../hooks/useTimeline';
 import type { TimelineEntry, TimelineEntryType } from '../../types/timeline';
 import { formatPhone } from '../../lib/people';
@@ -13,8 +13,7 @@ import EmptyState from '../shared/EmptyState';
 import OrganicLoader from '../shared/OrganicLoader';
 import SaveDialog, { FORMATS, SaveButton } from '../shared/SaveDialog';
 import { CallIcon, ChevronRightIcon, ContactIcon, PeopleIcon, LinesIcon, VoicemailIcon, WhatsAppIcon } from '../shared/Icons';
-import TimelineEntryCard from '../timeline/TimelineEntryCard';
-import { groupByDay } from '../timeline/TimelineView';
+import EventStream from '../timeline/EventStream';
 import type { ExploreContext } from '../explore/sections';
 import { gatherPeople, idKey, initials, linkCards, PERSON_KINDS, type Person, type PersonKind } from './gather';
 
@@ -115,10 +114,14 @@ export default function PeopleView({ ctx, query, person }: Props) {
     );
   };
 
-  const groupsOfDays = groupByDay(timeline.entries);
-  // A WhatsApp message opens in its chat, at that message
-  const openWhatsApp = (entry: TimelineEntry) => ctx.openTab('whatsapp', { select: entry });
-  const totalPages = Math.ceil(timeline.totalFiltered / timeline.pageSize);
+  // A message opens in its own thread, at that message (the same functions every render, so cards don't redraw)
+  const { openTab } = ctx;
+  const openWhatsApp = useCallback((entry: TimelineEntry) => openTab('whatsapp', { select: entry }), [openTab]);
+  const openMessage = useCallback((entry: TimelineEntry) => openTab('messages', { select: entry }), [openTab]);
+  // What the Save button saves: the kind picked below the name, or everything
+  const saveLabel = kinds === 'all' || !selected
+    ? 'Save everything'
+    : `Save ${plural(selected.counts[kinds], KIND_LABEL[kinds][0], KIND_LABEL[kinds][1])}`;
 
   return (
     <div className="h-full flex min-h-0">
@@ -159,43 +162,49 @@ export default function PeopleView({ ctx, query, person }: Props) {
           !timeline.loading && <EmptyState icon={PeopleIcon} title="Pick someone to see everything with them" />
         ) : (
           <>
-            <div className="px-7 pt-6 pb-4 border-b border-rule flex flex-col gap-4">
-              <div className="flex items-center gap-4">
-                <span
-                  aria-hidden="true"
-                  data-initials={initials(selected.name)}
-                  className="w-16 h-16 rounded-full bg-accent-wash flex items-center justify-center flex-shrink-0 text-xl font-medium text-accent before:content-[attr(data-initials)]"
-                />
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-3xl text-text-primary truncate">{formatPhone(selected.name)}</h2>
-                  <div className="text-sm text-text-secondary truncate">
-                    {selected.isGroup ? groupLine(selected) : formatPhone(selected.identifier)}
-                    {selected.last && ` · last in touch ${formatDate(selected.last)}`}
+            <div className="px-7 pt-5 pb-4 border-b border-rule flex flex-col gap-3">
+              {/* Who it is, with the buttons beside them when there's room and on their own row when there isn't: nothing is cut short */}
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                <div className="flex items-center gap-4 flex-[1_1_18rem] min-w-0">
+                  <span
+                    aria-hidden="true"
+                    data-initials={initials(selected.name)}
+                    className="w-14 h-14 rounded-full bg-accent-wash flex items-center justify-center flex-shrink-0 text-lg font-medium text-accent before:content-[attr(data-initials)]"
+                  />
+                  <div className="min-w-0">
+                    <h2 className="text-2xl text-text-primary break-words">{formatPhone(selected.name)}</h2>
+                    <div className="text-sm text-text-secondary">
+                      <span className="whitespace-nowrap">{selected.isGroup ? groupLine(selected) : formatPhone(selected.identifier)}</span>
+                      {selected.last && <> · <span className="whitespace-nowrap">last in touch {formatDate(selected.last)}</span></>}
+                    </div>
+                    {card && (
+                      <button
+                        onClick={() => ctx.openTab('contacts', { contactId: card.id })}
+                        className="mt-1 inline-flex flex-wrap items-center gap-x-1.5 text-sm text-accent font-medium hover:underline text-left"
+                      >
+                        <ContactIcon size={16} />
+                        <span className="whitespace-nowrap">In your address book</span>
+                        {card.organization && <span>· {card.organization}</span>}
+                        <ChevronRightIcon size={16} />
+                      </button>
+                    )}
                   </div>
-                  {card && (
-                    <button
-                      onClick={() => ctx.openTab('contacts', { contactId: card.id })}
-                      className="mt-1 flex items-center gap-1.5 text-sm text-accent font-medium hover:underline"
-                    >
-                      <ContactIcon size={16} />
-                      In your address book{card.organization ? ` · ${card.organization}` : ''}
-                      <ChevronRightIcon size={16} />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {selected.chatId != null && selected.counts.message > 0 && (
+                    <button onClick={() => ctx.openTab('messages', { chatId: selected.chatId })} className="hearth-ghost-btn">
+                      <LinesIcon size={18} />
+                      Open conversation
                     </button>
                   )}
+                  {selected.waChatId != null && selected.counts.whatsapp > 0 && (
+                    <button onClick={() => ctx.openTab('whatsapp', { waChatId: selected.waChatId })} className="hearth-ghost-btn">
+                      <WhatsAppIcon size={18} />
+                      Open WhatsApp chat
+                    </button>
+                  )}
+                  <SaveButton primary onClick={() => setChoosing(true)} busy={busy} disabled={timeline.loading} label={saveLabel} />
                 </div>
-                {selected.chatId != null && selected.counts.message > 0 && (
-                  <button onClick={() => ctx.openTab('messages', { chatId: selected.chatId })} className="hearth-ghost-btn">
-                    <LinesIcon size={18} />
-                    Open conversation
-                  </button>
-                )}
-                {selected.waChatId != null && selected.counts.whatsapp > 0 && (
-                  <button onClick={() => ctx.openTab('whatsapp', { waChatId: selected.waChatId })} className="hearth-ghost-btn">
-                    <WhatsAppIcon size={18} />
-                    Open WhatsApp chat
-                  </button>
-                )}
-                <SaveButton primary onClick={() => setChoosing(true)} busy={busy} disabled={timeline.loading} label="Save everything" />
               </div>
               <div role="radiogroup" aria-label="Show" className="flex flex-wrap gap-2">
                 {(['all', ...PERSON_KINDS] as const).map(k => {
@@ -221,29 +230,19 @@ export default function PeopleView({ ctx, query, person }: Props) {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-7 pb-6">
-              {timeline.loading && timeline.entries.length === 0 && (
-                <div className="flex justify-center py-12 text-accent"><OrganicLoader size={64} /></div>
-              )}
-              {groupsOfDays.map(group => (
-                <div key={group.date}>
-                  <div className="sticky top-0 bg-base z-10 pt-4 pb-2 text-sm font-semibold text-text-primary">{group.date}</div>
-                  <div className="flex flex-col gap-1.5">
-                    {group.entries.map(entry => <TimelineEntryCard key={entry.id} entry={entry} udid={ctx.udid} onOpenWhatsApp={openWhatsApp} />)}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {totalPages > 1 && (
-              <div className="px-7 py-2.5 border-t border-rule flex items-center justify-between">
-                <span className="text-sm text-text-secondary">
-                  {plural(timeline.totalFiltered, 'event')} · page {timeline.page + 1} of {totalPages}
-                </span>
-                <div className="flex gap-2">
-                  <button className="hearth-ghost-btn" disabled={timeline.page === 0} onClick={() => timeline.setPage(timeline.page - 1)}>← Newer</button>
-                  <button className="hearth-ghost-btn" disabled={timeline.page >= totalPages - 1} onClick={() => timeline.setPage(timeline.page + 1)}>Older →</button>
-                </div>
-              </div>
+            {timeline.loading && timeline.filteredEntries.length === 0 ? (
+              <div className="flex justify-center py-12 text-accent"><OrganicLoader size={64} /></div>
+            ) : (
+              <EventStream
+                entries={timeline.filteredEntries}
+                resetKey={`${selected.key}|${kinds}`}
+                udid={ctx.udid}
+                variant="people"
+                loading={timeline.loading}
+                className="px-7 pb-6"
+                onOpenWhatsApp={openWhatsApp}
+                onOpenMessage={openMessage}
+              />
             )}
           </>
         )}
