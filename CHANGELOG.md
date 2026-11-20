@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Voice Memos: a new section with the iPhone's recordings, arranged like the Voice Memos app: All Recordings, Favorites, your folders, and Recently Deleted (recordings deleted on the iPhone that are still in the backup). Click a recording to play it, read its transcript if the iPhone made one, or save it. A recording the computer can't play here, or one too long to play here, opens in another app. A recording kept only in iCloud isn't in an iPhone backup, and the app says so. Save copies every recording with its date and name, with its transcript and a spreadsheet of them all, or saves just the spreadsheet
+- Calendar: a new section with the events in the iPhone's calendars, grouped by account (iCloud, On My iPhone, Exchange and others), with holidays, birthdays and subscribed calendars listed apart so they don't crowd your own. Upcoming and Past are split at the date of the backup, a day at a time, and an event opens to its time, place, notes, links, who was invited and how they answered, alerts and how it repeats. All-day events stay on their own day in every time zone, and an event set in another time zone shows its time there too. Save writes calendar files (.ics) that Calendar, Outlook and Google import, one per calendar or just the one you're looking at, or a spreadsheet
+
+### Fixed
+- Messages, Calls, Voicemail and WhatsApp: an email address with digits in it is no longer given the name of a contact whose phone number ends in those digits. An address like mike86@example.com could be shown with the name of a contact saved with a number ending in 86. An email address is now named only from a contact card that has that address
+
 ## [0.18.0] - 2026-11-19
 
 Voicemail transcripts now show, under each voicemail and in search. Back up my iPhone no longer hangs for up to 5 minutes when a connected iPhone doesn't answer, and on Windows a backup the iPhone has finished no longer fails at the very last step. Videos in a backup that isn't encrypted open in your video player. Saved call history, web history, notes and voicemail lists show times in your own time zone instead of UTC, a backup whose folder is missing files now says so, and when WhatsApp's chats aren't in a backup, the app says why. New and experimental: Export a data bundle saves messages, calls, voicemail, contacts and photo details in one documented folder that other tools can read.

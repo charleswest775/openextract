@@ -466,3 +466,115 @@ test('savePodcasts: nothing to save, or a library that can\'t be read, is report
   data = null;
   await assert.rejects(save.savePodcasts('u', 'opml'), { message: 'The engine stopped.' });
 });
+
+// ── Voice Memos: the engine copies the recordings (export_voice_memos) ──
+
+test('saveVoiceMemos as recordings: a "Voice Memos" folder, and what wasn\'t in the backup is said', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => '/Users/jane/Desktop',
+    call: async (_m, p) => ({
+      success: true,
+      data: {
+        status: 'success', count: 4, path: `${p.output_dir}/Voice Memos`, not_in_backup: 1, failed: 0,
+        files: [`${p.output_dir}/Voice Memos/2026-05-13 14.15 Site walk.m4a`, `${p.output_dir}/Voice Memos/Voice Memos.csv`],
+      },
+    }),
+  });
+  const result = await save.saveVoiceMemos('00008030-001A', 'recordings');
+  assert.deepEqual(calls[1], ['call', 'export_voice_memos', { udid: '00008030-001A', output_dir: '/Users/jane/Desktop', format: 'recordings' }]);
+  assert.deepEqual(result, {
+    title: 'Saved 4 voice memos',
+    detail: "Audio files, as recorded. 1 recording wasn't in the backup",
+    path: '/Users/jane/Desktop/Voice Memos',
+  });
+});
+
+test('saveVoiceMemos for one recording: just its file, named in the notice; as CSV: the spreadsheet', async t => {
+  let answer;
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => 'D:\\Exports',
+    call: async () => ({ success: true, data: answer }),
+  });
+  answer = { status: 'success', count: 1, path: 'D:\\Exports\\2026-05-13 14.15 Site walk.m4a', files: ['D:\\Exports\\2026-05-13 14.15 Site walk.m4a'], not_in_backup: 0, failed: 0 };
+  let result = await save.saveVoiceMemos('u', 'recordings', { memoIds: [11], name: 'Site walk' });
+  assert.deepEqual(calls[1], ['call', 'export_voice_memos', { udid: 'u', output_dir: 'D:\\Exports', format: 'recordings', memo_ids: [11] }]);
+  assert.deepEqual(result, { title: 'Saved "Site walk"', detail: 'Audio files, as recorded', path: 'D:\\Exports\\2026-05-13 14.15 Site walk.m4a' });
+  answer = { status: 'success', count: 5, path: 'D:\\Exports\\Voice Memos (2).csv', files: ['D:\\Exports\\Voice Memos (2).csv'] };
+  result = await save.saveVoiceMemos('u', 'csv');
+  assert.deepEqual(calls[3], ['call', 'export_voice_memos', { udid: 'u', output_dir: 'D:\\Exports', format: 'csv' }]);
+  assert.deepEqual(result, { title: 'Saved 5 voice memos', detail: 'A spreadsheet of the recordings', path: 'D:\\Exports\\Voice Memos (2).csv' });
+});
+
+test('saveVoiceMemos: cancelled does nothing; nothing to save, or recordings that can\'t be read, is reported', async t => {
+  let folder = null;
+  let data = null;
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => folder,
+    call: async () => (data ? { success: true, data } : { success: false, error: 'The engine stopped.' }),
+  });
+  assert.equal(await save.saveVoiceMemos('u', 'recordings'), null);
+  assert.deepEqual(calls.map(c => c[0]), ['saveFolder']);
+  folder = '/tmp/out';
+  data = { error: 'There are no voice memos in this backup to save.', empty_reason: 'not_in_backup' };
+  await assert.rejects(save.saveVoiceMemos('u', 'csv'), { message: 'There are no voice memos in this backup to save.' });
+  data = { error: 'Voice Memos are in this backup but could not be read. The backup may be incomplete or damaged.' };
+  await assert.rejects(save.saveVoiceMemos('u', 'recordings'), { message: /could not be read/ });
+  data = { error: 'Unsupported format: mp3' };
+  await assert.rejects(save.saveVoiceMemos('u', 'mp3'), { message: 'Unsupported format: mp3' });
+  data = null;
+  await assert.rejects(save.saveVoiceMemos('u', 'csv'), { message: 'The engine stopped.' });
+});
+
+// ── Calendar: the engine writes the files (export_calendar) ──
+
+test('saveCalendar as ICS: every calendar, one file each in a folder', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => '/Users/jane/Desktop',
+    call: async (_m, p) => ({
+      success: true,
+      data: { status: 'success', count: 40, calendars: 3, path: `${p.output_dir}/Jane's iPhone Calendar`, files: ['Home.ics', 'Work.ics', 'US Holidays.ics'].map(f => `${p.output_dir}/Jane's iPhone Calendar/${f}`) },
+    }),
+  });
+  const result = await save.saveCalendar('00008030-001A', 'ics');
+  assert.deepEqual(calls[1], ['call', 'export_calendar', { udid: '00008030-001A', output_dir: '/Users/jane/Desktop', format: 'ics' }], 'no calendar_id: every calendar');
+  assert.deepEqual(result, {
+    title: 'Saved 40 events',
+    detail: '3 calendar files, for Calendar, Outlook or Google',
+    path: "/Users/jane/Desktop/Jane's iPhone Calendar",
+  });
+});
+
+test('saveCalendar for one calendar, as ICS or CSV: calendar_id is sent and the one file is shown', async t => {
+  let answer;
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => 'D:\\Exports',
+    call: async () => ({ success: true, data: answer }),
+  });
+  answer = { status: 'success', count: 2, path: 'D:\\Exports\\Work.ics', files: ['D:\\Exports\\Work.ics'] };
+  let result = await save.saveCalendar('u', 'ics', { calendarId: 2 });
+  assert.deepEqual(calls[1], ['call', 'export_calendar', { udid: 'u', output_dir: 'D:\\Exports', format: 'ics', calendar_id: 2 }]);
+  assert.deepEqual(result, { title: 'Saved 2 events', detail: 'A calendar file, for Calendar, Outlook or Google', path: 'D:\\Exports\\Work.ics' });
+  answer = { status: 'success', count: 1, path: 'D:\\Exports\\Personal.csv', files: ['D:\\Exports\\Personal.csv'] };
+  result = await save.saveCalendar('u', 'csv', { calendarId: 0 });
+  assert.deepEqual(calls[3], ['call', 'export_calendar', { udid: 'u', output_dir: 'D:\\Exports', format: 'csv', calendar_id: 0 }], 'a calendar id of 0 is still sent');
+  assert.deepEqual(result, { title: 'Saved 1 event', detail: 'A spreadsheet of the events', path: 'D:\\Exports\\Personal.csv' });
+});
+
+test('saveCalendar: cancelled does nothing; nothing to save, an unknown calendar or an unreadable one is reported', async t => {
+  let folder = null;
+  let data = null;
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => folder,
+    call: async () => (data ? { success: true, data } : { success: false, error: 'The engine stopped.' }),
+  });
+  assert.equal(await save.saveCalendar('u', 'ics'), null);
+  assert.equal(await save.saveCalendar('u', 'csv', { calendarId: 2 }), null);
+  assert.deepEqual(calls.map(c => c[0]), ['saveFolder', 'saveFolder']);
+  folder = '/tmp/out';
+  data = { error: 'There are no calendar events in this backup to save.', empty_reason: 'not_in_backup' };
+  await assert.rejects(save.saveCalendar('u', 'ics'), { message: 'There are no calendar events in this backup to save.' });
+  data = { error: "That calendar isn't in this backup." };
+  await assert.rejects(save.saveCalendar('u', 'ics', { calendarId: 99 }), { message: "That calendar isn't in this backup." });
+  data = null;
+  await assert.rejects(save.saveCalendar('u', 'csv'), { message: 'The engine stopped.' });
+});

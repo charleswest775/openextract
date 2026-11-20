@@ -18,6 +18,8 @@ export const FORMATS = {
   originals: { id: 'originals', label: 'Original files', detail: 'Copied as they are in the backup' },
   audio: { id: 'audio', label: 'Audio files', detail: 'One file per voicemail, plays in any music app' },
   opml: { id: 'opml', label: 'Podcast subscriptions', detail: 'OPML, imports into most podcast apps' },
+  recordings: { id: 'recordings', label: 'Audio files', detail: 'One file per recording, as recorded' },
+  ics: { id: 'ics', label: 'Calendar file', detail: 'iCalendar (.ics): imports into Calendar, Outlook or Google' },
 } as const;
 
 /** The Save button every screen uses. */

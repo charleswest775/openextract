@@ -240,6 +240,8 @@ openextract/
 │   ├── photos.py      # Photo/video extraction
 │   ├── voicemail.py   # Voicemail extraction
 │   ├── podcasts.py    # Podcasts (shows, listening history, OPML/CSV)
+│   ├── voice_memos.py # Voice Memos (recordings, audio, transcripts, saves)
+│   ├── calendar_events.py # Calendar (calendars, events, ICS/CSV)
 │   ├── calls.py       # Call history parsing
 │   └── notes.py       # Notes extraction
 └── scripts/           # Build scripts

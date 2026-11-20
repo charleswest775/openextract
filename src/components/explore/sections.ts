@@ -4,15 +4,17 @@ import type { BackupIndex } from '../../hooks/useTimeline';
 import type { TimelineEntry, TimelineFilters } from '../../types/timeline';
 import {
   LinesIcon, CameraIcon, ContactIcon, PeopleIcon, CallIcon, NoteIcon, VoicemailIcon, GlobeIcon, ClockIcon,
-  CalendarIcon, ChartIcon, ExportIcon, RecoverIcon, WhatsAppIcon, PodcastIcon,
+  YearIcon, ChartIcon, ExportIcon, RecoverIcon, WhatsAppIcon, PodcastIcon, VoiceMemoIcon, CalendarIcon,
 } from '../shared/Icons';
 import { podcastsUnreadable } from '../../lib/podcasts';
+import { voiceMemosListed, voiceMemosUnreadable } from '../../lib/voiceMemos';
+import { calendarShown, calendarUnreadable } from '../../lib/calendar';
 
 /** Every screen inside a backup. */
 export type Tab =
   | 'home' | 'dashboard' | 'people'
   | 'timeline' | 'year' | 'messages' | 'whatsapp' | 'photos' | 'contacts' | 'calls' | 'notes' | 'voicemail'
-  | 'podcasts' | 'browser_history' | 'record_recovery' | 'export';
+  | 'podcasts' | 'voice_memos' | 'calendar' | 'browser_history' | 'record_recovery' | 'export';
 
 export type Icon = typeof LinesIcon;
 
@@ -28,7 +30,7 @@ export interface Section {
 
 export const DETAILS: Section = { id: 'dashboard', label: 'Backup details', icon: ChartIcon };
 export const TIMELINE: Section = { id: 'timeline', label: 'Timeline', icon: ClockIcon };
-export const YEAR: Section = { id: 'year', label: 'Year', icon: CalendarIcon };
+export const YEAR: Section = { id: 'year', label: 'Year', icon: YearIcon };
 export const RECOVER: Section = { id: 'record_recovery', label: 'Recover deleted', icon: RecoverIcon };
 export const SAVE: Section = { id: 'export', label: 'Save to computer', icon: ExportIcon };
 export const PEOPLE: Section = {
@@ -57,6 +59,9 @@ export function whatsappChatsLeftOut(o: BackupStatsOverview | null | undefined):
 /** Podcasts in the backup that couldn't be read: shown with no number, like WhatsApp. */
 export { podcastsUnreadable };
 
+/** Voice Memos or Calendar in the backup that couldn't be read: shown with no number, like Podcasts. */
+export { voiceMemosUnreadable, calendarUnreadable };
+
 /** The kinds of data, in the order the home page lists them. */
 export const DATA_SECTIONS: Section[] = [
   { id: 'messages', label: 'Messages', icon: LinesIcon, count: o => o.total_messages },
@@ -73,6 +78,16 @@ export const DATA_SECTIONS: Section[] = [
   {
     id: 'podcasts', label: 'Podcasts', icon: PodcastIcon, count: o => o.total_podcasts ?? 0,
     shown: o => (o.total_podcasts ?? 0) > 0 || podcastsUnreadable(o),
+  },
+  {
+    // The count leaves out Recently Deleted, but recordings there alone still show the section
+    id: 'voice_memos', label: 'Voice Memos', icon: VoiceMemoIcon, count: o => o.total_voice_memos ?? 0,
+    shown: o => voiceMemosListed(o) > 0 || voiceMemosUnreadable(o),
+  },
+  {
+    // The count is the person's own events; holidays and subscriptions alone still show the section
+    id: 'calendar', label: 'Calendar', icon: CalendarIcon, count: o => o.total_calendar_events ?? 0,
+    shown: o => calendarShown(o),
   },
   { id: 'browser_history', label: 'Web history', icon: GlobeIcon },
 ];
@@ -102,6 +117,8 @@ export const SCOPED: Partial<Record<Tab, Scope>> = {
   notes: { placeholder: 'Search notes', items: 'notes' },
   voicemail: { placeholder: 'Search voicemail', items: 'voicemails' },
   podcasts: { placeholder: 'Search podcasts', items: 'podcasts' },
+  voice_memos: { placeholder: 'Search voice memos', items: 'recordings' },
+  calendar: { placeholder: 'Search calendar', items: 'events' },
   browser_history: { placeholder: 'Search web history', items: 'page visits' },
   timeline: { placeholder: 'Search the timeline', items: 'events' },
   record_recovery: { placeholder: 'Search deleted messages', items: 'deleted messages' },
@@ -117,15 +134,19 @@ export function availableData(overview: BackupStatsOverview | null, hasBrowserHi
   });
 }
 
+/** Kinds of data a backup without them isn't missing anything of: most iPhones never use them. */
+export const NEVER_MISSING: Tab[] = ['people', 'whatsapp', 'podcasts', 'voice_memos'];
+
 /**
  * Lower-case names of the kinds of data the backup has none of, e.g. ["photos", "web history"].
  * WhatsApp isn't one: most iPhones don't have it, so a backup without it isn't missing anything.
- * Podcasts isn't either: many iPhones never use the Podcasts app.
+ * Podcasts and Voice Memos aren't either: many iPhones never use those apps. Calendar is, but
+ * only when no calendar has an event (holidays alone still show the section).
  */
 export function missingKinds(overview: BackupStatsOverview | null, hasBrowserHistory: boolean): string[] {
   if (!overview) return [];
   const missing = DATA_SECTIONS
-    .filter(s => s.id !== 'people' && s.id !== 'whatsapp' && s.id !== 'podcasts' && s.count && s.count(overview) === 0)
+    .filter(s => !NEVER_MISSING.includes(s.id) && s.count && (s.shown ? !s.shown(overview) : s.count(overview) === 0))
     .map(s => s.label.toLowerCase());
   if (!hasBrowserHistory) missing.push('web history');
   return missing;
