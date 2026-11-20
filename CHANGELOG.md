@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-19
+
 Voicemail transcripts now show, under each voicemail and in search. Back up my iPhone no longer hangs for up to 5 minutes when a connected iPhone doesn't answer, and on Windows a backup the iPhone has finished no longer fails at the very last step. Videos in a backup that isn't encrypted open in your video player. Saved call history, web history, notes and voicemail lists show times in your own time zone instead of UTC, a backup whose folder is missing files now says so, and when WhatsApp's chats aren't in a backup, the app says why. New and experimental: Export a data bundle saves messages, calls, voicemail, contacts and photo details in one documented folder that other tools can read.
 
 ### Added
