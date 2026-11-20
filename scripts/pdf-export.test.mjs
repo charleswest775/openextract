@@ -565,6 +565,9 @@ async function rendererDiesWhilePrinting(win) {
   throw new Error('Failed to generate PDF: Printing failed');
 }
 
+// The photo limit, lowered for a test on its own copy of the module (setup() loads a fresh one)
+const SMALL_PICTURE_LIMIT = 64 * 1024;
+
 /** A file of `size` bytes without writing them (sparse where the file system can). */
 function fileOfSize(file, size, start = '') {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -627,6 +630,7 @@ describe('size limits', () => {
 
   test('a page with more photos than one PDF holds is refused before it is printed', async () => {
     const { env, pdf, temp, outputDir } = setup();
+    pdf.PDF_LIMITS.pictureBytes = SMALL_PICTURE_LIMIT; // this copy of the module only: small files stand in for 1.5 GB
     const { pictureBytes } = pdf.PDF_LIMITS;
     const half = pictureBytes / 2;
     const over = fakeEngine([], { onCall: params => ({ file: stagePage(params, { pictures: [half, half + 1] }), message_count: 2 }) });
@@ -646,6 +650,7 @@ describe('size limits', () => {
 
   test('several pages share one attachments folder, so their photos aren\'t added up', async () => {
     const { env, pdf, outputDir } = setup();
+    pdf.PDF_LIMITS.pictureBytes = SMALL_PICTURE_LIMIT;
     const { pictureBytes } = pdf.PDF_LIMITS;
     const engine = fakeEngine([], {
       onCall: params => ({
@@ -814,6 +819,7 @@ describe('a person\'s PDF that can\'t be made', () => {
   test('too many photos, or a page too big: refused before printing, the folder of originals taken away', async () => {
     const { env, pdf, temp, outputDir } = setup();
     const before = chosenWithThings(outputDir);
+    pdf.PDF_LIMITS.pictureBytes = SMALL_PICTURE_LIMIT;
     const { pictureBytes, pageBytes } = pdf.PDF_LIMITS;
     const tooManyPhotos = personEngine({ pictures: [pictureBytes / 2, pictureBytes / 2 + 1] });
     await assert.rejects(pdf.exportMessagesPdf(tooManyPhotos, 'export_person', personParams(outputDir)), { message: TOO_MANY_PICTURES });

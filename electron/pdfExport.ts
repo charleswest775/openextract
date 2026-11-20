@@ -74,7 +74,11 @@ const MAX_PAGE_BYTES = MAX_PAGE_CHARS;
 // most, about half a megabyte each): some 3,000 photos, every one of them in the PDF.
 const MAX_PICTURE_BYTES = 1.5 * 1024 * 1024 * 1024;
 
-/** The limits above, for the tests. */
+/**
+ * The limits above, read each time a PDF is made. Tests lower them on their own copy of
+ * this module, so they can check a limit with small files (a 1.5 GB test file isn't
+ * sparse on Windows: it would really take the space).
+ */
 export const PDF_LIMITS = { pageChars: MAX_PAGE_CHARS, pageBytes: MAX_PAGE_BYTES, pictureBytes: MAX_PICTURE_BYTES };
 
 const TOO_MUCH_PAGE = 'This is too much for one PDF. Narrow it down and try again.';
@@ -297,9 +301,9 @@ function filesSize(dir: string, except: string, limit: number): number {
  */
 function checkPrintable(pages: string[], staging: string): void {
   for (const page of pages) {
-    if (fs.statSync(page).size > MAX_PAGE_BYTES) throw new Error(TOO_MUCH_ENGINE_PAGE);
+    if (fs.statSync(page).size > PDF_LIMITS.pageBytes) throw new Error(TOO_MUCH_ENGINE_PAGE);
   }
-  if (pages.length === 1 && filesSize(staging, pages[0], MAX_PICTURE_BYTES) > MAX_PICTURE_BYTES) {
+  if (pages.length === 1 && filesSize(staging, pages[0], PDF_LIMITS.pictureBytes) > PDF_LIMITS.pictureBytes) {
     throw new Error(TOO_MANY_PICTURES);
   }
 }
@@ -447,7 +451,7 @@ export function safeBaseName(name: unknown): string {
  */
 export async function exportHtmlToPdf(html: unknown, outputDir: unknown, baseName: unknown): Promise<{ file: string }> {
   if (typeof html !== 'string') throw new Error('There was no page to save as a PDF.');
-  if (html.length > MAX_PAGE_CHARS) throw new Error(TOO_MUCH_PAGE);
+  if (html.length > PDF_LIMITS.pageChars) throw new Error(TOO_MUCH_PAGE);
   if (typeof outputDir !== 'string' || !outputDir || !fs.existsSync(outputDir)) throw new Error('Choose a folder to save the PDF in.');
   if (printingBroken) throw new Error(PDFS_NEED_RESTART);
 
