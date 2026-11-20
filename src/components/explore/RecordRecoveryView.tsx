@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { sidecarCall, saveFolder } from '../../lib/ipc';
+import { sidecarCall } from '../../lib/ipc';
 import { formatRelative } from '../../lib/dates';
 import { groupByDay, isOffDay } from '../../lib/dayGroups';
 import { RecoverIcon } from '../shared/Icons';
@@ -9,12 +9,10 @@ import PageHeader from '../shared/PageHeader';
 import Highlight from '../shared/Highlight';
 import { matches } from '../../lib/search';
 import EmptyState from '../shared/EmptyState';
-import SaveDialog, { FORMATS, SaveButton } from '../shared/SaveDialog';
+import SaveDialog, { RECORD_FORMATS, SaveButton } from '../shared/SaveDialog';
 import { useSaveAction } from '../../hooks/useSaveAction';
-import { checkEngineResult, plural } from '../../lib/saveData';
+import { plural, saveRecoveredMessages, type RecordFormat } from '../../lib/saveData';
 import { DELETED_WHATSAPP_NOTE } from '../../lib/whatsapp';
-
-type ExportFormat = 'csv' | 'html' | 'pdf';
 
 type RecoverySource = 'recently_deleted' | 'orphaned';
 
@@ -94,17 +92,10 @@ export default function RecordRecoveryView({ udid, query, whatsapp = false }: Pr
     }
   }
 
-  function handleExport(format: ExportFormat) {
+  function handleExport(format: RecordFormat) {
     setChoosing(false);
-    run(async () => {
-      const outputDir = await saveFolder();
-      if (!outputDir) return null;
-      const r = checkEngineResult(await sidecarCall<{ file: string; message_count: number }>(
-        'export_recovered_messages',
-        { udid, format, output_dir: outputDir },
-      ));
-      return { title: `Saved ${plural(r.message_count, 'recovered message')}`, path: r.file ?? outputDir };
-    });
+    // Every format from the engine; the PDF printed by Chromium from its print-ready page
+    run(() => saveRecoveredMessages(udid, format));
   }
 
   const conversations = result?.conversations ?? [];
@@ -295,8 +286,8 @@ export default function RecordRecoveryView({ udid, query, whatsapp = false }: Pr
       {choosing && (
         <SaveDialog
           title="Save recovered messages"
-          formats={[FORMATS.html, FORMATS.pdf, FORMATS.csv]}
-          onSave={id => handleExport(id as ExportFormat)}
+          formats={RECORD_FORMATS}
+          onSave={handleExport}
           onCancel={() => setChoosing(false)}
         />
       )}

@@ -8,7 +8,12 @@ export interface SaveFormat<T extends string = string> {
   detail: string;
 }
 
-/** The formats every screen picks from, named by what people get. */
+/**
+ * The formats every screen picks from, named by what people get. Every Save dialog
+ * takes its list from here, never inline: the kind's own format first when it has one
+ * (original files, audio, contact cards, podcast subscriptions), then the core formats
+ * that apply, always in RECORD_FORMATS' order. scripts/save-formats.test.mjs checks it.
+ */
 export const FORMATS = {
   pdf: { id: 'pdf', label: 'Readable document', detail: 'PDF, opens anywhere and prints well' },
   html: { id: 'html', label: 'Web page', detail: 'HTML, opens in any browser' },
@@ -18,7 +23,17 @@ export const FORMATS = {
   originals: { id: 'originals', label: 'Original files', detail: 'Copied as they are in the backup' },
   audio: { id: 'audio', label: 'Audio files', detail: 'One file per voicemail, plays in any music app' },
   opml: { id: 'opml', label: 'Podcast subscriptions', detail: 'OPML, imports into most podcast apps' },
+  bundle: {
+    id: 'bundle', label: 'Data bundle (experimental)',
+    detail: 'JSON files, copies of the files you tick, and a SHA-256 integrity check, in one folder',
+  },
 } as const;
+
+/**
+ * The core formats in the one order every dialog lists them: PDF, web page, spreadsheet,
+ * plain text. The first is preselected. Screens that can't make one leave it out.
+ */
+export const RECORD_FORMATS: SaveFormat<'pdf' | 'html' | 'csv' | 'txt'>[] = [FORMATS.pdf, FORMATS.html, FORMATS.csv, FORMATS.txt];
 
 /** The Save button every screen uses. */
 export function SaveButton({ onClick, disabled, busy, label = 'Save', primary = false }: {

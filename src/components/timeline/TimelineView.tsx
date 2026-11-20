@@ -5,21 +5,15 @@ import { TimelineEntry, TimelineEntryType, TimelineFilters } from '../../types/t
 import TimelineFilterBar from './TimelineFilterBar';
 import EventStream from './EventStream';
 import { saveFolder } from '../../lib/ipc';
-import { formatTimeline, FORMAT_FILTERS, ExportFormat } from '../../lib/timelineExport';
+import type { ExportFormat } from '../../lib/timelineExport';
 import OrganicLoader from '../shared/OrganicLoader';
 import { ReportProblemButton } from '../shared/Feedback';
 import PageHeader from '../shared/PageHeader';
 import EmptyState from '../shared/EmptyState';
-import SaveDialog, { FORMATS, SaveButton } from '../shared/SaveDialog';
+import SaveDialog, { RECORD_FORMATS, SaveButton } from '../shared/SaveDialog';
 import { ClockIcon } from '../shared/Icons';
 import { useSaveAction } from '../../hooks/useSaveAction';
-import { plural } from '../../lib/saveData';
-
-const TIMELINE_FORMATS = [
-  FORMATS.html,
-  FORMATS.csv,
-  { id: 'md', label: 'Markdown', detail: 'MD, for notes apps and text editors' },
-];
+import { plural, writeTimeline } from '../../lib/saveData';
 
 interface Props {
   udid: string;
@@ -74,9 +68,8 @@ export default function TimelineView({ udid, index, startingFilters, query, onOp
     run(async () => {
       const folder = await saveFolder();
       if (!folder) return null;
-      const ext = FORMAT_FILTERS[format].extensions[0];
-      const path = `${folder}/timeline-export.${ext}`;
-      await window.openextract.writeFile(path, formatTimeline(filteredEntries, format));
+      // The PDF is the web page, printed by Chromium (and never overwrites a file)
+      const path = await writeTimeline(filteredEntries, format, folder, 'timeline-export');
       return { title: `Saved ${plural(filteredEntries.length, 'event')} from the Timeline`, path };
     });
   }
@@ -204,8 +197,8 @@ export default function TimelineView({ udid, index, startingFilters, query, onOp
       {choosing && (
         <SaveDialog
           title={`Save ${plural(totalFiltered, 'event')} from the Timeline`}
-          formats={TIMELINE_FORMATS}
-          onSave={id => handleExport(id as ExportFormat)}
+          formats={RECORD_FORMATS}
+          onSave={handleExport}
           onCancel={() => setChoosing(false)}
         />
       )}

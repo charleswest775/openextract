@@ -9,7 +9,7 @@ import { check, launch, sleep } from '../harness.mjs';
 // Every function on window.openextract, by its path. scripts/e2e-coverage.test.mjs fails if
 // preload.ts exposes something not listed here.
 export const BRIDGE = [
-  'call', 'exportPdf', 'selectFolder', 'saveFolder', 'saveFile', 'writeFile', 'openExternal', 'relaunch',
+  'call', 'exportPdf', 'exportHtmlPdf', 'selectFolder', 'saveFolder', 'saveFile', 'writeFile', 'openExternal', 'relaunch',
   'openPath', 'showInFolder', 'textSize.get', 'textSize.set', 'onNotification', 'getVersion',
   'updates.getState', 'updates.setAutoCheck', 'updates.askLater', 'updates.check', 'updates.download', 'updates.install', 'updates.onStatus',
   'getAppState', 'setFirstLaunchCompleted', 'addSession', 'removeSession', 'getRecentSessions', 'incrementExportCount',
@@ -170,6 +170,24 @@ export default {
       fs.mkdirSync(pdfDir, { recursive: true });
       const pdf = await app.api('exportPdf', 'export_conversation', { udid: path.basename(b.dir), chat_id: first?.chat_id ?? first?.id, output_dir: pdfDir, display_name: first?.display_name });
       check('exportPdf writes a PDF', pdf.value?.success && fs.readdirSync(pdfDir).some(f => f.endsWith('.pdf')), pdf.value?.error ?? fs.readdirSync(pdfDir));
+      // Notes, calls and the other record lists print through the same bridge
+      const notesDir = path.join(scratch, 'bridge-notes-pdf');
+      fs.mkdirSync(notesDir, { recursive: true });
+      const notesPdf = await app.api('exportPdf', 'export_notes', { udid: path.basename(b.dir), mode: 'merged', output_dir: notesDir });
+      check('exportPdf prints every note into one PDF', notesPdf.value?.success && fs.existsSync(path.join(notesDir, 'Notes.pdf')) && notesPdf.value?.data?.count > 0,
+        notesPdf.value?.error ?? fs.readdirSync(notesDir));
+      // exportHtmlPdf: a page the window built (the Timeline's), printed the same way; never overwrites
+      const pageDir = path.join(scratch, 'bridge-page-pdf');
+      fs.mkdirSync(pageDir, { recursive: true });
+      const html = '<!DOCTYPE html><html><body><h1>Timeline</h1><p>Zoë 🎉</p><img src="https://example.com/x.png"></body></html>';
+      const page1 = await app.api('exportHtmlPdf', html, pageDir, 'timeline-export');
+      const page2 = await app.api('exportHtmlPdf', html, pageDir, `..${path.sep}timeline-export`);
+      check('exportHtmlPdf writes a PDF, and a second one beside it', page1.value?.success && page2.value?.success
+        && fs.readdirSync(pageDir).sort().join() === 'timeline-export (2).pdf,timeline-export.pdf'
+        && fs.readFileSync(path.join(pageDir, 'timeline-export.pdf')).subarray(0, 5).toString() === '%PDF-',
+      page1.value?.error ?? page2.value?.error ?? fs.readdirSync(pageDir));
+      const refused = await app.api('exportHtmlPdf', html, path.join(pageDir, 'not-there'), 'x');
+      check('exportHtmlPdf refuses a folder that doesn\'t exist', refused.value?.success === false && /Choose a folder/.test(refused.value?.error ?? ''), refused.value);
 
       // ── Media in the window: a poster from a copy the engine made, and nothing from anywhere else ──
       // A photo copied out by get_photo_path lands in the engine's copy folder (python/app_copies.py),

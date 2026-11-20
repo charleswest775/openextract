@@ -6,11 +6,22 @@ declare global {
   interface Window {
     openextract: {
       call: (method: string, params?: any) => Promise<{ success: boolean; data?: any; error?: string }>;
-      /** Export conversations or WhatsApp chats as PDF; same params as export_conversation(s) / export_whatsapp_chat(s) minus format. */
+      /**
+       * Save an engine export as PDF; same params as the method's own save minus format.
+       * `count` is the engine's count of records (notes, calls, page visits) when it gives one;
+       * `media_folder` where export_person copied a person's photos and files.
+       */
       exportPdf: (
-        method: 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats',
+        method: 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats'
+          | 'export_person' | 'export_notes' | 'export_calls' | 'export_browser_history' | 'export_recovered_messages',
         params: any,
-      ) => Promise<{ success: boolean; data?: { files: string[]; message_count: number }; error?: string }>;
+      ) => Promise<{
+        success: boolean;
+        data?: { files: string[]; message_count: number; count?: number; media_folder?: string };
+        error?: string;
+      }>;
+      /** Print a page the window built (the Timeline) to `<outputDir>/<baseName>.pdf`, never overwriting a file. */
+      exportHtmlPdf: (html: string, outputDir: string, baseName: string) => Promise<{ success: boolean; data?: { file: string }; error?: string }>;
       selectFolder: () => Promise<string | null>;
       saveFolder: () => Promise<string | null>;
       saveFile: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<string | null>;

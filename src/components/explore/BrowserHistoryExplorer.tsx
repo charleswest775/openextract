@@ -1,10 +1,9 @@
 import { useState, useEffect, Component } from 'react';
 import type { ReactNode } from 'react';
-import { saveFolder, sidecarCall } from '../../lib/ipc';
 import PageHeader from '../shared/PageHeader';
-import { SaveButton } from '../shared/SaveDialog';
+import SaveDialog, { RECORD_FORMATS, SaveButton } from '../shared/SaveDialog';
 import { useSaveAction } from '../../hooks/useSaveAction';
-import { checkEngineResult, plural } from '../../lib/saveData';
+import { plural, saveBrowserHistory, type RecordFormat } from '../../lib/saveData';
 import OrganicLoader from '../shared/OrganicLoader';
 import type { HistoryVisit } from '../../lib/browserHistoryStats';
 import BrowserHistoryOverview from './BrowserHistoryOverview';
@@ -47,6 +46,7 @@ export default function BrowserHistoryExplorer({ udid, query, selectId, preloade
   const [drillDomain, setDrillDomain] = useState<string | null>(null);
   const [drillDate, setDrillDate] = useState<string | null>(null);
   const { busy: exporting, run } = useSaveAction('browser_history');
+  const [choosing, setChoosing] = useState(false);
 
   useEffect(() => {
     if (preloadedVisits !== undefined) {
@@ -72,16 +72,21 @@ export default function BrowserHistoryExplorer({ udid, query, selectId, preloade
     }
   }
 
-  function handleExport() {
-    run(async () => {
-      const outputDir = await saveFolder();
-      if (!outputDir) return null;
-      const result = checkEngineResult(await sidecarCall<{ path: string; count: number }>(
-        'export_browser_history', { udid, output_dir: outputDir },
-      ));
-      return { title: `Saved ${plural(result.count, 'page visit')}`, detail: 'Spreadsheet (CSV)', path: result.path };
-    });
+  function handleExport(format: RecordFormat) {
+    setChoosing(false);
+    // Every visit from every browser, whatever the list shows
+    run(() => saveBrowserHistory(udid, format));
   }
+
+  // Both views' Save all opens the same dialog
+  const saveDialog = choosing && (
+    <SaveDialog
+      title={visits.length > 0 ? `Save ${plural(visits.length, 'page visit')}` : 'Save web history'}
+      formats={RECORD_FORMATS}
+      onSave={handleExport}
+      onCancel={() => setChoosing(false)}
+    />
+  );
 
   function handleDrillDomain(domain: string) {
     setDrillDomain(domain);
@@ -121,9 +126,10 @@ export default function BrowserHistoryExplorer({ udid, query, selectId, preloade
           initialDomainFilter={drillDomain}
           initialDateFilter={drillDate}
           onBack={query || selectId ? undefined : handleBackToOverview}
-          onSave={handleExport}
+          onSave={() => setChoosing(true)}
           saving={exporting}
         />
+        {saveDialog}
       </div>
     );
   }
@@ -134,7 +140,7 @@ export default function BrowserHistoryExplorer({ udid, query, selectId, preloade
       <PageHeader
         title="Web history"
         count={visits.length > 0 ? plural(visits.length, 'page visit') : undefined}
-        actions={<SaveButton onClick={handleExport} busy={exporting} disabled={visits.length === 0} label="Save all" />}
+        actions={<SaveButton onClick={() => setChoosing(true)} busy={exporting} disabled={visits.length === 0} label="Save all" />}
       />
 
       {/* Body */}
@@ -154,6 +160,7 @@ export default function BrowserHistoryExplorer({ udid, query, selectId, preloade
           </BrowserHistoryErrorBoundary>
         )}
       </div>
+      {saveDialog}
     </div>
   );
 }

@@ -1,10 +1,14 @@
 /**
  * Shared pieces of "Save to this computer": writing text files the renderer builds,
  * and the file formats more than one screen produces.
+ *
+ * Every PDF is printed by Chromium (electron/pdfExport.ts): an engine save asks for its
+ * print-ready page through exportMessagesPdf, a page built here goes through exportHtmlPdf.
  */
-import { formatSavedDateTime } from './dates';
-import { exportMessagesPdf, saveFolder, sidecarCall } from './ipc';
+import { exportHtmlPdf, exportMessagesPdf, saveFolder, sidecarCall, type PdfExportMethod } from './ipc';
 import { chatName } from './whatsapp';
+import { CSV_BOM, formatTimeline, FORMAT_FILTERS, type ExportFormat } from './timelineExport';
+import type { TimelineEntry } from '../types/timeline';
 import type { PodcastExportResult, PodcastSaveFormat } from '../types/podcasts';
 
 /** What a finished save reports in its notice. */
@@ -68,6 +72,7 @@ export interface ContactRecord {
   note: string;
 }
 
+/** The address book as a spreadsheet, with a byte-order mark so Excel reads it as UTF-8 (as every CSV the app saves). */
 export function contactsToCsv(contacts: ContactRecord[]): string {
   const rows = ['"First Name","Last Name","Display Name","Organization","Phone Numbers","Email Addresses","Notes"'];
   for (const c of contacts) {
@@ -76,7 +81,7 @@ export function contactsToCsv(contacts: ContactRecord[]): string {
       (c.phones || []).join('; '), (c.emails || []).join('; '), c.note,
     ].map(v => csvEscape(v || '')).join(','));
   }
-  return rows.join('\n');
+  return CSV_BOM + rows.join('\n');
 }
 
 // vCard 3.0 text values escape backslash, comma, semicolon and newline.
@@ -102,26 +107,91 @@ export function contactsToVcard(contacts: ContactRecord[]): string {
   }).join('\r\n') + '\r\n';
 }
 
-// ── Notes ──────────────────────────────────────────────────────────────────────
+// ── Records: notes, calls, web history, recovered messages ─────────────────────
 
-export interface NoteRecord {
-  title: string;
-  body: string;
-  created: string;
-  modified: string;
+/** The core formats, in the order every Save dialog lists them (RECORD_FORMATS in SaveDialog.tsx). */
+export type RecordFormat = 'pdf' | 'html' | 'csv' | 'txt';
+/** Notes have no spreadsheet. */
+export type NotesFormat = 'pdf' | 'html' | 'txt';
+
+/**
+ * Run an engine save in `format`: a PDF through Chromium (the engine writes the
+ * print-ready page), anything else straight from the engine. Failures the engine
+ * reports in its result are thrown.
+ */
+async function exportRecords(method: PdfExportMethod, params: Record<string, unknown>, format: RecordFormat): Promise<any> {
+  return format === 'pdf'
+    ? exportMessagesPdf(method, params)
+    : checkEngineResult(await sidecarCall(method, { ...params, format }));
 }
 
-/** Every note in one text file. Dates are on the local clock, as the Notes screen's own save writes them. */
-export function notesToText(notes: NoteRecord[]): string {
-  return notes.map(n =>
-    `Title: ${n.title}\nCreated: ${formatSavedDateTime(n.created)}\nModified: ${formatSavedDateTime(n.modified)}\n`
-    + `${'='.repeat(40)}\n\n${n.body}`
-  ).join('\n\n' + '-'.repeat(60) + '\n\n');
+/** The one file a save wrote, however the engine or the PDF exporter named it. */
+function savedFile(result: any): string | undefined {
+  return result?.file ?? result?.files?.[0] ?? result?.exported?.[0];
+}
+
+/** Save one note into a folder the person picks. */
+export async function saveNote(udid: string, note: { note_id: number | string; title: string }, format: NotesFormat): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const result = await exportRecords('export_notes', { udid, note_ids: [note.note_id], output_dir: outputDir }, format);
+  return { title: `Saved "${note.title || 'Untitled'}"`, path: savedFile(result) ?? outputDir };
+}
+
+/** Save every note in one file (Notes.pdf, .html or .txt) into a folder the person picks. */
+export async function saveAllNotes(udid: string, format: NotesFormat): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const result = await exportRecords('export_notes', { udid, output_dir: outputDir, mode: 'merged' }, format);
+  return { title: `Saved ${plural(result?.count ?? 0, 'note')}`, detail: 'In one file', path: savedFile(result) ?? outputDir };
+}
+
+/** Save every call into a folder the person picks. */
+export async function saveCalls(udid: string, format: RecordFormat): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const result = await exportRecords('export_calls', { udid, output_dir: outputDir }, format);
+  return { title: `Saved ${plural(result?.count ?? 0, 'call')}`, path: savedFile(result) ?? outputDir };
+}
+
+/** Save every page visit, from every browser, into a folder the person picks. */
+export async function saveBrowserHistory(udid: string, format: RecordFormat): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const result = await exportRecords('export_browser_history', { udid, output_dir: outputDir }, format);
+  return { title: `Saved ${plural(result?.count ?? 0, 'page visit')}`, path: savedFile(result) ?? outputDir };
+}
+
+/** Save every recovered message, in one file, into a folder the person picks. */
+export async function saveRecoveredMessages(udid: string, format: RecordFormat): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const result = await exportRecords('export_recovered_messages', { udid, output_dir: outputDir }, format);
+  return { title: `Saved ${plural(result?.message_count ?? 0, 'recovered message')}`, path: savedFile(result) ?? outputDir };
+}
+
+// ── Pages built here: the Timeline (and, for now, a person's history) ──────────
+
+/**
+ * Write Timeline entries into `folder` as `<baseName>.<ext>`, the PDF printed by
+ * Chromium. Resolves to the file written. `title` heads the page and the text.
+ */
+export async function writeTimeline(
+  entries: TimelineEntry[],
+  format: ExportFormat,
+  folder: string,
+  baseName: string,
+  title?: string,
+): Promise<string> {
+  if (format === 'pdf') return (await exportHtmlPdf(formatTimeline(entries, 'pdf', { title }), folder, baseName)).file;
+  const path = `${folder}/${baseName}.${FORMAT_FILTERS[format].extensions[0]}`;
+  await window.openextract.writeFile(path, formatTimeline(entries, format, { title }));
+  return path;
 }
 
 // ── Conversations ──────────────────────────────────────────────────────────────
 
-export type ConversationFormat = 'html' | 'pdf' | 'csv' | 'txt';
+export type ConversationFormat = RecordFormat;
 
 interface ConversationRef {
   chat_id: number;

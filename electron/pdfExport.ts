@@ -1,12 +1,15 @@
 /**
- * PDF export of message conversations (GitHub issue #91) and WhatsApp chats.
+ * Every PDF the app saves (GitHub issue #91): conversations, WhatsApp chats,
+ * a person's history, notes, call history, web history, recovered messages,
+ * and pages the window builds itself (the Timeline).
  *
  * The Python sidecar writes a print-ready HTML file (the same layout as the
  * HTML export, with images converted to JPEG in an attachments/ folder) into
- * a temporary folder. We load that file in a hidden, locked-down window,
- * print it to PDF with Chromium, write the PDF to the folder the user chose,
- * and delete the temporary folder. No new dependencies, and nothing leaves
- * the computer: the hidden window may only read files inside that folder.
+ * a temporary folder; a page the window built is written there by us. We load
+ * that file in a hidden, locked-down window, print it to PDF with Chromium,
+ * write the PDF to the folder the user chose, and delete the temporary
+ * folder. No new dependencies, and nothing leaves the computer: the hidden
+ * window may only read files inside that folder.
  */
 const { app, BrowserWindow, session } = require('electron');
 const path = require('path');
@@ -15,20 +18,30 @@ const { fileURLToPath } = require('url');
 
 type Sidecar = { call: (method: string, params: any, timeoutMs?: number) => Promise<any> };
 
-// Messages conversations and WhatsApp chats: the engine writes both as print-ready HTML
-// with their images in attachments/ (format: 'pdf_source').
-export type PdfExportMethod = 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats';
+// The engine exports that write print-ready HTML (format: 'pdf_source'), with any images
+// in attachments/. Nothing else may be asked of the engine through here.
+export type PdfExportMethod =
+  | 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats'
+  | 'export_person' | 'export_notes' | 'export_calls' | 'export_browser_history' | 'export_recovered_messages';
 
 export interface PdfExportResult {
   files: string[];
   message_count: number;
+  /** How many records the engine says it saved (notes, calls, page visits), when it says. */
+  count?: number;
+  /** Where export_person copied a person's photos and files (it's given media_dir). */
+  media_folder?: string;
 }
 
 const STAGING_PREFIX = 'openextract-pdf-';
 
 const ALLOWED_METHODS = new Set<PdfExportMethod>([
   'export_conversation', 'export_conversations', 'export_whatsapp_chat', 'export_whatsapp_chats',
+  'export_person', 'export_notes', 'export_calls', 'export_browser_history', 'export_recovered_messages',
 ]);
+
+// A page the window builds can be big (a Timeline of every event), but not without limit.
+const MAX_PAGE_CHARS = 256 * 1024 * 1024;
 
 // Copying and converting every image in a long thread can take a while.
 const SIDECAR_TIMEOUT_MS = 60 * 60 * 1000;
@@ -184,8 +197,10 @@ export function removeStaleStagingDirs(maxAgeMs = 60 * 60 * 1000): void {
 }
 
 /**
- * Run a conversation export as PDF. `params` are the same as for the HTML
- * export; `params.output_dir` is where the PDFs go.
+ * Run an engine export as PDF. `params` are the same as for the HTML export;
+ * `params.output_dir` is where the PDFs go. The engine is given a staging
+ * folder instead; any other folder in `params` (export_person's media_dir,
+ * where a person's photos and files are copied) is passed on as it is.
  */
 export async function exportMessagesPdf(
   sidecar: Sidecar,
@@ -205,6 +220,10 @@ export async function exportMessagesPdf(
       SIDECAR_TIMEOUT_MS,
     );
     if (result?.error) throw new Error(result.error);
+    // Notes say { status: 'error', message }; calls and web history { success: false, error }
+    if (result?.status === 'error' || result?.success === false) {
+      throw new Error(result.message || 'The export did not finish.');
+    }
 
     const htmlFiles: string[] = result?.file ? [result.file] : (result?.files || []);
     const pdfFiles: string[] = [];
@@ -215,7 +234,57 @@ export async function exportMessagesPdf(
       await htmlFileToPdf(resolved, target);
       pdfFiles.push(target);
     }
-    return { files: pdfFiles, message_count: result?.message_count ?? 0 };
+    return {
+      files: pdfFiles,
+      message_count: result?.message_count ?? 0,
+      ...(typeof result?.count === 'number' ? { count: result.count } : {}),
+      ...(typeof result?.media_folder === 'string' ? { media_folder: result.media_folder } : {}),
+    };
+  } finally {
+    activeStagingDirs.delete(staging);
+    try {
+      fs.rmSync(staging, { recursive: true, force: true });
+    } catch (err) {
+      console.warn('[pdf-export] could not remove temporary folder', staging, err);
+    }
+  }
+}
+
+// What can't be in a file name: folders, characters Windows refuses, control characters
+// and the marks that reverse the direction of text (python/record_document.py's rule).
+// eslint-disable-next-line no-control-regex
+const FILE_NAME_UNSAFE = /[<>:"/\\|?*\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g;
+
+/** A PDF's name from what the window sent: one file name, never a path, never empty. */
+export function safeBaseName(name: unknown): string {
+  const cleaned = String(name ?? '').replace(FILE_NAME_UNSAFE, ' ').replace(/\s+/g, ' ').trim()
+    // A leading dot hides a file on a Mac; Windows drops trailing dots and spaces
+    .replace(/^[.\s]+/, '').slice(0, 120).replace(/[.\s]+$/, '');
+  if (!cleaned) return 'export';
+  // Names Windows keeps for devices, with or without an extension ("CON.pdf")
+  return /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|\s|$)/i.test(cleaned) ? `_${cleaned}` : cleaned;
+}
+
+/**
+ * Print a page the window built (the Timeline, saved as a PDF) to
+ * `<outputDir>/<baseName>.pdf`, or "<baseName> (2).pdf" when that exists. The
+ * page is printed exactly as the engine's are: in the hidden window with no
+ * JavaScript, no network and no files outside its own staging folder, which
+ * is deleted afterwards.
+ */
+export async function exportHtmlToPdf(html: unknown, outputDir: unknown, baseName: unknown): Promise<{ file: string }> {
+  if (typeof html !== 'string') throw new Error('There was no page to save as a PDF.');
+  if (html.length > MAX_PAGE_CHARS) throw new Error('This is too much for one PDF. Narrow it down and try again.');
+  if (typeof outputDir !== 'string' || !outputDir || !fs.existsSync(outputDir)) throw new Error('Choose a folder to save the PDF in.');
+
+  const target = uniquePath(path.join(outputDir, `${safeBaseName(baseName)}.pdf`));
+  const staging = fs.realpathSync(fs.mkdtempSync(path.join(app.getPath('temp'), STAGING_PREFIX)));
+  activeStagingDirs.add(staging);
+  try {
+    const page = path.join(staging, 'page.html');
+    fs.writeFileSync(page, html, 'utf-8');
+    await htmlFileToPdf(page, target);
+    return { file: target };
   } finally {
     activeStagingDirs.delete(staging);
     try {

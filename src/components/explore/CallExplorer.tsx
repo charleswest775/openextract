@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { PhoneIncoming, PhoneMissed, PhoneOutgoing } from 'lucide-react';
-import { saveFolder, sidecarCall } from '../../lib/ipc';
 import { CallIcon, LockIcon } from '../shared/Icons';
 import { formatDateTime } from '../../lib/dates';
 import { displayName, formatPhone } from '../../lib/people';
@@ -8,9 +7,9 @@ import OrganicLoader from '../shared/OrganicLoader';
 import { ReportProblemButton } from '../shared/Feedback';
 import PageHeader from '../shared/PageHeader';
 import EmptyState from '../shared/EmptyState';
-import { SaveButton } from '../shared/SaveDialog';
+import SaveDialog, { RECORD_FORMATS, SaveButton } from '../shared/SaveDialog';
 import { useSaveAction } from '../../hooks/useSaveAction';
-import { checkEngineResult, plural } from '../../lib/saveData';
+import { plural, saveCalls, type RecordFormat } from '../../lib/saveData';
 import { matches } from '../../lib/search';
 import Highlight from '../shared/Highlight';
 
@@ -50,6 +49,7 @@ export default function CallExplorer({ udid, query, selectId }: Props) {
   const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const { busy, run } = useSaveAction('calls');
+  const [choosing, setChoosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [emptyReason, setEmptyReason] = useState<string | null>(null);
 
@@ -82,13 +82,10 @@ export default function CallExplorer({ udid, query, selectId }: Props) {
     }
   }
 
-  function handleSave() {
-    run(async () => {
-      const outputDir = await saveFolder();
-      if (!outputDir) return null;
-      const result = checkEngineResult(await sidecarCall<{ path: string; count: number }>('export_calls', { udid, output_dir: outputDir }));
-      return { title: `Saved ${plural(result.count, 'call')}`, detail: 'Spreadsheet (CSV)', path: result.path };
-    });
+  function handleSave(format: RecordFormat) {
+    setChoosing(false);
+    // Every call, whatever the search shows
+    run(() => saveCalls(udid, format));
   }
 
   const filtered = useMemo(
@@ -104,7 +101,7 @@ export default function CallExplorer({ udid, query, selectId }: Props) {
       <PageHeader
         title="Calls"
         count={total > 0 ? (query ? `${filtered.length} of ${plural(total, 'call')}` : plural(total, 'call')) : undefined}
-        actions={<SaveButton onClick={handleSave} busy={busy} disabled={calls.length === 0} />}
+        actions={<SaveButton onClick={() => setChoosing(true)} busy={busy} disabled={calls.length === 0} />}
       />
       <div className="flex-1 overflow-y-auto">
         <table className="w-full text-sm">
@@ -180,6 +177,14 @@ export default function CallExplorer({ udid, query, selectId }: Props) {
           )
         )}
       </div>
+      {choosing && (
+        <SaveDialog
+          title={`Save ${plural(total || calls.length, 'call')}`}
+          formats={RECORD_FORMATS}
+          onSave={handleSave}
+          onCancel={() => setChoosing(false)}
+        />
+      )}
     </div>
   );
 }

@@ -129,15 +129,64 @@ describe('removeStaleStagingDirs', () => {
 });
 
 describe('exportMessagesPdf', () => {
-  test('only the conversation and WhatsApp chat exports are allowed, and the engine isn\'t asked otherwise', async () => {
+  test('only the exports that write a print-ready page are allowed, and the engine isn\'t asked otherwise', async () => {
     const { pdf, outputDir } = setup();
     const engine = fakeEngine();
-    for (const method of ['list_messages', 'write_file', 'export_calls', 'export_whatsapp', 'get_whatsapp_messages', '__proto__', '']) {
+    for (const method of [
+      'list_messages', 'write_file', 'export_photos', 'export_voicemails', 'export_bundle', 'export_podcasts',
+      'export_whatsapp', 'get_whatsapp_messages', 'list_calls', 'list_notes', '__proto__', 'toString', '',
+    ]) {
       await assert.rejects(pdf.exportMessagesPdf(engine, method, { output_dir: outputDir }), {
         message: `PDF export is not available for ${method}`,
       });
     }
     assert.equal(engine.calls.length, 0);
+  });
+
+  test('a person, notes, call history, web history and recovered messages print the same way', async () => {
+    const { pdf, temp, outputDir } = setup();
+    const cases = [
+      ['export_person', ['Karin Lindqvist, Jul 5 2024 - Jun 21 2026.html'], { message_count: 120, media_folder: '/Users/jane/Desktop/Karin_attachments' }],
+      ['export_notes', ['Groceries.html', 'Trip.html'], { count: 2 }],
+      ['export_calls', ['call_history.html'], { count: 1532 }],
+      ['export_browser_history', ['browser_history_export.html'], { count: 40 }],
+      ['export_recovered_messages', ['recovered_messages.html'], { message_count: 5 }],
+    ];
+    for (const [method, files, extra] of cases) {
+      const engine = fakeEngine(files, {
+        onCall: params => {
+          const written = files.map(name => {
+            fs.writeFileSync(path.join(params.output_dir, name), '<html></html>');
+            return path.join(params.output_dir, name);
+          });
+          return written.length === 1 ? { file: written[0], ...extra } : { files: written, ...extra };
+        },
+      });
+      const result = await pdf.exportMessagesPdf(engine, method, { udid: 'u', output_dir: outputDir, media_dir: outputDir });
+      assert.deepEqual(engine.calls.map(c => [c.method, c.params.format, c.params.media_dir]), [[method, 'pdf_source', outputDir]], method);
+      assert.notEqual(engine.calls[0].params.output_dir, outputDir, 'the engine writes into staging');
+      assert.deepEqual(result.files, files.map(f => path.join(outputDir, f.replace(/\.html$/, '.pdf'))), method);
+      assert.equal(result.message_count, extra.message_count ?? 0, method);
+      // A count of records and a person's media folder are passed on when the engine gives them
+      assert.equal(result.count, extra.count, method);
+      assert.equal(result.media_folder, extra.media_folder, method);
+    }
+    assert.deepEqual(stagingDirsIn(temp), []);
+  });
+
+  test('the engine saying it saved nothing is an error, not an empty success', async () => {
+    const { env, pdf, outputDir } = setup();
+    const answers = [
+      [{ status: 'error', message: 'No matching notes found.' }, 'No matching notes found.'],
+      [{ success: false, error: 'No calls found to export.' }, 'No calls found to export.'],
+      [{ success: false }, 'The export did not finish.'],
+      [{ status: 'error' }, 'The export did not finish.'],
+    ];
+    for (const [answer, message] of answers) {
+      await assert.rejects(pdf.exportMessagesPdf(fakeEngine([], { onCall: () => answer }), 'export_notes', { output_dir: outputDir }), { message });
+    }
+    assert.equal(env.windows.length, 0);
+    assert.deepEqual(fs.readdirSync(outputDir), []);
   });
 
   test('a missing output folder is refused with a message the user can act on', async () => {
@@ -319,6 +368,99 @@ describe('exportMessagesPdf', () => {
       await pdf.exportMessagesPdf(fakeEngine(), 'export_conversation', { output_dir: outputDir });
       assert.equal(env.windows[0].webContents.printOptions.pageSize, expected, JSON.stringify(options));
     }
+  });
+});
+
+describe('exportHtmlToPdf (a page the window built: the Timeline)', () => {
+  const PAGE = '<!DOCTYPE html><html><body><h1>Timeline</h1><p>Zoë 🎉 مرحبا</p></body></html>';
+
+  test('prints the page from a staging folder of its own, in the locked-down window, and cleans up', async () => {
+    const { env, pdf, temp, outputDir } = setup();
+    let seen = null;
+    env.hooks.loadFile = async (_win, file) => {
+      seen = { file, page: fs.readFileSync(file, 'utf-8'), staging: stagingDirsIn(temp) };
+    };
+    const result = await pdf.exportHtmlToPdf(PAGE, outputDir, 'timeline-export');
+    assert.deepEqual(result, { file: path.join(outputDir, 'timeline-export.pdf') });
+    assert.ok(fs.readFileSync(result.file, 'latin1').startsWith('%PDF-'));
+    // The page went to a fresh staging folder, exactly as sent
+    assert.equal(seen.page, PAGE);
+    assert.equal(path.basename(seen.file), 'page.html');
+    assert.ok(path.basename(path.dirname(seen.file)).startsWith(PREFIX));
+    assert.equal(seen.staging.length, 1);
+    assert.deepEqual(stagingDirsIn(temp), [], 'the staging folder was left behind');
+    assert.deepEqual(fs.readdirSync(outputDir), ['timeline-export.pdf']);
+    // The same window as the engine's pages
+    const win = env.windows[0];
+    assert.equal(win.options.webPreferences.javascript, false);
+    assert.equal(win.options.webPreferences.session.name, 'openextract-pdf-export');
+    assert.equal(win.isDestroyed(), true);
+  });
+
+  test('its staging folder is readable while it prints, and closed off afterwards', async () => {
+    const { env, pdf, outputDir } = setup();
+    let during, page;
+    env.hooks.loadFile = async (_win, file) => {
+      page = file;
+      const filter = env.sessions.get('openextract-pdf-export').beforeRequest[0];
+      filter({ url: pathToFileURL(file).href }, r => (during = r.cancel ? 'blocked' : 'allowed'));
+    };
+    await pdf.exportHtmlToPdf(PAGE, outputDir, 'x');
+    assert.equal(during, 'allowed');
+    let after;
+    env.sessions.get('openextract-pdf-export').beforeRequest[0]({ url: pathToFileURL(page).href }, r => (after = r.cancel ? 'blocked' : 'allowed'));
+    assert.equal(after, 'blocked');
+  });
+
+  test('never overwrites: Theo.pdf, then Theo (2).pdf', async () => {
+    const { pdf, outputDir } = setup();
+    fs.writeFileSync(path.join(outputDir, 'Theo.pdf'), 'the first one');
+    const result = await pdf.exportHtmlToPdf(PAGE, outputDir, 'Theo');
+    assert.equal(result.file, path.join(outputDir, 'Theo (2).pdf'));
+    assert.equal(fs.readFileSync(path.join(outputDir, 'Theo.pdf'), 'utf-8'), 'the first one');
+  });
+
+  test('the name it is given can only name a file in the chosen folder', async () => {
+    const { pdf, outputDir } = setup();
+    const cases = [
+      [`..${path.sep}..${path.sep}evil`, 'evil'],
+      ['/etc/passwd', 'etc passwd'],
+      ['C:\\Windows\\win.ini', 'C Windows win.ini'],
+      ['Mom: cell?', 'Mom cell'],
+      ['  ..hidden.  ', 'hidden'],
+      ['CON', '_CON'],
+      ['\u202eexe.pdf', 'exe.pdf'],
+      ['', 'export'],
+      [null, 'export'],
+      ['...', 'export'],
+      ['Zoë 🎂', 'Zoë 🎂'],
+    ];
+    for (const [given, want] of cases) {
+      assert.equal(pdf.safeBaseName(given), want, JSON.stringify(given));
+      const result = await pdf.exportHtmlToPdf(PAGE, outputDir, given);
+      assert.equal(path.dirname(result.file), outputDir, JSON.stringify(given));
+    }
+    assert.equal(pdf.safeBaseName('a'.repeat(300)).length, 120);
+  });
+
+  test('refuses what it can\'t print, before any window opens', async () => {
+    const { env, pdf, temp, outputDir } = setup();
+    await assert.rejects(pdf.exportHtmlToPdf(undefined, outputDir, 'x'), { message: 'There was no page to save as a PDF.' });
+    await assert.rejects(pdf.exportHtmlToPdf({ toString: () => PAGE }, outputDir, 'x'), { message: 'There was no page to save as a PDF.' });
+    for (const dir of [undefined, '', path.join(temp, 'nope'), 42]) {
+      await assert.rejects(pdf.exportHtmlToPdf(PAGE, dir, 'x'), { message: 'Choose a folder to save the PDF in.' });
+    }
+    assert.equal(env.windows.length, 0);
+    assert.deepEqual(stagingDirsIn(temp), []);
+  });
+
+  test('when printing fails nothing is left behind', async () => {
+    const { env, pdf, temp, outputDir } = setup();
+    env.hooks.printToPDF = async () => { throw new Error('Printing failed'); };
+    await assert.rejects(pdf.exportHtmlToPdf(PAGE, outputDir, 'x'), { message: 'Printing failed' });
+    assert.equal(env.windows[0].isDestroyed(), true);
+    assert.deepEqual(stagingDirsIn(temp), []);
+    assert.deepEqual(fs.readdirSync(outputDir), []);
   });
 });
 

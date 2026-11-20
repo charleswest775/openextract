@@ -804,18 +804,49 @@ def case_export_bundle(ctx):
     assert not (path / "photos").exists()
 
 
+def _record_page(path: Path) -> str:
+    """A saved record document (record_document.py): a whole page, nothing that
+    runs or loads from elsewhere, the app's footer."""
+    page = path.read_text(encoding="utf-8")
+    assert page.startswith("<!DOCTYPE html>") and page.rstrip().endswith("</html>")
+    assert not any(tag in page.lower() for tag in ("<script", "<img", "<link", " src="))
+    assert "@media print" in page and "Made with OpenExtract" in page
+    return page
+
+
 @contract("export_calls")
 def case_export_calls(ctx):
     enc = ctx.maren_enc
+    calls = enc.expected["calls"]
     out = ctx.out("calls")
     result = enc.rpc("export_calls", output_dir=str(out))
-    assert result["success"] is True and result["count"] == len(enc.expected["calls"])
+    assert result["success"] is True and result["count"] == len(calls)
     path = Path(result["path"])
-    assert same_path(path.parent, out) and path.name == "call_history.csv"
+    assert same_path(path.parent, out) and path.name == "call_history.csv" and same_path(result["file"], path)
+    assert path.read_bytes().startswith(b"\xef\xbb\xbf")  # Excel reads it as UTF-8
     rows = read_csv(path)
     assert rows[0] == ["Date", "Contact Name", "Phone/Email", "Direction", "Status", "Duration (s)", "App/Service"]
     assert len(rows) - 1 == result["count"]
     assert {row[3] for row in rows[1:]} <= {"Incoming", "Outgoing"}
+    # Saving again keeps the first file
+    again = enc.rpc("export_calls", output_dir=str(out), format="csv")
+    assert Path(again["file"]).name == "call_history (2).csv" and path.exists()
+
+    # A web page, the page Electron prints to a PDF, and plain text: a row or line per call
+    for fmt, ext in (("html", ".html"), ("pdf_source", ".html"), ("txt", ".txt")):
+        folder = ctx.folder(f"calls-{fmt}")
+        result = enc.rpc("export_calls", output_dir=str(folder), format=fmt)
+        path = Path(result["file"])
+        assert result["success"] is True and result["count"] == len(calls), result
+        assert same_path(path.parent, folder) and path.name == f"call_history{ext}" and files_under(folder) == [path]
+        if ext == ".html":
+            page = _record_page(path)
+            assert page.count("<tr>") == len(calls) + 1  # the heading row, then one per call
+            assert f"{len(calls):,} calls" in page and "<h1>Call history</h1>" in page
+        else:
+            lines = path.read_text(encoding="utf-8-sig").splitlines()
+            assert lines[0] == "Call history" and sum(line.startswith("[") for line in lines) == len(calls)
+    assert_error_dict(enc.rpc("export_calls", output_dir=str(ctx.folder("calls-docx")), format="docx"), "Unsupported format")
 
 
 @contract("export_notes")
@@ -824,7 +855,7 @@ def case_export_notes(ctx):
     notes = m.notes
     out = ctx.out("notes-txt")
     result = m.rpc("export_notes", note_ids=[n["note_id"] for n in notes], format="txt", output_dir=str(out))
-    assert result["status"] == "ok"
+    assert result["status"] == "ok" and result["count"] == len(notes) and result["files"] == result["exported"]
     paths = [Path(p) for p in result["exported"]]
     assert len(paths) == len(notes) == len(set(paths)) == len(files_under(out))  # no two notes in one file
     titles = {n["title"] for n in notes}
@@ -837,6 +868,37 @@ def case_export_notes(ctx):
     assert all(Path(p).suffix == ".pdf" and Path(p).read_bytes().startswith(PDF_MAGIC) for p in result["exported"])
     result = m.rpc("export_notes", note_ids=[10 ** 6], format="txt", output_dir=str(ctx.out("notes-none")))
     assert result["status"] == "error" and result["message"]
+
+    # One note as a web page, or as the page Electron prints: named after it, its text in it
+    first = notes[0]
+    for fmt in ("html", "pdf_source"):
+        folder = ctx.folder(f"notes-one-{fmt}")
+        result = m.rpc("export_notes", note_ids=[first["note_id"]], format=fmt, output_dir=str(folder))
+        [path] = [Path(p) for p in result["files"]]
+        assert result["status"] == "ok" and path.suffix == ".html" and files_under(folder) == [path]
+        page = _record_page(path)
+        assert f"<h1>{html.escape(first['title'])}</h1>" in page
+        last_line = first["body"].strip().splitlines()[-1]
+        assert html.escape(last_line) in page
+
+    # Every note in one file (no note_ids: all of them), in each format
+    for fmt, ext in (("txt", ".txt"), ("html", ".html"), ("pdf_source", ".html")):
+        folder = ctx.folder(f"notes-merged-{fmt}")
+        result = m.rpc("export_notes", format=fmt, mode="merged", output_dir=str(folder))
+        path = Path(result["file"])
+        assert result["status"] == "ok" and result["count"] == len(notes) and result["exported"] == [result["file"]]
+        assert same_path(path.parent, folder) and path.name == f"Notes{ext}" and files_under(folder) == [path]
+        text = path.read_text(encoding="utf-8")
+        assert all((html.escape(n["title"]) if ext == ".html" else n["title"]) in text for n in notes)
+    # Saving them again keeps the first file
+    again = m.rpc("export_notes", format="txt", mode="merged", output_dir=str(folder.parent / "notes-merged-txt"))
+    assert Path(again["file"]).name == "Notes (2).txt"
+
+    # A format or mode it doesn't know is an error, never an empty success
+    assert_error_dict(m.rpc("export_notes", note_ids=[first["note_id"]], format="docx", output_dir=str(ctx.out("n-docx"))),
+                      "Unsupported format")
+    assert_error_dict(m.rpc("export_notes", format="txt", mode="zip", output_dir=str(ctx.out("n-zip"))), "Unsupported mode")
+    assert not ctx.out("n-docx").exists() and not ctx.out("n-zip").exists()
 
 
 @contract("has_browser_history")
@@ -870,11 +932,29 @@ def case_export_browser_history(ctx):
     assert result["success"] is True and result["count"] == len(enc.expected["browser_history"])
     path = Path(result["path"])
     assert same_path(path.parent, out) and path.suffix == ".csv"
+    assert path.read_bytes().startswith(b"\xef\xbb\xbf") and same_path(result["file"], path)
     rows = read_csv(path)
     assert rows[0] == ["Date", "Browser", "URL", "Title", "Domain", "Visit Count"]
     assert len(rows) - 1 == result["count"] and {row[1] for row in rows[1:]} == {"Safari"}
     result = ctx.maren.rpc("export_browser_history", output_dir=str(ctx.out("browser-plain")))
     assert result["success"] is False and result["error"]
+
+    visits = enc.expected["browser_history"]
+    for fmt, ext in (("html", ".html"), ("pdf_source", ".html"), ("txt", ".txt")):
+        folder = ctx.folder(f"browser-{fmt}")
+        result = enc.rpc("export_browser_history", output_dir=str(folder), format=fmt)
+        path = Path(result["file"])
+        assert result["success"] is True and result["count"] == len(visits), result
+        assert same_path(path.parent, folder) and path.suffix == ext and files_under(folder) == [path]
+        if ext == ".html":
+            page = _record_page(path)
+            assert page.count("<tr>") == len(visits) + 1 and "<h1>Web history</h1>" in page
+            assert f"{len(visits):,} page visits" in page
+        else:
+            lines = path.read_text(encoding="utf-8-sig").splitlines()
+            assert lines[0] == "Web history" and sum(line.startswith("[") for line in lines) == len(visits)
+    assert_error_dict(enc.rpc("export_browser_history", output_dir=str(ctx.folder("browser-x")), format="xlsx"),
+                      "Unsupported format")
 
 
 # ── WhatsApp ─────────────────────────────────────────────────────────────────
@@ -1408,24 +1488,37 @@ def case_export_recovered_messages(ctx):
     rec = ctx.runtime.recovery()
     plan = rec.plan
     texts = sorted(text for _, text in plan.deleted + plan.orphaned)
-    for fmt in ("csv", "html", "pdf"):
+    exts = {"csv": ".csv", "html": ".html", "pdf_source": ".html", "txt": ".txt", "pdf": ".pdf"}
+    for fmt, ext in exts.items():
         out = ctx.folder(f"recovered-{fmt}")
         result = rec.rpc("export_recovered_messages", format=fmt, output_dir=str(out))
         path = Path(result["file"])
-        assert same_path(path.parent, out) and path.suffix == f".{fmt}"
+        assert same_path(path.parent, out) and path.name == f"recovered_messages{ext}"
         assert (result["message_count"], result["conversation_count"]) == (len(texts), 2)
         assert [p.name for p in files_under(out)] == [path.name]
         if fmt == "csv":
+            assert path.read_bytes().startswith(b"\xef\xbb\xbf")
             rows = read_csv(path)
             assert rows[0] == ["Conversation", "Source", "Date", "Sender", "Is From Me", "Text", "Deleted Date"]
             assert sorted(row[5] for row in rows[1:]) == texts
             assert {row[1] for row in rows[1:]} == {"Recently Deleted", "Orphaned"}
-        elif fmt == "html":
-            page = path.read_text(encoding="utf-8")
-            assert f"{len(texts)} message(s) across 2 conversation(s)" in page
+            # Dates in local time with the offset: the same moment as the engine's UTC
+            dates = sorted(datetime.fromisoformat(row[2]) for row in rows[1:])
+            found = rec.rpc("recover_messages")["messages_by_conversation"]
+            assert dates == sorted(datetime.fromisoformat(m["date"]) for msgs in found.values() for m in msgs)
+        elif ext == ".html":
+            page = _record_page(path)
+            assert f"{len(texts)} messages in 2 conversations" in page and "<h1>Recovered messages</h1>" in page
             assert all(html.escape(text).replace("\n", "<br>") in page for text in texts)
+            assert "Recently Deleted" in page and "Left behind" in page  # the screen's words for where they were found
+        elif fmt == "txt":
+            text = path.read_text(encoding="utf-8-sig")
+            assert text.startswith("Recovered messages\n") and all(t.splitlines()[0] in text for t in texts)
         else:
             assert path.read_bytes().startswith(PDF_MAGIC)
+    # Saving again keeps the first file
+    again = rec.rpc("export_recovered_messages", format="html", output_dir=str(ctx.tmp / "recovered-html"))
+    assert Path(again["file"]).name == "recovered_messages (2).html"
     assert_error_dict(rec.rpc("export_recovered_messages", format="docx", output_dir=str(ctx.folder("recovered-docx"))),
                       "Unsupported format")
 

@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 import { PythonSidecar } from './sidecar';
 import { initUpdater } from './updater';
-import { exportMessagesPdf, PdfExportMethod, removeStaleStagingDirs } from './pdfExport';
+import { exportHtmlToPdf, exportMessagesPdf, PdfExportMethod, removeStaleStagingDirs } from './pdfExport';
 import { FeedbackRecorder } from './feedback';
 import { FeedbackReports } from './feedbackReports';
 import { installFolderFor, installFolderWarning, isInsideFolder, resolveReal } from './installFolder';
@@ -476,6 +476,18 @@ app.whenReady().then(async () => {
     } catch (error: any) {
       console.error('PDF export failed', error);
       feedback.recordCall(`pdf:${method}`, params, { ok: false, error: String(error?.message ?? error) });
+      return { success: false, error: error?.message || String(error) };
+    }
+  });
+  // A page the window built (the Timeline), printed the same way. Only the folder is
+  // recorded for feedback, never the page: it holds the backup's messages.
+  ipcMain.handle('export:pdf-html', async (_event: any, html: string, outputDir: string, baseName: string) => {
+    try {
+      const data = await exportHtmlToPdf(html, outputDir, baseName);
+      return { success: true, data };
+    } catch (error: any) {
+      console.error('PDF export failed', error);
+      feedback.recordCall('pdf:page', { output_dir: outputDir }, { ok: false, error: String(error?.message ?? error) });
       return { success: false, error: error?.message || String(error) };
     }
   });
