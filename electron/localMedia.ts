@@ -58,8 +58,13 @@ function extensionOf(file: string): string {
  * The real path of `candidate` when it is a file inside one of the engine's copy
  * folders in one of `tempDirs`, else null. `tempDirs` are the system's temp
  * folders (the engine's and Electron's agree, but each is checked).
+ *
+ * The paths are this computer's own (real paths from the file system), so they're
+ * compared by this computer's rules, whatever `platform` the caller passes for
+ * deciding what the computer can do: comparing Windows paths by macOS rules would
+ * refuse every one.
  */
-export function appCopyPath(candidate: unknown, tempDirs: string[], platform: string = process.platform): string | null {
+export function appCopyPath(candidate: unknown, tempDirs: string[], _platform: string = process.platform): string | null {
   if (typeof candidate !== 'string' || !candidate || candidate.includes('\0') || !path.isAbsolute(candidate)) return null;
   let real: string;
   try {
@@ -75,7 +80,7 @@ export function appCopyPath(candidate: unknown, tempDirs: string[], platform: st
     } catch {
       continue;
     }
-    if (!isInsideFolder(real, root, platform)) continue;
+    if (!isInsideFolder(real, root)) continue;
     const [top, ...below] = path.relative(root, real).split(path.sep);
     // A file in the folder (or below it), never the folder itself
     if (below.length > 0 && (APP_COPY_FOLDER.test(top) || DECRYPTED_FOLDER.test(top))) return real;

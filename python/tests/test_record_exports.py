@@ -138,7 +138,8 @@ class TestWriting(_TempDir):
                          ["call_history.html", "call_history (2).html", "call_history.txt"])
         self.assertEqual(_read(html_path), _read(print_path))  # no pictures: the printed page is the web page
         with open(txt_path, "rb") as f:
-            self.assertTrue(f.read().startswith(b"\xef\xbb\xbfT\n"))  # UTF-8 with its mark, as conversation saves
+            # UTF-8 with its mark, and this computer's line endings (CRLF on Windows), as conversation saves
+            self.assertTrue(f.read().startswith(b"\xef\xbb\xbfT" + os.linesep.encode()))
         with self.assertRaises(ValueError):
             rd.write_document(doc, self.out, "x", "pdf")
 
