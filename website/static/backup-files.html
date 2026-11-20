@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>iPhone backup files: what each hash is — OpenExtract</title>
+  <meta name="description" content="What the 40-character file names in an iPhone backup are: sms.db, AddressBook.sqlitedb, CallHistory.storedata and more, checked against real backups." />
+  <link rel="canonical" href="https://www.openextract.app/backup-files" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/backup-files" />
+  <meta property="og:title" content="iPhone backup files: what each hash is" />
+  <meta property="og:description" content="The 40-character file names in an iPhone backup, what each file is, and how the backup folder is laid out." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "The files in an iPhone backup",
+  "name": "iPhone backup files: what each hash is",
+  "description": "What the 40-character file names in an iPhone backup are: sms.db, AddressBook.sqlitedb, CallHistory.storedata and more, checked against real backups.",
+  "url": "https://www.openextract.app/backup-files",
+  "datePublished": "2026-11-19",
+  "dateModified": "2026-11-19",
+  "image": "https://www.openextract.app/img/og-image.png",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "OpenExtract",
+    "url": "https://www.openextract.app/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "OpenExtract",
+    "url": "https://www.openextract.app/",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://www.openextract.app/img/logo.png"
+    }
+  },
+  "about": {
+    "@type": "SoftwareApplication",
+    "name": "OpenExtract",
+    "applicationCategory": "UtilityApplication",
+    "applicationSubCategory": "DataExtraction",
+    "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+    "url": "https://www.openextract.app/",
+    "screenshot": "https://www.openextract.app/img/screens/home-2000.png",
+    "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+    "license": "https://opensource.org/licenses/MIT",
+    "isAccessibleForFree": true,
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+}
+  </script>
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.openextract.app/" },
+    { "@type": "ListItem", "position": 2, "name": "Backup files", "item": "https://www.openextract.app/backup-files" }
+  ]
+}
+  </script>
+  <!-- backup-files-data:start -->
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "iPhone backup files",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "3d0d7e5fb2ce288813306e4d4636395e047a3d28 is sms.db",
+      "url": "https://www.openextract.app/backup-files/sms-db"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "31bb7ba8914766d4ba40d6dfb6113c8b614be442 is AddressBook.sqlitedb",
+      "url": "https://www.openextract.app/backup-files/addressbook-sqlitedb"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "cd6702cea29fe89cf280a76794405adb17f9a0ee is AddressBookImages.sqlitedb",
+      "url": "https://www.openextract.app/backup-files/addressbookimages-sqlitedb"
+    },
+    {
+      "@type": "ListItem",
+      "position": 4,
+      "name": "5a4935c78a5255723f707230a451d79c540d2741 is CallHistory.storedata",
+      "url": "https://www.openextract.app/backup-files/callhistory-storedata"
+    },
+    {
+      "@type": "ListItem",
+      "position": 5,
+      "name": "992df473bbb9e132f4b3b6e4d33f72171e97bc7a is voicemail.db",
+      "url": "https://www.openextract.app/backup-files/voicemail-db"
+    },
+    {
+      "@type": "ListItem",
+      "position": 6,
+      "name": "4f98687d8ab0d6d1a371110e6b7300f6e465bef2 is NoteStore.sqlite",
+      "url": "https://www.openextract.app/backup-files/notestore-sqlite"
+    },
+    {
+      "@type": "ListItem",
+      "position": 7,
+      "name": "ca3bc056d4da0bbf88b5fb3be254f3b7147e639c is notes.sqlite",
+      "url": "https://www.openextract.app/backup-files/notes-sqlite"
+    },
+    {
+      "@type": "ListItem",
+      "position": 8,
+      "name": "12b144c0bd44f2b3dffd9186d3f9c05b917cee25 is Photos.sqlite",
+      "url": "https://www.openextract.app/backup-files/photos-sqlite"
+    },
+    {
+      "@type": "ListItem",
+      "position": 9,
+      "name": "1a0e7afc19d307da602ccdcece51af33afe92c53 is History.db",
+      "url": "https://www.openextract.app/backup-files/safari-history-db"
+    },
+    {
+      "@type": "ListItem",
+      "position": 10,
+      "name": "d1f062e2da26192a6625d968274bfda8d07821e4 is Bookmarks.db",
+      "url": "https://www.openextract.app/backup-files/safari-bookmarks-db"
+    },
+    {
+      "@type": "ListItem",
+      "position": 11,
+      "name": "2041457d5fe04d39d0ab481178355df6781e6858 is Calendar.sqlitedb",
+      "url": "https://www.openextract.app/backup-files/calendar-sqlitedb"
+    },
+    {
+      "@type": "ListItem",
+      "position": 12,
+      "name": "7c7fba66680ef796b916b067077cc246adacf01d is ChatStorage.sqlite",
+      "url": "https://www.openextract.app/backup-files/whatsapp-chatstorage-sqlite"
+    },
+    {
+      "@type": "ListItem",
+      "position": 13,
+      "name": "b8548dc30aa1030df0ce18ef08b882cf7ab5212f is ContactsV2.sqlite",
+      "url": "https://www.openextract.app/backup-files/whatsapp-contactsv2-sqlite"
+    },
+    {
+      "@type": "ListItem",
+      "position": 14,
+      "name": "e794f6ffcc3c222535f47684a63d5178da3c4500 is LID.sqlite",
+      "url": "https://www.openextract.app/backup-files/whatsapp-lid-sqlite"
+    },
+    {
+      "@type": "ListItem",
+      "position": 15,
+      "name": "be7e71b773c6d7d4114a8acf0529f623f3884bfb is group.net.whatsapp.WhatsApp.shared.plist",
+      "url": "https://www.openextract.app/backup-files/whatsapp-shared-plist"
+    },
+    {
+      "@type": "ListItem",
+      "position": 16,
+      "name": "398be25b8d2881e4a18865f018eb5d8e3c8fc962 is MTLibrary.sqlite",
+      "url": "https://www.openextract.app/backup-files/podcasts-mtlibrary-sqlite"
+    },
+    {
+      "@type": "ListItem",
+      "position": 17,
+      "name": "2e57c396a35b0d1bcbc624725002d98bd61d142b is browser.db",
+      "url": "https://www.openextract.app/backup-files/firefox-browser-db"
+    },
+    {
+      "@type": "ListItem",
+      "position": 18,
+      "name": "ab87b1b6904c441f3814d12748a1a32750a43496 is places.db",
+      "url": "https://www.openextract.app/backup-files/firefox-places-db"
+    },
+    {
+      "@type": "ListItem",
+      "position": 19,
+      "name": "516d7e19a4a0c9475c0015fae195626377b1b810 is healthdb_secure.sqlite",
+      "url": "https://www.openextract.app/backup-files/healthdb-secure-sqlite"
+    }
+  ]
+}
+  </script>
+  <!-- backup-files-data:end -->
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__pay" href="/support" aria-label="Pay it forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C1 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.2 4.4 2.5h2c.7-1.3 2.2-2.5 4.4-2.5 3.7 0 5.6 3.9 4.2 7.1C19.5 16.4 12 21 12 21z"/></svg><span class="nav__pay-label">Pay it forward</span></a>
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head ref-head">
+    <div class="page-head__eyebrow">Reference · checked against real backups</div>
+    <h1>The files in an <span class="it">iPhone backup</span></h1>
+    <p class="page-head__lede">An iPhone backup folder is full of folders named <code>00</code> to <code>ff</code>, holding files with 40-character names like <code>3d0d7e5fb2ce288813306e4d4636395e047a3d28</code>. Each name is the SHA-1 hash of where the file was on the phone. Find a name below to see what the file is, which iOS versions have it, and how to open it.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2 id="files">Look up a file</h2>
+      <p>The files people ask about most. The same file has the same name in every backup, from any iPhone, because the name comes from the file's place on the phone, not from what's in it.</p>
+      <!-- backup-files:start -->
+      <div class="matrix ref-scroll ref-lookup">
+        <table>
+          <thead>
+            <tr><th class="matrix__head--label">Hash</th><th class="matrix__head--plain">File</th><th class="matrix__head--plain">What it is</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/sms-db"><code>3d0d7e5fb2ce288813306e4d4636395e047a3d28</code></a></td>
+              <td class="matrix__cell"><code>sms.db</code><span class="matrix__sub">HomeDomain</span></td>
+              <td class="matrix__cell">The Messages database: every text and iMessage, who it was with, when, and which attachments go with it.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/addressbook-sqlitedb"><code>31bb7ba8914766d4ba40d6dfb6113c8b614be442</code></a></td>
+              <td class="matrix__cell"><code>AddressBook.sqlitedb</code><span class="matrix__sub">HomeDomain</span></td>
+              <td class="matrix__cell">The Contacts database: each contact's name, company, phone numbers, email addresses and notes.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/addressbookimages-sqlitedb"><code>cd6702cea29fe89cf280a76794405adb17f9a0ee</code></a></td>
+              <td class="matrix__cell"><code>AddressBookImages.sqlitedb</code><span class="matrix__sub">HomeDomain</span></td>
+              <td class="matrix__cell">Contact photos: the small and full-size pictures shown for people in Contacts.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/callhistory-storedata"><code>5a4935c78a5255723f707230a451d79c540d2741</code></a></td>
+              <td class="matrix__cell"><code>CallHistory.storedata</code><span class="matrix__sub">HomeDomain</span></td>
+              <td class="matrix__cell">Call history: who called or was called, when, for how long, and whether it was answered.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/voicemail-db"><code>992df473bbb9e132f4b3b6e4d33f72171e97bc7a</code></a></td>
+              <td class="matrix__cell"><code>voicemail.db</code><span class="matrix__sub">HomeDomain</span></td>
+              <td class="matrix__cell">Visual Voicemail: who left each voicemail, when, and how long it is. The audio is in separate files.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/notestore-sqlite"><code>4f98687d8ab0d6d1a371110e6b7300f6e465bef2</code></a></td>
+              <td class="matrix__cell"><code>NoteStore.sqlite</code><span class="matrix__sub">AppDomainGroup-group.com.apple.notes</span></td>
+              <td class="matrix__cell">The Notes database: notes, folders and accounts from the Notes app on current iOS versions.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/notes-sqlite"><code>ca3bc056d4da0bbf88b5fb3be254f3b7147e639c</code></a></td>
+              <td class="matrix__cell"><code>notes.sqlite</code><span class="matrix__sub">HomeDomain</span></td>
+              <td class="matrix__cell">The Notes database from iOS 8 and earlier. Newer phones still have the file, but keep notes in NoteStore.sqlite.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/photos-sqlite"><code>12b144c0bd44f2b3dffd9186d3f9c05b917cee25</code></a></td>
+              <td class="matrix__cell"><code>Photos.sqlite</code><span class="matrix__sub">CameraRollDomain</span></td>
+              <td class="matrix__cell">The Photos library database: each photo and video's file name, date, albums, and whether it's a favorite, hidden or deleted.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/safari-history-db"><code>1a0e7afc19d307da602ccdcece51af33afe92c53</code></a></td>
+              <td class="matrix__cell"><code>History.db</code><span class="matrix__sub">HomeDomain</span></td>
+              <td class="matrix__cell">Safari's browsing history: every page visited, its title, and the time of each visit.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/safari-bookmarks-db"><code>d1f062e2da26192a6625d968274bfda8d07821e4</code></a></td>
+              <td class="matrix__cell"><code>Bookmarks.db</code><span class="matrix__sub">HomeDomain</span></td>
+              <td class="matrix__cell">Safari's bookmarks and bookmark folders.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/calendar-sqlitedb"><code>2041457d5fe04d39d0ab481178355df6781e6858</code></a></td>
+              <td class="matrix__cell"><code>Calendar.sqlitedb</code><span class="matrix__sub">HomeDomain</span></td>
+              <td class="matrix__cell">The Calendar database: events, their times and places, and the calendars they belong to.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/whatsapp-chatstorage-sqlite"><code>7c7fba66680ef796b916b067077cc246adacf01d</code></a></td>
+              <td class="matrix__cell"><code>ChatStorage.sqlite</code><span class="matrix__sub">AppDomainGroup-group.net.whatsapp.WhatsApp.shared</span></td>
+              <td class="matrix__cell">WhatsApp's chats: every message, group and call on the phone, with pointers to its photos, videos and voice messages.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/whatsapp-contactsv2-sqlite"><code>b8548dc30aa1030df0ce18ef08b882cf7ab5212f</code></a></td>
+              <td class="matrix__cell"><code>ContactsV2.sqlite</code><span class="matrix__sub">AppDomainGroup-group.net.whatsapp.WhatsApp.shared</span></td>
+              <td class="matrix__cell">WhatsApp's copy of the address book, from older WhatsApp versions: names for the numbers in your chats.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/whatsapp-lid-sqlite"><code>e794f6ffcc3c222535f47684a63d5178da3c4500</code></a></td>
+              <td class="matrix__cell"><code>LID.sqlite</code><span class="matrix__sub">AppDomainGroup-group.net.whatsapp.WhatsApp.shared</span></td>
+              <td class="matrix__cell">WhatsApp's LIDs, the IDs newer WhatsApp versions use instead of phone numbers, matched to numbers and names.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/whatsapp-shared-plist"><code>be7e71b773c6d7d4114a8acf0529f623f3884bfb</code></a></td>
+              <td class="matrix__cell"><code>group.net.whatsapp.WhatsApp.shared.plist</code><span class="matrix__sub">AppDomainGroup-group.net.whatsapp.WhatsApp.shared</span></td>
+              <td class="matrix__cell">WhatsApp's shared settings, including the phone's own WhatsApp ID and profile name.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/podcasts-mtlibrary-sqlite"><code>398be25b8d2881e4a18865f018eb5d8e3c8fc962</code></a></td>
+              <td class="matrix__cell"><code>MTLibrary.sqlite</code><span class="matrix__sub">AppDomainGroup-243LU875E5.groups.com.apple.podcasts</span></td>
+              <td class="matrix__cell">The Apple Podcasts library: shows followed, their episodes, play counts and where you stopped listening.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/firefox-browser-db"><code>2e57c396a35b0d1bcbc624725002d98bd61d142b</code></a></td>
+              <td class="matrix__cell"><code>browser.db</code><span class="matrix__sub">AppDomainGroup-group.org.mozilla.ios.Firefox</span></td>
+              <td class="matrix__cell">Firefox for iOS's older history database: sites visited and when.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/firefox-places-db"><code>ab87b1b6904c441f3814d12748a1a32750a43496</code></a></td>
+              <td class="matrix__cell"><code>places.db</code><span class="matrix__sub">AppDomainGroup-group.org.mozilla.ios.Firefox</span></td>
+              <td class="matrix__cell">Firefox for iOS's history and bookmarks database in current versions.</td>
+            </tr>
+            <tr>
+              <td class="matrix__k"><a href="/backup-files/healthdb-secure-sqlite"><code>516d7e19a4a0c9475c0015fae195626377b1b810</code></a></td>
+              <td class="matrix__cell"><code>healthdb_secure.sqlite</code><span class="matrix__sub">HealthDomain</span></td>
+              <td class="matrix__cell">Apple Health's records: steps, heart rate, workouts, sleep and every other sample the Health app keeps.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- backup-files:end -->
+
+      <h2 id="layout">How a backup folder is laid out</h2>
+      <p>Each iPhone or iPad backed up on a computer gets one folder, named after the device's ID. On a Mac it's in <code>~/Library/Application Support/MobileSync/Backup</code>; on Windows, in <code>%USERPROFILE%\Apple\MobileSync\Backup</code>. See <a href="/use-cases/where-are-iphone-backups-stored">where iPhone backups are stored</a> for the details. Inside, it looks like this:</p>
+      <pre class="code-block"><code>&lt;device ID&gt;/
+├── Manifest.db
+├── Manifest.plist
+├── Info.plist
+├── Status.plist
+├── 00/
+├── 01/
+│   …
+├── 3d/
+│   └── 3d0d7e5fb2ce288813306e4d4636395e047a3d28   ← sms.db
+│   …
+└── ff/</code></pre>
+      <p>Every file from the phone is stored under its hash, in the folder named after the hash's first two characters, with no extension. So <code>sms.db</code> is <code>3d/3d0d7e5fb2ce288813306e4d4636395e047a3d28</code>. Backups from iOS 9 and earlier have no two-character folders: their files sit directly in the backup folder, and <code>Manifest.mbdb</code> lists them instead of <code>Manifest.db</code>.</p>
+      <p>A backup that's still being made, or that stopped partway, also has a <code>Snapshot</code> folder. The iPhone creates it at the start of every backup and removes it at the very end, so a finished backup made by Finder, iTunes or Apple Devices has none.</p>
+
+      <h2 id="top-files">The four files at the top</h2>
+      <p><strong><code>Manifest.db</code></strong> is the index: a SQLite database with a row for every file, folder and link in the backup. Its <code>Files</code> table has the <code>fileID</code> (the hash), the <code>domain</code> and <code>relativePath</code> it stands for, <code>flags</code> (1 for a file, 2 for a folder, 4 for a symbolic link) and <code>file</code>, a binary property list with the file's size, dates and permissions. In an encrypted backup, <code>file</code> also holds the key for that file. There's one more table, <code>Properties</code>.</p>
+      <p><strong><code>Manifest.plist</code></strong> says whether the backup is encrypted (<code>IsEncrypted</code>), when it was made (<code>Date</code>) and whether the phone had a passcode (<code>WasPasscodeSet</code>). It lists the apps (<code>Applications</code>), has the device's iOS version, build, name, serial number and ID under <code>Lockdown</code>, and holds the keybag (<code>BackupKeyBag</code>) that the password unlocks. Encrypted backups also have <code>ManifestKey</code>, the key to <code>Manifest.db</code>.</p>
+      <p><strong><code>Info.plist</code></strong> describes the device for Finder, iTunes and Apple Devices: <code>Device Name</code>, <code>Product Type</code> (the model, such as <code>iPhone12,1</code>), <code>Product Version</code> (iOS), <code>Serial Number</code>, <code>IMEI</code>, <code>Phone Number</code>, <code>Last Backup Date</code>, the installed apps, and which program and computer made the backup. It's never encrypted, so it's readable even when the rest of the backup isn't.</p>
+      <p><strong><code>Status.plist</code></strong> records the backup's state: <code>SnapshotState</code> (<code>finished</code> once the iPhone has completed it), <code>IsFullBackup</code>, <code>Date</code>, <code>UUID</code> and <code>Version</code>.</p>
+
+      <h2 id="hash">How a file gets its name</h2>
+      <p>The name is the SHA-1 hash of the file's domain and its path within that domain, joined by a hyphen. <code>sms.db</code> is in <code>HomeDomain</code> at <code>Library/SMS/sms.db</code>, so its name is the SHA-1 of <code>HomeDomain-Library/SMS/sms.db</code>. You can work one out yourself in a terminal on a Mac or Linux:</p>
+      <pre class="code-block"><code>printf '%s' 'HomeDomain-Library/SMS/sms.db' | shasum
+3d0d7e5fb2ce288813306e4d4636395e047a3d28  -</code></pre>
+      <p>To go the other way, look the hash up in <code>Manifest.db</code>, which is plain SQLite in a backup that isn't encrypted:</p>
+      <pre class="code-block"><code>SELECT domain, relativePath FROM Files
+WHERE fileID = '3d0d7e5fb2ce288813306e4d4636395e047a3d28';</code></pre>
+      <p>We checked the rule on all 58,071 entries in the file lists of six real backups, iOS 13.3.1 to 17.3: every name is the SHA-1 of its domain and path. An entry for a domain's top folder has an empty path, so its name is the hash of the domain and a hyphen.</p>
+      <p>The domain says which part of the phone a file belongs to. The ones on these pages:</p>
+      <ul>
+        <li><strong><code>HomeDomain</code></strong>: data of Apple's own apps, such as Messages, Contacts, Phone (calls and voicemail), Calendar and Safari.</li>
+        <li><strong><code>CameraRollDomain</code></strong>: the photo library, both <code>Photos.sqlite</code> and the photos and videos under <code>Media/DCIM/</code>.</li>
+        <li><strong><code>MediaDomain</code></strong>: among other things, the photos and files sent in Messages, under <code>Library/SMS/Attachments/</code>.</li>
+        <li><strong><code>AppDomain-</code></strong> followed by an app's ID: that app's own files. <strong><code>AppDomainGroup-</code></strong> followed by a group ID: files an app shares with its extensions, which is where Notes, Podcasts, WhatsApp and Firefox keep their databases.</li>
+        <li><strong><code>HealthDomain</code></strong>: Apple Health. <strong><code>KeychainDomain</code></strong>: the keychain. <strong><code>SystemPreferencesDomain</code></strong>: system settings, such as Wi-Fi.</li>
+      </ul>
+
+      <h2 id="encrypted">Encrypted backups</h2>
+      <p>An encrypted backup has the same folders and the same file names, but every file's contents are encrypted with a key of its own, and <code>Manifest.db</code> is encrypted too. The keys are in <code>Manifest.plist</code>, locked by the backup password, so nothing in the backup can be read without it. A tool that knows the password, such as OpenExtract, decrypts each file when it needs it.</p>
+      <p>Encrypted backups also hold more. <a href="https://support.apple.com/en-us/108353">Apple lists five kinds of data</a> that only an encrypted backup can include: saved passwords, Wi-Fi settings, website history, Health data and call history. That's why <a href="/backup-files/callhistory-storedata">CallHistory.storedata</a>, Safari's <a href="/backup-files/safari-history-db">History.db</a> and <a href="/backup-files/healthdb-secure-sqlite">healthdb_secure.sqlite</a> are marked as needing an encrypted backup. For the rest, see <a href="/blog/encrypted-backups-are-better">why encrypted backups are better</a>.</p>
+
+      <h2 id="method">How we checked</h2>
+      <p>Every file on these pages was found in real backups: public forensic test images made by Joshua Hickman on iPhones running <a href="https://thebinaryhick.blog/2020/04/16/ios-13-images-images-now-available/">iOS 13.3.1 and 13.4.1</a>, <a href="https://thebinaryhick.blog/2023/05/24/ios-15-image-now-available-finally/">iOS 15.3.1</a>, and <a href="https://thebinaryhick.blog/2024/09/14/triple-trouble-ios-16-android-14-and-ios-17-images-now-available/">iOS 16.1.2 and 17.3</a>, and the file list of an iOS 16.0 backup from ANSSI's <a href="https://hackropole.fr/en/challenges/forensics/fcsc2025-forensics-iforensics-1/">FCSC 2025</a> challenge. All of them are encrypted. Hickman's were opened with the passwords he published; the FCSC backup's password isn't public, so only its list of files was checked.</p>
+      <p>The check reads each database's table and column names and nothing else: no messages, names, numbers or other contents. It uses <a href="https://github.com/charleswest775/ios-backup-core">ios-backup-core</a>, the open-source library inside OpenExtract, and the script is <a href="https://github.com/charleswest775/openextract/blob/main/scripts/verify-backup-files.py">scripts/verify-backup-files.py</a>. A version we haven't checked can differ. If you find a file that's different, or one you'd like listed, <a href="https://github.com/charleswest775/openextract/issues">open an issue on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Read the backup, not the hashes.</div>
+        <div class="cta-strip__sub">OpenExtract opens these files for you. Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/support">Pay it forward</a></li>
+        <li><a href="/what-people-say">What people say</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
