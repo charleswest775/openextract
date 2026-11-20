@@ -69,7 +69,7 @@ td.long { word-break: break-all; color: #555; }
 .empty { font-size: 13px; color: #888; font-style: italic; }
 @media print {
   body { background: #fff; max-width: none; padding: 0; }
-  table { border: 1px solid #e5e5e5; }
+  table { border: 1px solid #e5e5e5; border-radius: 0; overflow: visible; }
   thead { display: table-header-group; }
   tr { break-inside: avoid; }
   h2, .meta { break-after: avoid; }
