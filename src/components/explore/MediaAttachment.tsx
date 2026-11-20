@@ -10,7 +10,7 @@ import {
   attachmentKind, documentName, durationText, fileTypeLabel, fitBox, formatBytes, handOver, kindLabel, missingText,
   playsInApp, splitExtension, type AttachmentKind, type MediaSource,
 } from '../../lib/whatsapp';
-import { useNearScreen } from '../../hooks/useNearScreen';
+import { useInView } from '../../hooks/useNearScreen';
 import type { AttachmentResult } from '../../types/whatsapp';
 import type { AttachmentProps, MapPreviewProps } from './ChatBubble';
 
@@ -22,12 +22,13 @@ import type { AttachmentProps, MapPreviewProps } from './ChatBubble';
  * other one is somebody else's file, so every cache below is keyed by source.
  *
  * The engine answers one call at a time, so a page of 200 messages mustn't ask
- * for 200 full-size photos at once: pictures load small when they scroll near
- * the screen (WhatsApp's own thumbnails, or one the engine makes from a
- * Messages photo), full size only in the viewer, sound only when Play is
- * pressed, and a video's poster frame, when there's no stored one, one at a
- * time. Each picture's space is set before it loads, so the chat doesn't move
- * as they arrive.
+ * for 200 full-size photos at once: pictures load small (WhatsApp's own
+ * thumbnails, or one the engine makes from a Messages photo), only while
+ * they're on or near the screen and two at a time; full size only in the
+ * viewer, sound only when Play is pressed, and a video's poster frame, when
+ * there's no stored one, one at a time and only for smaller videos. Each
+ * picture's space is set before it loads, so the chat doesn't move as they
+ * arrive.
  *
  * Videos play in the app, from a copy the engine makes (as_file), through the
  * local-media:// protocol (electron/localMedia.ts); one that can't play here
@@ -62,8 +63,9 @@ const THUMB_CACHE = 400;
 const FULL_CACHE = 12;
 const POSTER_CACHE = 200;
 
-// A video is copied out of the backup to make its poster only up to this size (or when its size isn't known)
-const POSTER_MAX_BYTES = 150 * 1024 * 1024;
+// A video is copied out of the backup to make its poster only when its size is known and at most
+// this (a bigger copy takes too long and fills the temporary folder); others show a plain play tile
+const POSTER_MAX_BYTES = 50 * 1024 * 1024;
 const POSTER_PX = 480;
 const TILE = 72;
 // A picture whose shape isn't known yet is drawn in a box this size, cropped to fit
@@ -76,6 +78,8 @@ function remember<V>(cache: Map<string, V>, max: number, key: string, value: V) 
 }
 
 const fileKey = (source: MediaSource, udid: string, attachmentId: number) => `${source}:${udid}:${attachmentId}`;
+const pictureKey = (source: MediaSource, udid: string, attachmentId: number, thumbnail: boolean) =>
+  `${fileKey(source, udid, attachmentId)}:${thumbnail ? 'thumb' : 'full'}`;
 
 function ask(source: MediaSource, udid: string, attachmentId: number, opts: { thumbnail?: boolean; as_file?: boolean } = {}) {
   return sidecarCall<AttachmentResult>(METHOD[source], { udid, attachment_id: attachmentId, ...opts });
@@ -97,7 +101,7 @@ function readResult(r: AttachmentResult | null | undefined): Loaded {
 
 /** A picture as a data: URL, read once and kept. Errors aren't kept, so a later look tries again. */
 function loadPicture(source: MediaSource, udid: string, attachmentId: number, thumbnail: boolean): Promise<Loaded> {
-  const key = `${fileKey(source, udid, attachmentId)}:${thumbnail ? 'thumb' : 'full'}`;
+  const key = pictureKey(source, udid, attachmentId, thumbnail);
   const cache = thumbnail ? thumbs : fulls;
   const known = cache.get(key);
   if (known) return Promise.resolve(known);
@@ -127,13 +131,122 @@ function startsSmall(source: MediaSource, attachment: AttachmentProps['attachmen
   return kind === 'image';
 }
 
+/**
+ * No thumbnail after all (WhatsApp's stored one is gone, or Messages couldn't
+ * make one): the picture itself is tried instead, if it's small enough.
+ */
+function wantsWhole(source: MediaSource, l: Loaded): boolean {
+  return 'noThumbnail' in l || 'error' in l || (source === 'whatsapp' && 'missing' in l);
+}
+
+/** The picture a tile shows, when it has already been read: shown at once, with no wait. */
+function keptPicture(source: MediaSource, udid: string, attachmentId: number, small: boolean): Loaded | null {
+  if (small) {
+    const t = thumbs.get(pictureKey(source, udid, attachmentId, true));
+    if (!t) return null;
+    if (!wantsWhole(source, t)) return t;
+  }
+  return fulls.get(pictureKey(source, udid, attachmentId, false)) ?? null;
+}
+
+// ── Pictures, two at a time ──────────────────────────────────────────────────
+// Making a thumbnail of an iPhone photo (HEIC) keeps the engine busy for up to a second
+// or so, and it answers one call at a time. If every picture asked as soon as it came
+// near the screen, a quick flick down a chat, or a few clicks from one person to the
+// next, would line up minutes of thumbnails ahead of whatever is clicked next.
+//
+// So the pictures in chats and on cards wait their turn in a line here, and only two at
+// a time are with the engine. A picture leaves the line as soon as no tile is waiting
+// for it any more (its tile scrolled out of the look-ahead, or went away because another
+// chat or person was opened), so the line only ever holds what's on or near the screen;
+// a tile that comes back joins the end of the line again. Pictures already read show at
+// once, without waiting, and a photo opened full size (someone clicked it) doesn't
+// queue at all: it goes straight to the engine, behind only what's already with it.
+
+const PICTURES_AT_ONCE = 2;
+
+type PictureJob = {
+  /** How many tiles are waiting for this picture (two tiles can show the same file). */
+  waiting: number;
+  load: () => Promise<Loaded>;
+  /** Hands the tiles the picture, or undefined when it left the line unsent. */
+  finish: (l: Loaded | undefined) => void;
+  result: Promise<Loaded | undefined>;
+};
+
+// Pictures waiting their turn, oldest first, by the same keys as the caches
+const pictureLine = new Map<string, PictureJob>();
+let picturesSent = 0;
+
+type Turn = {
+  /** The picture, or undefined when it left the line before it was sent. */
+  result: Promise<Loaded | undefined>;
+  /** This tile isn't waiting any more (scrolled away, or gone). */
+  withdraw: () => void;
+};
+
+/** A picture for a tile: from the caches straight away, or else in its turn. */
+function pictureTurn(source: MediaSource, udid: string, attachmentId: number, thumbnail: boolean): Turn {
+  const key = pictureKey(source, udid, attachmentId, thumbnail);
+  const known = (thumbnail ? thumbs : fulls).get(key);
+  if (known) return { result: Promise.resolve(known), withdraw: () => {} };
+  const sent = inFlight.get(key);
+  if (sent) return { result: sent, withdraw: () => {} };
+  let job = pictureLine.get(key);
+  if (!job) {
+    let finish: (l: Loaded | undefined) => void = () => {};
+    const result = new Promise<Loaded | undefined>(resolve => { finish = resolve; });
+    job = { waiting: 0, load: () => loadPicture(source, udid, attachmentId, thumbnail), finish, result };
+    pictureLine.set(key, job);
+  }
+  const mine = job;
+  mine.waiting++;
+  let withdrawn = false;
+  sendPictures();
+  return {
+    result: mine.result,
+    withdraw: () => {
+      if (withdrawn) return;
+      withdrawn = true;
+      mine.waiting--;
+      // Nobody waiting for it now: out of the line unsent (one already sent just finishes, and is kept)
+      if (mine.waiting <= 0 && pictureLine.get(key) === mine) {
+        pictureLine.delete(key);
+        mine.finish(undefined);
+      }
+    },
+  };
+}
+
+/** Sends the next pictures in the line while fewer than two are with the engine. */
+function sendPictures() {
+  while (picturesSent < PICTURES_AT_ONCE) {
+    const next = pictureLine.entries().next();
+    if (next.done) return;
+    const [key, job] = next.value;
+    pictureLine.delete(key);
+    picturesSent++;
+    job.load()
+      .catch((e: unknown): Loaded => ({ error: message(e) }))
+      .then(job.finish)
+      .finally(() => {
+        picturesSent--;
+        sendPictures();
+      });
+  }
+}
+
 // ── Video posters, one copy at a time ────────────────────────────────────────
-// Making a poster copies the video out of the backup first, which keeps the engine busy.
-// They're made one after another, and only for tiles still on screen when their turn
-// comes, so a chat full of videos doesn't queue a copy of each ahead of what's clicked.
+// Making a poster copies the video out of the backup first, which keeps the engine busy
+// and fills the temporary folder. So it's only done for videos whose size is known and
+// small enough (POSTER_MAX_BYTES), one after another, and only for tiles still on or near
+// the screen when their turn comes: a tile scrolled past stops waiting for its poster, so
+// scrolling down a stream of clips doesn't copy each one of them. A poster once made is
+// kept, so scrolling back up doesn't copy the video again.
 
 let posterLine: Promise<unknown> = Promise.resolve();
 const posterPending = new Map<string, Promise<string | null | undefined>>();
+// How many tiles on or near the screen are waiting for each poster right now
 const posterWanted = new Map<string, number>();
 
 /** Whether this computer can make a poster from a copy (macOS and Windows; not Linux). */
@@ -149,20 +262,35 @@ function makePoster(source: MediaSource, udid: string, attachmentId: number): Pr
   const pending = posterPending.get(key);
   if (pending) return pending;
   const p = posterLine.then(async () => {
-    if (!posterWanted.get(key)) return undefined;
-    let url: string | null = null;
     try {
-      const r = await ask(source, udid, attachmentId, { as_file: true });
-      if (r?.path) url = (await window.openextract.mediaThumbnail(r.path, POSTER_PX)) || null;
-    } catch {
-      url = null; // no poster: the plain play tile
+      // Asked again right before copying: no tile on or near the screen wants it now, no copy
+      if (!posterWanted.get(key)) return undefined;
+      let url: string | null = null;
+      try {
+        const r = await ask(source, udid, attachmentId, { as_file: true });
+        if (r?.path) url = (await window.openextract.mediaThumbnail(r.path, POSTER_PX)) || null;
+      } catch {
+        url = null; // no poster: the plain play tile
+      }
+      remember(posters, POSTER_CACHE, key, url);
+      return url;
+    } finally {
+      // Out of the line the moment it's done, so a tile that comes back later asks afresh
+      posterPending.delete(key);
     }
-    remember(posters, POSTER_CACHE, key, url);
-    return url;
-  }).finally(() => posterPending.delete(key));
+  });
   posterLine = p.catch(() => undefined);
   posterPending.set(key, p);
   return p;
+}
+
+/** A poster already made for this tile (or WhatsApp's stored thumbnail, already read): shown at once. */
+function keptPoster(source: MediaSource, udid: string, attachmentId: number, stored: boolean): string | null {
+  if (stored) {
+    const t = thumbs.get(pictureKey(source, udid, attachmentId, true));
+    return t && 'url' in t ? t.url : null;
+  }
+  return posters.get(fileKey(source, udid, attachmentId)) ?? null;
 }
 
 /** Copy the file out of the backup and hand it to the computer (another app, or its folder). */
@@ -367,7 +495,7 @@ export function Viewer({ source = 'whatsapp', udid, attachment, label, onClose }
   // The thumbnail already on screen stands in while the full photo loads
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [placeholder] = useState(() => {
-    const t = thumbs.get(`${fileKey(source, udid, attachment.attachment_id)}:thumb`);
+    const t = thumbs.get(pictureKey(source, udid, attachment.attachment_id, true));
     return t && 'url' in t ? t.url : null;
   });
   const opener = useOpener(udid, attachment.attachment_id, source);
@@ -468,8 +596,9 @@ function Picture({ source, udid, attachment, kind, onColour, tile }: {
   source: MediaSource; udid: string; attachment: AttachmentProps['attachment']; kind: 'image' | 'sticker'; onColour: boolean; tile: boolean;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
-  const near = useNearScreen(ref);
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const inView = useInView(ref);
+  const small = startsSmall(source, attachment, kind);
+  const [loaded, setLoaded] = useState<Loaded | null>(() => keptPicture(source, udid, attachment.attachment_id, small));
   const [viewing, setViewing] = useState(false);
   const opener = useOpener(udid, attachment.attachment_id, source);
   const sticker = kind === 'sticker';
@@ -481,22 +610,28 @@ function Picture({ source, udid, attachment, kind, onColour, tile }: {
       ?? fitShape(shapes.get(fileKey(source, udid, attachment.attachment_id)))
       ?? UNKNOWN_SHAPE);
   const label = documentName(attachment) || kindLabel(kind);
-  const small = startsSmall(source, attachment, kind);
+  const settled = loaded != null;
 
+  // Asked for in its turn while the tile is on or near the screen; scrolled away (or gone)
+  // before then, it leaves the line, and comes back into it if the tile does
   useEffect(() => {
-    if (!near) return;
+    if (!inView || settled) return;
     let live = true;
+    let turn = pictureTurn(source, udid, attachment.attachment_id, small);
     (async () => {
-      let l = await loadPicture(source, udid, attachment.attachment_id, small);
-      // No thumbnail after all (WhatsApp's stored one is gone, or Messages couldn't make one):
-      // the picture itself, if it's small enough
-      if (small && ('noThumbnail' in l || 'error' in l || (source === 'whatsapp' && 'missing' in l))) {
-        l = await loadPicture(source, udid, attachment.attachment_id, false);
+      let l = await turn.result;
+      // No thumbnail after all: the picture itself, in a turn of its own
+      if (live && l && small && wantsWhole(source, l)) {
+        turn = pictureTurn(source, udid, attachment.attachment_id, false);
+        l = await turn.result;
       }
-      if (live) setLoaded(l);
+      if (live && l) setLoaded(l);
     })();
-    return () => { live = false; };
-  }, [near, source, udid, attachment.attachment_id, small]);
+    return () => {
+      live = false;
+      turn.withdraw();
+    };
+  }, [inView, settled, source, udid, attachment.attachment_id, small]);
 
   if (loaded && 'missing' in loaded) return <Missing kind={kind} attachment={attachment} onColour={onColour} tile={tile} />;
 
@@ -547,26 +682,33 @@ function VideoTile({ source, udid, attachment, kind, onColour, tile }: {
   source: MediaSource; udid: string; attachment: AttachmentProps['attachment']; kind: 'video' | 'gif'; onColour: boolean; tile: boolean;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
-  const near = useNearScreen(ref);
-  const [poster, setPoster] = useState<string | null>(null);
+  const inView = useInView(ref);
+  const stored = source === 'whatsapp' && !!attachment.thumbnail_path;
+  const [poster, setPoster] = useState<string | null>(() => keptPoster(source, udid, attachment.attachment_id, stored));
   const [viewing, setViewing] = useState(false);
   const label = kindLabel(kind);
   const length = attachment.duration ? durationText(attachment.duration) : '';
-  const stored = source === 'whatsapp' && !!attachment.thumbnail_path;
   const size = attachment.total_bytes;
-  const fromCopy = !stored && (size == null || size <= POSTER_MAX_BYTES) && canMakePosters();
+  // Never for a video of unknown size: it could be any length, and the whole of it is copied
+  const fromCopy = !stored && typeof size === 'number' && size > 0 && size <= POSTER_MAX_BYTES && canMakePosters();
+  const hasPoster = poster != null;
 
-  // WhatsApp's own stored thumbnail
+  // WhatsApp's own stored thumbnail, in its turn with the other pictures
   useEffect(() => {
-    if (!near || !stored) return;
+    if (!inView || !stored || hasPoster) return;
     let live = true;
-    loadPicture(source, udid, attachment.attachment_id, true).then(l => { if (live && 'url' in l) setPoster(l.url); });
-    return () => { live = false; };
-  }, [near, stored, source, udid, attachment.attachment_id]);
+    const turn = pictureTurn(source, udid, attachment.attachment_id, true);
+    turn.result.then(l => { if (live && l && 'url' in l) setPoster(l.url); });
+    return () => {
+      live = false;
+      turn.withdraw();
+    };
+  }, [inView, stored, hasPoster, source, udid, attachment.attachment_id]);
 
-  // Otherwise a frame of the video itself, from a copy (macOS and Windows)
+  // Otherwise a frame of the video itself, from a copy (macOS and Windows), wanted only while
+  // the tile is on or near the screen: scrolled past before its turn, the video isn't copied
   useEffect(() => {
-    if (!near || !fromCopy) return;
+    if (!inView || !fromCopy || hasPoster) return;
     const key = fileKey(source, udid, attachment.attachment_id);
     posterWanted.set(key, (posterWanted.get(key) ?? 0) + 1);
     let live = true;
@@ -577,7 +719,7 @@ function VideoTile({ source, udid, attachment, kind, onColour, tile }: {
       if (left > 0) posterWanted.set(key, left);
       else posterWanted.delete(key);
     };
-  }, [near, fromCopy, source, udid, attachment.attachment_id]);
+  }, [inView, fromCopy, hasPoster, source, udid, attachment.attachment_id]);
 
   return (
     <>
@@ -830,20 +972,29 @@ export function WhatsAppAttachment(props: AttachmentProps) {
 /** The small map WhatsApp saved with a shared location. Nothing is fetched from the internet. */
 export function WhatsAppMapPreview({ udid, location }: MapPreviewProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const near = useNearScreen(ref);
-  const [url, setUrl] = useState<string | null>(null);
+  const inView = useInView(ref);
+  const [url, setUrl] = useState<string | null>(() => {
+    const kept = location.attachment_id == null ? undefined : thumbs.get(pictureKey('whatsapp', udid, location.attachment_id, true));
+    return kept && 'url' in kept ? kept.url : null;
+  });
   const [gone, setGone] = useState(false);
+  const settled = url != null || gone;
 
+  // In its turn with the other pictures, while it's on or near the screen
   useEffect(() => {
-    if (!near || location.attachment_id == null) return;
+    if (!inView || settled || location.attachment_id == null) return;
     let live = true;
-    loadPicture('whatsapp', udid, location.attachment_id, true).then(l => {
-      if (!live) return;
+    const turn = pictureTurn('whatsapp', udid, location.attachment_id, true);
+    turn.result.then(l => {
+      if (!live || !l) return;
       if ('url' in l) setUrl(l.url);
       else setGone(true);
     });
-    return () => { live = false; };
-  }, [near, udid, location.attachment_id]);
+    return () => {
+      live = false;
+      turn.withdraw();
+    };
+  }, [inView, settled, udid, location.attachment_id]);
 
   if (gone) return null;
   return (
