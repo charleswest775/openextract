@@ -190,16 +190,16 @@ const KNOWN_FIXES = [
     title: 'Searching for the iPhone stopped after 5 minutes',
     area: 'backup',
     seen: ['Sidecar call timed out: backup.list_devices'],
+    fixedIn: '0.18.0',
     // python/device_backup.py list_devices() up to 0.17.0 waited for each iPhone with no limit of
     // its own, so one that never answered held the search until the app's 5-minute default, and
-    // everything else the app asked for waited behind it (OE-37, OE-8, OE-31). The next version
+    // everything else the app asked for waited behind it (OE-37, OE-8, OE-31). 0.18.0
     // gives each step a limit, lists a silent iPhone as not answering, and gives the search 90
     // seconds (electron/main.ts); after that the app says so in plain words, and this text, about
-    // waiting 5 minutes, doesn't fit: hence `when`. At its release, set fixedIn and say "update to
-    // X.Y.Z" (RELEASING.md).
+    // waiting 5 minutes, doesn't fit: hence `when`.
     match: /Sidecar call timed out: backup\.list_devices/,
     when: /App: OpenExtract 0\.(?:\d|1[0-6])\.\d+\b|App: OpenExtract 0\.17\.0\b/,
-    text: "An iPhone, or Apple's software that talks to it, didn't answer when OpenExtract searched, and OpenExtract waited 5 minutes for it. Quit OpenExtract and open it again: until you do, it keeps waiting. Then unplug the iPhone, unlock it, plug it straight into the computer (not through a hub), tap Trust if it asks, and click Refresh. If it still isn't found, restart the iPhone, and on Windows restart the PC too, which restarts Apple Devices. The next version of OpenExtract stops waiting after a few seconds and says which iPhone isn't answering.",
+    text: "An iPhone, or Apple's software that talks to it, didn't answer when OpenExtract searched, and OpenExtract waited 5 minutes for it. Quit OpenExtract and open it again: until you do, it keeps waiting. Then unplug the iPhone, unlock it, plug it straight into the computer (not through a hub), tap Trust if it asks, and click Refresh. If it still isn't found, restart the iPhone, and on Windows restart the PC too, which restarts Apple Devices. OpenExtract 0.18.0 fixes the wait: install the latest version from openextract.app, and it stops waiting after a few seconds and says which iPhone isn't answering.",
   },
   {
     id: 'windows-apple-devices',
