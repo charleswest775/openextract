@@ -83,7 +83,9 @@ describe('appCopyPath: only the engine\'s copies', () => {
       path.join(t.folder, 'udid-1', '7', '..', '..', '..', '..', path.basename(path.dirname(t.outside)), 'Secret.mov')]) {
       assert.equal(appCopyPath(file, [t.temp]), null, file);
     }
-    for (const bad of ['', null, undefined, 42, {}, ['x'], 'IMG_0007.MOV', path.relative(process.cwd(), t.messages), `${t.messages}\0.png`]) {
+    // A relative path from the temp folder: always relative (from the working folder it isn't when
+    // the two are on different drives, as on GitHub's Windows runners, D: and C:)
+    for (const bad of ['', null, undefined, 42, {}, ['x'], 'IMG_0007.MOV', path.relative(t.temp, t.messages), `${t.messages}\0.png`]) {
       assert.equal(appCopyPath(bad, [t.temp]), null, String(bad));
     }
     assert.equal(appCopyPath(t.messages, []), null, 'no temp folder, nothing allowed');

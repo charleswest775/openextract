@@ -424,7 +424,8 @@ describe('media in the window', () => {
       const url = await asPlatform(platform, () => m.invoke('media:thumbnail', video, 480));
       assert.equal(url, `data:image/jpeg;base64,${Buffer.from('jpeg 80').toString('base64')}`, platform);
     }
-    assert.deepEqual(nativeImage.asked, [[fs.realpathSync(video), { width: 480, height: 480 }], [fs.realpathSync(video), { width: 480, height: 480 }]]);
+    // The real path as the system gives it (Windows' long names, not RUNNER~1-style short ones)
+    assert.deepEqual(nativeImage.asked, [[fs.realpathSync.native(video), { width: 480, height: 480 }], [fs.realpathSync.native(video), { width: 480, height: 480 }]]);
 
     // Linux has no previewer; nothing outside the copy folders, nor anything that isn't a path
     await asPlatform('linux', async () => assert.equal(await m.invoke('media:thumbnail', video, 480), null));
