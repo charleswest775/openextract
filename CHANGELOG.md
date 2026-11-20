@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Saving a conversation or WhatsApp chat as a PDF: one too big for a single sensible PDF is now saved as one PDF per year, and the notice says why, for example "One PDF of it all would be about 1 GB and 6,300 pages, so it's split by year: 2020, 2021, 2022, 2023 and 2024–2026". A PDF holds its photos whole, so a long, busy chat used to make one file of a gigabyte or more that was hard to open, share or print. Everything still goes in one file when it fits (up to about 1,000 photos or 2,000 pages), however many years it covers. Once a chat is split, quiet years share a file, and a year too big on its own is split into runs of months. Each part is saved on its own, so if something goes wrong late in a long save, the PDFs already saved stay, and the error says how many there are
+
 ## [0.18.0] - 2026-11-19
 
 Voicemail transcripts now show, under each voicemail and in search. Back up my iPhone no longer hangs for up to 5 minutes when a connected iPhone doesn't answer, and on Windows a backup the iPhone has finished no longer fails at the very last step. Videos in a backup that isn't encrypted open in your video player. Saved call history, web history, notes and voicemail lists show times in your own time zone instead of UTC, a backup whose folder is missing files now says so, and when WhatsApp's chats aren't in a backup, the app says why. New and experimental: Export a data bundle saves messages, calls, voicemail, contacts and photo details in one documented folder that other tools can read.

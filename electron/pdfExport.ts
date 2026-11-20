@@ -7,6 +7,11 @@
  * print it to PDF with Chromium, write the PDF to the folder the user chose,
  * and delete the temporary folder. No new dependencies, and nothing leaves
  * the computer: the hidden window may only read files inside that folder.
+ *
+ * A PDF holds its photos whole, so a long chat's can be gigabytes. The engine
+ * plans the save first (plan_pdf_parts, python/pdf_parts.py): a chat too big
+ * for one sensible file is split by year, and each part is saved here as its
+ * own engine call, folder and PDF. The result says what was split and why.
  */
 const { app, BrowserWindow, session } = require('electron');
 const path = require('path');
@@ -19,9 +24,23 @@ type Sidecar = { call: (method: string, params: any, timeoutMs?: number) => Prom
 // with their images in attachments/ (format: 'pdf_source').
 export type PdfExportMethod = 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats';
 
+/** A conversation whose PDF was split by year, for telling the person why. */
+export interface PdfSplit {
+  /** Whose PDF: the conversation's name, or null for everything saved into one file ("merged"). */
+  name: string | null;
+  /** The parts, in order: "2023", "2019–2021", "Jan–Jun 2024". */
+  labels: string[];
+  messages: number;
+  images: number;
+  /** About how big one PDF of all of it would have been. */
+  estimate: { pages: number; megabytes: number };
+}
+
 export interface PdfExportResult {
   files: string[];
   message_count: number;
+  /** Conversations split into several PDFs; empty when every PDF fit in one file. */
+  splits: PdfSplit[];
 }
 
 const STAGING_PREFIX = 'openextract-pdf-';
@@ -30,8 +49,18 @@ const ALLOWED_METHODS = new Set<PdfExportMethod>([
   'export_conversation', 'export_conversations', 'export_whatsapp_chat', 'export_whatsapp_chats',
 ]);
 
-// Copying and converting every image in a long thread can take a while.
+// Copying and converting every image in a long thread can take a while. A save
+// split by year has this long for each part.
 const SIDECAR_TIMEOUT_MS = 60 * 60 * 1000;
+
+// Planning reads every message once, but converts nothing.
+const PLAN_TIMEOUT_MS = 30 * 60 * 1000;
+
+// "Save all" methods, and the one-chat method each split conversation is saved with.
+const ONE_CHAT_METHOD: Partial<Record<PdfExportMethod, PdfExportMethod>> = {
+  export_conversations: 'export_conversation',
+  export_whatsapp_chats: 'export_whatsapp_chat',
+};
 
 // In-memory session (no "persist:" prefix), separate from the app's own.
 const PDF_PARTITION = 'openextract-pdf-export';
@@ -183,25 +212,89 @@ export function removeStaleStagingDirs(maxAgeMs = 60 * 60 * 1000): void {
   }
 }
 
+/** One engine call of a PDF save, and the PDFs it makes. */
+interface PdfJob {
+  method: PdfExportMethod;
+  params: any;
+}
+
+interface PlanGroup {
+  chat_ids: number[];
+  split: boolean;
+  messages: number;
+  images: number;
+  estimate: { pages: number; megabytes: number };
+  parts: Array<{ label: string | null } & Record<string, unknown>>;
+}
+
 /**
- * Run a conversation export as PDF. `params` are the same as for the HTML
- * export; `params.output_dir` is where the PDFs go.
+ * Ask the engine how this save should be split, and turn that into engine calls.
+ * Nothing to split (or a plan that couldn't be made) is the one call asked for.
  */
-export async function exportMessagesPdf(
+async function planJobs(
   sidecar: Sidecar,
   method: PdfExportMethod,
   params: any,
-): Promise<PdfExportResult> {
-  if (!ALLOWED_METHODS.has(method)) throw new Error(`PDF export is not available for ${method}`);
-  const outputDir = params?.output_dir;
-  if (!outputDir || !fs.existsSync(outputDir)) throw new Error('Choose a folder to save the PDF in.');
+): Promise<{ jobs: PdfJob[]; splits: PdfSplit[] }> {
+  const asked = { jobs: [{ method, params }], splits: [] };
+  const oneMethod = ONE_CHAT_METHOD[method];
+  const merged = !!oneMethod && params.mode === 'merged';
+  const chatIds: number[] = oneMethod ? (params.chat_ids || []) : [params.chat_id];
+  let groups: PlanGroup[];
+  try {
+    const plan = await sidecar.call('plan_pdf_parts', {
+      udid: params.udid,
+      source: method.includes('whatsapp') ? 'whatsapp' : 'messages',
+      chat_ids: chatIds,
+      mode: merged ? 'merged' : 'separate',
+      date_from: params.date_from,
+      date_to: params.date_to,
+      query: params.query,
+    }, PLAN_TIMEOUT_MS);
+    groups = plan?.groups;
+  } catch (err) {
+    // The save itself then reports whatever is wrong (or works, in one file).
+    console.warn('[pdf-export] could not plan the save', err);
+    return asked;
+  }
+  if (!Array.isArray(groups) || !groups.some(g => g?.split)) return asked;
 
+  const names: Record<string, string> = params.conversation_names || {};
+  const nameOf = (chatId: number): string | null => (oneMethod ? names[chatId] : params.display_name) ?? null;
+  const jobs: PdfJob[] = [];
+  const splits: PdfSplit[] = [];
+  for (const group of groups) {
+    if (group.split) {
+      splits.push({
+        name: merged ? null : nameOf(group.chat_ids[0]),
+        labels: group.parts.map(p => p.label ?? ''),
+        messages: group.messages,
+        images: group.images,
+        estimate: group.estimate,
+      });
+    }
+    if (merged || !oneMethod) {
+      for (const part of group.parts) jobs.push({ method, params: { ...params, part } });
+      continue;
+    }
+    // One conversation of a "Save all", in its own file(s).
+    const { chat_ids: _ids, conversation_names: _names, mode: _mode, ...common } = params;
+    const chatId = group.chat_ids[0];
+    for (const part of group.parts) {
+      jobs.push({ method: oneMethod, params: { ...common, chat_id: chatId, display_name: names[chatId], part } });
+    }
+  }
+  return { jobs, splits };
+}
+
+/** Run one engine call into a fresh temporary folder and print what it wrote. */
+async function runJob(sidecar: Sidecar, job: PdfJob, outputDir: string): Promise<{ files: string[]; message_count: number }> {
   const staging = fs.realpathSync(fs.mkdtempSync(path.join(app.getPath('temp'), STAGING_PREFIX)));
   activeStagingDirs.add(staging);
   try {
     const result = await sidecar.call(
-      method,
-      { ...params, format: 'pdf_source', output_dir: staging },
+      job.method,
+      { ...job.params, format: 'pdf_source', output_dir: staging },
       SIDECAR_TIMEOUT_MS,
     );
     if (result?.error) throw new Error(result.error);
@@ -224,4 +317,35 @@ export async function exportMessagesPdf(
       console.warn('[pdf-export] could not remove temporary folder', staging, err);
     }
   }
+}
+
+/**
+ * Run a conversation export as PDF. `params` are the same as for the HTML
+ * export; `params.output_dir` is where the PDFs go.
+ */
+export async function exportMessagesPdf(
+  sidecar: Sidecar,
+  method: PdfExportMethod,
+  params: any,
+): Promise<PdfExportResult> {
+  if (!ALLOWED_METHODS.has(method)) throw new Error(`PDF export is not available for ${method}`);
+  const outputDir = params?.output_dir;
+  if (!outputDir || !fs.existsSync(outputDir)) throw new Error('Choose a folder to save the PDF in.');
+
+  const { jobs, splits } = await planJobs(sidecar, method, params);
+  const files: string[] = [];
+  let messageCount = 0;
+  for (const job of jobs) {
+    try {
+      const done = await runJob(sidecar, job, outputDir);
+      files.push(...done.files);
+      messageCount += done.message_count;
+    } catch (err: any) {
+      // Parts already saved stay saved: say so, so nobody saves them again.
+      if (files.length === 0) throw err;
+      const message = String(err?.message ?? err).replace(/\.?$/, '.');
+      throw new Error(`${message} The first ${files.length === 1 ? 'PDF was' : `${files.length} PDFs were`} saved before this happened.`);
+    }
+  }
+  return { files, message_count: messageCount, splits };
 }

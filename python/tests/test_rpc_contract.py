@@ -1070,6 +1070,52 @@ def case_export_whatsapp_chats(ctx):
     assert [Path(f).suffix for f in result["files"]] == [".html"] and result["message_count"] == total
 
 
+@contract("plan_pdf_parts")
+def case_plan_pdf_parts(ctx):
+    # Synthetic backups are far too small to need splitting (python/tests/test_pdf_parts.py
+    # covers the splitting): every chat plans as one file, counted the way the PDF draws it.
+    m = ctx.maren
+    conv = m.biggest_conversation
+    messages = m.messages_of(conv["chat_id"])
+    images = sum(1 for msg in messages for a in msg["attachments"] if (a["mime_type"] or "").startswith("image/"))
+    plan = m.rpc("plan_pdf_parts", source="messages", chat_ids=[conv["chat_id"]])
+    assert [g["chat_ids"] for g in plan["groups"]] == [[conv["chat_id"]]]
+    group = plan["groups"][0]
+    assert (group["split"], group["messages"], group["images"]) == (False, conv["message_count"], images)
+    assert set(group["estimate"]) == {"pages", "megabytes"}
+    assert group["parts"] == [{"from": None, "to": None, "label": None, "undated": True,
+                               "messages": conv["message_count"], "images": images}]
+    two = sorted(m.conversations, key=lambda c: c["message_count"])[:2]
+    ids = [c["chat_id"] for c in two]
+    assert [g["chat_ids"] for g in m.rpc("plan_pdf_parts", source="messages", chat_ids=ids)["groups"]] == [[i] for i in ids]
+    merged = m.rpc("plan_pdf_parts", source="messages", chat_ids=ids, mode="merged")["groups"]
+    assert [g["chat_ids"] for g in merged] == [ids] and merged[0]["messages"] == sum(c["message_count"] for c in two)
+    wa = ctx.whatsapp
+    plan = wa.rpc("plan_pdf_parts", source="whatsapp", chat_ids=[wb.CHAT_RILEY])
+    assert plan["groups"][0]["messages"] == wa.plan.scenario.counts[wb.CHAT_RILEY]
+    assert_error_dict(m.rpc("plan_pdf_parts", source="notes", chat_ids=[conv["chat_id"]]), "Unknown source")
+
+
+# One part of a split PDF save: only that part's months, in this computer's time zone
+# (the engine runs here too), as the PDF shows its dates.
+def test_pdf_save_part_keeps_only_its_months(ctx):
+    m = ctx.maren
+    conv = m.biggest_conversation
+    months = Counter(datetime.fromisoformat(msg["date"]).astimezone().strftime("%Y-%m")
+                     for msg in m.messages_of(conv["chat_id"]))
+    month, count = months.most_common(1)[0]
+    part = {"from": month, "to": month, "label": "x", "undated": False}
+    result = m.rpc("export_conversation", chat_id=conv["chat_id"], format="txt", part=part,
+                   output_dir=str(ctx.folder("pdf-part")), display_name=conv["display_name"])
+    assert result["message_count"] == count < conv["message_count"]
+    out = ctx.folder("pdf-part-merged")
+    result = m.rpc("export_conversations", chat_ids=[conv["chat_id"]], format="pdf_source", mode="merged",
+                   conversation_names={str(conv["chat_id"]): conv["display_name"]}, output_dir=str(out),
+                   part={**part, "label": "2019–2021"})
+    assert result["message_count"] == count
+    assert [Path(f).name for f in result["files"]] == ["all_conversations 2019-2021.html"]
+
+
 # ── Podcasts ─────────────────────────────────────────────────────────────────
 # The library (MTLibrary.sqlite) in a copy of Einstein's backup, and in an
 # encrypted backup holding only it. "Listened" is the history (a play count,

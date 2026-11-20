@@ -10,7 +10,7 @@ declare global {
       exportPdf: (
         method: 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats',
         params: any,
-      ) => Promise<{ success: boolean; data?: { files: string[]; message_count: number }; error?: string }>;
+      ) => Promise<{ success: boolean; data?: import('./lib/ipc').PdfExportResult; error?: string }>;
       selectFolder: () => Promise<string | null>;
       saveFolder: () => Promise<string | null>;
       saveFile: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<string | null>;

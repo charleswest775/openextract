@@ -9,6 +9,8 @@ export interface Notice {
   detail?: string;
   /** A saved file or folder; adds "Show in folder". */
   path?: string;
+  /** Something to read, such as why a save became several files. The notice then stays until dismissed. */
+  note?: string;
   /** For errors: which part of the app, for "Report this problem". */
   area?: FeedbackArea;
 }
@@ -22,7 +24,7 @@ export function useNotice() {
 
 const SUCCESS_MS = 8000;
 
-/** In-app notices, bottom center. Successes fade on their own; errors stay until dismissed. */
+/** In-app notices, bottom center. Successes fade on their own, unless they carry a note; errors stay until dismissed. */
 export function NoticeProvider({ children }: { children: ReactNode }) {
   const [notices, setNotices] = useState<(Notice & { id: number })[]>([]);
 
@@ -33,7 +35,7 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
   const notify = useCallback((notice: Notice) => {
     const id = Date.now() + Math.random();
     setNotices(list => [...list.slice(-2), { ...notice, id }]);
-    if (notice.kind === 'success') setTimeout(() => dismiss(id), SUCCESS_MS);
+    if (notice.kind === 'success' && !notice.note) setTimeout(() => dismiss(id), SUCCESS_MS);
   }, [dismiss]);
 
   return (
@@ -56,6 +58,7 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-text-primary">{n.title}</div>
               {n.detail && <div className="text-xs text-text-secondary break-words mt-0.5">{n.detail}</div>}
+              {n.note && <p className="text-xs text-text-secondary mt-1.5">{n.note}</p>}
               {n.path && (
                 <button
                   onClick={() => window.openextract.showInFolder(n.path!)}
