@@ -16,7 +16,7 @@
       "about": [
         "`sms.db` is where the Messages app keeps conversations: the text of each message, who it was with, when it was sent or received, whether it was read, and which attachments go with it. Group chats are in it too.",
         "The attachments themselves aren't inside it. Photos, videos and voice messages sent in Messages are separate files in the backup, under `Library/SMS/Attachments/` in `MediaDomain`, and the `attachment` table names each one.",
-        "FaceTime calls are rows in `sms.db` as well, which is where OpenExtract's Calls screen gets them.",
+        "FaceTime calls started from a Messages conversation also leave a row in `sms.db`, and OpenExtract's Calls screen adds those to the call history.",
         "iOS 16 gave Messages a Recently Deleted folder, and `sms.db` gained tables for it: the iOS 16.1.2 and 17.3 backups have `recoverable_message_part` and `chat_recoverable_message_join`, which the older ones don't."
       ],
       "encryptedOnly": false,

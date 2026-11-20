@@ -144,7 +144,7 @@
       <h2 id="what">What it holds</h2>
       <p><code>sms.db</code> is where the Messages app keeps conversations: the text of each message, who it was with, when it was sent or received, whether it was read, and which attachments go with it. Group chats are in it too.</p>
       <p>The attachments themselves aren't inside it. Photos, videos and voice messages sent in Messages are separate files in the backup, under <code>Library/SMS/Attachments/</code> in <code>MediaDomain</code>, and the <code>attachment</code> table names each one.</p>
-      <p>FaceTime calls are rows in <code>sms.db</code> as well, which is where OpenExtract's Calls screen gets them.</p>
+      <p>FaceTime calls started from a Messages conversation also leave a row in <code>sms.db</code>, and OpenExtract's Calls screen adds those to the call history.</p>
       <p>iOS 16 gave Messages a Recently Deleted folder, and <code>sms.db</code> gained tables for it: the iOS 16.1.2 and 17.3 backups have <code>recoverable_message_part</code> and <code>chat_recoverable_message_join</code>, which the older ones don't.</p>
 
       <h2 id="columns">Key columns</h2>

@@ -14,7 +14,7 @@
   <meta property="og:description" content="A tour of the file structure every iPhone writes to your computer, what's in the pile, and why some things are absent." />
   <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
   <meta property="article:published_time" content="2026-04-24" />
-  <meta property="article:modified_time" content="2026-11-02" />
+  <meta property="article:modified_time" content="2026-11-19" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
@@ -27,7 +27,7 @@
     "url": "https://www.openextract.app/blog/what-is-in-an-iphone-backup",
     "mainEntityOfPage": "https://www.openextract.app/blog/what-is-in-an-iphone-backup",
     "datePublished": "2026-04-24",
-    "dateModified": "2026-11-02",
+    "dateModified": "2026-11-19",
     "image": "https://www.openextract.app/img/og-image.png",
     "author": {
       "@type": "Organization",
@@ -118,11 +118,12 @@
     <p>Every file lives in a <em>domain</em>, which is iOS's way of saying "which part of the system owns this." There are dozens. A few worth knowing:</p>
 
     <ul>
-      <li><strong>HomeDomain</strong> — user data that isn't app-scoped. Messages lives here. Notes, Safari, Keychain too.</li>
-      <li><strong>MediaDomain</strong> — your Camera Roll. Photos, videos, Live Photo pairs.</li>
-      <li><strong>CameraRollDomain</strong> — metadata about the above.</li>
+      <li><strong>HomeDomain</strong> — user data that isn't app-scoped. Messages lives here. Contacts, Notes, Safari, call history and voicemail too.</li>
+      <li><strong>CameraRollDomain</strong> — your Camera Roll. Photos, videos, Live Photo pairs, and the Photos library database that describes them.</li>
+      <li><strong>MediaDomain</strong> — other media, such as the photos and videos sent in Messages.</li>
+      <li><strong>KeychainDomain</strong> — the keychain, where saved passwords live.</li>
       <li><strong>AppDomain-bundle.id</strong> — per-app data. Instagram's cache is <code>AppDomain-com.burbn.instagram</code>.</li>
-      <li><strong>WirelessDomain</strong> — call history, voicemails.</li>
+      <li><strong>WirelessDomain</strong> — carrier and cellular data. (Call history lived here until iOS 8.)</li>
       <li><strong>SystemPreferencesDomain</strong> — device settings.</li>
     </ul>
 
