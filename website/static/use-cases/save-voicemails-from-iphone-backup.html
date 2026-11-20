@@ -24,7 +24,7 @@
     "description": "A gentle, step-by-step guide to finding a loved one's voicemails in an old iPhone backup and saving the audio to your computer, for free.",
     "url": "https://www.openextract.app/use-cases/save-voicemails-from-iphone-backup",
     "datePublished": "2026-11-03",
-    "dateModified": "2026-11-11",
+    "dateModified": "2026-11-19",
     "image": "https://www.openextract.app/img/og-image.png",
     "isPartOf": {
       "@type": "WebSite",
@@ -82,10 +82,18 @@
       },
       {
         "@type": "Question",
+        "name": "Can I get back voicemails that were deleted?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Sometimes. If a voicemail deleted on the iPhone was still in the phone's Deleted Messages list when the backup was made, OpenExtract shows it under Deleted, where you can play it and save it. An older backup may have voicemails a newer one doesn't, so it's worth opening each backup you have."
+        }
+      },
+      {
+        "@type": "Question",
         "name": "Are the transcripts included?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "No. OpenExtract can't read the iPhone's voicemail transcripts, so the Transcript column in voicemails.csv stays empty. You still get the audio."
+          "text": "Yes, when the iPhone made one. OpenExtract 0.18.0 and later show the transcript the Phone app shows under each voicemail, search finds words in it, and Save all puts it in the Transcript column of voicemails.csv. Older versions left that column empty."
         }
       },
       {
@@ -179,14 +187,14 @@
       <div class="uc-step__num" style="color: var(--plum);">04</div>
       <div>
         <h2>Open Voicemail</h2>
-        <p>Click <strong>Voicemail</strong>. You'll see each saved voicemail with who called, the date, and how long it is. Click one to open it, then press play to listen.</p>
+        <p>Click <strong>Voicemail</strong>. You'll see each saved voicemail with who called, the date, and how long it is. Click one to open it, then press play to listen. If the iPhone transcribed it, the transcript is under it, as in the Phone app. If the backup also holds spam or deleted voicemails, they're under <strong>Spam</strong> and <strong>Deleted</strong> beside Voicemail, as on the iPhone; a voicemail deleted on the phone can still be played there if it was in the backup.</p>
       </div>
     </div>
     <div class="uc-step">
       <div class="uc-step__num" style="color: var(--coral);">05</div>
       <div>
         <h2>Save them to a folder</h2>
-        <p>At the top right of the Voicemail screen, click <strong>Save all</strong> and choose a folder. OpenExtract saves an <code>audio</code> folder with one file per voicemail, named with the caller and the date, and a <code>voicemails.csv</code> list with the date, caller and length of each one. The dates in the file names and the list are in UTC, so a voicemail left in the evening can show the next day's date.</p>
+        <p>At the top right of the Voicemail screen, click <strong>Save all</strong> and choose a folder. OpenExtract saves an <code>audio</code> folder with one file per voicemail, named with the caller and the date, and a <code>voicemails.csv</code> list with the date, caller, phone number, length and transcript of each one, which list it was in, and whether it was marked as spam. Spam and deleted voicemails are saved too, in <code>audio/Spam</code> and <code>audio/Deleted</code>. The dates in the file names and the list are in your computer's time zone, so each voicemail is filed under the day it was left.</p>
       </div>
     </div>
     <div class="uc-step">
@@ -202,7 +210,7 @@
     <div class="prose__inner">
       <h2>What it can't do</h2>
       <ul>
-        <li><strong>Only voicemails that were on the phone.</strong> A backup holds the voicemails the iPhone had saved when it was backed up. Voicemail kept only on the carrier's system, the kind you dial in to hear, isn't in a backup. Voicemails that were in the phone's Deleted Messages list don't show in OpenExtract.</li>
+        <li><strong>Only voicemails that were on the phone.</strong> A backup holds the voicemails the iPhone had saved when it was backed up. Voicemail kept only on the carrier's system, the kind you dial in to hear, isn't in a backup. A voicemail deleted on the iPhone shows under Deleted only if it was still in the phone's Deleted Messages list when the backup was made.</li>
         <li><strong>Encrypted backups need the password.</strong> There's no way around it, for us or for Apple. A notebook, a password manager or a note on the computer is worth checking.</li>
         <li><strong>No iCloud.</strong> OpenExtract reads backups on a computer, not iCloud backups.</li>
         <li><strong>No backup, no voicemails.</strong> If the phone was never backed up to a computer, there's nothing on the computer to open.</li>
@@ -211,7 +219,8 @@
       <h2>Common questions</h2>
       <p><strong>Do I need their phone or their Apple ID?</strong> No. You need the backup folder. If the backup is encrypted, you also need the backup password.</p>
       <p><strong>Will listening or saving change the backup?</strong> No. OpenExtract only reads it. The backup stays exactly as it was.</p>
-      <p><strong>Are the transcripts included?</strong> No. OpenExtract can't read the iPhone's voicemail transcripts, so the Transcript column in <code>voicemails.csv</code> stays empty. You still get the audio.</p>
+      <p><strong>Can I get back voicemails that were deleted?</strong> Sometimes. If a voicemail deleted on the iPhone was still in the phone's Deleted Messages list when the backup was made, OpenExtract shows it under Deleted, where you can play it and save it. An older backup may have voicemails a newer one doesn't, so it's worth opening each backup you have.</p>
+      <p><strong>Are the transcripts included?</strong> Yes, when the iPhone made one. OpenExtract 0.18.0 and later show the transcript the Phone app shows under each voicemail, search finds words in it, and <strong>Save all</strong> puts it in the Transcript column of <code>voicemails.csv</code>. Older versions left that column empty.</p>
       <p><strong>Can I copy the backup to my own computer first?</strong> Yes. Copy the whole backup folder, then on OpenExtract's start screen choose to open a backup folder and pick the copy.</p>
       <p><strong>Does anything get uploaded?</strong> No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. It goes online only when you let it: to check for a new version, if you allow it (you can turn that off in Settings); to send a problem report or a thank-you, when you click Send; and on Windows, to install Apple's free Apple Devices app from Microsoft, if you ask it to, for backing up an iPhone. Nothing from inside your backup goes with any of them.</p>
       <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
