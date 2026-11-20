@@ -58,6 +58,29 @@ test('every amount on the support page has a /support/pay/... redirect to a live
   assert.equal(new Set([...fixed, dest('/support/pay')]).size, 5, 'each fixed amount has its own link');
 });
 
+test('the app\'s "help the next person find it" links go through /support/like and /support/star', () => {
+  const lib = read('src/lib/payItForward.ts');
+  const { redirects } = JSON.parse(read(`${site}/vercel.json`));
+  for (const [name, p, dest] of [
+    ['SUPPORT_LIKE_URL', '/support/like', /^https:\/\/alternativeto\.net\/software\/openextract\//],
+    ['SUPPORT_STAR_URL', '/support/star', /^https:\/\/github\.com\/charleswest775\/openextract$/],
+  ]) {
+    const m = lib.match(new RegExp(`export const ${name} = '([^']+)'`));
+    assert.ok(m, `src/lib/payItForward.ts exports ${name}`);
+    assert.equal(m[1], `https://www.openextract.app${p}`);
+    const r = redirects.find(x => x.source === p);
+    assert.ok(r, `vercel.json has a ${p} redirect`);
+    assert.equal(r.permanent, false, 'temporary, so where it leads can change');
+    assert.match(r.destination, dest);
+  }
+});
+
+test('the support page asks for a like on AlternativeTo and a star on GitHub', () => {
+  const page = read(`${site}/support.html`);
+  assert.match(page, /<strong>Like it<\/strong> on <a href="https:\/\/alternativeto\.net\/software\/openextract\/about\/">AlternativeTo<\/a>/);
+  assert.match(page, /<strong>star it<\/strong> on <a href="https:\/\/github\.com\/charleswest775\/openextract">GitHub<\/a>/);
+});
+
 test('every page footer links to the support page', () => {
   const withFooter = pages.filter(f => read(`${site}/${f}`).includes('<li><a href="/about">About</a></li>'));
   assert.ok(withFooter.length > 10);

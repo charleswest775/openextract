@@ -35,6 +35,16 @@
       "permanent": true
     },
     {
+      "source": "/support/like",
+      "destination": "https://alternativeto.net/software/openextract/about/",
+      "permanent": false
+    },
+    {
+      "source": "/support/star",
+      "destination": "https://github.com/charleswest775/openextract",
+      "permanent": false
+    },
+    {
       "source": "/support/pay",
       "destination": "https://buy.stripe.com/7sY00j9Es3vw0Ad16Q2wU01",
       "permanent": false

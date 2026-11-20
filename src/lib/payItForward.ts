@@ -14,6 +14,14 @@ import type { FeedbackArea } from './feedback';
 export const SUPPORT_PAY_URL = 'https://www.openextract.app/support/pay';
 /** The site's amounts: $0 if money's tight, $5, $25, $100, and rates for paid work. */
 export const SUPPORT_AMOUNTS_URL = 'https://www.openextract.app/support#pay';
+/**
+ * "Help the next person find it", for people who just said thanks or paid: a like on
+ * AlternativeTo (where people look for alternatives to paid apps such as iMazing) and a
+ * star on GitHub. Both go through the site's redirects (vercel.json), so where they lead
+ * can change without a release.
+ */
+export const SUPPORT_LIKE_URL = 'https://www.openextract.app/support/like';
+export const SUPPORT_STAR_URL = 'https://www.openextract.app/support/star';
 
 /** Which wording the card uses. */
 export type AskMode =

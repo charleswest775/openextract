@@ -5,6 +5,7 @@ import {
   type FeedbackArea, type FeedbackForm, type FeedbackKind, type FeedbackRequest,
 } from '../../lib/feedback';
 import { SUPPORT_PAY_URL, showAsk } from '../../lib/payItForward';
+import HelpOthersFindIt from './HelpOthersFindIt';
 import type { KnownFix } from '../../types';
 
 /**
@@ -158,10 +159,13 @@ function FeedbackDialog({ request, onClose }: { request: FeedbackRequest; onClos
     return (
       <Shell onClose={onClose} thanks>
         <p className="text-sm text-text-primary mb-1">Thank you. Your message was sent.</p>
-        <p className="text-xs text-text-secondary leading-relaxed mb-2">
-          Hearing that OpenExtract helped is what keeps it going. If you know someone who could use it,
-          passing on the link helps them find it.
+        <p className="text-xs text-text-secondary leading-relaxed mb-1.5">
+          Hearing that OpenExtract helped is what keeps it going. It doesn't pay for ads, so it gets
+          found when people like you vouch for it. If you have a minute, a like on AlternativeTo, where
+          people look for alternatives to paid apps, or a star on GitHub helps the next person find it.
+          So does passing on the link.
         </p>
+        <HelpOthersFindIt className="mb-3" />
         <p className="text-xs text-text-secondary leading-relaxed mb-4">
           And if it was worth something to you and you can afford it, pay what it was worth. If you
           can't, your thank-you is plenty. <span className="text-text-primary whitespace-nowrap">— Charles</span>

@@ -193,3 +193,33 @@ test('once a thank-you went out from this computer, the card asks only to pay, a
   out.props.onClose();
   assert.ok(c.bridge.calls.some(([m]) => m === 'support.snooze'));
 });
+
+test('after "I\'ve paid": the thank-you offers a like on AlternativeTo and a star on GitHub, and still one way out', async t => {
+  const c = card(t);
+  const out = await c.afterExport('photos', false);
+  button(out, 'Already paid? Stop asking').props.onClick();
+  const paid = c.probe.rerender();
+  const page = html(paid);
+  assert.match(page, /Thank you, truly/);
+  assert.match(page, /I won't ask again\./);
+  assert.match(page, /a like on AlternativeTo or a star on GitHub helps the next\s+person find it/);
+  assert.match(page, />Like it on AlternativeTo</);
+  assert.match(page, />Star it on GitHub</);
+  assert.deepEqual(buttons(paid), ['Close'], 'the links are small links, not more buttons');
+
+  const help = findAll(paid, el => typeof el.type === 'function' && el.type.name === 'HelpOthersFindIt')[0];
+  assert.ok(help, 'the card shows the links');
+  const links = help.type(help.props);
+  button(links, 'Like it on AlternativeTo').props.onClick();
+  button(links, 'Star it on GitHub').props.onClick();
+  assert.deepEqual(c.bridge.calls.filter(([m]) => m === 'openExternal'), [
+    ['openExternal', c.payItForward.SUPPORT_LIKE_URL],
+    ['openExternal', c.payItForward.SUPPORT_STAR_URL],
+  ]);
+});
+
+test('the ask itself doesn\'t add the like and star links: they come only after thanks or paying', async t => {
+  const c = card(t);
+  const page = html(await c.afterExport('photos', true));
+  assert.doesNotMatch(page, /AlternativeTo|Star it on GitHub/);
+});

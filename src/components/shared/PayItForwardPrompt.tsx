@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Heart } from 'lucide-react';
 import NoticeCard from './NoticeCard';
+import HelpOthersFindIt from './HelpOthersFindIt';
 import { useFeedback } from './Feedback';
 import { FEEDBACK_AREAS, type FeedbackArea } from '../../lib/feedback';
 import { SUPPORT_AMOUNTS_URL, SUPPORT_PAY_URL, onAsk, whatWasSaved, type AskRequest } from '../../lib/payItForward';
@@ -78,6 +79,11 @@ export default function PayItForwardPrompt() {
         <p className="text-xs text-text-secondary leading-relaxed mb-3">
           You just helped keep OpenExtract free for someone who can't pay. I won't ask again.
         </p>
+        <p className="text-xs text-text-secondary leading-relaxed mb-1.5">
+          If you have one more minute: a like on AlternativeTo or a star on GitHub helps the next
+          person find it.
+        </p>
+        <HelpOthersFindIt className="mb-3" />
         <p className="text-xs text-text-primary mb-3">— Charles</p>
         <div className="flex justify-end">
           <button className="hearth-primary-btn" onClick={() => setRequest(null)}>Close</button>
