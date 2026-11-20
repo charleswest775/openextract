@@ -1,0 +1,643 @@
+{
+  "about": "The backup file reference at /backup-files. Hand-written: what each file is, which app writes it, whether it needs an encrypted backup, and what OpenExtract does with it. scripts/verify-backup-files.py checks every file against real backups and writes verified.json; scripts/build-backup-file-pages.mjs turns both into the pages. Text fields accept `code` and [links](/path).",
+  "published": "2026-11-19",
+  "updated": "2026-11-19",
+  "files": [
+    {
+      "slug": "sms-db",
+      "name": "sms.db",
+      "domain": "HomeDomain",
+      "relativePath": "Library/SMS/sms.db",
+      "fileID": "3d0d7e5fb2ce288813306e4d4636395e047a3d28",
+      "kind": "sqlite",
+      "app": "Messages",
+      "summary": "The Messages database: every text and iMessage, who it was with, when, and which attachments go with it.",
+      "description": "3d0d7e5fb2ce288813306e4d4636395e047a3d28 is sms.db, the Messages database in an iPhone backup. Its tables by iOS version, and how to open it.",
+      "about": [
+        "`sms.db` is where the Messages app keeps conversations: the text of each message, who it was with, when it was sent or received, whether it was read, and which attachments go with it. Group chats are in it too.",
+        "The attachments themselves aren't inside it. Photos, videos and voice messages sent in Messages are separate files in the backup, under `Library/SMS/Attachments/` in `MediaDomain`, and the `attachment` table names each one.",
+        "FaceTime calls are rows in `sms.db` as well, which is where OpenExtract's Calls screen gets them.",
+        "iOS 16 gave Messages a Recently Deleted folder, and `sms.db` gained tables for it: the iOS 16.1.2 and 17.3 backups have `recoverable_message_part` and `chat_recoverable_message_join`, which the older ones don't."
+      ],
+      "encryptedOnly": false,
+      "openextract": {
+        "screens": ["Messages", "People", "Timeline"],
+        "guide": "/use-cases/export-iphone-messages",
+        "guideTitle": "Export iPhone messages",
+        "note": "OpenExtract shows every conversation with its photos and attachments, and saves them as PDF, HTML, CSV or text. It can also [recover deleted messages](/use-cases/recover-deleted-text-messages-iphone) that are still in the file."
+      },
+      "keyColumns": {
+        "message": ["text", "date", "is_from_me", "handle_id"],
+        "handle": ["id"],
+        "attachment": ["filename"]
+      },
+      "columnNotes": {
+        "message.text": "The message text. Some messages keep it only in `attributedBody`, a binary blob next to it.",
+        "message.date": "When it was sent or received: time since 1 January 2001 (UTC), in nanoseconds on newer iOS versions and seconds on older ones.",
+        "message.is_from_me": "1 if the phone's owner sent it.",
+        "message.handle_id": "The other person's row in `handle`.",
+        "handle.id": "The other person's phone number or email address.",
+        "attachment.filename": "Where the attachment was on the phone, under `~/Library/SMS/Attachments/`."
+      },
+      "related": ["addressbook-sqlitedb", "callhistory-storedata", "whatsapp-chatstorage-sqlite"]
+    },
+    {
+      "slug": "addressbook-sqlitedb",
+      "name": "AddressBook.sqlitedb",
+      "domain": "HomeDomain",
+      "relativePath": "Library/AddressBook/AddressBook.sqlitedb",
+      "fileID": "31bb7ba8914766d4ba40d6dfb6113c8b614be442",
+      "kind": "sqlite",
+      "app": "Contacts",
+      "summary": "The Contacts database: each contact's name, company, phone numbers, email addresses and notes.",
+      "description": "31bb7ba8914766d4ba40d6dfb6113c8b614be442 is AddressBook.sqlitedb, the contacts in an iPhone backup. Tables by iOS version, and how to open it.",
+      "about": [
+        "`AddressBook.sqlitedb` holds the contacts saved on the iPhone. Each person is a row in `ABPerson`, with their name, company and notes.",
+        "Phone numbers, email addresses and anything else a contact can have more than one of are rows in `ABMultiValue`. Each row's `record_id` is the person's `ROWID` in `ABPerson`, and `property` says what the value is.",
+        "Contact photos aren't in this file. They're in [AddressBookImages.sqlitedb](/backup-files/addressbookimages-sqlitedb), next to it."
+      ],
+      "encryptedOnly": false,
+      "openextract": {
+        "screens": ["Address book", "People"],
+        "guide": "/use-cases/export-iphone-contacts",
+        "guideTitle": "Export iPhone contacts",
+        "note": "OpenExtract lists every contact and saves them as vCard or CSV. It also uses the address book to put names on messages, calls and voicemails."
+      },
+      "keyColumns": {
+        "ABPerson": ["First", "Last", "Organization"],
+        "ABMultiValue": ["record_id", "property", "value"]
+      },
+      "columnNotes": {
+        "ABPerson.First": "First name.",
+        "ABPerson.Last": "Last name.",
+        "ABPerson.Organization": "Company.",
+        "ABMultiValue.record_id": "The contact's `ROWID` in `ABPerson`.",
+        "ABMultiValue.property": "What the value is: 3 is a phone number, 4 an email address.",
+        "ABMultiValue.value": "The number, address or other value."
+      },
+      "related": ["addressbookimages-sqlitedb", "sms-db", "callhistory-storedata"]
+    },
+    {
+      "slug": "addressbookimages-sqlitedb",
+      "name": "AddressBookImages.sqlitedb",
+      "domain": "HomeDomain",
+      "relativePath": "Library/AddressBook/AddressBookImages.sqlitedb",
+      "fileID": "cd6702cea29fe89cf280a76794405adb17f9a0ee",
+      "kind": "sqlite",
+      "app": "Contacts",
+      "summary": "Contact photos: the small and full-size pictures shown for people in Contacts.",
+      "description": "cd6702cea29fe89cf280a76794405adb17f9a0ee is AddressBookImages.sqlitedb, the contact photos in an iPhone backup. Its tables, and how to open it.",
+      "about": [
+        "`AddressBookImages.sqlitedb` holds the pictures set for contacts. `ABThumbnailImage` has the small versions and `ABFullSizeImage` the full-size ones, each stored as image data in its `data` column.",
+        "`record_id` says whose picture it is: it's the contact's `ROWID` in `ABPerson`, in [AddressBook.sqlitedb](/backup-files/addressbook-sqlitedb)."
+      ],
+      "encryptedOnly": false,
+      "openextract": null,
+      "notRead": "OpenExtract's Address book screen shows names, numbers and addresses from AddressBook.sqlitedb, but not these photos yet.",
+      "keyColumns": {
+        "ABThumbnailImage": ["record_id", "data"],
+        "ABFullSizeImage": ["record_id", "data"]
+      },
+      "columnNotes": {
+        "ABThumbnailImage.record_id": "The contact's `ROWID` in `ABPerson`.",
+        "ABThumbnailImage.data": "The small picture, as image data.",
+        "ABFullSizeImage.record_id": "The contact's `ROWID` in `ABPerson`.",
+        "ABFullSizeImage.data": "The full-size picture, as image data."
+      },
+      "related": ["addressbook-sqlitedb", "photos-sqlite"]
+    },
+    {
+      "slug": "callhistory-storedata",
+      "name": "CallHistory.storedata",
+      "domain": "HomeDomain",
+      "relativePath": "Library/CallHistoryDB/CallHistory.storedata",
+      "fileID": "5a4935c78a5255723f707230a451d79c540d2741",
+      "kind": "sqlite",
+      "app": "Phone",
+      "summary": "Call history: who called or was called, when, for how long, and whether it was answered.",
+      "description": "5a4935c78a5255723f707230a451d79c540d2741 is CallHistory.storedata, the call log in an iPhone backup. Only in encrypted backups. Tables and how to open it.",
+      "about": [
+        "`CallHistory.storedata` is the database behind the Recents list in the Phone app. It's a SQLite file made by Core Data, so its tables start with Z: each call is a row in `ZCALLRECORD`.",
+        "Phone calls and FaceTime calls are both here; `ZSERVICE_PROVIDER` says which service carried each one."
+      ],
+      "encryptedOnly": true,
+      "encryptionNote": "Apple lists call history among the things only an encrypted backup includes, so an unencrypted backup has no calls to read. OpenExtract's Calls screen says so when a backup isn't encrypted.",
+      "openextract": {
+        "screens": ["Calls", "People", "Timeline"],
+        "guide": "/use-cases/export-iphone-call-history-to-windows-pc",
+        "guideTitle": "Export iPhone call history",
+        "note": "OpenExtract lists every call with names from the address book, adds FaceTime calls from sms.db, and saves the list as CSV."
+      },
+      "keyColumns": {
+        "ZCALLRECORD": ["ZADDRESS", "ZDATE", "ZDURATION", "ZORIGINATED", "ZANSWERED", "ZSERVICE_PROVIDER"]
+      },
+      "columnNotes": {
+        "ZCALLRECORD.ZADDRESS": "The other party's number or address.",
+        "ZCALLRECORD.ZDATE": "When the call started, in seconds since 1 January 2001 (UTC).",
+        "ZCALLRECORD.ZDURATION": "How long it lasted, in seconds.",
+        "ZCALLRECORD.ZORIGINATED": "1 for a call made from the phone, 0 for one it received.",
+        "ZCALLRECORD.ZANSWERED": "Whether an incoming call was answered.",
+        "ZCALLRECORD.ZSERVICE_PROVIDER": "Which service carried it, such as `com.apple.Telephony` or `com.apple.FaceTime`."
+      },
+      "companions": [
+        { "relativePath": "Library/CallHistoryDB/CallHistoryTemp.storedata", "note": "A second store with the same `ZCALLRECORD` table. OpenExtract reads both and skips calls it has already seen." }
+      ],
+      "related": ["voicemail-db", "sms-db", "addressbook-sqlitedb"]
+    },
+    {
+      "slug": "voicemail-db",
+      "name": "voicemail.db",
+      "domain": "HomeDomain",
+      "relativePath": "Library/Voicemail/voicemail.db",
+      "fileID": "992df473bbb9e132f4b3b6e4d33f72171e97bc7a",
+      "kind": "sqlite",
+      "app": "Phone",
+      "summary": "Visual Voicemail: who left each voicemail, when, and how long it is. The audio is in separate files.",
+      "description": "992df473bbb9e132f4b3b6e4d33f72171e97bc7a is voicemail.db, the voicemail list in an iPhone backup. Where the audio is, its tables, and how to open it.",
+      "about": [
+        "`voicemail.db` lists the voicemails the Phone app has downloaded. Each row in the `voicemail` table has the caller's number, the date and the length.",
+        "The audio isn't in the database. Each voicemail is its own file, `Library/Voicemail/<ROWID>.amr` in `HomeDomain`, named after its row in the table. The transcript the Phone app shows is in a file of its own next to the recording, not in `voicemail.db`.",
+        "Newer iPhones can also keep voicemails in a separate store for each phone line, in a folder under `Library/Voicemail/` whose name starts with `A-`. The iOS 16.1.2 and 17.3 backups we checked have such a folder.",
+        "Only Visual Voicemail is here. Voicemail kept only on the carrier's system, the kind you dial in to hear, isn't in a backup. A voicemail deleted on the phone stays in the table while it's in the Phone app's Deleted Messages list."
+      ],
+      "encryptedOnly": false,
+      "openextract": {
+        "screens": ["Voicemail", "Timeline"],
+        "guide": "/use-cases/save-voicemails-from-iphone-backup",
+        "guideTitle": "Save voicemails from an iPhone backup",
+        "note": "OpenExtract reads voicemail.db and the per-line stores, plays each voicemail, shows its transcript if the iPhone made one, lists spam and deleted ones under Spam and Deleted, and saves the audio with a CSV list."
+      },
+      "keyColumns": {
+        "voicemail": ["sender", "date", "duration", "flags", "trashed_date"]
+      },
+      "columnNotes": {
+        "voicemail.sender": "The caller's number.",
+        "voicemail.date": "When it was left, in seconds since 1 January 1970 (Unix time).",
+        "voicemail.duration": "Length in seconds.",
+        "voicemail.flags": "Bit flags, such as whether it has been played.",
+        "voicemail.trashed_date": "When it was deleted on the phone; 0 or empty if it wasn't."
+      },
+      "related": ["callhistory-storedata", "addressbook-sqlitedb"]
+    },
+    {
+      "slug": "notestore-sqlite",
+      "name": "NoteStore.sqlite",
+      "domain": "AppDomainGroup-group.com.apple.notes",
+      "relativePath": "NoteStore.sqlite",
+      "fileID": "4f98687d8ab0d6d1a371110e6b7300f6e465bef2",
+      "kind": "sqlite",
+      "app": "Notes",
+      "summary": "The Notes database: notes, folders and accounts from the Notes app on current iOS versions.",
+      "description": "4f98687d8ab0d6d1a371110e6b7300f6e465bef2 is NoteStore.sqlite, the Notes database in an iPhone backup. Where the text is, tables by iOS version.",
+      "about": [
+        "`NoteStore.sqlite` is the Notes app's database, in its shared app group. Notes, folders and accounts are all rows in one table, `ZICCLOUDSYNCINGOBJECT`.",
+        "A note's text isn't plain text. It's in `ZICNOTEDATA.ZDATA`, compressed with gzip and stored in Apple's own protobuf format, so a SQLite browser shows only a blob. `ZSNIPPET` has the first line or so as plain text.",
+        "Before iOS 9, notes were in [notes.sqlite](/backup-files/notes-sqlite) instead."
+      ],
+      "encryptedOnly": false,
+      "openextract": {
+        "screens": ["Notes", "Timeline"],
+        "guide": "/use-cases/export-notes-from-iphone-backup",
+        "guideTitle": "Export notes from an iPhone backup",
+        "note": "OpenExtract unpacks the note text and saves notes as PDF or plain text."
+      },
+      "keyColumns": {
+        "ZICCLOUDSYNCINGOBJECT": ["ZTITLE1", "ZSNIPPET"],
+        "ZICNOTEDATA": ["ZNOTE", "ZDATA"]
+      },
+      "columnNotes": {
+        "ZICCLOUDSYNCINGOBJECT.ZTITLE1": "A note's title. Rows that are folders or accounts leave it empty.",
+        "ZICCLOUDSYNCINGOBJECT.ZSNIPPET": "The start of the note, as plain text.",
+        "ZICNOTEDATA.ZNOTE": "Which note the text belongs to: its `Z_PK` in `ZICCLOUDSYNCINGOBJECT`.",
+        "ZICNOTEDATA.ZDATA": "The note's text, gzip-compressed protobuf."
+      },
+      "related": ["notes-sqlite", "sms-db"]
+    },
+    {
+      "slug": "notes-sqlite",
+      "name": "notes.sqlite",
+      "domain": "HomeDomain",
+      "relativePath": "Library/Notes/notes.sqlite",
+      "fileID": "ca3bc056d4da0bbf88b5fb3be254f3b7147e639c",
+      "kind": "sqlite",
+      "app": "Notes",
+      "summary": "The Notes database from iOS 8 and earlier. Newer phones still have the file, but keep notes in NoteStore.sqlite.",
+      "description": "ca3bc056d4da0bbf88b5fb3be254f3b7147e639c is notes.sqlite, the old Notes database in an iPhone backup. Why it's still there, and how to open it.",
+      "about": [
+        "Before iOS 9, the Notes app kept notes here. Each note is a row in `ZNOTE`, and its text is HTML in `ZNOTEBODY.ZCONTENT`.",
+        "iOS 9 moved notes to [NoteStore.sqlite](/backup-files/notestore-sqlite), but the old file stayed: every backup we checked, up to iOS 17.3, still has it."
+      ],
+      "encryptedOnly": false,
+      "openextract": {
+        "screens": ["Notes"],
+        "guide": "/use-cases/export-notes-from-iphone-backup",
+        "guideTitle": "Export notes from an iPhone backup",
+        "note": "OpenExtract looks here first and shows these notes if there are any; otherwise it reads NoteStore.sqlite."
+      },
+      "keyColumns": {
+        "ZNOTE": ["ZTITLE", "ZCREATIONDATE", "ZMODIFICATIONDATE"],
+        "ZNOTEBODY": ["ZOWNER", "ZCONTENT"]
+      },
+      "columnNotes": {
+        "ZNOTE.ZTITLE": "The note's title.",
+        "ZNOTE.ZCREATIONDATE": "When it was created.",
+        "ZNOTE.ZMODIFICATIONDATE": "When it was last changed.",
+        "ZNOTEBODY.ZOWNER": "Which note the body belongs to: its `Z_PK` in `ZNOTE`.",
+        "ZNOTEBODY.ZCONTENT": "The note's text, as HTML."
+      },
+      "related": ["notestore-sqlite"]
+    },
+    {
+      "slug": "photos-sqlite",
+      "name": "Photos.sqlite",
+      "domain": "CameraRollDomain",
+      "relativePath": "Media/PhotoData/Photos.sqlite",
+      "fileID": "12b144c0bd44f2b3dffd9186d3f9c05b917cee25",
+      "kind": "sqlite",
+      "app": "Photos",
+      "summary": "The Photos library database: each photo and video's file name, date, albums, and whether it's a favorite, hidden or deleted.",
+      "description": "12b144c0bd44f2b3dffd9186d3f9c05b917cee25 is Photos.sqlite, the photo library index in an iPhone backup. Where the pictures are, and its tables.",
+      "about": [
+        "`Photos.sqlite` is the index of the photo library. It doesn't hold the pictures: those are separate files under `Media/DCIM/` in `CameraRollDomain`.",
+        "Each photo or video is a row in `ZASSET`, called `ZGENERICASSET` before iOS 14, with its folder and file name in `ZDIRECTORY` and `ZFILENAME`. Albums are in `ZGENERICALBUM`.",
+        "A photo kept only in iCloud, with Optimize iPhone Storage turned on, can have a row here but no file in the backup."
+      ],
+      "encryptedOnly": false,
+      "openextract": {
+        "screens": ["Photos", "Timeline"],
+        "guide": "/use-cases/extract-photos-from-iphone-backup",
+        "guideTitle": "Extract photos from an iPhone backup",
+        "note": "OpenExtract shows the library with its albums, favorites and hidden photos, and copies the originals to your computer."
+      },
+      "keyColumns": {
+        "ZASSET": ["ZDIRECTORY", "ZFILENAME", "ZDATECREATED", "ZFAVORITE", "ZHIDDEN", "ZTRASHEDSTATE"],
+        "ZGENERICASSET": ["ZDIRECTORY", "ZFILENAME", "ZDATECREATED", "ZFAVORITE", "ZHIDDEN", "ZTRASHEDSTATE"]
+      },
+      "tableAliases": { "ZGENERICASSET": "ZASSET" },
+      "columnNotes": {
+        "ZASSET.ZDIRECTORY": "The folder under `Media/DCIM/` the file is in, such as `106APPLE` (older versions write `DCIM/106APPLE`).",
+        "ZASSET.ZFILENAME": "The file's name, such as `IMG_0001.HEIC`.",
+        "ZASSET.ZDATECREATED": "When it was taken, in seconds since 1 January 2001 (UTC).",
+        "ZASSET.ZFAVORITE": "1 for a favorite.",
+        "ZASSET.ZHIDDEN": "1 for a photo in the Hidden album.",
+        "ZASSET.ZTRASHEDSTATE": "0 for a photo in the library; anything else means it's in Recently Deleted."
+      },
+      "related": ["addressbookimages-sqlitedb", "sms-db"]
+    },
+    {
+      "slug": "safari-history-db",
+      "name": "History.db",
+      "domain": "HomeDomain",
+      "relativePath": "Library/Safari/History.db",
+      "fileID": "1a0e7afc19d307da602ccdcece51af33afe92c53",
+      "kind": "sqlite",
+      "app": "Safari",
+      "summary": "Safari's browsing history: every page visited, its title, and the time of each visit.",
+      "description": "1a0e7afc19d307da602ccdcece51af33afe92c53 is History.db, Safari's history in an iPhone backup. Only in encrypted backups. Tables and how to open it.",
+      "about": [
+        "`History.db` is Safari's history. `history_items` has one row per web address, with how many times it was visited. `history_visits` has one row per visit, with its time and the page's title."
+      ],
+      "encryptedOnly": true,
+      "encryptionNote": "Apple lists website history among the things only an encrypted backup includes, so an unencrypted backup has no Safari history to read.",
+      "openextract": {
+        "screens": ["Web history", "Timeline"],
+        "guide": "/use-cases/export-safari-history-from-iphone-backup",
+        "guideTitle": "Export Safari history from an iPhone backup",
+        "note": "OpenExtract lists every visit, newest first, with Firefox history alongside, and saves the list as CSV."
+      },
+      "keyColumns": {
+        "history_items": ["url", "visit_count"],
+        "history_visits": ["history_item", "visit_time", "title"]
+      },
+      "columnNotes": {
+        "history_items.url": "The web address.",
+        "history_items.visit_count": "How many times it was visited.",
+        "history_visits.history_item": "Which address was visited: its `id` in `history_items`.",
+        "history_visits.visit_time": "When, in seconds since 1 January 2001 (UTC).",
+        "history_visits.title": "The page's title at that visit."
+      },
+      "related": ["safari-bookmarks-db", "firefox-places-db", "firefox-browser-db"]
+    },
+    {
+      "slug": "safari-bookmarks-db",
+      "name": "Bookmarks.db",
+      "domain": "HomeDomain",
+      "relativePath": "Library/Safari/Bookmarks.db",
+      "fileID": "d1f062e2da26192a6625d968274bfda8d07821e4",
+      "kind": "sqlite",
+      "app": "Safari",
+      "summary": "Safari's bookmarks and bookmark folders.",
+      "description": "d1f062e2da26192a6625d968274bfda8d07821e4 is Bookmarks.db, Safari's bookmarks in an iPhone backup. Its tables by iOS version, and how to open it.",
+      "about": [
+        "`Bookmarks.db` holds Safari's bookmarks. Each bookmark and each folder is a row in the `bookmarks` table, with its title, its web address in `url`, and `parent`, the folder it's in."
+      ],
+      "encryptedOnly": false,
+      "openextract": null,
+      "notRead": "OpenExtract's Web history screen reads Safari's History.db, not its bookmarks.",
+      "keyColumns": {
+        "bookmarks": ["title", "url", "parent"]
+      },
+      "columnNotes": {
+        "bookmarks.title": "The bookmark's or folder's name.",
+        "bookmarks.url": "The web address; empty for a folder.",
+        "bookmarks.parent": "The folder it's in: that folder's `id`."
+      },
+      "related": ["safari-history-db"]
+    },
+    {
+      "slug": "calendar-sqlitedb",
+      "name": "Calendar.sqlitedb",
+      "domain": "HomeDomain",
+      "relativePath": "Library/Calendar/Calendar.sqlitedb",
+      "fileID": "2041457d5fe04d39d0ab481178355df6781e6858",
+      "kind": "sqlite",
+      "app": "Calendar",
+      "summary": "The Calendar database: events, their times and places, and the calendars they belong to.",
+      "description": "2041457d5fe04d39d0ab481178355df6781e6858 is Calendar.sqlitedb, the Calendar database in an iPhone backup. Tables by iOS version, and how to open it.",
+      "about": [
+        "`Calendar.sqlitedb` holds the Calendar app's events. Each event is a row in `CalendarItem`, with its title in `summary` and its times in `start_date` and `end_date`. `Calendar` lists the calendars, and `Location` the places events are at."
+      ],
+      "encryptedOnly": false,
+      "openextract": null,
+      "notRead": "OpenExtract doesn't have a Calendar screen yet.",
+      "keyColumns": {
+        "CalendarItem": ["summary", "start_date", "end_date", "calendar_id"],
+        "Calendar": ["title"]
+      },
+      "columnNotes": {
+        "CalendarItem.summary": "The event's title.",
+        "CalendarItem.start_date": "When it starts.",
+        "CalendarItem.end_date": "When it ends.",
+        "CalendarItem.calendar_id": "Which calendar it's in: its `ROWID` in `Calendar`.",
+        "Calendar.title": "The calendar's name."
+      },
+      "related": ["addressbook-sqlitedb", "notestore-sqlite"]
+    },
+    {
+      "slug": "whatsapp-chatstorage-sqlite",
+      "name": "ChatStorage.sqlite",
+      "domain": "AppDomainGroup-group.net.whatsapp.WhatsApp.shared",
+      "relativePath": "ChatStorage.sqlite",
+      "fileID": "7c7fba66680ef796b916b067077cc246adacf01d",
+      "kind": "sqlite",
+      "app": "WhatsApp",
+      "summary": "WhatsApp's chats: every message, group and call on the phone, with pointers to its photos, videos and voice messages.",
+      "description": "7c7fba66680ef796b916b067077cc246adacf01d is ChatStorage.sqlite, WhatsApp's chats in an iPhone backup. Tables by version, and how to read it.",
+      "about": [
+        "`ChatStorage.sqlite` is WhatsApp's own database, in its shared app group. Each chat is a row in `ZWACHATSESSION` and each message a row in `ZWAMESSAGE`. Photos, videos, voice messages and documents are separate files in the same domain, and `ZWAMEDIAITEM` says where each one is.",
+        "Its layout follows WhatsApp's version, not the iOS version. Two things catch people out: put a chat in order by `ZSORT`, the order messages arrived on the phone, because `ZMESSAGEDATE` comes from the sender's clock; and reactions aren't rows of their own, they're stored with the message they react to."
+      ],
+      "encryptedOnly": false,
+      "openextract": {
+        "screens": ["WhatsApp", "Timeline"],
+        "guide": "/use-cases/export-whatsapp-chats-from-iphone-backup",
+        "guideTitle": "Export WhatsApp chats from an iPhone backup",
+        "note": "OpenExtract shows each chat with its photos, voice messages, replies, reactions and calls, and saves chats as a web page, PDF, CSV or text."
+      },
+      "keyColumns": {
+        "ZWACHATSESSION": ["ZCONTACTJID", "ZPARTNERNAME"],
+        "ZWAMESSAGE": ["ZTEXT", "ZISFROMME", "ZMESSAGEDATE", "ZSORT"],
+        "ZWAMEDIAITEM": ["ZMEDIALOCALPATH"]
+      },
+      "columnNotes": {
+        "ZWACHATSESSION.ZCONTACTJID": "Who the chat is with: a WhatsApp ID such as `<number>@s.whatsapp.net`, or a group's ID.",
+        "ZWACHATSESSION.ZPARTNERNAME": "The chat's name as WhatsApp shows it.",
+        "ZWAMESSAGE.ZTEXT": "The message text.",
+        "ZWAMESSAGE.ZISFROMME": "1 if the phone's owner sent it.",
+        "ZWAMESSAGE.ZMESSAGEDATE": "When it was sent, by the sender's clock, in seconds since 1 January 2001 (UTC).",
+        "ZWAMESSAGE.ZSORT": "Its place in the chat, in the order it arrived on the phone.",
+        "ZWAMEDIAITEM.ZMEDIALOCALPATH": "Where the photo, video or other file is, relative to WhatsApp's folder."
+      },
+      "related": ["whatsapp-lid-sqlite", "whatsapp-contactsv2-sqlite", "whatsapp-shared-plist", "sms-db"]
+    },
+    {
+      "slug": "whatsapp-contactsv2-sqlite",
+      "name": "ContactsV2.sqlite",
+      "domain": "AppDomainGroup-group.net.whatsapp.WhatsApp.shared",
+      "relativePath": "ContactsV2.sqlite",
+      "fileID": "b8548dc30aa1030df0ce18ef08b882cf7ab5212f",
+      "kind": "sqlite",
+      "app": "WhatsApp",
+      "summary": "WhatsApp's copy of the address book, from older WhatsApp versions: names for the numbers in your chats.",
+      "description": "b8548dc30aa1030df0ce18ef08b882cf7ab5212f is ContactsV2.sqlite, WhatsApp's contact names in an iPhone backup. Which versions have it, and its tables.",
+      "about": [
+        "`ContactsV2.sqlite` pairs WhatsApp IDs with names from the phone's address book, in `ZWAADDRESSBOOKCONTACT`.",
+        "It comes from older WhatsApp versions. The two newest backups we checked (iOS 16.1.2 and 17.3) don't have it; they have [LID.sqlite](/backup-files/whatsapp-lid-sqlite) instead."
+      ],
+      "encryptedOnly": false,
+      "openextract": {
+        "screens": ["WhatsApp"],
+        "guide": "/use-cases/export-whatsapp-chats-from-iphone-backup",
+        "guideTitle": "Export WhatsApp chats from an iPhone backup",
+        "note": "OpenExtract uses it to put names on the people in WhatsApp chats."
+      },
+      "keyColumns": {
+        "ZWAADDRESSBOOKCONTACT": ["ZWHATSAPPID", "ZFULLNAME"]
+      },
+      "columnNotes": {
+        "ZWAADDRESSBOOKCONTACT.ZWHATSAPPID": "The person's WhatsApp ID.",
+        "ZWAADDRESSBOOKCONTACT.ZFULLNAME": "Their name in the phone's address book."
+      },
+      "related": ["whatsapp-chatstorage-sqlite", "whatsapp-lid-sqlite"]
+    },
+    {
+      "slug": "whatsapp-lid-sqlite",
+      "name": "LID.sqlite",
+      "domain": "AppDomainGroup-group.net.whatsapp.WhatsApp.shared",
+      "relativePath": "LID.sqlite",
+      "fileID": "e794f6ffcc3c222535f47684a63d5178da3c4500",
+      "kind": "sqlite",
+      "app": "WhatsApp",
+      "summary": "WhatsApp's LIDs, the IDs newer WhatsApp versions use instead of phone numbers, matched to numbers and names.",
+      "description": "e794f6ffcc3c222535f47684a63d5178da3c4500 is LID.sqlite, WhatsApp's LID table in an iPhone backup. What a LID is, its tables, and how to open it.",
+      "about": [
+        "Newer WhatsApp versions can refer to a person by a LID, an ID that isn't their phone number, so a message in [ChatStorage.sqlite](/backup-files/whatsapp-chatstorage-sqlite) can carry a LID where you'd expect a number.",
+        "`LID.sqlite` pairs LIDs with phone numbers in `ZWAPHONENUMBERLIDPAIR`, and with display names in `ZWALIDPROPERTIES`."
+      ],
+      "encryptedOnly": false,
+      "openextract": {
+        "screens": ["WhatsApp"],
+        "guide": "/use-cases/export-whatsapp-chats-from-iphone-backup",
+        "guideTitle": "Export WhatsApp chats from an iPhone backup",
+        "note": "OpenExtract uses it to show a name or number instead of a LID."
+      },
+      "keyColumns": {
+        "ZWAPHONENUMBERLIDPAIR": ["ZLID", "ZPHONENUMBER"],
+        "ZWALIDPROPERTIES": ["ZLID", "ZDISPLAYNAME"]
+      },
+      "columnNotes": {
+        "ZWAPHONENUMBERLIDPAIR.ZLID": "The LID.",
+        "ZWAPHONENUMBERLIDPAIR.ZPHONENUMBER": "The phone number it stands for.",
+        "ZWALIDPROPERTIES.ZLID": "The LID.",
+        "ZWALIDPROPERTIES.ZDISPLAYNAME": "The name WhatsApp shows for it."
+      },
+      "related": ["whatsapp-chatstorage-sqlite", "whatsapp-contactsv2-sqlite", "whatsapp-shared-plist"]
+    },
+    {
+      "slug": "whatsapp-shared-plist",
+      "name": "group.net.whatsapp.WhatsApp.shared.plist",
+      "titleName": "WhatsApp's shared plist",
+      "domain": "AppDomainGroup-group.net.whatsapp.WhatsApp.shared",
+      "relativePath": "Library/Preferences/group.net.whatsapp.WhatsApp.shared.plist",
+      "fileID": "be7e71b773c6d7d4114a8acf0529f623f3884bfb",
+      "kind": "plist",
+      "app": "WhatsApp",
+      "summary": "WhatsApp's shared settings, including the phone's own WhatsApp ID and profile name.",
+      "description": "be7e71b773c6d7d4114a8acf0529f623f3884bfb is WhatsApp's shared settings plist in an iPhone backup: the phone's own WhatsApp ID and profile name.",
+      "about": [
+        "This property list holds settings WhatsApp shares between its app and its extensions. It isn't a database, so it has no tables. Among its keys are the phone's own WhatsApp ID, its WhatsApp profile name and, in newer WhatsApp versions, its own [LID](/backup-files/whatsapp-lid-sqlite)."
+      ],
+      "encryptedOnly": false,
+      "openextract": {
+        "screens": ["WhatsApp"],
+        "guide": "/use-cases/export-whatsapp-chats-from-iphone-backup",
+        "guideTitle": "Export WhatsApp chats from an iPhone backup",
+        "note": "OpenExtract uses it to tell which person in a chat is the phone's owner."
+      },
+      "keyNames": ["OwnJabberID", "FullUserName", "lid"],
+      "keyNotes": {
+        "OwnJabberID": "The phone's own WhatsApp ID: its number followed by `@s.whatsapp.net`.",
+        "FullUserName": "The owner's WhatsApp profile name.",
+        "lid": "The owner's own LID."
+      },
+      "related": ["whatsapp-chatstorage-sqlite", "whatsapp-lid-sqlite"]
+    },
+    {
+      "slug": "podcasts-mtlibrary-sqlite",
+      "name": "MTLibrary.sqlite",
+      "domain": "AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
+      "relativePath": "Documents/MTLibrary.sqlite",
+      "fileID": "398be25b8d2881e4a18865f018eb5d8e3c8fc962",
+      "kind": "sqlite",
+      "app": "Podcasts",
+      "summary": "The Apple Podcasts library: shows followed, their episodes, play counts and where you stopped listening.",
+      "description": "398be25b8d2881e4a18865f018eb5d8e3c8fc962 is MTLibrary.sqlite, the Apple Podcasts library in an iPhone backup. Its tables, and how to open it.",
+      "about": [
+        "`MTLibrary.sqlite` is the Podcasts app's library, in its app group. `ZMTPODCAST` has one row per show the app knows about; followed shows have `ZSUBSCRIBED` set to 1. `ZMTEPISODE` has every episode the app has seen in each show's feed, with its play count and when it was last played.",
+        "The downloaded audio isn't in the backup. Episodes point into the phone's `Media/Podcasts` folder, which iPhone backups leave out."
+      ],
+      "encryptedOnly": false,
+      "openextract": {
+        "screens": ["Podcasts"],
+        "guide": "/use-cases/export-podcasts-from-iphone-backup",
+        "guideTitle": "Export podcasts from an iPhone backup",
+        "note": "OpenExtract lists the shows followed and your listening history, and saves the subscriptions as an OPML file other podcast apps can import."
+      },
+      "keyColumns": {
+        "ZMTPODCAST": ["ZTITLE", "ZFEEDURL", "ZSUBSCRIBED"],
+        "ZMTEPISODE": ["ZTITLE", "ZPLAYCOUNT", "ZLASTDATEPLAYED"]
+      },
+      "columnNotes": {
+        "ZMTPODCAST.ZTITLE": "The show's name.",
+        "ZMTPODCAST.ZFEEDURL": "The show's RSS feed.",
+        "ZMTPODCAST.ZSUBSCRIBED": "1 for a show the owner follows.",
+        "ZMTEPISODE.ZTITLE": "The episode's title.",
+        "ZMTEPISODE.ZPLAYCOUNT": "How many times it was played.",
+        "ZMTEPISODE.ZLASTDATEPLAYED": "When it was last played."
+      },
+      "related": ["safari-history-db"]
+    },
+    {
+      "slug": "firefox-browser-db",
+      "name": "browser.db",
+      "domain": "AppDomainGroup-group.org.mozilla.ios.Firefox",
+      "relativePath": "profile.profile/browser.db",
+      "fileID": "2e57c396a35b0d1bcbc624725002d98bd61d142b",
+      "kind": "sqlite",
+      "app": "Firefox for iOS",
+      "summary": "Firefox for iOS's older history database: sites visited and when.",
+      "description": "2e57c396a35b0d1bcbc624725002d98bd61d142b is browser.db, Firefox's history store in an iPhone backup. Its tables by iOS version, and how to open it.",
+      "about": [
+        "`browser.db` is the history database of older Firefox for iOS versions. `history` has one row per web address and `visits` one row per visit.",
+        "Newer versions keep history in [places.db](/backup-files/firefox-places-db), next to it. A backup can have both."
+      ],
+      "encryptedOnly": false,
+      "encryptionNote": "Apple's encrypted-only rule for website history is about Safari. Firefox history can be in an unencrypted backup.",
+      "openextract": {
+        "screens": ["Web history", "Timeline"],
+        "guide": "/use-cases/export-safari-history-from-iphone-backup",
+        "guideTitle": "Export Safari and Firefox history",
+        "note": "OpenExtract reads both Firefox files and lists their visits with Safari's."
+      },
+      "keyColumns": {
+        "history": ["url", "title"],
+        "visits": ["siteID", "date"]
+      },
+      "columnNotes": {
+        "history.url": "The web address.",
+        "history.title": "The page's title.",
+        "visits.siteID": "Which address was visited: its `id` in `history`.",
+        "visits.date": "When, in microseconds since 1 January 1970 (UTC)."
+      },
+      "related": ["firefox-places-db", "safari-history-db"]
+    },
+    {
+      "slug": "firefox-places-db",
+      "name": "places.db",
+      "domain": "AppDomainGroup-group.org.mozilla.ios.Firefox",
+      "relativePath": "profile.profile/places.db",
+      "fileID": "ab87b1b6904c441f3814d12748a1a32750a43496",
+      "kind": "sqlite",
+      "app": "Firefox for iOS",
+      "summary": "Firefox for iOS's history and bookmarks database in current versions.",
+      "description": "ab87b1b6904c441f3814d12748a1a32750a43496 is places.db, Firefox's history in an iPhone backup. Its tables by iOS version, and how to open it.",
+      "about": [
+        "`places.db` is where current Firefox for iOS versions keep history. Its tables are named like desktop Firefox's: `moz_places` has one row per web address and `moz_historyvisits` one row per visit.",
+        "One difference from desktop Firefox: `visit_date` here is in milliseconds, not microseconds."
+      ],
+      "encryptedOnly": false,
+      "encryptionNote": "Apple's encrypted-only rule for website history is about Safari. Firefox history can be in an unencrypted backup.",
+      "openextract": {
+        "screens": ["Web history", "Timeline"],
+        "guide": "/use-cases/export-safari-history-from-iphone-backup",
+        "guideTitle": "Export Safari and Firefox history",
+        "note": "OpenExtract reads both Firefox files and lists their visits with Safari's."
+      },
+      "keyColumns": {
+        "moz_places": ["url", "title"],
+        "moz_historyvisits": ["place_id", "visit_date"]
+      },
+      "columnNotes": {
+        "moz_places.url": "The web address.",
+        "moz_places.title": "The page's title.",
+        "moz_historyvisits.place_id": "Which address was visited: its `id` in `moz_places`.",
+        "moz_historyvisits.visit_date": "When, in milliseconds since 1 January 1970 (UTC)."
+      },
+      "related": ["firefox-browser-db", "safari-history-db"]
+    },
+    {
+      "slug": "healthdb-secure-sqlite",
+      "name": "healthdb_secure.sqlite",
+      "domain": "HealthDomain",
+      "relativePath": "Health/healthdb_secure.sqlite",
+      "fileID": "516d7e19a4a0c9475c0015fae195626377b1b810",
+      "kind": "sqlite",
+      "app": "Health",
+      "summary": "Apple Health's records: steps, heart rate, workouts, sleep and every other sample the Health app keeps.",
+      "description": "516d7e19a4a0c9475c0015fae195626377b1b810 is healthdb_secure.sqlite, Apple Health data in an iPhone backup. Only in encrypted backups. Its tables.",
+      "about": [
+        "`healthdb_secure.sqlite` holds the Health app's records. Each sample is a row in `samples`, with its type and its start and end times. The value of a measurement, such as a step count or a heart rate, is in `quantity_samples`, matched by `data_id`."
+      ],
+      "encryptedOnly": true,
+      "encryptionNote": "Apple lists Health data among the things only an encrypted backup includes.",
+      "openextract": null,
+      "notRead": "OpenExtract doesn't have a Health screen yet.",
+      "keyColumns": {
+        "samples": ["data_id", "start_date", "end_date", "data_type"],
+        "quantity_samples": ["data_id", "quantity"]
+      },
+      "columnNotes": {
+        "samples.data_id": "The sample's id, shared with its row in `quantity_samples`.",
+        "samples.start_date": "When the sample starts.",
+        "samples.end_date": "When it ends.",
+        "samples.data_type": "What kind of sample it is, as a number.",
+        "quantity_samples.data_id": "The sample's id in `samples`.",
+        "quantity_samples.quantity": "The measured value."
+      },
+      "companions": [
+        { "domain": "HealthDomain", "relativePath": "Health/healthdb.sqlite", "note": "The Health database's other file. It doesn't hold the samples; its tables list the apps and devices the data came from (`sources`, `source_devices`) and which apps may use Health data (`authorization`)." }
+      ],
+      "related": ["callhistory-storedata", "safari-history-db"]
+    }
+  ]
+}
