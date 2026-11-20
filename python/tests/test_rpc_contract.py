@@ -58,6 +58,7 @@ from rpc_contract_support import (  # noqa: E402
     MAREN,
     MAREN_ENCRYPTED,
     PDF_MAGIC,
+    VOICEMAIL_TRANSCRIPT,
     BackupEngine,
     ContractRuntime,
     Engine,
@@ -147,6 +148,12 @@ class Ctx:
     def whatsapp_enc(self) -> BackupEngine:
         """An encrypted backup holding only WhatsApp (password "test")."""
         return self.runtime.whatsapp(encrypted=True)
+
+    @property
+    def person(self) -> BackupEngine:
+        """Einstein's backup with WhatsApp, call history, voicemail and Messages attachments added, the
+        ids colliding across Messages and WhatsApp; ``.plan`` says what's in it (make_person_copy)."""
+        return self.runtime.person()
 
     @property
     def podcasts(self) -> BackupEngine:
@@ -1070,6 +1077,122 @@ def case_export_whatsapp_chats(ctx):
     assert [Path(f).suffix for f in result["files"]] == [".html"] and result["message_count"] == total
 
 
+# ── Everything with one person (People's Save) ───────────────────────────────
+
+PERSON_CSV_HEADER = ["Date", "Kind", "Conversation", "Direction", "Sender", "Text", "Attachments",
+                     "Attachment files", "Duration", "Transcript"]
+
+
+@contract("export_person")
+def case_export_person(ctx):
+    p = ctx.person
+    plan, s = p.plan, p.plan.scenario
+    # The Messages conversation and the WhatsApp chat share an id: two different chats
+    assert plan.sms_chat_id == wb.CHAT_RILEY
+    sms_messages = [m for m in p.messages_of(plan.sms_chat_id) if not m["is_reaction"]]
+    calls = p.rpc("list_calls", offset=0, limit=1000)["calls"]
+    call_ids = [c["call_id"] for c in calls]
+    assert sorted(map(str, call_ids)) == sorted([*map(str, plan.call_ids), *(f"vm_{v}" for v in plan.voicemail_audio)])
+    assert {type(i) for i in call_ids} == {int, str}  # 1 and "vm_1", compared as text
+    voicemails = p.rpc("list_voicemails", include_deleted=True)["voicemails"]
+    params = dict(display_name=wb.RILEY_NAME, chat_ids=[plan.sms_chat_id],
+                  conversation_names={str(plan.sms_chat_id): "Riley (text messages)"},
+                  whatsapp_chat_ids=[wb.CHAT_RILEY], whatsapp_names={str(wb.CHAT_RILEY): wb.RILEY_NAME},
+                  call_ids=call_ids, voicemail_ids=[v["id"] for v in voicemails])
+    counts = {"message": len(sms_messages), "whatsapp": s.counts[wb.CHAT_RILEY], "call": len(calls),
+              "voicemail": len(voicemails)}
+    total = sum(counts.values())
+    wa_media = [a for m in p.whatsapp_messages_of(wb.CHAT_RILEY) for a in m["attachments"]]
+    sms_media = plan.sms_attachments.values()
+    media = {
+        "copied": sum(data is not None for _, data in sms_media) + sum(a["available"] for a in wa_media)
+        + sum(audio is not None for audio in plan.voicemail_audio.values()),
+        "not_in_backup": sum(data is None for _, data in sms_media) + sum(not a["available"] for a in wa_media)
+        + sum(audio is None for audio in plan.voicemail_audio.values()),
+        "failed": 0,
+    }
+    files_total = len(sms_media) + len(wa_media) + len(voicemails)
+
+    def originals_in(folder: Path):
+        # Every source's own file, though Messages' and WhatsApp's attachment ids collide
+        for att_id, (name, data) in plan.sms_attachments.items():
+            assert (folder / f"{att_id}-{name}").exists() is (data is not None), name
+            if data is not None:
+                assert (folder / f"{att_id}-{name}").read_bytes() == data
+        assert (folder / f"wa{wb.ATT_IMAGE}-abcd-image.jpg").read_bytes() == s.image_bytes
+        assert (folder / f"wa{wb.ATT_DOCUMENT}-{wb.DOCUMENT_TITLE}").read_bytes() == wb.PDF_BYTES
+        assert (folder / f"wa{wb.ATT_VOICE_NOTE}-voice.opus").read_bytes() == wb.VOICE_BYTES
+        assert [r.read_bytes() for r in folder.glob("vm*.amr")] == [plan.voicemail_audio[1]]
+
+    base = None
+    for fmt, suffix in (("html", ".html"), ("csv", ".csv"), ("txt", ".txt")):
+        out = ctx.folder(f"person-{fmt}")
+        seen = len(p.notifications)
+        result = p.rpc("export_person", format=fmt, output_dir=str(out), **params)
+        path = Path(result["file"])
+        assert same_path(path.parent, out) and path.suffix == suffix and path.name.startswith(wb.RILEY_NAME)
+        base = path.stem
+        assert result["counts"] == counts and result["message_count"] == total
+        assert result["media"] == media and result["errors"] == {}
+        folder = Path(result["media_folder"])
+        assert same_path(folder, out / f"{base}_attachments")
+        originals_in(folder)
+        progress = [n["params"] for n in p.notifications[seen:] if n["method"] == "export.progress"]
+        assert progress and {q["kind"] for q in progress} == {"person"}
+        assert {q["total"] for q in progress} == {total + files_total}
+        assert (progress[0]["done"], progress[-1]["done"], progress[-1]["failed"]) == (0, total + files_total, 0)
+        if fmt == "html":
+            page = path.read_text(encoding="utf-8")
+            assert page.startswith("<!DOCTYPE html>") and f"<title>Everything with {wb.RILEY_NAME}</title>" in page
+            assert html.escape(VOICEMAIL_TRANSCRIPT) in page and "<b>soon</b>" not in page
+            assert re.search(r'<audio controls[^>]*voice\.opus', page)
+            assert re.search(r'<video controls[^>]*clip\.mov', page)
+            assert "Image not in this backup: IMG_0009.heic" in page
+            # Merged by date: WhatsApp's chat (Mar 1, 2024), the calls (Mar 2 and 3), a voicemail (Mar 4),
+            # then the newest text message, which has the attachments (May 2024)
+            marks = [wb.HELLO_TEXT, "Outgoing call", "Missed FaceTime audio call", "Call me back", "clip.mov"]
+            assert [page.index(m) for m in marks] == sorted(page.index(m) for m in marks)
+            assert page.count('<span class="src">WhatsApp</span>') == counts["whatsapp"]
+        elif fmt == "csv":
+            rows = read_csv(path)
+            assert rows[0] == PERSON_CSV_HEADER and len(rows) - 1 == total
+            kinds = Counter(row[1] for row in rows[1:])
+            assert (kinds["WhatsApp"], kinds["Call"], kinds["Voicemail"]) == \
+                (counts["whatsapp"], counts["call"], counts["voicemail"])
+            assert kinds["SMS"] + kinds["Messages"] + kinds["RCS"] == counts["message"]
+            for row in rows[1:]:
+                for rel in filter(None, row[7].split("; ")):
+                    assert (out / rel).is_file(), rel
+        else:
+            text = path.read_text(encoding="utf-8-sig")
+            assert f"(WhatsApp) {wb.RILEY_NAME}: {wb.HELLO_TEXT}" in text
+            assert f"[Video: clip.mov -> {base}_attachments/{wb.ATT_DOCUMENT}-clip.mov]" in text
+            assert "(Voicemail) Voicemail" in text and "(Call) Outgoing call" in text
+
+    # PDF: the page goes into Electron's staging folder; every original goes beside the PDF in the
+    # chosen folder, under a name free for both the PDF and the folder
+    staging, chosen = ctx.folder("person-staging"), ctx.folder("person-chosen")
+    (chosen / f"{base}.pdf").write_bytes(b"%PDF-1.4 saved earlier")
+    result = p.rpc("export_person", format="pdf_source", output_dir=str(staging), media_dir=str(chosen), **params)
+    page_path = Path(result["file"])
+    assert same_path(page_path.parent, staging) and page_path.name == f"{base} (2).html"
+    assert result["counts"] == counts and result["media"] == media
+    assert same_path(result["media_folder"], chosen / f"{base} (2)_attachments")
+    originals_in(Path(result["media_folder"]))
+    page = page_path.read_text(encoding="utf-8")
+    images = set(re.findall(r'<img[^>]* src="(attachments/[^"]+)"', page))
+    assert {f"attachments/{wb.ATT_IMAGE}.jpg", f"attachments/wa{wb.ATT_IMAGE}.jpg"} <= images
+    for rel in images:
+        assert (staging / rel).read_bytes()[:3] == JPEG_MAGIC
+    assert f"Saved as {wb.ATT_DOCUMENT}-clip.mov" in page and "Recording saved as vm1-" in page
+    assert "<video" not in page and "<audio" not in page
+    assert (chosen / f"{base}.pdf").read_bytes() == b"%PDF-1.4 saved earlier"
+
+    assert_error_dict(p.rpc("export_person", format="docx", output_dir=str(ctx.folder("person-docx")), **params),
+                      "Unsupported format")
+    assert files_under(ctx.tmp / "person-docx") == []
+
+
 # ── Podcasts ─────────────────────────────────────────────────────────────────
 # The library (MTLibrary.sqlite) in a copy of Einstein's backup, and in an
 # encrypted backup holding only it. "Listened" is the history (a play count,
@@ -1662,6 +1785,29 @@ def empty_export_whatsapp_chats(e, out):
                        output_dir=str(out), mode=mode)
         assert result == {"error": "WhatsApp is not in this backup", "empty_reason": "not_in_backup"}
     assert files_under(out) == []
+
+
+@empty_state("export_person")
+def empty_export_person(e, out):
+    # WhatsApp, calls and voicemail aren't in Einstein's backup: the Messages part is still saved,
+    # and the part that isn't there is named
+    conv = e.biggest_conversation
+    messages = [m for m in e.messages_of(conv["chat_id"]) if not m["is_reaction"]]
+    out.mkdir()
+    result = e.rpc("export_person", format="csv", output_dir=str(out), display_name=conv["display_name"],
+                   chat_ids=[conv["chat_id"]], whatsapp_chat_ids=[conv["chat_id"]], call_ids=["vm_1", 1],
+                   voicemail_ids=[1])
+    assert result["counts"] == {"message": len(messages), "whatsapp": 0, "call": 0, "voicemail": 0}
+    assert result["errors"] == {"whatsapp": "WhatsApp is not in this backup"}
+    assert result["media"] == {"copied": 0, "not_in_backup": 0, "failed": 0} and "media_folder" not in result
+    assert len(read_csv(Path(result["file"]))) - 1 == len(messages)
+    assert files_under(out) == [Path(result["file"])]
+    # Only what isn't there: nothing to save, and nothing written
+    nothing = out / "nothing"
+    result = e.rpc("export_person", format="html", output_dir=str(nothing), display_name="X",
+                   whatsapp_chat_ids=[1], call_ids=["vm_1"], voicemail_ids=[1])
+    assert result == {"error": "WhatsApp is not in this backup", "errors": {"whatsapp": "WhatsApp is not in this backup"}}
+    assert not nothing.exists()
 
 
 @empty_state("list_podcasts")
