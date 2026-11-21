@@ -356,8 +356,9 @@ export default {
           const dir = path.join(root, `screen-${s.name.replace(/\W+/g, '-').toLowerCase()}-${format ?? 'default'}`);
           const res = await run(dir, () => clickSave(s.button), format ?? undefined);
           timing(`export from ${s.name} ${format ?? ''}`.trim(), res.ms ?? 0);
-          // One file in the format asked for (voicemail: audio and its list)
-          const inFormat = format ? res.files.filter(f => path.extname(f).slice(1).toLowerCase() === format) : res.files;
+          // One file in the format asked for (voicemail: audio and its list; voice memo recordings: their audio)
+          const inFormat = format === 'recordings' ? res.files.filter(f => /\.(m4a|qta|qt)$/i.test(f))
+            : format ? res.files.filter(f => path.extname(f).slice(1).toLowerCase() === format) : res.files;
           const pdfOk = format !== 'pdf' || inFormat.every(f => pdfStats(path.join(dir, f)).pages > 0);
           ok(`${s.name} screen: Save${format ? ` as ${format}` : ''}`, res, { pass: inFormat.length >= 1 && pdfOk, detail: { files: res.files.slice(0, 5) } });
           await prompts();
