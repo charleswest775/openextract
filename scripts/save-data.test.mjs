@@ -268,6 +268,70 @@ test('saveConversation as PDF goes through the PDF exporter without a format', a
   assert.deepEqual(calls[1], ['exportPdf', 'export_conversation', { udid: 'u', chat_id: 42, output_dir: '/tmp/out', display_name: 'Mom' }]);
 });
 
+// A conversation too big for one PDF comes back split by year (electron/pdfExport.ts);
+// the notice says how many PDFs, and why.
+const SPLIT = {
+  name: 'Mom', labels: ['2022', '2023', '2024–2026'], messages: 60335, images: 2005,
+  estimate: { pages: 6321, megabytes: 712 },
+};
+
+test('saveConversation as PDF split by year: how many PDFs, and why', async t => {
+  const files = ['/tmp/out/Mom, 2022.pdf', '/tmp/out/Mom, 2023.pdf', '/tmp/out/Mom, 2024–2026.pdf'];
+  const { lib: save } = loadWith(t, {
+    saveFolder: async () => '/tmp/out',
+    exportPdf: async () => ({ success: true, data: { files, message_count: 60335, splits: [SPLIT] } }),
+  });
+  assert.deepEqual(await save.saveConversation('u', MOM, 'pdf'), {
+    title: 'Saved your conversation with Mom',
+    detail: `${(60335).toLocaleString()} messages in 3 PDFs`,
+    path: '/tmp/out',
+    note: 'One PDF of it all would be about 710 MB and 6,300 pages, so it\'s split by year: 2022, 2023 and 2024–2026. '
+      + 'Smaller files are easier to open, share and print.',
+  });
+});
+
+test('pdfSplitNote: one conversation, everything merged, several conversations, months, many parts', () => {
+  const note = lib.pdfSplitNote;
+  assert.equal(note(undefined, 'conversation'), undefined);
+  assert.equal(note([], 'chat'), undefined);
+  assert.equal(note([SPLIT], 'conversation'),
+    'Your conversation with Mom would be one PDF of about 710 MB and 6,300 pages, so it\'s split by year: 2022, 2023 and 2024–2026. '
+    + 'Smaller files are easier to open, share and print.');
+  assert.match(note([{ ...SPLIT, name: null, estimate: { pages: 12345, megabytes: 1449 } }], 'chat'),
+    /^One PDF of it all would be about 1\.4 GB and 12,000 pages, so it's split by year: /);
+  assert.match(note([{ ...SPLIT, labels: ['2022', 'Jan–Jun 2023', 'Jul–Dec 2023'] }], 'chat'),
+    /so it's split by date: 2022, Jan–Jun 2023 and Jul–Dec 2023\./);
+  assert.match(note([{ ...SPLIT, labels: ['2015–2017', '2018', '2019', '2020', '2021', '2022', '2023'] }], 'conversation'),
+    /so it's split by year into 7 PDFs, 2015–2017 to 2023\./);
+  assert.match(note([{ ...SPLIT, estimate: { pages: 40, megabytes: 0 } }], 'conversation'), /about 1 MB and 40 pages/);
+  assert.equal(note([SPLIT, { ...SPLIT, name: 'Dad', labels: ['2023', '2024'] }], 'chat'),
+    '2 chats would each be too big as one PDF, so each is split by year: Mom (3 PDFs) and Dad (2 PDFs). '
+    + 'Smaller files are easier to open, share and print.');
+  const five = ['A', 'B', 'C', 'D', 'E'].map(name => ({ ...SPLIT, name }));
+  assert.match(note(five, 'conversation'), /^5 conversations would each .*: A \(3 PDFs\), B \(3 PDFs\), C \(3 PDFs\) and 2 more\./);
+});
+
+test('saveConversations as PDF: the note names the conversations that were split', async t => {
+  const { lib: save } = loadWith(t, {
+    saveFolder: async () => '/tmp/out',
+    exportPdf: async () => ({ success: true, data: { files: ['/tmp/out/Dad.pdf', '/tmp/out/a.pdf', '/tmp/out/b.pdf', '/tmp/out/c.pdf'], message_count: 70000, splits: [SPLIT] } }),
+  });
+  const result = await save.saveConversations('u', [MOM, { chat_id: 7, display_name: 'Dad', chat_identifier: 'dad' }], 'pdf', 'separate');
+  assert.equal(result.detail, '2 conversations in 4 files');
+  assert.match(result.note, /^Your conversation with Mom would be one PDF of about 710 MB/);
+});
+
+test('saveWhatsAppChat as PDF split by year', async t => {
+  const { lib: save } = loadWith(t, {
+    saveFolder: async () => '/tmp/out',
+    exportPdf: async () => ({ success: true, data: { files: ['/tmp/out/a.pdf', '/tmp/out/b.pdf'], message_count: 9, splits: [{ ...SPLIT, labels: ['2023', '2024'] }] } }),
+  });
+  const result = await save.saveWhatsAppChat('u', RILEY, 'pdf');
+  assert.equal(result.detail, '9 messages in 2 PDFs');
+  assert.equal(result.path, '/tmp/out');
+  assert.match(result.note, /^One PDF of it all would be about 710 MB and 6,300 pages, so it's split by year: 2023 and 2024\./);
+});
+
 test('saveConversation falls back to the folder when the engine names no file', async t => {
   const { lib: save } = loadWith(t, { saveFolder: async () => '/tmp/out', call: async () => ({ success: true, data: {} }) });
   assert.deepEqual(await save.saveConversation('u', MOM, 'txt'), {

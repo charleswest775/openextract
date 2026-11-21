@@ -515,5 +515,51 @@ class TestUnreadable(WhatsAppExportCase):
         self.assertIsNone(self.wa._export._inner)
 
 
+
+class TestSplitPdf(WhatsAppExportCase):
+    """A PDF save too big for one file is split by year (pdf_parts.py): the plan
+    counts what each month would put in the PDF, and each part keeps its months."""
+
+    CHAT = [
+        _msg(1, 1, "2023-05-01T10:00:00+00:00", "spring",
+             attachments=[_att(11, "Message/Media/a.jpg", "image/jpeg")]),
+        _msg(2, 2, "2023-12-31T23:30:00+00:00", "new year's eve",
+             attachments=[_att(12, "Message/Media/v.mp4", "video/mp4", thumbnail_path="Message/Media/v.thumb")]),
+        _msg(3, 3, "2024-01-01T00:30:00+00:00", "", message_type="location",
+             location={"latitude": 1.0, "longitude": 2.0, "thumbnail_path": "Message/Media/map.jpg"}),
+        _msg(4, 4, "2024-02-01T10:00:00+00:00", "voice note",
+             attachments=[_att(13, "Message/Media/n.opus", "audio/ogg")]),
+    ]
+
+    def test_plan_counts_photos_video_stills_and_maps(self):
+        self.source({1: self.CHAT, 2: self.CHAT[:1]})
+        plan = self.wa.plan_pdf_parts(self.backup, [1, 2], {})
+        self.assertEqual([(g["chat_ids"], g["messages"], g["images"], g["split"]) for g in plan["groups"]],
+                         [([1], 4, 3, False), ([2], 1, 1, False)])
+        merged = self.wa.plan_pdf_parts(self.backup, [1, 2], {}, merged=True)
+        self.assertEqual([(g["chat_ids"], g["messages"]) for g in merged["groups"]], [([1, 2], 5)])
+
+    def test_a_store_that_cant_be_read_plans_nothing(self):
+        self.source({1: []}, empty_reason="not_in_backup")
+        self.assertEqual(self.wa.plan_pdf_parts(self.backup, [1], {}),
+                         {"error": "WhatsApp is not in this backup", "empty_reason": "not_in_backup"})
+
+    def test_a_part_keeps_its_months(self):
+        self.source({1: self.CHAT})
+        part = {"from": "2023-01", "to": "2023-12", "label": "2023", "undated": False}
+        text = self.read(self.export("txt", part=part), encoding="utf-8-sig")
+        self.assertIn("spring", text)
+        self.assertIn("new year's eve", text)
+        self.assertNotIn("voice note", text)
+        self.assertEqual(self.export("txt", part={**part, "from": "2024-01", "to": "2024-12"})["message_count"], 2)
+
+    def test_merged_part_is_named_for_its_years(self):
+        self.source({1: self.CHAT, 2: self.CHAT[:1]})
+        part = {"from": "2023-01", "to": "2023-12", "label": "2023", "undated": False}
+        result = self.wa.export_conversations(self.backup, [1, 2], {1: "Riley", 2: "Sam"}, {}, "pdf_source",
+                                              self.out, mode="merged", part=part)
+        self.assertEqual(result["message_count"], 3)
+        self.assertEqual([os.path.basename(f) for f in result["files"]], ["all_whatsapp_chats 2023.html"])
+
 if __name__ == "__main__":
     unittest.main()

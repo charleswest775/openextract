@@ -28,12 +28,21 @@ function setup({ countryCode = 'US', locale = 'en-US', temp } = {}) {
 /**
  * A stand-in for the engine's pdf_source export: writes the HTML files (and an
  * attachment) into the staging folder it is given, and answers like the engine.
+ * plan_pdf_parts answers `plan` (nothing to split unless a test gives one) and is
+ * recorded in `plans`, not `calls`.
  */
-function fakeEngine(files = ['Mom.html'], { messageCount = 12, onCall } = {}) {
+function fakeEngine(files = ['Mom.html'], { messageCount = 12, onCall, plan = { groups: [] } } = {}) {
   const calls = [];
+  const plans = [];
   return {
     calls,
+    plans,
     async call(method, params, timeoutMs) {
+      if (method === 'plan_pdf_parts') {
+        plans.push({ params, timeoutMs });
+        if (plan instanceof Error) throw plan;
+        return plan;
+      }
       calls.push({ method, params, timeoutMs, stagingExisted: fs.existsSync(params.output_dir) });
       if (onCall) {
         const answer = await onCall(params);
@@ -55,6 +64,18 @@ function fakeEngine(files = ['Mom.html'], { messageCount = 12, onCall } = {}) {
 }
 
 const stagingDirsIn = temp => fs.readdirSync(temp).filter(n => n.startsWith(PREFIX));
+
+/** Write a staged HTML page the way the engine does, and return its path. */
+function writePage(stagingDir, name) {
+  const file = path.join(stagingDir, name);
+  fs.writeFileSync(file, '<html><body>part</body></html>');
+  return file;
+}
+
+const ESTIMATE = { pages: 6300, megabytes: 700 };
+const part = (label, from, to, extra = {}) => ({ from, to, label, undated: false, messages: 100, images: 10, ...extra });
+const YEARS = [part('2022', '2022-01', '2022-12', { undated: true }), part('2023', '2023-01', '2023-12'), part('2024', '2024-01', '2024-12')];
+const WHOLE = { from: null, to: null, label: null, undated: true, messages: 5, images: 0 };
 
 function makeOld(dir, ageMs) {
   const t = new Date(Date.now() - ageMs);
@@ -168,7 +189,7 @@ describe('exportMessagesPdf', () => {
     assert.ok(path.basename(call.params.output_dir).startsWith(PREFIX));
     assert.equal(params.output_dir, outputDir, 'the caller\'s params were changed');
 
-    assert.deepEqual(result, { files: [path.join(outputDir, 'Mom.pdf')], message_count: 42 });
+    assert.deepEqual(result, { files: [path.join(outputDir, 'Mom.pdf')], message_count: 42, splits: [] });
     assert.ok(fs.existsSync(result.files[0]));
     assert.deepEqual(stagingDirsIn(temp), [], 'the staging folder (with copies of photos) was left behind');
 
@@ -192,7 +213,7 @@ describe('exportMessagesPdf', () => {
     const one = fakeEngine(['Riley.html'], { messageCount: 9 });
     const result = await pdf.exportMessagesPdf(one, 'export_whatsapp_chat', { udid: 'u', chat_id: 3, output_dir: outputDir });
     assert.deepEqual(one.calls.map(c => [c.method, c.params.format, c.params.chat_id]), [['export_whatsapp_chat', 'pdf_source', 3]]);
-    assert.deepEqual(result, { files: [path.join(outputDir, 'Riley (2).pdf')], message_count: 9 });
+    assert.deepEqual(result, { files: [path.join(outputDir, 'Riley (2).pdf')], message_count: 9, splits: [] });
     assert.equal(fs.readFileSync(path.join(outputDir, 'Riley.pdf'), 'utf-8'), 'from Messages');
 
     const many = fakeEngine(['Riley (2).html', 'Hiking crew.html'], { messageCount: 30 });
@@ -319,6 +340,152 @@ describe('exportMessagesPdf', () => {
       await pdf.exportMessagesPdf(fakeEngine(), 'export_conversation', { output_dir: outputDir });
       assert.equal(env.windows[0].webContents.printOptions.pageSize, expected, JSON.stringify(options));
     }
+  });
+});
+
+describe('a PDF too big for one file, split by year', () => {
+  test('the engine plans the save first, from the same chats, dates and search', async () => {
+    const { pdf, outputDir } = setup();
+    const engine = fakeEngine();
+    await pdf.exportMessagesPdf(engine, 'export_conversation', {
+      udid: 'u', chat_id: 7, display_name: 'Mom', output_dir: outputDir, date_from: '2023-01-01', query: 'dinner',
+    });
+    assert.deepEqual(engine.plans, [{
+      params: { udid: 'u', source: 'messages', chat_ids: [7], mode: 'separate', date_from: '2023-01-01', date_to: undefined, query: 'dinner' },
+      timeoutMs: 30 * 60 * 1000,
+    }]);
+    const wa = fakeEngine(['Riley.html']);
+    await pdf.exportMessagesPdf(wa, 'export_whatsapp_chats', { udid: 'u', chat_ids: [3, 4], mode: 'merged', output_dir: outputDir });
+    assert.deepEqual([wa.plans[0].params.source, wa.plans[0].params.chat_ids, wa.plans[0].params.mode], ['whatsapp', [3, 4], 'merged']);
+  });
+
+  test('nothing to split: one engine call, as asked, and no splits to explain', async () => {
+    const { pdf, outputDir } = setup();
+    const plan = { groups: [{ chat_ids: [7], split: false, messages: 5, images: 0, estimate: { pages: 1, megabytes: 0 }, parts: [WHOLE] }] };
+    const engine = fakeEngine(['Mom.html'], { plan });
+    const result = await pdf.exportMessagesPdf(engine, 'export_conversation', { udid: 'u', chat_id: 7, output_dir: outputDir });
+    assert.equal(engine.calls.length, 1);
+    assert.equal(engine.calls[0].params.part, undefined);
+    assert.deepEqual(result.splits, []);
+  });
+
+  test('one conversation: a PDF per part, each its own engine call and temporary folder', async () => {
+    const { env, pdf, temp, outputDir } = setup();
+    const plan = { groups: [{ chat_ids: [7], split: true, messages: 300, images: 30, estimate: ESTIMATE, parts: YEARS }] };
+    const staged = [];
+    const engine = fakeEngine([], {
+      plan,
+      onCall: params => {
+        staged.push(params.output_dir);
+        assert.ok(!staged.slice(0, -1).some(d => fs.existsSync(d)), 'an earlier part\'s folder (with copies of photos) was still there');
+        return { file: writePage(params.output_dir, `Mom, ${params.part.label}.html`), message_count: 100 };
+      },
+    });
+    const params = { udid: 'u', chat_id: 7, display_name: 'Mom', output_dir: outputDir };
+    const result = await pdf.exportMessagesPdf(engine, 'export_conversation', params);
+
+    assert.deepEqual(engine.calls.map(c => [c.method, c.params.chat_id, c.params.part?.label, c.params.format, c.timeoutMs]), [
+      ['export_conversation', 7, '2022', 'pdf_source', HOUR],
+      ['export_conversation', 7, '2023', 'pdf_source', HOUR],
+      ['export_conversation', 7, '2024', 'pdf_source', HOUR],
+    ]);
+    assert.deepEqual(engine.calls[0].params.part, YEARS[0]);
+    assert.equal(new Set(staged).size, 3);
+    assert.deepEqual(result.files.map(f => path.basename(f)), ['Mom, 2022.pdf', 'Mom, 2023.pdf', 'Mom, 2024.pdf']);
+    assert.equal(result.message_count, 300);
+    assert.deepEqual(result.splits, [{ name: 'Mom', labels: ['2022', '2023', '2024'], messages: 300, images: 30, estimate: ESTIMATE }]);
+    assert.equal(env.windows.length, 3);
+    assert.deepEqual(stagingDirsIn(temp), []);
+    assert.equal(params.part, undefined, 'the caller\'s params were changed');
+  });
+
+  test('Save all: only the conversation that needs it is split, each saved on its own', async () => {
+    const { pdf, outputDir } = setup();
+    const plan = {
+      groups: [
+        { chat_ids: [3], split: false, messages: 5, images: 0, estimate: { pages: 1, megabytes: 0 }, parts: [WHOLE] },
+        { chat_ids: [4], split: true, messages: 200, images: 20, estimate: ESTIMATE, parts: YEARS.slice(1) },
+      ],
+    };
+    const engine = fakeEngine([], {
+      plan,
+      onCall: params => ({ file: writePage(params.output_dir, `${params.display_name} ${params.part.label ?? ''}.html`), message_count: 7 }),
+    });
+    const result = await pdf.exportMessagesPdf(engine, 'export_conversations', {
+      udid: 'u', chat_ids: [3, 4], conversation_names: { 3: 'Dad', 4: 'Mom' }, mode: 'separate', output_dir: outputDir,
+    });
+    assert.deepEqual(engine.calls.map(c => [c.method, c.params.chat_id, c.params.display_name, c.params.part.label]), [
+      ['export_conversation', 3, 'Dad', null],
+      ['export_conversation', 4, 'Mom', '2023'],
+      ['export_conversation', 4, 'Mom', '2024'],
+    ]);
+    for (const c of engine.calls) {
+      assert.equal(c.params.udid, 'u');
+      assert.ok(!('chat_ids' in c.params) && !('conversation_names' in c.params) && !('mode' in c.params));
+    }
+    assert.deepEqual(result.files.map(f => path.basename(f)), ['Dad .pdf', 'Mom 2023.pdf', 'Mom 2024.pdf']);
+    assert.equal(result.message_count, 21);
+    assert.deepEqual(result.splits.map(s => [s.name, s.labels]), [['Mom', ['2023', '2024']]]);
+  });
+
+  test('WhatsApp "Save all" splits through the one-chat WhatsApp method', async () => {
+    const { pdf, outputDir } = setup();
+    const plan = { groups: [{ chat_ids: [9], split: true, messages: 200, images: 20, estimate: ESTIMATE, parts: YEARS.slice(1) }] };
+    const engine = fakeEngine([], { plan, onCall: params => ({ file: writePage(params.output_dir, `Riley ${params.part.label}.html`) }) });
+    await pdf.exportMessagesPdf(engine, 'export_whatsapp_chats', { udid: 'u', chat_ids: [9], conversation_names: { 9: 'Riley' }, output_dir: outputDir });
+    assert.deepEqual(engine.calls.map(c => c.method), ['export_whatsapp_chat', 'export_whatsapp_chat']);
+  });
+
+  test('everything in one file: the merged save is asked for once per part', async () => {
+    const { pdf, outputDir } = setup();
+    const plan = { groups: [{ chat_ids: [3, 4], split: true, messages: 300, images: 30, estimate: ESTIMATE, parts: YEARS }] };
+    const engine = fakeEngine([], {
+      plan,
+      onCall: params => ({ files: [writePage(params.output_dir, `all_conversations ${params.part.label}.html`)], message_count: 100 }),
+    });
+    const names = { 3: 'Dad', 4: 'Mom' };
+    const result = await pdf.exportMessagesPdf(engine, 'export_conversations', { udid: 'u', chat_ids: [3, 4], conversation_names: names, mode: 'merged', output_dir: outputDir });
+    assert.deepEqual(engine.calls.map(c => [c.method, c.params.mode, c.params.chat_ids, c.params.conversation_names, c.params.part.label]), [
+      ['export_conversations', 'merged', [3, 4], names, '2022'],
+      ['export_conversations', 'merged', [3, 4], names, '2023'],
+      ['export_conversations', 'merged', [3, 4], names, '2024'],
+    ]);
+    assert.equal(result.files.length, 3);
+    assert.deepEqual(result.splits.map(s => [s.name, s.labels]), [[null, ['2022', '2023', '2024']]]);
+  });
+
+  test('a plan that can\'t be made: the save goes ahead as one call', async () => {
+    const { pdf, outputDir } = setup();
+    for (const plan of [new Error('Sidecar call timed out: plan_pdf_parts'), { error: 'WhatsApp isn\'t in this backup' }, null]) {
+      const engine = fakeEngine(['Mom.html'], { plan });
+      const result = await pdf.exportMessagesPdf(engine, 'export_conversation', { udid: 'u', chat_id: 7, output_dir: outputDir });
+      assert.equal(engine.calls.length, 1);
+      assert.equal(engine.calls[0].params.part, undefined);
+      assert.deepEqual(result.splits, []);
+    }
+  });
+
+  test('when a later part fails, the PDFs already saved stay, and the error says so', async () => {
+    const { pdf, temp, outputDir } = setup();
+    const plan = { groups: [{ chat_ids: [7], split: true, messages: 300, images: 30, estimate: ESTIMATE, parts: YEARS }] };
+    const engine = fakeEngine([], {
+      plan,
+      onCall: params => {
+        if (params.part.label === '2024') throw new Error('Sidecar call timed out: export_conversation');
+        return { file: writePage(params.output_dir, `Mom, ${params.part.label}.html`) };
+      },
+    });
+    await assert.rejects(pdf.exportMessagesPdf(engine, 'export_conversation', { udid: 'u', chat_id: 7, output_dir: outputDir }), {
+      message: 'Sidecar call timed out: export_conversation. The first 2 PDFs were saved before this happened.',
+    });
+    assert.deepEqual(fs.readdirSync(outputDir).sort(), ['Mom, 2022.pdf', 'Mom, 2023.pdf']);
+    assert.deepEqual(stagingDirsIn(temp), []);
+
+    // The first part failing is the engine's own error, as before
+    const first = fakeEngine([], { plan, onCall: () => ({ error: 'This conversation has no messages' }) });
+    await assert.rejects(pdf.exportMessagesPdf(first, 'export_conversation', { udid: 'u', chat_id: 7, output_dir: freshDir('pdf-out') }), {
+      message: 'This conversation has no messages',
+    });
   });
 });
 

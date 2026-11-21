@@ -3,7 +3,7 @@
  * and the file formats more than one screen produces.
  */
 import { formatSavedDateTime } from './dates';
-import { exportMessagesPdf, saveFolder, sidecarCall } from './ipc';
+import { exportMessagesPdf, saveFolder, sidecarCall, type PdfSplit } from './ipc';
 import { chatName } from './whatsapp';
 import { voiceMemoSaveDetail } from './voiceMemos';
 import { calendarSaveDetail } from './calendar';
@@ -17,6 +17,8 @@ export interface SaveResult {
   detail?: string;
   /** The file or folder written, for "Show in folder". */
   path?: string;
+  /** Something the person should read, such as why a PDF became several; keeps the notice up until dismissed. */
+  note?: string;
 }
 
 /**
@@ -154,13 +156,74 @@ async function exportOne(methods: ExportMethods, params: Record<string, unknown>
     : checkEngineResult(await sidecarCall(methods.one, { ...params, format }));
 }
 
-async function exportMany(methods: ExportMethods, params: Record<string, unknown>, format: ConversationFormat): Promise<{ files: string[]; message_count: number }> {
+async function exportMany(methods: ExportMethods, params: Record<string, unknown>, format: ConversationFormat): Promise<{ files: string[]; message_count: number; splits?: PdfSplit[] }> {
   const result: any = format === 'pdf'
     ? await exportMessagesPdf(methods.many, params)
     : checkEngineResult(await sidecarCall<{ files: string[]; message_count: number }>(methods.many, { ...params, format }));
   // Every file written, however the engine named them
   const files: string[] = Array.isArray(result?.files) ? result.files : result?.file ? [result.file] : [];
-  return { files, message_count: result?.message_count ?? 0 };
+  return { files, message_count: result?.message_count ?? 0, splits: result?.splits };
+}
+
+// ── Why a PDF save is several files ───────────────────────────────────────────
+
+/** "2020, 2021 and 2022" */
+function joinList(items: string[]): string {
+  return items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+/** An estimate to two figures: 6,321 -> "6,300". */
+function roughly(n: number): string {
+  if (n < 100) return Math.round(n).toLocaleString();
+  const step = 10 ** (Math.floor(Math.log10(n)) - 1);
+  return (Math.round(n / step) * step).toLocaleString();
+}
+
+/** "about 700 MB", "about 1.4 GB" */
+function aboutSize(megabytes: number): string {
+  if (megabytes >= 1000) return `about ${(Math.round(megabytes / 100) / 10).toLocaleString()} GB`;
+  return `about ${roughly(Math.max(1, megabytes))} MB`;
+}
+
+/** "by year: 2020, 2021 and 2022", or "by date: Jan–Jun 2024 and Jul–Dec 2024" when a year was split by month. */
+function byWhat(labels: string[]): string {
+  const how = labels.every(l => /^\d{4}(–\d{4})?$/.test(l)) ? 'by year' : 'by date';
+  if (labels.length > 6) return `${how} into ${labels.length} PDFs, ${labels[0]} to ${labels[labels.length - 1]}`;
+  return `${how}: ${joinList(labels)}`;
+}
+
+const SMALLER_FILES = 'Smaller files are easier to open, share and print.';
+
+/**
+ * Why a PDF save came out as several files, for its notice (electron/pdfExport.ts
+ * splits a conversation that would make too big a PDF). Undefined when nothing was split.
+ */
+export function pdfSplitNote(splits: PdfSplit[] | undefined, noun: 'conversation' | 'chat'): string | undefined {
+  if (!splits?.length) return undefined;
+  if (splits.length === 1) {
+    const s = splits[0];
+    const size = `${aboutSize(s.estimate.megabytes)} and ${roughly(s.estimate.pages)} pages`;
+    const opening = s.name ? `Your ${noun} with ${s.name} would be one PDF of ${size}` : `One PDF of it all would be ${size}`;
+    return `${opening}, so it's split ${byWhat(s.labels)}. ${SMALLER_FILES}`;
+  }
+  const each = splits.map(s => `${s.name ?? 'everything'} (${plural(s.labels.length, 'PDF')})`);
+  const named = each.length > 4 ? [...each.slice(0, 3), `${each.length - 3} more`] : each;
+  return `${splits.length} ${noun}s would each be too big as one PDF, so each is split by year: ${joinList(named)}. ${SMALLER_FILES}`;
+}
+
+/** { note } when there is one, so a notice without one has no note key at all. */
+function noted(note: string | undefined): { note?: string } {
+  return note ? { note } : {};
+}
+
+/** A one-conversation save's notice already says whose it is. */
+function unnamed(splits: PdfSplit[] | undefined): PdfSplit[] | undefined {
+  return splits?.map(s => ({ ...s, name: null }));
+}
+
+/** "1,204 messages", or "1,204 messages in 5 PDFs" when a save made several files. */
+function messagesIn(count: number, files: string[], noun = 'message'): string {
+  return files.length > 1 ? `${plural(count, noun)} in ${plural(files.length, 'PDF')}` : plural(count, noun);
 }
 
 /** Save one conversation into a folder the person picks. */
@@ -169,11 +232,12 @@ export async function saveConversation(udid: string, convo: ConversationRef, for
   if (!outputDir) return null;
   const params = { udid, chat_id: convo.chat_id, output_dir: outputDir, display_name: convo.display_name };
   const result = await exportOne(MESSAGES_EXPORT, params, format);
-  const file: string | undefined = result?.file ?? result?.files?.[0];
+  const files: string[] = result?.files ?? (result?.file ? [result.file] : []);
   return {
     title: `Saved your conversation with ${convo.display_name || convo.chat_identifier}`,
-    detail: result?.message_count != null ? plural(result.message_count, 'message') : undefined,
-    path: file ?? outputDir,
+    detail: result?.message_count != null ? messagesIn(result.message_count, files) : undefined,
+    path: files.length === 1 ? files[0] : outputDir,
+    ...noted(pdfSplitNote(unnamed(result?.splits), 'conversation')),
   };
 }
 
@@ -197,6 +261,7 @@ export async function saveConversations(
     title: `Saved ${plural(result.message_count, 'message')}`,
     detail: `${plural(convos.length, 'conversation')} in ${plural(result.files.length, 'file')}`,
     path: result.files.length === 1 ? result.files[0] : outputDir,
+    ...noted(pdfSplitNote(result.splits, 'conversation')),
   };
 }
 
@@ -210,11 +275,12 @@ export async function saveWhatsAppChat(udid: string, chat: WhatsAppChatRef, form
   if (!outputDir) return null;
   const params = { udid, chat_id: chat.chat_id, output_dir: outputDir, display_name: chat.display_name };
   const result = await exportOne(WHATSAPP_EXPORT, params, format);
-  const file: string | undefined = result?.file ?? result?.files?.[0];
+  const files: string[] = result?.files ?? (result?.file ? [result.file] : []);
   return {
     title: `Saved your WhatsApp chat with ${chatName(chat)}`,
-    detail: result?.message_count != null ? plural(result.message_count, 'message') : undefined,
-    path: file ?? outputDir,
+    detail: result?.message_count != null ? messagesIn(result.message_count, files) : undefined,
+    path: files.length === 1 ? files[0] : outputDir,
+    ...noted(pdfSplitNote(unnamed(result?.splits), 'chat')),
   };
 }
 
@@ -238,6 +304,7 @@ export async function saveWhatsAppChats(
     title: `Saved ${plural(result.message_count, 'WhatsApp message')}`,
     detail: `${plural(chats.length, 'chat')} in ${plural(result.files.length, 'file')}`,
     path: result.files.length === 1 ? result.files[0] : outputDir,
+    ...noted(pdfSplitNote(result.splits, 'chat')),
   };
 }
 

@@ -21,11 +21,33 @@ export async function sidecarCall<T = any>(method: string, params: any = {}): Pr
 /** The engine exports that can be printed to PDF: Messages conversations and WhatsApp chats. */
 export type PdfExportMethod = 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats';
 
+/**
+ * A conversation whose PDF was split by year because one file would have been too
+ * big (python/pdf_parts.py; the same shape as PdfSplit in electron/pdfExport.ts).
+ */
+export interface PdfSplit {
+  /** The conversation's name, or null for everything saved into one file ("merged"). */
+  name: string | null;
+  /** The parts, in order: "2023", "2019–2021", "Jan–Jun 2024". */
+  labels: string[];
+  messages: number;
+  images: number;
+  /** About how big one PDF of all of it would have been. */
+  estimate: { pages: number; megabytes: number };
+}
+
+export interface PdfExportResult {
+  files: string[];
+  message_count: number;
+  /** Conversations split into several PDFs; empty when each fit in one file. */
+  splits: PdfSplit[];
+}
+
 /** Export one or more conversations (or WhatsApp chats) as PDF. Resolves to the PDF paths written. */
 export async function exportMessagesPdf(
   method: PdfExportMethod,
   params: any,
-): Promise<{ files: string[]; message_count: number }> {
+): Promise<PdfExportResult> {
   if (!isElectron) {
     throw new Error('Not running in Electron. Start with: npm run dev');
   }

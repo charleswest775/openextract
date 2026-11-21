@@ -224,6 +224,8 @@ class SidecarServer:
             "get_whatsapp_attachment": self.get_whatsapp_attachment,
             "export_whatsapp_chat": self.export_whatsapp_chat,
             "export_whatsapp_chats": self.export_whatsapp_chats,
+            # How a PDF save of conversations or WhatsApp chats splits by year (pdf_parts.py)
+            "plan_pdf_parts": self.plan_pdf_parts,
             # Podcasts
             "list_podcasts": self.list_podcasts,
             "list_podcast_episodes": self.list_podcast_episodes,
@@ -493,7 +495,7 @@ class SidecarServer:
         return self.message_extractor.export_conversation(
             backup, chat_id, contacts, fmt, output_dir,
             date_from=date_from, date_to=date_to, query=query,
-            display_name=display_name
+            display_name=display_name, part=params.get("part")
         )
 
     def export_conversations(self, params):
@@ -512,7 +514,7 @@ class SidecarServer:
         conv_names = {int(k): v for k, v in conversation_names.items()}
         return self.message_extractor.export_conversations(
             backup, chat_ids, conv_names, contacts, fmt, output_dir,
-            mode=mode, date_from=date_from, date_to=date_to, query=query
+            mode=mode, date_from=date_from, date_to=date_to, query=query, part=params.get("part")
         )
 
     def export_photos(self, params):
@@ -659,7 +661,8 @@ class SidecarServer:
         contacts = self.contact_resolver.load_contacts(backup)
         return self.whatsapp_extractor.export_conversation(
             backup, chat_id, contacts, fmt, output_dir,
-            date_from=date_from, date_to=date_to, query=query, display_name=display_name
+            date_from=date_from, date_to=date_to, query=query, display_name=display_name,
+            part=params.get("part")
         )
 
     def export_whatsapp_chats(self, params):
@@ -678,7 +681,24 @@ class SidecarServer:
         names = {int(k): v for k, v in conversation_names.items()}
         return self.whatsapp_extractor.export_conversations(
             backup, chat_ids, names, contacts, fmt, output_dir,
-            mode=mode, date_from=date_from, date_to=date_to, query=query
+            mode=mode, date_from=date_from, date_to=date_to, query=query, part=params.get("part")
+        )
+
+    def plan_pdf_parts(self, params):
+        """Before a PDF save: how many files it should be, split by year when one
+        would be too big (pdf_parts.py). ``source`` is "messages" or "whatsapp";
+        ``mode`` "merged" plans one file of every chat, anything else one per chat."""
+        udid = params["udid"]
+        source = params.get("source", "messages")
+        if source not in ("messages", "whatsapp"):
+            return {"error": f"Unknown source: {source}"}
+        chat_ids = [int(c) for c in params.get("chat_ids") or []]
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        extractor = self.whatsapp_extractor if source == "whatsapp" else self.message_extractor
+        return extractor.plan_pdf_parts(
+            backup, chat_ids, contacts, merged=params.get("mode") == "merged",
+            date_from=params.get("date_from"), date_to=params.get("date_to"), query=params.get("query"),
         )
 
     # ── Podcasts ─────────────────────────────────────────────────────────────

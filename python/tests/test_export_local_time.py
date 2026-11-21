@@ -176,7 +176,7 @@ class TestMergedExport(_ExportTest):
     def _export(self, fmt):
         # Alice's messages in one conversation, mine in another; the merged
         # export puts them back in time order.
-        def collect(backup, chat_id, *args):
+        def collect(backup, chat_id, *args, **kwargs):
             return [m for m in _messages() if m["is_from_me"] == (chat_id == 2)]
 
         with mock.patch.object(self.ext, "_collect_messages_for_chat", side_effect=collect):
