@@ -14,7 +14,7 @@
   <meta property="og:description" content="A quiet guide. Where the files live, how to find them, and how to keep them." />
   <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
   <meta property="article:published_time" content="2026-04-24" />
-  <meta property="article:modified_time" content="2026-11-02" />
+  <meta property="article:modified_time" content="2026-11-21" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
@@ -27,7 +27,7 @@
     "url": "https://www.openextract.app/blog/recovering-voicemails-from-loved-ones",
     "mainEntityOfPage": "https://www.openextract.app/blog/recovering-voicemails-from-loved-ones",
     "datePublished": "2026-04-24",
-    "dateModified": "2026-11-02",
+    "dateModified": "2026-11-21",
     "image": "https://www.openextract.app/img/og-image.png",
     "author": {
       "@type": "Organization",
@@ -92,7 +92,7 @@
     <p>So the places to look, in order:</p>
 
     <ul>
-      <li><strong>The person's own Mac or PC.</strong> The laptop they plugged their phone into. Check <code>~/Library/Application Support/MobileSync/Backup/</code> on a Mac, or <code>%AppData%\Apple Computer\MobileSync\Backup\</code> on Windows.</li>
+      <li><strong>The person's own Mac or PC.</strong> The laptop they plugged their phone into. Check <code>~/Library/Application Support/MobileSync/Backup/</code> on a Mac. On Windows, check <code>%USERPROFILE%\Apple\MobileSync\Backup\</code> (the Apple Devices app and iTunes from the Microsoft Store) and <code>%AppData%\Apple Computer\MobileSync\Backup\</code> (iTunes from Apple's website). <a href="/use-cases/where-are-iphone-backups-stored">Where iPhone backups are stored</a> walks through both.</li>
       <li><strong>A partner's or family member's computer.</strong> If they ever plugged their phone in to charge, to do an initial setup, to grab photos — there's a backup on that machine.</li>
       <li><strong>An external drive.</strong> Some people moved backups off their main drive. Look for folders named <code>Backup</code> with UUID-named subfolders.</li>
     </ul>
@@ -105,12 +105,13 @@
 
     <pre class="code-block"><code><span class="code-dim">Library/Voicemail/</span>
 ├── voicemail.db          <span class="code-dim"># SQLite index: who, when, how long</span>
-├── 1.amr                 <span class="code-dim"># older iOS — narrowband audio</span>
-├── 2.m4a                 <span class="code-dim"># newer iOS — AAC audio</span>
-├── 17.m4a
+├── 1.amr                 <span class="code-dim"># the audio for row 1</span>
+├── 1.transcript          <span class="code-dim"># the Phone app's transcript, if it made one</span>
+├── 17.amr
+├── A-…/                  <span class="code-dim"># newer iPhones: a store for each phone line</span>
 └── ...</code></pre>
 
-    <p>The <code>voicemail.db</code> SQLite database has one row per voicemail with the timestamp, sender's phone number, duration in seconds, and a transcription if iOS was able to make one. The audio file is named by the voicemail's row ID — <code>1.m4a</code> for row 1, etc.</p>
+    <p>The <code>voicemail.db</code> SQLite database has one row per voicemail with the timestamp, the caller's phone number and the length in seconds. The audio isn't in the database: each voicemail is its own <code>.amr</code> file, named by its row ID (<code>1.amr</code> for row 1). The transcript the Phone app shows is in a file of its own next to it, not in the database. A voicemail deleted on the phone stays in the table while it's still in the Phone app's Deleted Messages list. The <a href="/backup-files/voicemail-db">voicemail.db reference</a> has the columns, version by version.</p>
 
     <p>In the backup, these files are renamed to hex-encoded SHA-1 hashes (every file is — that's how iPhone backups work). <code>Manifest.db</code> maps the hex names back to their original paths. The query that finds voicemail audio looks like:</p>
 
@@ -123,28 +124,30 @@
 
     <h2>What gets saved alongside the audio</h2>
 
-    <p>When OpenExtract exports voicemails, it saves each voicemail as an <code>.amr</code> audio file, the format the iPhone stores, alongside a CSV of metadata — who left it, when, how long it was, and whatever iOS transcribed. That CSV matters. Years from now you won't remember whose number that was in 2017, but the CSV will.</p>
+    <p>In OpenExtract, open the backup and click <strong>Voicemail</strong>. Each voicemail is there with who called, when and how long it is, and the transcript under it if the iPhone made one. Spam and deleted voicemails that are still in the backup are under <strong>Spam</strong> and <strong>Deleted</strong>, as on the iPhone. <strong>Save all</strong> saves each one as an <code>.amr</code> audio file, the format the iPhone stores, alongside a list called <code>voicemails.csv</code>: who left it, when, how long it was, and the transcript. That list matters. Years from now you won't remember whose number that was in 2017, but the CSV will.</p>
 
     <p>For each voicemail you'll get:</p>
 
     <ul>
-      <li><strong>The audio file</strong> — an <code>.amr</code> file, which plays in free players like VLC.</li>
+      <li><strong>The audio file</strong> — an <code>.amr</code> file named with the caller and the day, which plays in free players like VLC.</li>
       <li><strong>The timestamp</strong> — down to the second, in your local time zone.</li>
       <li><strong>The caller's number and name</strong> — if they were in contacts.</li>
-      <li><strong>iOS's transcription</strong> — useful when the audio is a message you can't bring yourself to play yet.</li>
+      <li><strong>The iPhone's transcript</strong>, when it made one — useful when the audio is a message you can't bring yourself to play yet.</li>
     </ul>
 
-    <h2>Encrypted backups and this particular case</h2>
+    <h2>Encrypted backups</h2>
 
-    <p>If the backup was encrypted and you don't have the password, voicemails are one of the few things you <em>can</em> still get. The voicemail audio files and index live in <code>HomeDomain</code>, which is encrypted per-file — so you'd still need the password to decrypt them. But metadata like call history is elsewhere and may be partially accessible.</p>
+    <p>If the backup was encrypted, you need its password to get anything out of it, voicemails included. Every file in an encrypted backup, and the index of what's in it, is locked with a key that only that password opens. That's true for us and for Apple.</p>
 
     <p>If the password is unknown and the laptop belongs to someone who has passed, the practical step is to look for written passwords (a notebook, a keychain file, a sticky note). Apple has no backdoor and neither do we.</p>
 
     <h2>What to do with them</h2>
 
-    <p>Something that has helped people we've heard from: back them up in <em>three places</em>. An external drive, a cloud archive you control (not iCloud — a plain folder in Google Drive or Dropbox), and a copy given to another family member. Voice memos deteriorate the way paper does, but more silently. The audio file itself doesn't degrade, but the <em>places</em> you store it do — drives fail, accounts close, phones get replaced.</p>
+    <p>Something that has helped people we've heard from: back them up in <em>three places</em>. An external drive, a cloud archive you control (not iCloud — a plain folder in Google Drive or Dropbox), and a copy given to another family member. The audio file itself doesn't fade, but the <em>places</em> you keep it do — drives fail, accounts close, phones get replaced.</p>
 
     <p>Then you don't have to play them. You just have to know they exist.</p>
+
+    <p>For the steps one at a time, with what the app can and can't do, see <a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails from an iPhone backup</a>.</p>
 
     <h2>One more thing</h2>
 
