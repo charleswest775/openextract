@@ -12,7 +12,10 @@ which backupgen doesn't write either, a copy of Einstein's backup with
 WhatsApp added and an encrypted backup holding only WhatsApp
 (whatsapp_backup.py). For Podcasts, likewise: a copy of Einstein's backup
 with an Apple Podcasts library added, and an encrypted backup holding only
-that library (podcasts_backup.py).
+that library (podcasts_backup.py). Voice Memos and Calendar the same way
+(voice_memos_backup.py, calendar_backup.py): their test libraries hold the
+edge cases (titles stored as BLOBs, a recording kept in iCloud only, every
+kind of event date) that Maren's generated ones don't.
 """
 
 from __future__ import annotations
@@ -54,6 +57,8 @@ from corpus.synthetic import (  # noqa: E402
 from sidecar_client import ProtocolError, SidecarClient, SidecarError  # noqa: E402
 import whatsapp_backup  # noqa: E402
 import podcasts_backup  # noqa: E402
+import voice_memos_backup  # noqa: E402
+import calendar_backup  # noqa: E402
 
 MAREN = "syn-maren-ios26-plain"
 MAREN_ENCRYPTED = "syn-maren-ios26-encrypted"
@@ -70,6 +75,7 @@ CALL_TIMEOUT = 120.0
 JPEG_MAGIC = b"\xff\xd8\xff"
 PDF_MAGIC = b"%PDF-"
 AMR_MAGIC = b"#!AMR"
+M4A_MAGIC = b"ftyp"  # bytes 4 to 8 of an .m4a (or .qta) file
 
 # The prefixes the Back up my iPhone screen turns into a setup step
 # (SETUP_PREFIX in src/components/backup/BackupFlow.tsx).
@@ -358,6 +364,18 @@ class BackupEngine(Engine):
     def podcast_episodes(self) -> list[dict]:
         return self.rpc("list_podcast_episodes")["episodes"]
 
+    @cached_property
+    def voice_memos(self) -> list[dict]:
+        return self.rpc("list_voice_memos")["voice_memos"]
+
+    @cached_property
+    def calendars(self) -> list[dict]:
+        return self.rpc("list_calendars")["calendars"]
+
+    @cached_property
+    def calendar_events(self) -> list[dict]:
+        return self.rpc("list_calendar_events")["events"]
+
 
 class ContractRuntime:
     """The session's engines: one per backup, started on first use and shared by every test."""
@@ -370,6 +388,7 @@ class ContractRuntime:
         self._whatsapp_plans: dict[str, WhatsAppPlan] = {}
         self._podcast_plans: dict[str, PodcastPlan] = {}
         self._person_plan: Optional[PersonPlan] = None
+        self._library_plans: dict[str, LibraryPlan] = {}
 
     def _get(self, name: str, start: Callable[[], Engine]) -> Engine:
         if name in self._failures:  # don't wait for a hung engine again in every test
@@ -490,6 +509,41 @@ class ContractRuntime:
         engine = self._get(name, lambda: BackupEngine(name, plan.backup_dir, plan.udid, plan.password))
         engine.plan = plan
         return engine
+
+    def _library_plan(self, name: str, module, encrypted: bool) -> "LibraryPlan":
+        """A backup holding one of the test libraries (``module``: voice_memos_backup or calendar_backup):
+        a copy of Einstein's, or an encrypted one holding only that library. Built on first use."""
+        key = f"{name}-{'encrypted' if encrypted else 'plain'}"
+        if key not in self._library_plans:
+            problem = module.library_problem()
+            if problem:
+                skip_or_fail(f"no {name} test backup: {problem}")
+            folder = self._tmp_factory.mktemp(key)
+            scenario = module.build(folder / "parts")
+            if encrypted:
+                backup_dir = module.make_encrypted(folder, scenario)
+                plan = LibraryPlan(backup_dir, module.ENCRYPTED_UDID, module.PASSWORD, scenario)
+            else:
+                _, source = generated_backup(EINSTEIN)
+                backup_dir = module.make_einstein_copy(source, folder / module.PLAIN_UDID, scenario)
+                plan = LibraryPlan(backup_dir, module.PLAIN_UDID, None, scenario)
+            self._library_plans[key] = plan
+        return self._library_plans[key]
+
+    def _library(self, name: str, module, encrypted: bool) -> BackupEngine:
+        plan = self._library_plan(name, module, encrypted)
+        engine_name = f"{name}-encrypted" if encrypted else name
+        engine = self._get(engine_name, lambda: BackupEngine(engine_name, plan.backup_dir, plan.udid, plan.password))
+        engine.plan = plan
+        return engine
+
+    def voice_memos(self, encrypted: bool = False) -> BackupEngine:
+        """An engine with a Voice Memos backup open (see voice_memos_backup.py); ``.plan`` says what's in it."""
+        return self._library("voice-memos", voice_memos_backup, encrypted)
+
+    def calendar(self, encrypted: bool = False) -> BackupEngine:
+        """An engine with a Calendar backup open (see calendar_backup.py); ``.plan`` says what's in it."""
+        return self._library("calendar", calendar_backup, encrypted)
 
     def live_engines(self) -> list[Engine]:
         return [e for e in self._engines.values() if not e.broken]
@@ -762,6 +816,16 @@ class PodcastPlan:
     udid: str
     password: Optional[str]
     scenario: "podcasts_backup.Scenario"
+
+
+# ── A backup with Voice Memos or Calendar ────────────────────────────────────
+
+@dataclass
+class LibraryPlan:
+    backup_dir: Path
+    udid: str
+    password: Optional[str]
+    scenario: Any  # voice_memos_backup.Scenario or calendar_backup.Scenario
 
 
 # ── Small checks ─────────────────────────────────────────────────────────────

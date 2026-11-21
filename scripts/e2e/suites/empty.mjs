@@ -80,6 +80,38 @@ export default {
         fs.rmSync(podOut, { recursive: true, force: true });
       }
 
+      // Voice Memos: like Podcasts, many iPhones never record one, so no tile, not listed as missing,
+      // and the engine's list, a recording asked for by id and the save all say so calmly.
+      const vmShown = await app.eval(() => [...document.querySelectorAll('span')].some(s => s.textContent.trim() === 'Voice Memos'));
+      check('Voice Memos: no tile, and not listed as missing', !('Voice Memos' in (await app.tiles())) && !vmShown);
+      const vmList = (await app.api('call', 'list_voice_memos', { udid })).value;
+      check('Voice Memos: the engine says calmly that there are none in this backup',
+        vmList?.success === true && vmList.data?.empty_reason === 'not_in_backup' && !vmList.data?.error && vmList.data?.voice_memos?.length === 0, vmList);
+      const vmAudio = (await app.api('call', 'get_voice_memo_audio', { udid, memo_id: 1 })).value;
+      check('Voice Memos: asking for a recording that isn\'t there gets a sentence, not a crash', vmAudio?.success === true && !!vmAudio.data?.error, vmAudio);
+      // Calendar: no tile; it may be listed as missing, and then says why
+      const calTiles = await app.tiles();
+      check('Calendar: no tile', !('Calendar' in calTiles), calTiles);
+      const homeText = await app.text();
+      check('Calendar: if it\'s listed as missing, it says there are no events', !/Calendar\s*\n\s*Not in this backup/.test(homeText)
+        || /No events in this iPhone's calendars/.test(homeText), homeText.slice(0, 600));
+      for (const method of ['list_calendars', 'list_calendar_events']) {
+        const r = (await app.api('call', method, { udid })).value;
+        const items = r?.data?.calendars ?? r?.data?.events;
+        check(`Calendar: ${method} says calmly that there's none in this backup`,
+          r?.success === true && r.data?.empty_reason === 'not_in_backup' && !r.data?.error && Array.isArray(items) && items.length === 0, r);
+      }
+      for (const [method, format] of [['export_voice_memos', 'recordings'], ['export_calendar', 'ics']]) {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), `oe-e2e-${method}-`));
+        try {
+          const saved = (await app.api('call', method, { udid, output_dir: dir, format })).value;
+          check(`${method}: says there's nothing to save, and writes nothing`,
+            saved?.success === true && !!saved.data?.error && saved.data?.empty_reason === 'not_in_backup' && fs.readdirSync(dir).length === 0, saved);
+        } finally {
+          fs.rmSync(dir, { recursive: true, force: true });
+        }
+      }
+
       // Timeline and Year still work with messages only.
       await app.open('Timeline', /[\d,]+ events/);
       const events = num((await app.text()).match(/([\d,]+) events/)?.[1]);

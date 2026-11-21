@@ -26,10 +26,27 @@ export type PdfExportMethod =
   | 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats'
   | 'export_person' | 'export_notes' | 'export_calls' | 'export_browser_history' | 'export_recovered_messages';
 
+/**
+ * A conversation whose PDF was split by year because one file would have been too
+ * big (python/pdf_parts.py; the same shape as PdfSplit in electron/pdfExport.ts).
+ */
+export interface PdfSplit {
+  /** The conversation's name, or null for everything saved into one file ("merged"). */
+  name: string | null;
+  /** The parts, in order: "2023", "2019–2021", "Jan–Jun 2024". */
+  labels: string[];
+  messages: number;
+  images: number;
+  /** About how big one PDF of all of it would have been. */
+  estimate: { pages: number; megabytes: number };
+}
+
 /** What a PDF save wrote: the PDFs, the engine's message count, and its record count when it gives one. */
 export interface PdfExportResult {
   files: string[];
   message_count: number;
+  /** Conversations split into several PDFs; empty when each fit in one file. */
+  splits: PdfSplit[];
   count?: number;
   media_folder?: string;
   /** export_person: how many files were copied, weren't in the backup, or couldn't be copied. */

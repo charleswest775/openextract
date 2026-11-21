@@ -374,6 +374,9 @@ const MAGIC = {
   mov: b => b.subarray(4, 8).toString() === 'ftyp' || b.subarray(4, 8).toString() === 'moov' || b.subarray(4, 8).toString() === 'wide',
   mp4: b => b.subarray(4, 8).toString() === 'ftyp',
   m4a: b => b.subarray(4, 8).toString() === 'ftyp',
+  // Voice Memos' layered recordings: QuickTime ("ftyp qt  ")
+  qta: b => b.subarray(4, 8).toString() === 'ftyp',
+  ics: b => b.subarray(0, 64).toString('utf-8').replace(/^\uFEFF/, '').startsWith('BEGIN:VCALENDAR'),
   amr: b => b.subarray(0, 5).toString() === '#!AMR',
   html: b => /<html|<!doctype html/i.test(b.subarray(0, 2048).toString('utf-8')),
   vcf: b => b.subarray(0, 64).toString('utf-8').replace(/^﻿/, '').startsWith('BEGIN:VCARD'),

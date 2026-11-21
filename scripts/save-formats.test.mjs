@@ -1,7 +1,7 @@
 // Keeps every Save dialog's formats consistent (src/components/shared/SaveDialog.tsx):
 // each list is made of FORMATS entries only, never an inline { id, label, detail } object;
-// the kind's own format (original files, audio, contact cards, podcast subscriptions, the
-// data bundle) comes first when it has one, then the core formats in one fixed order, PDF ·
+// the kind's own format (original files, audio, contact cards, podcast subscriptions, voice
+// memo recordings, calendar files, the data bundle) comes first when it has one, then the core formats in one fixed order, PDF ·
 // web page · spreadsheet · plain text; nothing offers Markdown; and each screen offers what
 // it can make. Read from the source, so a new screen or list is checked as soon as it's written.
 // Run with: node --test scripts/save-formats.test.mjs
@@ -16,7 +16,7 @@ const read = rel => fs.readFileSync(path.join(root, rel), 'utf-8');
 const SAVE_DIALOG = 'src/components/shared/SaveDialog.tsx';
 
 // A kind's own format comes first, then the core formats in this order.
-const NATIVE = ['originals', 'audio', 'vcf', 'opml', 'bundle'];
+const NATIVE = ['originals', 'audio', 'vcf', 'opml', 'recordings', 'ics', 'bundle'];
 const CORE = ['pdf', 'html', 'csv', 'txt'];
 
 /** Every .ts/.tsx file under src/components, as paths from the repo root. */
@@ -179,6 +179,9 @@ const SCREENS = {
   'src/components/explore/ContactExplorer.tsx': [['vcf', 'csv']],
   // Subscriptions only when a followed show has a feed
   'src/components/explore/PodcastExplorer.tsx': [['opml', 'csv'], ['csv']],
+  // Recordings only when some audio is in the backup
+  'src/components/explore/VoiceMemoExplorer.tsx': [['recordings', 'csv'], ['csv']],
+  'src/components/explore/CalendarExplorer.tsx': [['ics', 'csv']],
 };
 
 test('each screen offers the formats it can make', () => {

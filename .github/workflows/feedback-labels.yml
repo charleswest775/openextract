@@ -48,6 +48,8 @@ jobs:
               'Notes': ['python-engine'],
               'Voicemail': ['voicemail'],
               'Podcasts': ['python-engine'],
+              'Voice Memos': ['python-engine'],
+              'Calendar': ['python-engine'],
               'Web history': ['python-engine'],
               'Recovering deleted messages': ['messages'],
               'Exporting': ['export'],

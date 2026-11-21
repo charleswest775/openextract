@@ -9,7 +9,8 @@ import { check, launch, num, sleep, timed, timing } from '../harness.mjs';
 export const SCREENS = {
   home: 'Backup home', dashboard: 'Backup details', people: 'People', timeline: 'Timeline', year: 'Year',
   messages: 'Messages', whatsapp: 'WhatsApp', photos: 'Photos', contacts: 'Address book', calls: 'Calls', notes: 'Notes',
-  voicemail: 'Voicemail', podcasts: 'Podcasts', browser_history: 'Web history', record_recovery: 'Recover deleted messages', export: 'Save to this computer',
+  voicemail: 'Voicemail', podcasts: 'Podcasts', voice_memos: 'Voice Memos', calendar: 'Calendar', browser_history: 'Web history',
+  record_recovery: 'Recover deleted messages', export: 'Save to this computer',
 };
 
 export default {
@@ -287,6 +288,111 @@ export default {
         await app.home();
         const listed = await app.eval(() => [...document.querySelectorAll('span')].some(s => s.textContent.trim() === 'Podcasts'));
         check('no Podcasts tile, and not listed as missing', !('Podcasts' in tiles) && !listed, { tiles });
+      }
+
+      // ── Voice Memos ──
+      // Like Podcasts: shown only when the backup has recordings, Recently Deleted ones too (the
+      // engine's list decides which way to check), and never listed as missing, since many iPhones
+      // never record one.
+      const vmList = await app.api('call', 'list_voice_memos', { udid: key.udid });
+      const vmData = vmList.value?.data;
+      const memos = vmData?.voice_memos ?? [];
+      const kept = memos.filter(m => !m.is_deleted);
+      if (memos.length) {
+        check('Voice Memos opens', await timed('screen Voice Memos', () => app.open('Voice Memos', /\d+ recordings?/)));
+        // It opens on All Recordings, or on Recently Deleted when every recording is there
+        const opensOn = kept.length || memos.length;
+        const shownMemos = num((await app.text()).match(/([\d,]+) recordings?/)?.[1]);
+        check(`Voice Memos lists the engine's ${opensOn} recordings`, shownMemos === opensOn, shownMemos);
+        // The tile counts those not in Recently Deleted, with no number when every one is
+        check('the Voice Memos tile counts them', tiles['Voice Memos'] === (kept.length || null), { tile: tiles['Voice Memos'] });
+        if (Array.isArray(key.voice_memos)) {
+          const keyKept = key.voice_memos.filter(m => !m.is_deleted).length;
+          check(`the engine has the answer key's ${keyKept} recordings`, keyKept === kept.length, { key: keyKept, engine: kept.length });
+        }
+        // A recording whose audio is in the backup plays in the window's own player, at its length
+        const playable = kept.find(m => m.audio_available && m.title);
+        if (playable) {
+          await app.click(playable.title);
+          const played = await app.waitFor(() => {
+            const a = document.querySelector('section audio');
+            return a && Number.isFinite(a.duration) && a.duration > 0 ? a.duration : null;
+          }, null, 15_000);
+          check('a recording plays in the app, at its length', !!played && Math.abs(played - (playable.duration_seconds ?? 0)) < 1.5
+            && !/can't play here/.test(await app.text()), { played, want: playable.duration_seconds });
+        }
+        // One kept in iCloud only says so, calmly, without a player
+        const cloud = kept.find(m => !m.audio_available && m.audio_missing_reason === 'in_icloud_only' && m.title);
+        if (cloud) {
+          await app.click(cloud.title);
+          check('a recording kept in iCloud only says so', !!(await app.waitForText(/kept in iCloud only, so it isn't in the backup/, 10_000)));
+        }
+        const transcribed = kept.find(m => m.has_transcript && m.audio_available && m.title);
+        if (transcribed) {
+          await app.click(transcribed.title);
+          check('a transcribed recording shows its transcript', !!(await app.waitFor(() => /Transcript/.test(document.body.innerText)
+            && !/Reading the transcript/.test(document.body.innerText), null, 10_000)));
+        }
+        if (memos.length > kept.length) {
+          check('Recently Deleted lists the deleted recordings', await app.click('Recently Deleted')
+            && !!(await app.waitForText(/deleted on the iPhone that are still in this backup/, 10_000)));
+        }
+        check('no image is fetched from the web', !(await app.eval(() => [...document.images].some(i => /^https?:/.test(i.src)))));
+        await shot('voice-memos');
+      } else {
+        check('the engine says calmly that there are no voice memos', vmList.value?.success === true && ['not_in_backup', 'no_records'].includes(vmData?.empty_reason)
+          && !vmData?.error && Array.isArray(vmData?.voice_memos), vmData ?? vmList);
+        await app.home();
+        const listed = await app.eval(() => [...document.querySelectorAll('span')].some(s => s.textContent.trim() === 'Voice Memos'));
+        check('no Voice Memos tile, and not listed as missing', !('Voice Memos' in tiles) && !listed, { tiles });
+      }
+
+      // ── Calendar ──
+      // Shown when any calendar has events. The person's own calendars make All calendars and
+      // the tile's count; holidays, birthdays and subscriptions are listed apart.
+      const calList = await app.api('call', 'list_calendars', { udid: key.udid });
+      const cals = calList.value?.data?.calendars ?? [];
+      const evList = await app.api('call', 'list_calendar_events', { udid: key.udid });
+      const evs = evList.value?.data?.events ?? [];
+      if (evs.length) {
+        const own = new Set(cals.filter(c => c.kind === 'normal').map(c => c.id));
+        const ownEvents = evs.filter(e => own.has(e.calendar_id));
+        const miscounted = cals.filter(c => c.event_count !== evs.filter(e => e.calendar_id === c.id).length).map(c => c.id);
+        check('each calendar\'s count agrees with the events listed for it', miscounted.length === 0, { miscounted });
+        if (ownEvents.length) check('the Calendar tile counts the events in the person\'s own calendars', tiles.Calendar === ownEvents.length, { tile: tiles.Calendar, engine: ownEvents.length });
+        // With no events of their own, the screen opens on the first other calendar that has some
+        const opensOn = ownEvents.length ? ownEvents : evs.filter(e => e.calendar_id === cals.find(c => c.kind !== 'normal' && c.event_count > 0)?.id);
+        check('Calendar opens', await timed('screen Calendar', () => app.open('Calendar', /\d+ events?/)));
+        const shownEvents = num((await app.text()).match(/([\d,]+) events?/)?.[1]);
+        check(`Calendar counts the ${opensOn.length} events it opens on`, shownEvents === opensOn.length, shownEvents);
+        const upcomingText = await app.text();
+        check('Upcoming and Past divide at the backup\'s date', /as of the backup on/.test(upcomingText), upcomingText.slice(0, 400));
+        if (cals.some(c => c.kind !== 'normal' && c.event_count > 0)) check('other calendars are listed apart', /Other calendars/i.test(upcomingText));
+        check('Past opens', await app.click('Past') && !!(await app.waitFor(
+          () => document.querySelector('[aria-label="Which events"] button[aria-pressed="true"]')?.textContent.trim().startsWith('Past'), null, 5_000)));
+        await sleep(300);
+        const pastText = await app.text();
+        const series = opensOn.find(e => e.repeats);
+        if (series) check('a repeating event says how it repeats', (upcomingText + pastText).includes('Repeats '), series.repeats);
+        if (opensOn.some(e => e.all_day && (e.days ?? 1) <= 1)) check('all-day events say so', /All day/.test(upcomingText + pastText));
+        const sample = opensOn.find(e => e.title && pastText.includes(e.title)) ?? opensOn.find(e => e.title && upcomingText.includes(e.title));
+        if (sample) {
+          if (!pastText.includes(sample.title)) await app.click('Upcoming');
+          // An event's row starts with its time, so it's found by the title inside it
+          const opened = await app.eval(t => {
+            const row = [...document.querySelectorAll('button[aria-expanded="false"]')].find(b => b.textContent.includes(t));
+            row?.click();
+            return !!row;
+          }, sample.title);
+          check('an event opens with its details', opened && !!(await app.waitForText(/When[\s\S]*Calendar/, 10_000)), sample.title);
+        }
+        check('no image is fetched from the web', !(await app.eval(() => [...document.images].some(i => /^https?:/.test(i.src)))));
+        await shot('calendar');
+      } else {
+        const data = calList.value?.data;
+        check('the engine says calmly that there are no calendar events', calList.value?.success === true && evList.value?.success === true
+          && !data?.error && !evList.value?.data?.error && Array.isArray(data?.calendars), { calendars: data, events: evList.value?.data });
+        check('no Calendar tile', !('Calendar' in tiles), { tiles });
       }
 
       // ── Web history ──

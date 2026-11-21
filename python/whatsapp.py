@@ -31,6 +31,7 @@ import uuid
 from typing import Optional
 
 import attachment_files
+import pdf_parts
 from app_copies import AppCopies, temp_prefix
 from messages import (
     EXPORT_FOOTER_HTML,
@@ -354,19 +355,29 @@ class WhatsAppExtractor:
 
     def export_conversation(self, backup, chat_id, contacts: dict, fmt: str, output_dir: str,
                             date_from: Optional[str] = None, date_to: Optional[str] = None,
-                            query: Optional[str] = None, display_name: Optional[str] = None) -> dict:
-        """Save one chat: ``{file, message_count}``, or ``{error}`` (with ``empty_reason`` when WhatsApp isn't readable)."""
+                            query: Optional[str] = None, display_name: Optional[str] = None,
+                            part: Optional[dict] = None) -> dict:
+        """Save one chat: ``{file, message_count}``, or ``{error}`` (with ``empty_reason`` when WhatsApp isn't readable).
+        ``part`` is one file of a PDF save split by year (pdf_parts.py)."""
         return self._export.export_conversation(backup, chat_id, contacts, fmt, output_dir,
                                                 date_from=date_from, date_to=date_to, query=query,
-                                                display_name=display_name)
+                                                display_name=display_name, part=part)
 
     def export_conversations(self, backup, chat_ids: list, conversation_names: dict, contacts: dict,
                              fmt: str, output_dir: str, mode: str = "separate",
                              date_from: Optional[str] = None, date_to: Optional[str] = None,
-                             query: Optional[str] = None) -> dict:
+                             query: Optional[str] = None, part: Optional[dict] = None) -> dict:
         """Save several chats, one file each ("separate") or all in one ("merged"): ``{files, message_count}``."""
         return self._export.export_conversations(backup, chat_ids, conversation_names, contacts, fmt, output_dir,
-                                                 mode=mode, date_from=date_from, date_to=date_to, query=query)
+                                                 mode=mode, date_from=date_from, date_to=date_to, query=query,
+                                                 part=part)
+
+    def plan_pdf_parts(self, backup, chat_ids: list, contacts: dict, merged: bool = False,
+                       date_from: Optional[str] = None, date_to: Optional[str] = None,
+                       query: Optional[str] = None) -> dict:
+        """How a PDF save of these chats should be split: see MessageExtractor.plan_pdf_parts."""
+        return self._export.plan_pdf_parts(backup, chat_ids, contacts, merged=merged,
+                                           date_from=date_from, date_to=date_to, query=query)
 
 
 def _app_in_backup(backup) -> bool:
@@ -544,8 +555,12 @@ class _WhatsAppExport(MessageExtractor):
             return None
         return path
 
-    def _collect_messages_for_chat(self, backup, chat_id, contacts, date_from=None, date_to=None, query=None):
-        """Every message in a chat, in arrival order. Raises _StoreProblem when the store can't be read."""
+    def _collect_messages_for_chat(self, backup, chat_id, contacts, date_from=None, date_to=None, query=None,
+                                   part=None):
+        """Every message in a chat, in arrival order. Raises _StoreProblem when the store can't be read.
+        ``part`` keeps one file's months of a PDF save split by year (pdf_parts.py)."""
+        if part and not date_from and not date_to:
+            date_from, date_to = pdf_parts.query_window(part, self.local_tz)
         pages, offset = [], 0
         while True:
             batch = self.get_messages(backup, chat_id, contacts, offset, _EXPORT_PAGE,
@@ -575,19 +590,42 @@ class _WhatsAppExport(MessageExtractor):
             kept += [{**r, "message_type": "text", "has_attachments": False, "attachments": []}
                      for r in hits if r["message_id"] not in seen]
             messages = kept
+        if part:
+            messages = [m for m in messages if pdf_parts.in_part(self._local_datetime(m.get("date")), part)]
         return messages
+
+    @staticmethod
+    def _print_images(msg) -> int:
+        """How many pictures a message puts in a PDF: photos, stills for videos, maps."""
+        n = 0
+        for att in msg.get("attachments") or []:
+            mime = (att.get("mime_type") or "").lower()
+            if (_PrintAttachmentWriter._is_image(att) or mime.startswith("video/")
+                    or (att.get("filename") or "").lower().endswith(_VIDEO_EXTENSIONS)):
+                n += 1
+        if not msg.get("attachments") and (msg.get("location") or {}).get("thumbnail_path"):
+            n += 1
+        return n
+
+    def plan_pdf_parts(self, backup, chat_ids, contacts, merged=False, date_from=None, date_to=None, query=None):
+        try:
+            return super().plan_pdf_parts(backup, chat_ids, contacts, merged=merged,
+                                          date_from=date_from, date_to=date_to, query=query)
+        except _StoreProblem as e:
+            return e.result
 
     # ── one chat ─────────────────────────────────────────────────────────────
 
     _FORMATS = ("txt", "csv", "html", "pdf_source")
 
     def export_conversation(self, backup, chat_id, contacts, fmt, output_dir,
-                            date_from=None, date_to=None, query=None, display_name=None):
+                            date_from=None, date_to=None, query=None, display_name=None, part=None):
         if fmt not in self._FORMATS:
             return {"error": f"Unsupported format: {fmt}"}
         display_name = _without_lone_surrogates(display_name)
         try:
-            messages = self._collect_messages_for_chat(backup, chat_id, contacts, date_from, date_to, query)
+            messages = self._collect_messages_for_chat(backup, chat_id, contacts, date_from, date_to, query,
+                                                       part=part)
         except _StoreProblem as e:
             return e.result
         os.makedirs(output_dir, exist_ok=True)
@@ -618,18 +656,18 @@ class _WhatsAppExport(MessageExtractor):
     # ── several chats ────────────────────────────────────────────────────────
 
     def export_conversations(self, backup, chat_ids, conversation_names, contacts, fmt, output_dir,
-                             mode="separate", date_from=None, date_to=None, query=None):
+                             mode="separate", date_from=None, date_to=None, query=None, part=None):
         if fmt not in self._FORMATS:
             return {"error": f"Unsupported format: {fmt}"}
         names = {k: _without_lone_surrogates(v) for k, v in (conversation_names or {}).items()}
         if mode == "merged":
             return self._export_merged(backup, chat_ids, names, contacts, fmt, output_dir,
-                                       date_from=date_from, date_to=date_to, query=query)
+                                       date_from=date_from, date_to=date_to, query=query, part=part)
         files, total = [], 0
         for chat_id in chat_ids:
             result = self.export_conversation(backup, chat_id, contacts, fmt, output_dir,
                                               date_from=date_from, date_to=date_to, query=query,
-                                              display_name=names.get(chat_id))
+                                              display_name=names.get(chat_id), part=part)
             if result.get("error"):
                 # An unreadable store fails every chat: say so rather than
                 # handing back fewer files than were asked for.
@@ -639,11 +677,12 @@ class _WhatsAppExport(MessageExtractor):
         return {"files": files, "message_count": total}
 
     def _export_merged(self, backup, chat_ids, conversation_names, contacts, fmt, output_dir,
-                       date_from=None, date_to=None, query=None):
+                       date_from=None, date_to=None, query=None, part=None):
         chats = []
         try:
             for chat_id in chat_ids:
-                msgs = self._collect_messages_for_chat(backup, chat_id, contacts, date_from, date_to, query)
+                msgs = self._collect_messages_for_chat(backup, chat_id, contacts, date_from, date_to, query,
+                                                       part=part)
                 name = conversation_names.get(chat_id) or f"WhatsApp chat {chat_id}"
                 chats.append([{**m, "_conversation": name} for m in msgs])
         except _StoreProblem as e:
@@ -652,7 +691,9 @@ class _WhatsAppExport(MessageExtractor):
         # keeps each chat's arrival order even where its dates disagree.
         messages = list(heapq.merge(*chats, key=lambda m: m.get("date") or ""))
         os.makedirs(output_dir, exist_ok=True)
-        base = "all_whatsapp_chats"
+        # One part of a PDF save split by year: "all_whatsapp_chats 2019-2021"
+        label = pdf_parts.file_label(part)
+        base = f"all_whatsapp_chats {label}" if label else "all_whatsapp_chats"
         if fmt == "txt":
             result = self._write_txt(messages, output_dir, base, merged=True)
         elif fmt == "csv":

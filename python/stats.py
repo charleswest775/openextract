@@ -53,7 +53,8 @@ def _apple_ts_to_iso(ts) -> Optional[str]:
 class StatsComputer:
     """Computes comprehensive backup statistics in a single call."""
 
-    def __init__(self, photo_extractor=None, whatsapp_extractor=None, podcast_extractor=None):
+    def __init__(self, photo_extractor=None, whatsapp_extractor=None, podcast_extractor=None, *,
+                 voice_memo_extractor=None, calendar_extractor=None):
         # The Photos screen's extractor, so the Overview counts photos the same
         # way and from the same per-backup cache.
         self._photo_extractor = photo_extractor
@@ -62,6 +63,9 @@ class StatsComputer:
         self._whatsapp_extractor = whatsapp_extractor
         # The Podcasts screen's, so the tile counts what that screen lists.
         self._podcast_extractor = podcast_extractor
+        # The Voice Memos and Calendar screens' (their local_tz and stand-ins), likewise.
+        self._voice_memo_extractor = voice_memo_extractor
+        self._calendar_extractor = calendar_extractor
 
     def compute(self, backup, contacts: dict) -> dict:
         """Return all stats for a backup. Each section is independent — failures are isolated."""
@@ -173,6 +177,34 @@ class StatsComputer:
         overview["total_podcasts_followed"] = pod_stats["followed"]
         overview["total_podcast_episodes_listened"] = pod_stats["listened"]
         overview["podcasts_status"] = pod_stats["status"]
+
+        # Voice Memos
+        try:
+            memo_stats = self._voice_memo_stats(backup)
+        except Exception as e:
+            memo_stats = {"recordings": 0, "seconds": 0, "deleted": 0, "with_audio": 0, "status": "error"}
+            errors.append(f"voice memos: {e}")
+        if memo_stats.get("error"):
+            errors.append(f"voice memos: {memo_stats['error']}")
+        overview["total_voice_memos"] = memo_stats["recordings"]
+        overview["total_deleted_voice_memos"] = memo_stats["deleted"]
+        overview["total_voice_memos_with_audio"] = memo_stats["with_audio"]
+        overview["total_voice_memo_seconds"] = memo_stats["seconds"]
+        overview["voice_memos_status"] = memo_stats["status"]
+
+        # Calendar
+        try:
+            cal_stats = self._calendar_stats(backup)
+        except Exception as e:
+            cal_stats = {"events": 0, "other_events": 0, "calendars": 0, "with_events": 0, "status": "error"}
+            errors.append(f"calendar: {e}")
+        if cal_stats.get("error"):
+            errors.append(f"calendar: {cal_stats['error']}")
+        overview["total_calendar_events"] = cal_stats["events"]
+        overview["total_subscribed_events"] = cal_stats["other_events"]
+        overview["total_calendars"] = cal_stats["calendars"]
+        overview["total_calendars_with_events"] = cal_stats["with_events"]
+        overview["calendar_status"] = cal_stats["status"]
 
         # Remove internal keys from sub-dicts
         msg_stats.pop("total", None)
@@ -607,6 +639,79 @@ class StatsComputer:
             "listened": len(history.get("episodes") or []),
             "status": "ok",
         }
+
+    # ── Voice Memos ───────────────────────────────────────────────────────────
+
+    def _voice_memo_stats(self, backup) -> dict:
+        """Recordings the Voice Memos screen lists outside Recently Deleted, their length in all, those in
+        Recently Deleted, and whether the library could be read.
+
+        recordings counts those not in Recently Deleted (the screen's "All
+        Recordings"), seconds their summed duration in whole seconds, deleted
+        those in Recently Deleted, which the screen lists too and a save
+        writes, with_audio the listed ones (deleted included) whose audio is
+        in the backup, which is what an "Audio files" save can write. status is "ok" when anything is listed (recordings is 0 when
+        every recording is in Recently Deleted), or why there is nothing:
+        "not_in_backup", "no_records", "unsupported_format", or "error" (in
+        the backup but unreadable; only that one also comes back as
+        ``error``, for the overview's list of errors).
+        """
+        extractor = self._voice_memo_extractor
+        if extractor is None:
+            from voice_memos import VoiceMemoExtractor
+            extractor = VoiceMemoExtractor()
+        none = {"recordings": 0, "seconds": 0, "deleted": 0, "with_audio": 0}
+        listed = extractor.list_voice_memos(backup)
+        memos = listed.get("voice_memos") or []
+        if listed.get("error") and listed.get("empty_reason") != "unsupported_format":
+            return {**none, "status": "error", "error": listed["error"]}
+        if not memos:
+            return {**none, "status": listed.get("empty_reason") or "no_records"}
+        kept = [m for m in memos if not m.get("is_deleted")]
+        seconds = 0.0
+        for memo in kept:
+            value = memo.get("duration_seconds")
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+                seconds += value
+        return {"recordings": len(kept), "seconds": int(round(seconds)), "deleted": len(memos) - len(kept),
+                "with_audio": sum(1 for m in memos if m.get("audio_available")), "status": "ok"}
+
+    # ── Calendar ──────────────────────────────────────────────────────────────
+
+    def _calendar_stats(self, backup) -> dict:
+        """Events in the person's own calendars, events in every other calendar, the person's calendars,
+        how many of those have events, and whether the calendar could be read.
+
+        events counts the events in "normal" calendars (the screen's "All
+        calendars"), other_events those in holidays, birthdays, Found in Mail
+        and subscribed calendars (the screen's "Other calendars"), calendars
+        the normal ones, empty ones included (an iPhone has a local calendar
+        and often empty iCloud ones), with_events the normal ones with at
+        least one event. status as for _voice_memo_stats, from the event list
+        the screen shows.
+        """
+        extractor = self._calendar_extractor
+        if extractor is None:
+            from calendar_events import CalendarExtractor
+            extractor = CalendarExtractor()
+        none = {"events": 0, "other_events": 0, "calendars": 0, "with_events": 0}
+        listed = extractor.list_calendars(backup)
+        if listed.get("error") and listed.get("empty_reason") != "unsupported_format":
+            return {**none, "status": "error", "error": listed["error"]}
+        if listed.get("empty_reason") == "unsupported_format":
+            return {**none, "status": "unsupported_format"}
+        calendars = listed.get("calendars") or []
+        kinds = {c.get("id"): c.get("kind") for c in calendars}
+        own = sum(1 for c in calendars if c.get("kind") == "normal")
+        found = extractor.list_events(backup)
+        if found.get("error") and found.get("empty_reason") != "unsupported_format":
+            return {**none, "status": "error", "error": found["error"]}
+        events = found.get("events") or []
+        if not events:
+            return {**none, "calendars": own, "status": found.get("empty_reason") or "no_records"}
+        mine = [e for e in events if kinds.get(e.get("calendar_id"), "normal") == "normal"]
+        return {"events": len(mine), "other_events": len(events) - len(mine), "calendars": own,
+                "with_events": len({e.get("calendar_id") for e in mine}), "status": "ok"}
 
     # ── Voicemails ────────────────────────────────────────────────────────────
 

@@ -5,7 +5,8 @@ import OrganicLoader from '../shared/OrganicLoader';
 import { moreMissingFromFolder, moreOnlyInIcloud, noPhotosHere } from '../../lib/photoCounts';
 import { Info } from 'lucide-react';
 import {
-  LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon, VoicemailIcon, LockIcon, WhatsAppIcon, PodcastIcon,
+  LinesIcon, CameraIcon, ContactIcon, CallIcon, NoteIcon, VoicemailIcon, LockIcon, WhatsAppIcon, PodcastIcon, VoiceMemoIcon,
+  CalendarIcon,
 } from '../shared/Icons';
 import { ReportProblemButton } from '../shared/Feedback';
 
@@ -212,6 +213,12 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
   const whatsappChatsLeftOut = overview.whatsapp_status === 'chats_left_out';
   const podcastCount = overview.total_podcasts ?? 0;
   const podcastsUnreadable = overview.podcasts_status === 'error' || overview.podcasts_status === 'unsupported_format';
+  const voiceMemoCount = overview.total_voice_memos ?? 0;
+  const deletedMemos = overview.total_deleted_voice_memos ?? 0;
+  const voiceMemosUnreadable = overview.voice_memos_status === 'error' || overview.voice_memos_status === 'unsupported_format';
+  const calendarEvents = overview.total_calendar_events ?? 0;
+  const subscribedEvents = overview.total_subscribed_events ?? 0;
+  const calendarUnreadable = overview.calendar_status === 'error' || overview.calendar_status === 'unsupported_format';
   const tiles = [
     { tab: 'messages', icon: LinesIcon, value: overview.total_messages, label: 'Messages' },
     { tab: 'whatsapp', icon: WhatsAppIcon, value: whatsappMessages, label: 'WhatsApp' },
@@ -221,11 +228,17 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
     { tab: 'notes', icon: NoteIcon, value: overview.total_notes, label: 'Notes' },
     { tab: 'voicemail', icon: VoicemailIcon, value: overview.total_voicemails, label: 'Voicemails' },
     { tab: 'podcasts', icon: PodcastIcon, value: podcastCount, label: 'Podcasts' },
+    { tab: 'voice_memos', icon: VoiceMemoIcon, value: voiceMemoCount, label: 'Voice Memos' },
+    { tab: 'calendar', icon: CalendarIcon, value: calendarEvents, label: 'Calendar events' },
   ];
   const present = tiles.filter(t => t.value > 0);
-  // WhatsApp and Podcasts aren't listed as missing: many iPhones don't use them
+  // WhatsApp, Podcasts and Voice Memos aren't listed as missing: many iPhones don't use them.
+  // Calendar is, unless it has holidays or subscriptions, or couldn't be read.
+  const calendarHasSome = subscribedEvents > 0 || calendarUnreadable;
   const missing = [
-    ...tiles.filter(t => t.value === 0 && t.tab !== 'whatsapp' && t.tab !== 'podcasts').map(t => t.label === 'Photos & Videos' ? 'photos' : t.label.toLowerCase()),
+    ...tiles.filter(t => t.value === 0 && t.tab !== 'whatsapp' && t.tab !== 'podcasts' && t.tab !== 'voice_memos'
+      && !(t.tab === 'calendar' && calendarHasSome))
+      .map(t => t.label === 'Photos & Videos' ? 'photos' : t.label.toLowerCase()),
     ...(hasBrowserHistory ? [] : ['web history']),
   ];
 
@@ -360,6 +373,49 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
                   <MiniStat label="Shows" value={podcastCount.toLocaleString()} />
                   <MiniStat label="Following" value={(overview.total_podcasts_followed ?? 0).toLocaleString()} />
                   <MiniStat label="Episodes listened to" value={(overview.total_podcast_episodes_listened ?? 0).toLocaleString()} />
+                </div>
+              )}
+            </InsightCard>
+          )}
+
+          {/* Voice Memos: recordings and how long they are, those in Recently Deleted, or that it's there but couldn't be read */}
+          {(voiceMemoCount > 0 || deletedMemos > 0 || voiceMemosUnreadable) && (
+            <InsightCard title="Voice Memos" icon={VoiceMemoIcon} onViewAll={() => onNavigate('voice_memos')}>
+              {voiceMemosUnreadable ? (
+                <p className="text-sm text-text-secondary">
+                  {overview.voice_memos_status === 'unsupported_format'
+                    ? "Voice Memos is in this backup, but this version of it can't be read yet."
+                    : "Voice Memos is in this backup, but its recordings couldn't be read."}
+                </p>
+              ) : (
+                <div className="space-y-0.5">
+                  <MiniStat label="Recordings" value={voiceMemoCount.toLocaleString()} />
+                  {(overview.total_voice_memo_seconds ?? 0) > 0 && (
+                    <MiniStat label="Total length" value={formatDuration(overview.total_voice_memo_seconds ?? 0)} />
+                  )}
+                  {deletedMemos > 0 && <MiniStat label="In Recently Deleted" value={deletedMemos.toLocaleString()} />}
+                </div>
+              )}
+            </InsightCard>
+          )}
+
+          {/* Calendar: the person's own calendars and events, and the holidays and subscriptions beside them */}
+          {(calendarEvents > 0 || subscribedEvents > 0 || calendarUnreadable) && (
+            <InsightCard title="Calendar" icon={CalendarIcon} onViewAll={() => onNavigate('calendar')}>
+              {calendarUnreadable ? (
+                <p className="text-sm text-text-secondary">
+                  {overview.calendar_status === 'unsupported_format'
+                    ? "The calendar is in this backup, but this version of it can't be read yet."
+                    : "The calendar is in this backup, but it couldn't be read."}
+                </p>
+              ) : (
+                <div className="space-y-0.5">
+                  <MiniStat label="Your calendars" value={(overview.total_calendars ?? 0).toLocaleString()} />
+                  {/* Not "Events in them": some of the person's calendars are empty */}
+                  <MiniStat label="Events" value={calendarEvents.toLocaleString()} />
+                  {subscribedEvents > 0 && (
+                    <MiniStat label="Holidays and subscribed events" value={subscribedEvents.toLocaleString()} />
+                  )}
                 </div>
               )}
             </InsightCard>

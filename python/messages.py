@@ -55,6 +55,7 @@ from local_dates import (
     local_datetime,
     readable_date,
 )
+import pdf_parts
 
 __all__ = [
     "MessageExtractor",
@@ -577,11 +578,13 @@ class MessageExtractor:
                             date_from: Optional[str] = None,
                             date_to: Optional[str] = None,
                             query: Optional[str] = None,
-                            display_name: Optional[str] = None) -> dict:
-        """Export a conversation to the specified format, with optional date/search filters."""
+                            display_name: Optional[str] = None,
+                            part: Optional[dict] = None) -> dict:
+        """Export a conversation to the specified format, with optional date/search
+        filters. ``part`` is one file of a PDF save split by year (pdf_parts.py)."""
         display_name = _without_lone_surrogates(display_name)
         all_messages = self._collect_messages_for_chat(
-            backup, chat_id, contacts, date_from, date_to, query
+            backup, chat_id, contacts, date_from, date_to, query, part=part
         )
 
         if fmt == "txt":
@@ -818,18 +821,20 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
                              mode: str = "separate",
                              date_from: Optional[str] = None,
                              date_to: Optional[str] = None,
-                             query: Optional[str] = None) -> dict:
+                             query: Optional[str] = None,
+                             part: Optional[dict] = None) -> dict:
         """Export multiple conversations.
 
         mode="separate" — one file per conversation.
         mode="merged"   — all messages in a single file, sorted by timestamp,
                           with explicit sender/recipient context on each line.
+        ``part`` is one file of a PDF save split by year (pdf_parts.py).
         """
         conversation_names = {k: _without_lone_surrogates(v) for k, v in conversation_names.items()}
         if mode == "merged":
             return self._export_merged(
                 backup, chat_ids, conversation_names, contacts, fmt, output_dir,
-                date_from=date_from, date_to=date_to, query=query
+                date_from=date_from, date_to=date_to, query=query, part=part
             )
 
         files = []
@@ -838,7 +843,7 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
             result = self.export_conversation(
                 backup, chat_id, contacts, fmt, output_dir,
                 date_from=date_from, date_to=date_to, query=query,
-                display_name=conversation_names.get(chat_id)
+                display_name=conversation_names.get(chat_id), part=part
             )
             if "error" not in result:
                 files.append(result["file"])
@@ -846,8 +851,11 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
         return {"files": files, "message_count": total_count}
 
     def _collect_messages_for_chat(self, backup, chat_id, contacts,
-                                   date_from=None, date_to=None, query=None):
-        """Collect all messages for a single chat (with optional filters)."""
+                                   date_from=None, date_to=None, query=None, part=None):
+        """Collect all messages for a single chat (with optional filters).
+        ``part`` keeps one file's months of a PDF save split by year."""
+        if part and not date_from and not date_to:
+            date_from, date_to = pdf_parts.query_window(part, self.local_tz)
         all_messages = []
         offset = 0
         while True:
@@ -873,15 +881,40 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
                 by_id.get(msg["message_id"]) or {**msg, "has_attachments": False, "attachments": []}
                 for msg in result["results"]
             ]
+        if part:
+            all_messages = [m for m in all_messages
+                            if pdf_parts.in_part(self._local_datetime(m.get("date")), part)]
         return self._sort_messages_chronologically(all_messages)
 
+    # ── Planning a PDF save ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _print_images(msg) -> int:
+        """How many pictures a message puts in a PDF (_PrintAttachmentWriter draws images only)."""
+        return sum(1 for att in (msg.get("attachments") or []) if _PrintAttachmentWriter._is_image(att))
+
+    def plan_pdf_parts(self, backup, chat_ids: list, contacts: dict, merged: bool = False,
+                       date_from: Optional[str] = None, date_to: Optional[str] = None,
+                       query: Optional[str] = None) -> dict:
+        """How a PDF save of these conversations should be split (pdf_parts.py):
+        ``{groups: [{chat_ids, split, messages, images, parts}]}``, one group per
+        file the save would otherwise write (each chat, or all of them merged)."""
+        groups = []
+        for ids in ([list(chat_ids)] if merged else [[c] for c in chat_ids]):
+            counts: dict = {}
+            for chat_id in ids:
+                msgs = self._collect_messages_for_chat(backup, chat_id, contacts, date_from, date_to, query)
+                pdf_parts.count_by_month(msgs, self._local_datetime, self._print_images, counts)
+            groups.append({"chat_ids": ids, **pdf_parts.plan(counts)})
+        return {"groups": groups}
+
     def _export_merged(self, backup, chat_ids, conversation_names, contacts,
-                       fmt, output_dir, date_from=None, date_to=None, query=None):
+                       fmt, output_dir, date_from=None, date_to=None, query=None, part=None):
         """Merge messages from multiple conversations into one file, sorted by timestamp."""
         all_messages = []
         for chat_id in chat_ids:
             msgs = self._collect_messages_for_chat(
-                backup, chat_id, contacts, date_from, date_to, query
+                backup, chat_id, contacts, date_from, date_to, query, part=part
             )
             conv_name = conversation_names.get(chat_id, f"Chat {chat_id}")
             for msg in msgs:
@@ -902,6 +935,7 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
             return self._export_merged_html(
                 all_messages, output_dir,
                 attachments=_PrintAttachmentWriter(self, backup, output_dir),
+                part_label=pdf_parts.file_label(part),
             )
         else:
             return {"error": f"Unsupported format: {fmt}"}
@@ -932,8 +966,10 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
                 ])
         return {"files": [filepath], "message_count": len(messages)}
 
-    def _export_merged_html(self, messages, output_dir, attachments=None):
-        filepath = os.path.join(output_dir, "all_conversations.html")
+    def _export_merged_html(self, messages, output_dir, attachments=None, part_label=""):
+        # One part of a PDF save split by year: "all_conversations 2019-2021"
+        name = f"all_conversations {part_label}" if part_label else "all_conversations"
+        filepath = os.path.join(output_dir, f"{name}.html")
         if attachments is not None:
             attachments.begin(filepath)
         with open(filepath, "w", encoding="utf-8") as f:

@@ -5,11 +5,15 @@
  * Every PDF is printed by Chromium (electron/pdfExport.ts): an engine save asks for its
  * print-ready page through exportMessagesPdf, a page built here goes through exportHtmlPdf.
  */
-import { exportHtmlPdf, exportMessagesPdf, saveFolder, sidecarCall, type PdfExportMethod } from './ipc';
+import { exportHtmlPdf, exportMessagesPdf, saveFolder, sidecarCall, type PdfExportMethod, type PdfSplit } from './ipc';
 import { chatName } from './whatsapp';
+import { voiceMemoSaveDetail } from './voiceMemos';
+import { calendarSaveDetail } from './calendar';
 import { CSV_BOM, formatTimeline, FORMAT_FILTERS, type ExportFormat } from './timelineExport';
 import type { TimelineEntry } from '../types/timeline';
 import type { PodcastExportResult, PodcastSaveFormat } from '../types/podcasts';
+import type { VoiceMemoExportResult, VoiceMemoSaveFormat } from '../types/voiceMemos';
+import type { CalendarExportResult, CalendarSaveFormat } from '../types/calendar';
 
 /** What a finished save reports in its notice. */
 export interface SaveResult {
@@ -17,6 +21,8 @@ export interface SaveResult {
   detail?: string;
   /** The file or folder written, for "Show in folder". */
   path?: string;
+  /** Something the person should read, such as why a PDF became several; keeps the notice up until dismissed. */
+  note?: string;
 }
 
 /**
@@ -340,13 +346,74 @@ async function exportOne(methods: ExportMethods, params: Record<string, unknown>
     : checkEngineResult(await sidecarCall(methods.one, { ...params, format }));
 }
 
-async function exportMany(methods: ExportMethods, params: Record<string, unknown>, format: ConversationFormat): Promise<{ files: string[]; message_count: number }> {
+async function exportMany(methods: ExportMethods, params: Record<string, unknown>, format: ConversationFormat): Promise<{ files: string[]; message_count: number; splits?: PdfSplit[] }> {
   const result: any = format === 'pdf'
     ? await exportMessagesPdf(methods.many, params)
     : checkEngineResult(await sidecarCall<{ files: string[]; message_count: number }>(methods.many, { ...params, format }));
   // Every file written, however the engine named them
   const files: string[] = Array.isArray(result?.files) ? result.files : result?.file ? [result.file] : [];
-  return { files, message_count: result?.message_count ?? 0 };
+  return { files, message_count: result?.message_count ?? 0, splits: result?.splits };
+}
+
+// ── Why a PDF save is several files ───────────────────────────────────────────
+
+/** "2020, 2021 and 2022" */
+function joinList(items: string[]): string {
+  return items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+/** An estimate to two figures: 6,321 -> "6,300". */
+function roughly(n: number): string {
+  if (n < 100) return Math.round(n).toLocaleString();
+  const step = 10 ** (Math.floor(Math.log10(n)) - 1);
+  return (Math.round(n / step) * step).toLocaleString();
+}
+
+/** "about 700 MB", "about 1.4 GB" */
+function aboutSize(megabytes: number): string {
+  if (megabytes >= 1000) return `about ${(Math.round(megabytes / 100) / 10).toLocaleString()} GB`;
+  return `about ${roughly(Math.max(1, megabytes))} MB`;
+}
+
+/** "by year: 2020, 2021 and 2022", or "by date: Jan–Jun 2024 and Jul–Dec 2024" when a year was split by month. */
+function byWhat(labels: string[]): string {
+  const how = labels.every(l => /^\d{4}(–\d{4})?$/.test(l)) ? 'by year' : 'by date';
+  if (labels.length > 6) return `${how} into ${labels.length} PDFs, ${labels[0]} to ${labels[labels.length - 1]}`;
+  return `${how}: ${joinList(labels)}`;
+}
+
+const SMALLER_FILES = 'Smaller files are easier to open, share and print.';
+
+/**
+ * Why a PDF save came out as several files, for its notice (electron/pdfExport.ts
+ * splits a conversation that would make too big a PDF). Undefined when nothing was split.
+ */
+export function pdfSplitNote(splits: PdfSplit[] | undefined, noun: 'conversation' | 'chat'): string | undefined {
+  if (!splits?.length) return undefined;
+  if (splits.length === 1) {
+    const s = splits[0];
+    const size = `${aboutSize(s.estimate.megabytes)} and ${roughly(s.estimate.pages)} pages`;
+    const opening = s.name ? `Your ${noun} with ${s.name} would be one PDF of ${size}` : `One PDF of it all would be ${size}`;
+    return `${opening}, so it's split ${byWhat(s.labels)}. ${SMALLER_FILES}`;
+  }
+  const each = splits.map(s => `${s.name ?? 'everything'} (${plural(s.labels.length, 'PDF')})`);
+  const named = each.length > 4 ? [...each.slice(0, 3), `${each.length - 3} more`] : each;
+  return `${splits.length} ${noun}s would each be too big as one PDF, so each is split by year: ${joinList(named)}. ${SMALLER_FILES}`;
+}
+
+/** { note } when there is one, so a notice without one has no note key at all. */
+function noted(note: string | undefined): { note?: string } {
+  return note ? { note } : {};
+}
+
+/** A one-conversation save's notice already says whose it is. */
+function unnamed(splits: PdfSplit[] | undefined): PdfSplit[] | undefined {
+  return splits?.map(s => ({ ...s, name: null }));
+}
+
+/** "1,204 messages", or "1,204 messages in 5 PDFs" when a save made several files. */
+function messagesIn(count: number, files: string[], noun = 'message'): string {
+  return files.length > 1 ? `${plural(count, noun)} in ${plural(files.length, 'PDF')}` : plural(count, noun);
 }
 
 /** Save one conversation into a folder the person picks. */
@@ -355,11 +422,12 @@ export async function saveConversation(udid: string, convo: ConversationRef, for
   if (!outputDir) return null;
   const params = { udid, chat_id: convo.chat_id, output_dir: outputDir, display_name: convo.display_name };
   const result = await exportOne(MESSAGES_EXPORT, params, format);
-  const file: string | undefined = result?.file ?? result?.files?.[0];
+  const files: string[] = result?.files ?? (result?.file ? [result.file] : []);
   return {
     title: `Saved your conversation with ${convo.display_name || convo.chat_identifier}`,
-    detail: result?.message_count != null ? plural(result.message_count, 'message') : undefined,
-    path: file ?? outputDir,
+    detail: result?.message_count != null ? messagesIn(result.message_count, files) : undefined,
+    path: files.length === 1 ? files[0] : outputDir,
+    ...noted(pdfSplitNote(unnamed(result?.splits), 'conversation')),
   };
 }
 
@@ -383,6 +451,7 @@ export async function saveConversations(
     title: `Saved ${plural(result.message_count, 'message')}`,
     detail: `${plural(convos.length, 'conversation')} in ${plural(result.files.length, 'file')}`,
     path: result.files.length === 1 ? result.files[0] : outputDir,
+    ...noted(pdfSplitNote(result.splits, 'conversation')),
   };
 }
 
@@ -396,11 +465,12 @@ export async function saveWhatsAppChat(udid: string, chat: WhatsAppChatRef, form
   if (!outputDir) return null;
   const params = { udid, chat_id: chat.chat_id, output_dir: outputDir, display_name: chat.display_name };
   const result = await exportOne(WHATSAPP_EXPORT, params, format);
-  const file: string | undefined = result?.file ?? result?.files?.[0];
+  const files: string[] = result?.files ?? (result?.file ? [result.file] : []);
   return {
     title: `Saved your WhatsApp chat with ${chatName(chat)}`,
-    detail: result?.message_count != null ? plural(result.message_count, 'message') : undefined,
-    path: file ?? outputDir,
+    detail: result?.message_count != null ? messagesIn(result.message_count, files) : undefined,
+    path: files.length === 1 ? files[0] : outputDir,
+    ...noted(pdfSplitNote(unnamed(result?.splits), 'chat')),
   };
 }
 
@@ -424,6 +494,7 @@ export async function saveWhatsAppChats(
     title: `Saved ${plural(result.message_count, 'WhatsApp message')}`,
     detail: `${plural(chats.length, 'chat')} in ${plural(result.files.length, 'file')}`,
     path: result.files.length === 1 ? result.files[0] : outputDir,
+    ...noted(pdfSplitNote(result.splits, 'chat')),
   };
 }
 
@@ -442,6 +513,60 @@ export async function savePodcasts(udid: string, format: PodcastSaveFormat): Pro
   return {
     title: `Saved ${plural(result.count ?? 0, 'podcast')}`,
     detail: format === 'opml' ? 'Subscription list for another podcast app' : 'Spreadsheets of the shows and their episodes',
+    path: result.path ?? result.files?.[0] ?? outputDir,
+  };
+}
+
+// ── Voice Memos ────────────────────────────────────────────────────────────────
+
+/**
+ * Save voice memos into a folder the person picks: the recordings as audio
+ * files (with their transcripts and a spreadsheet, in a "Voice Memos" folder),
+ * or only the spreadsheet. With `memoIds`, just those recordings, straight
+ * into the folder (a screen's Save on one recording; `name` is what it's
+ * called). The engine copies the files and never overwrites one; nothing to
+ * save comes back as { error, empty_reason } and is reported.
+ */
+export async function saveVoiceMemos(
+  udid: string,
+  format: VoiceMemoSaveFormat,
+  opts: { memoIds?: number[]; name?: string } = {},
+): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const params: Record<string, unknown> = { udid, output_dir: outputDir, format };
+  if (opts.memoIds) params.memo_ids = opts.memoIds;
+  const result = checkEngineResult(await sidecarCall<VoiceMemoExportResult>('export_voice_memos', params));
+  const one = opts.memoIds?.length === 1 && opts.name;
+  return {
+    title: one ? `Saved "${opts.name}"` : `Saved ${plural(result.count ?? 0, 'voice memo')}`,
+    detail: voiceMemoSaveDetail(result, format),
+    path: result.path ?? result.files?.[0] ?? outputDir,
+  };
+}
+
+// ── Calendar ───────────────────────────────────────────────────────────────────
+
+/**
+ * Save calendar events into a folder the person picks: calendar files (.ics,
+ * one per calendar, in a folder) that Calendar, Outlook or Google import, or a
+ * spreadsheet. With `calendarId`, only that calendar, as one file. The engine
+ * writes the files and never overwrites one; nothing to save comes back as
+ * { error, empty_reason } and is reported.
+ */
+export async function saveCalendar(
+  udid: string,
+  format: CalendarSaveFormat,
+  opts: { calendarId?: number } = {},
+): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const params: Record<string, unknown> = { udid, output_dir: outputDir, format };
+  if (opts.calendarId != null) params.calendar_id = opts.calendarId;
+  const result = checkEngineResult(await sidecarCall<CalendarExportResult>('export_calendar', params));
+  return {
+    title: `Saved ${plural(result.count ?? 0, 'event')}`,
+    detail: calendarSaveDetail(result, format, opts.calendarId != null),
     path: result.path ?? result.files?.[0] ?? outputDir,
   };
 }

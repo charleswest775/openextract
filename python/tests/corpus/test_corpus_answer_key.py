@@ -377,6 +377,80 @@ def test_whatsapp_people_are_matched_by_number(ctx):
             assert chat["name"] == name, chat["chat"]
 
 
+# ── Voice Memos and Calendar ─────────────────────────────────────────────────
+# The answer key's records mirror the library's own shapes, field by field
+# (ios-backup-core's backupgen writers), less a few keys only the generator
+# knows: the pack's own ids, an event's calendar title, a recording's
+# transcript text and file size (checked through the audio and transcript calls).
+
+_KEY_ONLY_EVENT = ("calendar", "pack_id")
+_KEY_ONLY_MEMO = ("transcript", "bytes")
+
+
+def _voice_memos(ctx):
+    memos = _expected(ctx).get("voice_memos")
+    if not memos:
+        pytest.skip("no voice memos in this generated backup")
+    return memos
+
+
+def _calendar(ctx):
+    cal = _expected(ctx).get("calendar")
+    if not cal or not cal.get("events"):
+        pytest.skip("no calendar in this generated backup")
+    return cal
+
+
+def test_voice_memos_match_answer_key(ctx):
+    want = [{k: v for k, v in m.items() if k not in _KEY_ONLY_MEMO} for m in _voice_memos(ctx)]
+    result = ctx.voice_memos_result
+    assert "error" not in result, result.get("error")
+    got = [{k: m[k] for k in want[0]} for m in result["voice_memos"]]
+    assert [m["id"] for m in got] == [m["id"] for m in want]  # newest first, as the key orders them
+    for g, w in zip(got, want):
+        assert g == w, w["id"]
+    # Each folder's count: its recordings outside Recently Deleted
+    counts = {}
+    for m in want:
+        if m["folder_id"] and not m["is_deleted"]:
+            counts[m["folder_id"]] = counts.get(m["folder_id"], 0) + 1
+    assert {f["id"]: f["count"] for f in result["folders"]} == {
+        fid: counts.get(fid, 0) for fid in {m["folder_id"] for m in want if m["folder_id"]}}
+
+
+def test_voice_memo_audio_and_transcripts_match_answer_key(ctx):
+    for memo in _voice_memos(ctx):
+        audio = ctx.rpc("get_voice_memo_audio", memo_id=memo["id"])
+        if memo["audio_available"]:
+            data = base64.b64decode(audio["data"])
+            assert (len(data), data[4:8], audio["mime_type"]) == (memo["bytes"], b"ftyp", "audio/mp4"), memo["id"]
+        else:
+            assert audio["empty_reason"] == (memo["audio_missing_reason"] or "not_in_backup"), memo["id"]
+        transcript = ctx.rpc("get_voice_memo_transcript", memo_id=memo["id"])
+        assert transcript["text"] == memo["transcript"], memo["id"]
+
+
+def test_calendars_match_answer_key(ctx):
+    want = _calendar(ctx)["calendars"]
+    result = ctx.calendars_result
+    assert "error" not in result, result.get("error")
+    assert result["calendars"] == want
+
+
+def test_calendar_events_match_answer_key(ctx):
+    cal = _calendar(ctx)
+    want = {e["id"]: {k: v for k, v in e.items() if k not in _KEY_ONLY_EVENT} for e in cal["events"]}
+    result = ctx.calendar_events_result
+    assert "error" not in result, result.get("error")
+    got = {e["id"]: e for e in result["events"]}
+    assert set(got) == set(want)
+    titles = {c["id"]: c["title"] for c in cal["calendars"]}
+    for eid, w in want.items():
+        assert {k: got[eid][k] for k in w} == w, eid
+        assert titles[got[eid]["calendar_id"]] == next(e["calendar"] for e in cal["events"] if e["id"] == eid)
+        assert (got[eid]["repeats"] is None) == (w["recurrence"] is None), eid
+
+
 # Data types a generated backup doesn't hold (expected.json "absent"), with the extracted list
 # that must come back empty and the dashboard totals that must be zero. Types the app doesn't
 # read yet are left out.
@@ -390,6 +464,12 @@ ABSENT_CHECKS = {
                ("total_photos", "total_videos", "photos_in_backup")),
     "browser_history": (lambda ctx: ctx.browser_result.get("visits", []), ()),
     "whatsapp": (lambda ctx: ctx.whatsapp_chats, ("total_whatsapp_chats", "total_whatsapp_messages")),
+    "calendar": (lambda ctx: ctx.calendars_result.get("calendars", []) + ctx.calendar_events_result.get("events", []),
+                 ("total_calendar_events", "total_subscribed_events", "total_calendars",
+                  "total_calendars_with_events")),
+    "voice_memos": (lambda ctx: ctx.voice_memos_result.get("voice_memos", []),
+                    ("total_voice_memos", "total_voice_memo_seconds", "total_deleted_voice_memos",
+                     "total_voice_memos_with_audio")),
 }
 
 
@@ -411,3 +491,10 @@ def test_absent_data_types_come_back_empty(ctx):
         # Most iPhones have no WhatsApp: that's "not in this backup", never an error.
         assert ctx.whatsapp_result == {"conversations": [], "empty_reason": "not_in_backup"}
         assert overview["whatsapp_status"] == "not_in_backup"
+    if "calendar" in absent:
+        assert ctx.calendars_result == {"calendars": [], "empty_reason": "not_in_backup"}
+        assert ctx.calendar_events_result == {"events": [], "empty_reason": "not_in_backup"}
+        assert overview["calendar_status"] == "not_in_backup"
+    if "voice_memos" in absent:
+        assert ctx.voice_memos_result == {"voice_memos": [], "empty_reason": "not_in_backup"}
+        assert overview["voice_memos_status"] == "not_in_backup"

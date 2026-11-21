@@ -14,6 +14,8 @@ import CallExplorer from './CallExplorer';
 import NoteExplorer from './NoteExplorer';
 import VoicemailExplorer from './VoicemailExplorer';
 import PodcastExplorer from './PodcastExplorer';
+import VoiceMemoExplorer from './VoiceMemoExplorer';
+import CalendarExplorer from './CalendarExplorer';
 import BrowserHistoryExplorer from './BrowserHistoryExplorer';
 import RecordRecoveryView from './RecordRecoveryView';
 import ExportPanel from './ExportPanel';
@@ -48,7 +50,7 @@ interface Props {
 
 const FEEDBACK_AREAS = new Set<string>([
   'dashboard', 'people', 'timeline', 'year', 'messages', 'whatsapp', 'photos', 'contacts', 'calls', 'notes', 'voicemail',
-  'podcasts', 'browser_history', 'record_recovery', 'export',
+  'podcasts', 'voice_memos', 'calendar', 'browser_history', 'record_recovery', 'export',
 ]);
 
 /** The WhatsApp message a search result names ("whatsapp:<id>"), or null. */
@@ -283,6 +285,10 @@ export default function ExploreLayout({ udid, session, onBack, unfinished = fals
         return <VoicemailExplorer key={selectKey} udid={udid} query={screenQuery} selectId={select?.type === 'voicemail' ? select.id : undefined} />;
       case 'podcasts':
         return <PodcastExplorer udid={udid} query={screenQuery} />;
+      case 'voice_memos':
+        return <VoiceMemoExplorer udid={udid} query={screenQuery} />;
+      case 'calendar':
+        return <CalendarExplorer udid={udid} query={screenQuery} backupDate={overview?.last_backup || null} />;
       case 'browser_history':
         return (
           <BrowserHistoryExplorer

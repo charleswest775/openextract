@@ -615,8 +615,8 @@ This is taken from the `ios-backup-core` extractors, including the feature branc
 | Safari | `HomeDomain` | `Library/Safari/History.db`, plus per-profile copies |
 | Firefox | `AppDomainGroup-group.org.mozilla.ios.Firefox` / `.Fennec` | `profile.profile/browser.db`, `places.db` |
 | Chrome / Edge / Brave | `AppDomain-<bundle id>` | Chromium `History` database |
-| Calendar | `HomeDomain` | `Library/Calendar/Calendar.sqlitedb` |
-| Voice Memos | `AppDomainGroup-group.com.apple.VoiceMemos.shared` (current); `MediaDomain` `Media/Recordings/` (older) | `CloudRecordings.db` (iOS 12+), `Recordings.db` (11 and earlier); `.m4a` / `.qta` audio |
+| Calendar | `HomeDomain` | `Library/Calendar/Calendar.sqlitedb`. See [CALENDAR_EXTRACTION.md](CALENDAR_EXTRACTION.md) |
+| Voice Memos | `AppDomainGroup-group.com.apple.VoiceMemos.shared` `Recordings/` (current: confirmed for iOS 26.5 from Apple's framework and an iOS 26.5 backup; probably since iOS 17); `MediaDomain` `Media/Recordings/` (iOS 12 to 16) | `CloudRecordings.db` (iOS 12+); `Recordings.db` (iOS 11 and earlier, and still present beside `CloudRecordings.db` on iOS 13); `.m4a` / `.qta` audio. See [VOICE_MEMOS_EXTRACTION.md](VOICE_MEMOS_EXTRACTION.md) |
 | Health | `HealthDomain` | `Health/healthdb.sqlite`, `Health/healthdb_secure.sqlite` (encrypted backups only) |
 
 ## Appendix C: Schema and format references

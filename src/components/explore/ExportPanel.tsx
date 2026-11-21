@@ -2,17 +2,20 @@ import { useState } from 'react';
 import { saveFolder, sidecarCall } from '../../lib/ipc';
 import { photoExportSummary, photoSaveFailures, photoSaveProgress, PhotoExportResult } from '../../lib/photoCounts';
 import { percentDone } from '../../lib/exportProgress';
+import { voiceMemosAudioSaveable, voiceMemosListed } from '../../lib/voiceMemos';
 import {
   BUNDLE_FILES, BUNDLE_KINDS, bundleParams, bundleProgress, bundleSummary, computerTimeZone, defaultBundleChoice,
   type BundleChoice, type BundleResult,
 } from '../../lib/bundle';
 import {
-  checkEngineResult, contactsToCsv, contactsToVcard, plural, saveAllNotes, saveBrowserHistory, saveCalls, saveConversations,
-  savePodcasts, saveTextFile, saveWhatsAppChats,
+  checkEngineResult, contactsToCsv, contactsToVcard, plural, saveAllNotes, saveBrowserHistory, saveCalendar, saveCalls,
+  saveConversations, savePodcasts, saveTextFile, saveVoiceMemos, saveWhatsAppChats,
   type ContactRecord, type ConversationFormat, type NotesFormat, type RecordFormat, type SaveResult,
 } from '../../lib/saveData';
 import type { WhatsAppChatsResult } from '../../types/whatsapp';
 import type { PodcastSaveFormat } from '../../types/podcasts';
+import type { VoiceMemoSaveFormat } from '../../types/voiceMemos';
+import type { CalendarSaveFormat } from '../../types/calendar';
 import type { BackupStatsOverview } from '../../hooks/useBackupStats';
 import { useSaveAction } from '../../hooks/useSaveAction';
 import { useExportProgress } from '../../hooks/useExportProgress';
@@ -20,6 +23,7 @@ import PageHeader from '../shared/PageHeader';
 import SaveDialog, { ConversationModeChoice, FORMATS, SaveButton, SaveProgress, type SaveFormat } from '../shared/SaveDialog';
 import {
   LinesIcon, CameraIcon, CallIcon, VoicemailIcon, NoteIcon, GlobeIcon, ContactIcon, WhatsAppIcon, PodcastIcon, BundleIcon,
+  VoiceMemoIcon, CalendarIcon,
 } from '../shared/Icons';
 
 interface Props {
@@ -29,7 +33,9 @@ interface Props {
   hasBrowserHistory: boolean;
 }
 
-type Kind = 'messages' | 'whatsapp' | 'photos' | 'contacts' | 'calls' | 'voicemail' | 'podcasts' | 'notes' | 'browser_history';
+type Kind =
+  | 'messages' | 'whatsapp' | 'photos' | 'contacts' | 'calls' | 'voicemail' | 'podcasts' | 'voice_memos' | 'calendar' | 'notes'
+  | 'browser_history';
 
 interface KindInfo {
   id: Kind;
@@ -87,6 +93,19 @@ const KINDS: KindInfo[] = [
     formats: [FORMATS.opml, FORMATS.csv],
   },
   {
+    // Every recording a save writes, Recently Deleted too
+    id: 'voice_memos', label: 'Voice Memos', icon: VoiceMemoIcon, count: o => voiceMemosListed(o),
+    what: n => `${n != null ? plural(n, 'voice memo') : 'Every voice memo'}, as the recordings themselves or a spreadsheet`,
+    formats: [FORMATS.recordings, FORMATS.csv],
+  },
+  {
+    // Every calendar, holidays and subscriptions too: one file each
+    id: 'calendar', label: 'Calendar', icon: CalendarIcon, count: o => (o.total_calendar_events ?? 0) + (o.total_subscribed_events ?? 0),
+    what: n => `${n != null ? plural(n, 'event') : 'Every event'}, to import into another calendar app or open in a spreadsheet`,
+    formats: [FORMATS.ics, FORMATS.csv],
+    title: 'every calendar',
+  },
+  {
     id: 'notes', label: 'Notes', icon: NoteIcon, count: o => o.total_notes,
     what: n => `${n != null ? plural(n, 'note') : 'Every note'}, in one file`,
     formats: [FORMATS.pdf, FORMATS.html, FORMATS.txt],
@@ -116,6 +135,8 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
     calls: useSaveAction('calls'),
     voicemail: useSaveAction('voicemail'),
     podcasts: useSaveAction('podcasts'),
+    voice_memos: useSaveAction('voice_memos'),
+    calendar: useSaveAction('calendar'),
     notes: useSaveAction('notes'),
     browser_history: useSaveAction('browser_history'),
   };
@@ -136,6 +157,10 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
     // A subscription list needs a followed show: with none, only the spreadsheet is offered
     if (kind.id === 'podcasts' && overview && (overview.total_podcasts_followed ?? 1) === 0) {
       kind = { ...kind, formats: kind.formats.filter(f => f.id !== 'opml') };
+    }
+    // With no recording's audio in the backup (all kept in iCloud only), only the spreadsheet is offered
+    if (kind.id === 'voice_memos' && overview && !voiceMemosAudioSaveable(overview)) {
+      kind = { ...kind, formats: kind.formats.filter(f => f.id !== 'recordings') };
     }
     if (kind.formats.length > 1) setChoosing(kind);
     else save(kind.id, kind.formats[0].id);
@@ -185,6 +210,12 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
       case 'podcasts':
         // The engine writes the files: subscriptions (OPML), or shows and episodes (CSV)
         return savePodcasts(udid, format as PodcastSaveFormat);
+      case 'voice_memos':
+        // The engine copies the recordings (with a spreadsheet), or writes the spreadsheet alone
+        return saveVoiceMemos(udid, format as VoiceMemoSaveFormat);
+      case 'calendar':
+        // The engine writes one calendar file per calendar, or one spreadsheet
+        return saveCalendar(udid, format as CalendarSaveFormat);
       default:
         return saveToFolder(kind);
     }

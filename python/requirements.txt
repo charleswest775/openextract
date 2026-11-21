@@ -7,6 +7,10 @@ debugpy>=1.8.0
 # release all install this one. Bump it on purpose: see "pymobiledevice3" in RELEASING.md.
 pymobiledevice3==11.55.0
 reportlab>=4.0
+# The time zone database for Calendar (zoneinfo). macOS and Linux have one of their own;
+# Windows doesn't, so Python reads it from this package there. scripts/bundle-engine.mjs
+# bundles it into the engine and python/self_check.py checks a zone resolves.
+tzdata; sys_platform == "win32"
 # ios-backup-core is the shared iPhone-backup parsing library extracted from
 # this codebase. Until it is published to PyPI, install it from a sibling
 # checkout:  pip install -e ../../ios-backup-core

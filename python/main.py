@@ -141,6 +141,8 @@ from notes import NoteExtractor  # noqa: E402
 from browser_history import BrowserHistoryExtractor  # noqa: E402
 from whatsapp import WhatsAppExtractor  # noqa: E402
 from podcasts import PodcastExtractor  # noqa: E402
+from voice_memos import VoiceMemoExtractor  # noqa: E402
+from calendar_events import CalendarExtractor  # noqa: E402
 from message_recovery import MessageRecoveryExtractor  # noqa: E402
 from device_backup import DeviceBackupManager  # noqa: E402
 from stats import StatsComputer  # noqa: E402
@@ -163,9 +165,14 @@ class SidecarServer:
         self.browser_history_extractor = BrowserHistoryExtractor()
         self.whatsapp_extractor = WhatsAppExtractor()
         self.podcast_extractor = PodcastExtractor()
+        self.voice_memo_extractor = VoiceMemoExtractor()
+        self.calendar_extractor = CalendarExtractor()
         self.message_recovery_extractor = MessageRecoveryExtractor()
         self.device_backup_manager = DeviceBackupManager()
-        self.stats_computer = StatsComputer(self.photo_extractor, self.whatsapp_extractor, self.podcast_extractor)
+        self.stats_computer = StatsComputer(
+            self.photo_extractor, self.whatsapp_extractor, self.podcast_extractor,
+            voice_memo_extractor=self.voice_memo_extractor, calendar_extractor=self.calendar_extractor,
+        )
         self.year_counter = YearCounter(
             self.message_extractor, self.photo_extractor, self.call_extractor,
             self.note_extractor, self.browser_history_extractor,
@@ -224,10 +231,21 @@ class SidecarServer:
             "get_whatsapp_attachment": self.get_whatsapp_attachment,
             "export_whatsapp_chat": self.export_whatsapp_chat,
             "export_whatsapp_chats": self.export_whatsapp_chats,
+            # How a PDF save of conversations or WhatsApp chats splits by year (pdf_parts.py)
+            "plan_pdf_parts": self.plan_pdf_parts,
             # Podcasts
             "list_podcasts": self.list_podcasts,
             "list_podcast_episodes": self.list_podcast_episodes,
             "export_podcasts": self.export_podcasts,
+            # Voice Memos
+            "list_voice_memos": self.list_voice_memos,
+            "get_voice_memo_audio": self.get_voice_memo_audio,
+            "get_voice_memo_transcript": self.get_voice_memo_transcript,
+            "export_voice_memos": self.export_voice_memos,
+            # Calendar
+            "list_calendars": self.list_calendars,
+            "list_calendar_events": self.list_calendar_events,
+            "export_calendar": self.export_calendar,
             # Record recovery
             "recover_messages": self.recover_messages,
             "export_recovered_messages": self.export_recovered_messages,
@@ -494,7 +512,7 @@ class SidecarServer:
         return self.message_extractor.export_conversation(
             backup, chat_id, contacts, fmt, output_dir,
             date_from=date_from, date_to=date_to, query=query,
-            display_name=display_name
+            display_name=display_name, part=params.get("part")
         )
 
     def export_conversations(self, params):
@@ -513,7 +531,7 @@ class SidecarServer:
         conv_names = {int(k): v for k, v in conversation_names.items()}
         return self.message_extractor.export_conversations(
             backup, chat_ids, conv_names, contacts, fmt, output_dir,
-            mode=mode, date_from=date_from, date_to=date_to, query=query
+            mode=mode, date_from=date_from, date_to=date_to, query=query, part=params.get("part")
         )
 
     def export_photos(self, params):
@@ -704,7 +722,8 @@ class SidecarServer:
         contacts = self.contact_resolver.load_contacts(backup)
         return self.whatsapp_extractor.export_conversation(
             backup, chat_id, contacts, fmt, output_dir,
-            date_from=date_from, date_to=date_to, query=query, display_name=display_name
+            date_from=date_from, date_to=date_to, query=query, display_name=display_name,
+            part=params.get("part")
         )
 
     def export_whatsapp_chats(self, params):
@@ -723,7 +742,24 @@ class SidecarServer:
         names = {int(k): v for k, v in conversation_names.items()}
         return self.whatsapp_extractor.export_conversations(
             backup, chat_ids, names, contacts, fmt, output_dir,
-            mode=mode, date_from=date_from, date_to=date_to, query=query
+            mode=mode, date_from=date_from, date_to=date_to, query=query, part=params.get("part")
+        )
+
+    def plan_pdf_parts(self, params):
+        """Before a PDF save: how many files it should be, split by year when one
+        would be too big (pdf_parts.py). ``source`` is "messages" or "whatsapp";
+        ``mode`` "merged" plans one file of every chat, anything else one per chat."""
+        udid = params["udid"]
+        source = params.get("source", "messages")
+        if source not in ("messages", "whatsapp"):
+            return {"error": f"Unknown source: {source}"}
+        chat_ids = [int(c) for c in params.get("chat_ids") or []]
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        extractor = self.whatsapp_extractor if source == "whatsapp" else self.message_extractor
+        return extractor.plan_pdf_parts(
+            backup, chat_ids, contacts, merged=params.get("mode") == "merged",
+            date_from=params.get("date_from"), date_to=params.get("date_to"), query=params.get("query"),
         )
 
     # ── Podcasts ─────────────────────────────────────────────────────────────
@@ -754,6 +790,76 @@ class SidecarServer:
         fmt = params.get("format", "opml")
         backup = self.backup_manager.get_open_backup(udid)
         return self.podcast_extractor.export_podcasts(backup, output_dir, fmt)
+
+    # ── Voice Memos ──────────────────────────────────────────────────────────
+    # The Voice Memos app's recordings (CloudRecordings.db, or the older
+    # Recordings.db) and their audio files beside it. A recording kept in
+    # iCloud only has no audio in the backup: said calmly, never a failure.
+
+    def list_voice_memos(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.voice_memo_extractor.list_voice_memos(backup)
+
+    def get_voice_memo_audio(self, params):
+        """One recording's audio as base64, or (as_file) a copy on disk under its own name to open in another app."""
+        udid = params["udid"]
+        memo_id = params["memo_id"]
+        as_file = bool(params.get("as_file", False))
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.voice_memo_extractor.get_audio(
+            backup, memo_id, as_file=as_file, on_progress=self._open_progress("voice_memos") if as_file else None,
+        )
+
+    def get_voice_memo_transcript(self, params):
+        """The transcript iOS 18+ keeps inside a recording's audio file; text is null when there is none."""
+        udid = params["udid"]
+        memo_id = params["memo_id"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.voice_memo_extractor.get_transcript(backup, memo_id)
+
+    def export_voice_memos(self, params):
+        """Save as audio files (a "Voice Memos" folder; with memo_ids, just those recordings) or a CSV."""
+        udid = params["udid"]
+        output_dir = params["output_dir"]
+        fmt = params.get("format", "recordings")
+        memo_ids = params.get("memo_ids")
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.voice_memo_extractor.export_voice_memos(
+            backup, output_dir, fmt, memo_ids=memo_ids, on_progress=self._export_progress("voice_memos"),
+        )
+
+    # ── Calendar ─────────────────────────────────────────────────────────────
+    # Calendar.sqlitedb: calendars, and their events with a repeating event as
+    # one series. All-day and floating dates are days and wall-clock times,
+    # never moved to another zone.
+
+    def list_calendars(self, params):
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        return self.calendar_extractor.list_calendars(backup)
+
+    def list_calendar_events(self, params):
+        """Events by start, one calendar's with calendar_id; each with ``repeats``, its rule in words."""
+        udid = params["udid"]
+        calendar_id = params.get("calendar_id")
+        include_hidden = bool(params.get("include_hidden", False))
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        return self.calendar_extractor.list_events(
+            backup, calendar_id=calendar_id, include_hidden=include_hidden, contacts=contacts,
+        )
+
+    def export_calendar(self, params):
+        """Save as calendar files (.ics, one per calendar in a folder; one file with calendar_id) or a CSV."""
+        udid = params["udid"]
+        output_dir = params["output_dir"]
+        fmt = params.get("format", "ics")
+        calendar_id = params.get("calendar_id")
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        return self.calendar_extractor.export_calendar(backup, output_dir, fmt, calendar_id=calendar_id,
+                                                       contacts=contacts)
 
     # ── Record recovery ──────────────────────────────────────────────────────
 

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { sidecarCall } from '../lib/ipc';
 import type { WhatsAppStatus } from '../types/whatsapp';
 import type { PodcastsStatus } from '../types/podcasts';
+import type { VoiceMemosStatus } from '../types/voiceMemos';
+import type { CalendarStatus } from '../types/calendar';
 
 export interface TopConversation {
   display_name: string;
@@ -52,6 +54,26 @@ export interface BackupStatsOverview {
   total_podcast_episodes_listened: number;
   /** Whether Podcasts could be read: the section shows on 'error' and 'unsupported_format' too, to say so. */
   podcasts_status: PodcastsStatus;
+  // Voice Memos (python/stats.py, CloudRecordings.db): recordings not in Recently
+  // Deleted, and their length added up, in seconds. Read with ?? 0 (older engines).
+  total_voice_memos: number;
+  total_voice_memo_seconds: number;
+  /** Recordings in Recently Deleted, which the screen lists and a save writes too. Read with ?? 0 (older engines). */
+  total_deleted_voice_memos: number;
+  /** Listed recordings (deleted ones too) whose audio is in the backup: 0 means an "Audio files" save has nothing to write. Read with ?? 1 (older engines). */
+  total_voice_memos_with_audio: number;
+  /** Whether Voice Memos could be read: the section shows on 'error' and 'unsupported_format' too, to say so. */
+  voice_memos_status: VoiceMemosStatus;
+  // Calendar (python/stats.py, Calendar.sqlitedb): events in the person's own
+  // calendars, events in every other calendar (holidays, birthdays, Found in
+  // Mail, subscriptions), and the person's own calendars (empty ones too). Read with ?? 0.
+  total_calendar_events: number;
+  total_subscribed_events: number;
+  total_calendars: number;
+  /** The person's own calendars that have events. Read with ?? 0 (older engines). */
+  total_calendars_with_events: number;
+  /** Whether Calendar could be read: the section shows on 'error' and 'unsupported_format' too, to say so. */
+  calendar_status: CalendarStatus;
 }
 
 export interface MessageStats {

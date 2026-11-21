@@ -1,6 +1,7 @@
 // Every way to save data out of a backup: each kind and format on "Save to this computer", and
 // the Save buttons on each screen (conversation, bulk, notes, address book, people, timeline,
-// calls, voicemail, photos, web history, recovered messages). Files are checked for count and
+// calls, voicemail, photos, web history, recovered messages, and Podcasts, Voice Memos and
+// Calendar when the backup has them). Files are checked for count and
 // format, not just existence.
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
@@ -19,6 +20,8 @@ export const PANEL_EXPORTS = {
   calls: ['pdf', 'html', 'csv', 'txt'],
   voicemail: ['audio'],
   podcasts: ['opml', 'csv'],
+  voice_memos: ['recordings', 'csv'],
+  calendar: ['ics', 'csv'],
   notes: ['pdf', 'html', 'txt'],
   browser_history: ['pdf', 'html', 'csv', 'txt'],
 };
@@ -31,7 +34,8 @@ const pageRows = file => (fs.readFileSync(file, 'utf-8').match(/<tr>/g) || []).l
 const textRecords = file => fs.readFileSync(file, 'utf-8').split('\n').filter(l => l.startsWith('[')).length;
 const PANEL_LABELS = {
   messages: 'Messages', whatsapp: 'WhatsApp', photos: 'Photos & videos', contacts: 'Address book', calls: 'Call history',
-  voicemail: 'Voicemail', podcasts: 'Podcasts', notes: 'Notes', browser_history: 'Web history',
+  voicemail: 'Voicemail', podcasts: 'Podcasts', voice_memos: 'Voice Memos', calendar: 'Calendar', notes: 'Notes',
+  browser_history: 'Web history',
 };
 
 export default {
@@ -87,6 +91,12 @@ export default {
       // And its podcasts (maren has none: no Podcasts library)
       const podcasts = (await app.api('call', 'list_podcasts', { udid: key.udid })).value?.data?.podcasts ?? [];
       const followedFeeds = podcasts.filter(p => p.followed && p.feed_url).length;
+      // Its voice memos and calendar events, as the engine lists them (the Save panel offers each only
+      // when the backup has some): every recording, deleted ones too, and every event in every calendar
+      const memos = (await app.api('call', 'list_voice_memos', { udid: key.udid })).value?.data?.voice_memos ?? [];
+      const withAudio = memos.filter(m => m.audio_available);
+      const calendars = (await app.api('call', 'list_calendars', { udid: key.udid })).value?.data?.calendars ?? [];
+      const events = (await app.api('call', 'list_calendar_events', { udid: key.udid })).value?.data?.events ?? [];
 
       // ── Save to this computer: every kind × every format ──
       for (const [kind, formats] of Object.entries(PANEL_EXPORTS)) {
@@ -101,6 +111,13 @@ export default {
           await app.open('Save to this computer', /Copy what's in this backup/);
           const offered = await app.eval(() => [...document.querySelectorAll('li')].some(li => li.innerText.trim().startsWith('Podcasts')));
           check('Save panel: no Podcasts on a backup without them', !offered);
+          continue;
+        }
+        // Voice Memos is offered for recordings in Recently Deleted too: a save writes them
+        if ((kind === 'voice_memos' && memos.length === 0) || (kind === 'calendar' && events.length === 0)) {
+          await app.open('Save to this computer', /Copy what's in this backup/);
+          const offered = await app.eval(l => [...document.querySelectorAll('li')].some(li => li.innerText.trim().startsWith(l)), PANEL_LABELS[kind]);
+          check(`Save panel: no ${PANEL_LABELS[kind]} on a backup without them`, !offered);
           continue;
         }
         for (const format of formats) {
@@ -171,6 +188,31 @@ export default {
             const one = files.filter(f => ext(f) === format);
             const rows = one.length === 1 ? records(format, path.join(dir, one[0])) : -1;
             pass = one.length === 1 && files.length === 1 && (rows === null || rows === key.browser_history.length); detail = { files, rows };
+          }
+          if (kind === 'voice_memos' && format === 'recordings') {
+            // A "Voice Memos" folder: every recording whose audio is in the backup (deleted ones in
+            // Recently Deleted), and Voice Memos.csv with a row for every recording
+            const audio = files.filter(f => /\.(m4a|qta|qt)$/i.test(f));
+            const sheet = files.find(f => /(^|\/)Voice Memos\.csv$/.test(f));
+            const rows = sheet ? csvRows(path.join(dir, sheet)) : -1;
+            pass = audio.length === withAudio.length && rows === memos.length; detail = { audio: audio.length, want: withAudio.length, rows, wantRows: memos.length };
+          }
+          if (kind === 'voice_memos' && format === 'csv') {
+            const sheet = files.filter(f => ext(f) === 'csv');
+            const rows = sheet.length === 1 ? csvRows(path.join(dir, sheet[0])) : -1;
+            pass = files.length === 1 && rows === memos.length; detail = { rows, want: memos.length, files };
+          }
+          if (kind === 'calendar' && format === 'ics') {
+            // One calendar file per calendar with events, every event once
+            const ics = files.filter(f => ext(f) === 'ics');
+            const vevents = ics.reduce((n, f) => n + (fs.readFileSync(path.join(dir, f), 'utf-8').match(/^BEGIN:VEVENT\r?$/gm) || []).length, 0);
+            const want = calendars.filter(c => c.event_count > 0).length;
+            pass = ics.length === want && vevents === events.length; detail = { files: ics.length, want, vevents, wantEvents: events.length };
+          }
+          if (kind === 'calendar' && format === 'csv') {
+            const sheet = files.filter(f => ext(f) === 'csv');
+            const rows = sheet.length === 1 ? csvRows(path.join(dir, sheet[0])) : -1;
+            pass = rows === events.length; detail = { rows, want: events.length };
           }
           if (format === 'pdf') { const stats = files.map(f => pdfStats(path.join(dir, f))); pass = pass && stats.every(s => s.header && s.pages > 0); }
           ok(`Save panel: ${kind} as ${format}`, res, { pass, detail });
@@ -289,6 +331,9 @@ export default {
         { name: 'Timeline', ready: /[\d,]+ events/, button: 'Save', formats: RECORD },
         // Only on a backup with a Podcasts library
         ...(podcasts.length ? [{ name: 'Podcasts', ready: /\d+ podcasts?/, button: 'Save', formats: ['opml', 'csv'] }] : []),
+        // Only with voice memos, and with calendar events (from All calendars: every calendar)
+        ...(memos.length ? [{ name: 'Voice Memos', ready: /\d+ recordings?/, button: 'Save', formats: withAudio.length ? ['recordings', 'csv'] : ['csv'] }] : []),
+        ...(events.length ? [{ name: 'Calendar', ready: /\d+ events?/, button: 'Save', formats: ['ics', 'csv'] }] : []),
       ];
       const clickSave = label => app.eval(label => {
         const el = [...document.querySelectorAll('button')].filter(b => !b.closest('.titlebar') && !b.disabled).find(b => b.textContent.trim() === label);

@@ -11,6 +11,12 @@
  * folder. No new dependencies, and nothing leaves the computer: the hidden
  * window may only read files inside that folder.
  *
+ * A PDF holds its photos whole, so a long chat's can be gigabytes. The engine
+ * plans a conversation's save first (plan_pdf_parts, python/pdf_parts.py): a
+ * chat too big for one sensible file is split by year, and each part is saved
+ * here as its own engine call, folder and PDF. The result says what was split
+ * and why.
+ *
  * Chromium prints a whole page at once, so a page too big for it, or with more
  * photos than one PDF can hold, is refused before printing, in plain words.
  */
@@ -27,9 +33,23 @@ export type PdfExportMethod =
   | 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats'
   | 'export_person' | 'export_notes' | 'export_calls' | 'export_browser_history' | 'export_recovered_messages';
 
+/** A conversation whose PDF was split by year, for telling the person why. */
+export interface PdfSplit {
+  /** Whose PDF: the conversation's name, or null for everything saved into one file ("merged"). */
+  name: string | null;
+  /** The parts, in order: "2023", "2019–2021", "Jan–Jun 2024". */
+  labels: string[];
+  messages: number;
+  images: number;
+  /** About how big one PDF of all of it would have been. */
+  estimate: { pages: number; megabytes: number };
+}
+
 export interface PdfExportResult {
   files: string[];
   message_count: number;
+  /** Conversations split into several PDFs; empty when every PDF fit in one file. */
+  splits: PdfSplit[];
   /** How many records the engine says it saved (notes, calls, page visits), when it says. */
   count?: number;
   /** Where export_person copied a person's photos and files (it's given media_dir). */
@@ -94,8 +114,23 @@ const RESTART_BEFORE_NEXT_PDF = 'Quit and reopen OpenExtract before saving anoth
 const PDFS_NEED_RESTART = 'Quit and reopen OpenExtract to save PDFs again: printing stopped working after an earlier PDF was too big. Everything else still saves as usual.';
 let printingBroken = false;
 
-// Copying and converting every image in a long thread can take a while.
+// Copying and converting every image in a long thread can take a while. A save
+// split by year has this long for each part.
 const SIDECAR_TIMEOUT_MS = 60 * 60 * 1000;
+
+// Planning reads every message once, but converts nothing.
+const PLAN_TIMEOUT_MS = 30 * 60 * 1000;
+
+// The saves that may be split by year: Messages conversations and WhatsApp chats.
+const PLANNED_METHODS = new Set<PdfExportMethod>([
+  'export_conversation', 'export_conversations', 'export_whatsapp_chat', 'export_whatsapp_chats',
+]);
+
+// "Save all" methods, and the one-chat method each split conversation is saved with.
+const ONE_CHAT_METHOD: Partial<Record<PdfExportMethod, PdfExportMethod>> = {
+  export_conversations: 'export_conversation',
+  export_whatsapp_chats: 'export_whatsapp_chat',
+};
 
 // In-memory session (no "persist:" prefix), separate from the app's own.
 const PDF_PARTITION = 'openextract-pdf-export';
@@ -357,34 +392,107 @@ function removeNewMediaFolder(mediaFolder: unknown, chosenDir: string, namesBefo
   }
 }
 
+/** One engine call of a PDF save, and the PDFs it makes. */
+interface PdfJob {
+  method: PdfExportMethod;
+  params: any;
+}
+
+interface PlanGroup {
+  chat_ids: number[];
+  split: boolean;
+  messages: number;
+  images: number;
+  estimate: { pages: number; megabytes: number };
+  parts: Array<{ label: string | null } & Record<string, unknown>>;
+}
+
 /**
- * Run an engine export as PDF. `params` are the same as for the HTML export;
- * `params.output_dir` is where the PDFs go. The engine is given a staging
- * folder instead; any other folder in `params` (export_person's media_dir,
- * where a person's photos and files are copied) is passed on as it is. If
- * export_person's PDF can't be made, the folder of originals it copied into
- * the chosen folder is removed again.
+ * Ask the engine how this save should be split, and turn that into engine calls.
+ * Nothing to split (or a plan that couldn't be made) is the one call asked for.
  */
-export async function exportMessagesPdf(
+async function planJobs(
   sidecar: Sidecar,
   method: PdfExportMethod,
   params: any,
-): Promise<PdfExportResult> {
-  if (!ALLOWED_METHODS.has(method)) throw new Error(`PDF export is not available for ${method}`);
-  const outputDir = params?.output_dir;
-  if (!outputDir || !fs.existsSync(outputDir)) throw new Error('Choose a folder to save the PDF in.');
-  // Before the engine copies anything: the PDF couldn't be printed anyway
-  if (printingBroken) throw new Error(PDFS_NEED_RESTART);
+): Promise<{ jobs: PdfJob[]; splits: PdfSplit[] }> {
+  const asked = { jobs: [{ method, params }], splits: [] };
+  // A person's history, notes, calls, web history and recovered messages are one PDF each
+  if (!PLANNED_METHODS.has(method)) return asked;
+  const oneMethod = ONE_CHAT_METHOD[method];
+  const merged = !!oneMethod && params.mode === 'merged';
+  const chatIds: number[] = oneMethod ? (params.chat_ids || []) : [params.chat_id];
+  let groups: PlanGroup[];
+  try {
+    const plan = await sidecar.call('plan_pdf_parts', {
+      udid: params.udid,
+      source: method.includes('whatsapp') ? 'whatsapp' : 'messages',
+      chat_ids: chatIds,
+      mode: merged ? 'merged' : 'separate',
+      date_from: params.date_from,
+      date_to: params.date_to,
+      query: params.query,
+    }, PLAN_TIMEOUT_MS);
+    groups = plan?.groups;
+  } catch (err) {
+    // The save itself then reports whatever is wrong (or works, in one file).
+    console.warn('[pdf-export] could not plan the save', err);
+    return asked;
+  }
+  if (!Array.isArray(groups) || !groups.some(g => g?.split)) return asked;
 
+  const names: Record<string, string> = params.conversation_names || {};
+  const nameOf = (chatId: number): string | null => (oneMethod ? names[chatId] : params.display_name) ?? null;
+  const jobs: PdfJob[] = [];
+  const splits: PdfSplit[] = [];
+  for (const group of groups) {
+    if (group.split) {
+      splits.push({
+        name: merged ? null : nameOf(group.chat_ids[0]),
+        labels: group.parts.map(p => p.label ?? ''),
+        messages: group.messages,
+        images: group.images,
+        estimate: group.estimate,
+      });
+    }
+    if (merged || !oneMethod) {
+      for (const part of group.parts) jobs.push({ method, params: { ...params, part } });
+      continue;
+    }
+    // One conversation of a "Save all", in its own file(s).
+    const { chat_ids: _ids, conversation_names: _names, mode: _mode, ...common } = params;
+    const chatId = group.chat_ids[0];
+    for (const part of group.parts) {
+      jobs.push({ method: oneMethod, params: { ...common, chat_id: chatId, display_name: names[chatId], part } });
+    }
+  }
+  return { jobs, splits };
+}
+
+/** What one engine call printed, and what it said about the save. */
+interface JobResult {
+  files: string[];
+  message_count: number;
+  extra: Omit<PdfExportResult, 'files' | 'message_count' | 'splits'>;
+}
+
+/**
+ * Run one engine call into a fresh temporary folder and print what it wrote.
+ * The engine is given the staging folder instead of `output_dir`; any other
+ * folder in the params (export_person's media_dir, where a person's photos and
+ * files are copied) is passed on as it is. If export_person's PDF can't be
+ * made, the folder of originals it copied into the chosen folder is removed again.
+ */
+async function runJob(sidecar: Sidecar, job: PdfJob, outputDir: string): Promise<JobResult> {
   // What's in the chosen folder before a person's originals are copied into it
-  const namesBefore = method === 'export_person' ? namesIn(outputDir) : null;
+  const namesBefore = job.method === 'export_person' ? namesIn(outputDir) : null;
   const staging = fs.realpathSync(fs.mkdtempSync(path.join(app.getPath('temp'), STAGING_PREFIX)));
   activeStagingDirs.add(staging);
   let result: any;
   try {
     result = await sidecar.call(
-      method,
-      { ...params, format: 'pdf_source', output_dir: staging },
+      job.method,
+      { ...job.params, format: 'pdf_source', output_dir: staging },
       SIDECAR_TIMEOUT_MS,
     );
     if (result?.error) throw new Error(result.error);
@@ -409,13 +517,15 @@ export async function exportMessagesPdf(
     return {
       files: pdfFiles,
       message_count: result?.message_count ?? 0,
-      ...(typeof result?.count === 'number' ? { count: result.count } : {}),
-      ...(typeof result?.media_folder === 'string' ? { media_folder: result.media_folder } : {}),
-      ...(mediaCounts(result?.media) ? { media: mediaCounts(result?.media) } : {}),
-      ...(partErrors(result?.errors) ? { errors: partErrors(result?.errors) } : {}),
+      extra: {
+        ...(typeof result?.count === 'number' ? { count: result.count } : {}),
+        ...(typeof result?.media_folder === 'string' ? { media_folder: result.media_folder } : {}),
+        ...(mediaCounts(result?.media) ? { media: mediaCounts(result?.media) } : {}),
+        ...(partErrors(result?.errors) ? { errors: partErrors(result?.errors) } : {}),
+      },
     };
   } catch (err) {
-    if (method === 'export_person') removeNewMediaFolder(result?.media_folder, outputDir, namesBefore);
+    if (job.method === 'export_person') removeNewMediaFolder(result?.media_folder, outputDir, namesBefore);
     throw err;
   } finally {
     activeStagingDirs.delete(staging);
@@ -425,6 +535,42 @@ export async function exportMessagesPdf(
       console.warn('[pdf-export] could not remove temporary folder', staging, err);
     }
   }
+}
+
+/**
+ * Run an engine export as PDF. `params` are the same as for the HTML export;
+ * `params.output_dir` is where the PDFs go. A conversation too big for one
+ * file is saved as several, one engine call each (planJobs).
+ */
+export async function exportMessagesPdf(
+  sidecar: Sidecar,
+  method: PdfExportMethod,
+  params: any,
+): Promise<PdfExportResult> {
+  if (!ALLOWED_METHODS.has(method)) throw new Error(`PDF export is not available for ${method}`);
+  const outputDir = params?.output_dir;
+  if (!outputDir || !fs.existsSync(outputDir)) throw new Error('Choose a folder to save the PDF in.');
+  // Before the engine copies anything: the PDF couldn't be printed anyway
+  if (printingBroken) throw new Error(PDFS_NEED_RESTART);
+
+  const { jobs, splits } = await planJobs(sidecar, method, params);
+  const files: string[] = [];
+  let messageCount = 0;
+  let extra: JobResult['extra'] = {};
+  for (const job of jobs) {
+    try {
+      const done = await runJob(sidecar, job, outputDir);
+      files.push(...done.files);
+      messageCount += done.message_count;
+      extra = { ...extra, ...done.extra };
+    } catch (err: any) {
+      // Parts already saved stay saved: say so, so nobody saves them again.
+      if (files.length === 0) throw err;
+      const message = String(err?.message ?? err).replace(/\.?$/, '.');
+      throw new Error(`${message} The first ${files.length === 1 ? 'PDF was' : `${files.length} PDFs were`} saved before this happened.`);
+    }
+  }
+  return { files, message_count: messageCount, splits, ...extra };
 }
 
 // What can't be in a file name: folders, characters Windows refuses, control characters

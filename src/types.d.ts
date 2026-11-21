@@ -16,15 +16,7 @@ declare global {
         method: 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats'
           | 'export_person' | 'export_notes' | 'export_calls' | 'export_browser_history' | 'export_recovered_messages',
         params: any,
-      ) => Promise<{
-        success: boolean;
-        data?: {
-          files: string[]; message_count: number; count?: number; media_folder?: string;
-          media?: { copied: number; not_in_backup: number; failed: number };
-          errors?: Record<string, string>;
-        };
-        error?: string;
-      }>;
+      ) => Promise<{ success: boolean; data?: import('./lib/ipc').PdfExportResult; error?: string }>;
       /** Print a page the window built (the Timeline) to `<outputDir>/<baseName>.pdf`, never overwriting a file. */
       exportHtmlPdf: (html: string, outputDir: string, baseName: string) => Promise<{ success: boolean; data?: { file: string }; error?: string }>;
       selectFolder: () => Promise<string | null>;
