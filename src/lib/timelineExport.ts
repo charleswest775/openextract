@@ -100,7 +100,9 @@ function entryDescription(e: TimelineEntry): string {
       // Its files by name ("[Photo: IMG_4127.HEIC]"), after its words or in place of them
       const files = attachmentLabels(m.attachments, m.messageType).map(l => `[${l}]`).join(' ');
       if (files) return `${dir}: ${m.text ? `${m.text} ${files}` : files}`;
-      const text = m.text || (m.eventText && `[${m.eventText}]`) || typeLabels[m.messageType]
+      const photos = m.photos?.length ?? 0;
+      const photoLabel = photos > 1 ? `[${photos} photos]` : photos === 1 ? '[Photo]' : null;
+      const text = m.text || (m.eventText && `[${m.eventText}]`) || photoLabel || typeLabels[m.messageType]
         || `[${m.messageType || 'No text'}]`;
       return `${dir}: ${text}`;
     }

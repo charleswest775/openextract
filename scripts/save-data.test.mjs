@@ -589,7 +589,7 @@ test('writeTimeline: more events than one PDF holds are refused before the page 
   const tooMany = many(lib.MAX_PDF_EVENTS + 1);
   await assert.rejects(save.writeTimeline(tooMany, 'pdf', '/tmp/out', 'timeline-export'), {
     message: `This is too much for one PDF: ${(25_001).toLocaleString()} events, and one PDF holds up to ${(25_000).toLocaleString()}. `
-      + 'Narrow it down to a date range, a person or fewer kinds, or save it as a web page or spreadsheet, which have no limit.',
+      + 'Narrow it down to a date range, a search or fewer kinds, or save it as a web page or spreadsheet, which have no limit.',
   });
   assert.equal(calls.length, 0, 'nothing was sent to be printed');
 
@@ -622,10 +622,29 @@ test("personExportSpec: whole chats per source, each once, and calls and voicema
     whatsapp_chat_ids: [17], whatsapp_names: { 17: 'Theo (WhatsApp)' },
     call_ids: ['12', 'ft_3'],
     voicemail_ids: ['7', 'A-0D1F2E3C-4B5A-6978-8796-A5B4C3D2E1F0.7'],
+    note_ids: [],
   });
   assert.deepEqual(personExportSpec('Nobody', []), {
-    display_name: 'Nobody', chat_ids: [], conversation_names: {}, whatsapp_chat_ids: [], whatsapp_names: {}, call_ids: [], voicemail_ids: [],
+    display_name: 'Nobody', chat_ids: [], conversation_names: {}, whatsapp_chat_ids: [], whatsapp_names: {}, call_ids: [], voicemail_ids: [], note_ids: [],
   });
+});
+
+test('personExportSpec: the notes you share go in by id; picked-out messages only when asked', () => {
+  const { personExportSpec } = lib;
+  const entries = [msgEntry(1, 17, 'Theo'), msgEntry(4, 17, 'Theo'), waEntry(9, 17, 'Theo (WhatsApp)'), simple('note', 42), simple('note', 42), simple('call', 12)];
+  // Save everything: whole chats, so no message ids
+  const whole = personExportSpec('Theo', entries);
+  assert.deepEqual(whole.note_ids, ['42']);
+  assert.equal('message_ids' in whole, false);
+  assert.equal('whatsapp_message_ids' in whole, false);
+  // Dates, a search or Photos picked these out: only them, by each source's own ids
+  const these = personExportSpec('Theo', entries, { onlyThese: true });
+  assert.deepEqual(these.message_ids, [1, 4]);
+  assert.deepEqual(these.whatsapp_message_ids, [9]);
+  assert.deepEqual(these.chat_ids, [17]);
+  assert.deepEqual(these.whatsapp_chat_ids, [17]);
+  // Nothing of a source picked out is an empty list, not "every message"
+  assert.deepEqual(personExportSpec('Theo', [simple('call', 12)], { onlyThese: true }).message_ids, []);
 });
 
 const PERSON = { display_name: 'Theo', chat_ids: [17], conversation_names: { 17: 'Theo' }, whatsapp_chat_ids: [], whatsapp_names: {}, call_ids: ['12'], voicemail_ids: [] };

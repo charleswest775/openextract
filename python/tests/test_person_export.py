@@ -120,6 +120,23 @@ class FakeVoicemail:
         return {"voicemails": list(self.voicemails)}
 
 
+class FakeNotes:
+    """list_notes as ios-backup-core gives it; ``error`` makes it raise, like a damaged NoteStore."""
+
+    def __init__(self, notes, error=None):
+        self.notes, self.error = notes, error
+
+    def list_notes(self, backup):
+        if self.error:
+            raise RuntimeError(self.error)
+        return {"notes": list(self.notes), "total": len(self.notes)}
+
+
+def note(note_id, created, title, body="", shared_with=None):
+    return {"note_id": note_id, "title": title, "body": body, "created": created, "modified": created,
+            "shared_with": shared_with or []}
+
+
 def sms(message_id, date, text="", *, from_me=False, sender="Riley Sample", attachments=None, reaction=False,
         service="iMessage", message_type="text"):
     return {"message_id": message_id, "date": date, "text": text, "message_type": message_type, "event_text": None,
@@ -177,6 +194,7 @@ class PersonExportCase(unittest.TestCase):
         self.backup = FakeBackup()
         self.sms_chats, self.wa_chats = {}, {}
         self.calls, self.voicemails, self.vm_audio = [], [], {}
+        self.notes, self.notes_error = [], None
         self.wa_error = None
         self.calls_result = None
         self.progress = []
@@ -216,7 +234,8 @@ class PersonExportCase(unittest.TestCase):
         whatsapp = WhatsAppExtractor()
         whatsapp._inner = FakeWhatsApp(self.wa_chats, error=self.wa_error)
         exporter = PersonExporter(self.messages, whatsapp, FakeCalls(self.calls, self.calls_result),
-                                  FakeVoicemail(self.voicemails, self.vm_audio))
+                                  FakeVoicemail(self.voicemails, self.vm_audio),
+                                  FakeNotes(self.notes, self.notes_error))
         exporter.local_tz = timezone.utc
         return exporter
 
@@ -583,6 +602,89 @@ class TestReading(PersonExportCase):
 
 # ── Files ────────────────────────────────────────────────────────────────────
 
+class TestWhatTheScreenPicked(PersonExportCase):
+    """People's dates, search or Photos chip pick out some messages: only those are saved, with only their files."""
+
+    def setUp(self):
+        super().setUp()
+        self.standard()
+
+    def test_only_the_messages_picked_out_with_only_their_files(self):
+        result = self.ok("html", message_ids=[3], whatsapp_message_ids=[102], call_ids=[], voicemail_ids=[])
+        self.assertEqual(result["counts"], {"message": 1, "whatsapp": 1, "call": 0, "voicemail": 0})
+        self.assertEqual(result["media"], {"copied": 3, "not_in_backup": 0, "failed": 0})
+        page = self.read(result["file"])
+        self.assert_in_order(page, ["look at this", "wa5-IMG_0005.jpg"])
+        for gone in ("first sms", "last sms", "wa hello", "wa6-voice.opus"):
+            self.assertNotIn(gone, page)
+
+    def test_ids_are_each_sources_own(self):
+        # 101 is a WhatsApp id; as a Messages id it picks out nothing
+        result = self.ok("csv", message_ids=[101], whatsapp_message_ids=[101], call_ids=[], voicemail_ids=[])
+        self.assertEqual(result["counts"], {"message": 0, "whatsapp": 1, "call": 0, "voicemail": 0})
+
+    def test_none_picked_from_a_source_is_none_and_absent_is_the_whole_chat(self):
+        result = self.ok("txt", message_ids=[], call_ids=[], voicemail_ids=[])
+        self.assertEqual(result["counts"], {"message": 0, "whatsapp": 3, "call": 0, "voicemail": 0})
+        self.assertEqual(self.ok("txt")["counts"]["message"], 3)
+
+    def test_ids_that_arent_numbers_are_skipped(self):
+        result = self.ok("csv", message_ids=["4", "x", None, True], whatsapp_message_ids=[], call_ids=[], voicemail_ids=[])
+        self.assertEqual(result["counts"]["message"], 1)
+
+
+class TestSharedNotes(PersonExportCase):
+
+    def setUp(self):
+        super().setUp()
+        self.sms_chats[1] = [sms(1, D(0), "first sms"), sms(2, D(9), "last sms", from_me=True)]
+        self.notes = [
+            note(41, D(4), "Trip packing list", "tent\nstove <and> fuel", shared_with=[{"name": "Riley", "email": None, "phone": "+12025550101"}]),
+            note("42", D(5), "Someone else's", "not hers"),
+        ]
+
+    def test_a_shared_note_is_in_every_format_in_date_order(self):
+        page = self.read(self.ok("html", note_ids=["41"])["file"])
+        self.assert_in_order(page, ["first sms", "Trip packing list", "stove &lt;and&gt; fuel", "last sms"])
+        self.assertIn('<span class="src">Shared note</span>', page)
+        self.assertNotIn("<and>", page)
+        self.assertNotIn("not hers", page)
+        self.assertIn("2 messages · 1 shared note", page)
+        rows = list(csv.reader(open(self.ok("csv", note_ids=[41])["file"], encoding="utf-8-sig")))
+        self.assertEqual(rows[2][1:3], ["Shared note", ""])
+        self.assertEqual(rows[2][5], "“Trip packing list”\ntent\nstove <and> fuel")
+        text = self.read(self.ok("txt", note_ids=[41])["file"], encoding="utf-8-sig")
+        self.assertIn("(Shared note) “Trip packing list”\n    tent\n    stove <and> fuel\n", text)
+
+    def test_a_notes_title_isnt_repeated_at_the_top_of_its_text(self):
+        # A real note's text starts with its title, which is already its heading
+        self.notes = [note(43, D(4), "Trip packing list", "Trip packing list\ntent\nstove")]
+        page = self.read(self.ok("html", note_ids=[43])["file"])
+        self.assertEqual(page.count("Trip packing list"), 1)
+        self.assertIn('<div class="note-body">tent<br>stove</div>', page)
+        text = self.read(self.ok("txt", note_ids=[43])["file"], encoding="utf-8-sig")
+        self.assertIn("(Shared note) “Trip packing list”\n    tent\n    stove\n", text)
+        # A note that is only its title
+        self.notes = [note(44, D(4), "Call the vet", "Call the vet")]
+        rows = list(csv.reader(open(self.ok("csv", note_ids=[44])["file"], encoding="utf-8-sig")))
+        self.assertEqual(rows[2][5], "“Call the vet”")
+
+    def test_counts_name_notes_only_when_there_are_some(self):
+        self.assertEqual(self.ok("csv", note_ids=[41, "42"])["counts"]["note"], 2)
+        self.assertNotIn("note", self.ok("csv")["counts"])
+
+    def test_notes_alone_are_something_to_save(self):
+        result = self.ok("html", chat_ids=[], note_ids=[41])
+        self.assertEqual(result["message_count"], 1)
+        self.assertNotIn("media_folder", result)
+
+    def test_notes_that_cant_be_read_cost_only_themselves(self):
+        self.notes_error = "damaged NoteStore"
+        result = self.ok("csv", note_ids=[41])
+        self.assertEqual(result["counts"]["message"], 2)
+        self.assertEqual(result["errors"], {"note": person_export.NOTES_UNREADABLE})
+
+
 class TestFiles(PersonExportCase):
 
     def test_missing_and_unreadable_files_are_counted_and_labelled(self):
@@ -786,6 +888,7 @@ class TestEngineMethod(PersonExportCase):
         from rpc_contract_support import load_engine_module
 
         self.standard()
+        self.notes = [note(41, D(4), "Trip packing list")]
         server = load_engine_module().SidecarServer()
         notifications = []
         server.send_notification = lambda method, params: notifications.append((method, params))
@@ -799,6 +902,12 @@ class TestEngineMethod(PersonExportCase):
             "whatsapp_chat_ids": [1], "whatsapp_names": {"1": "Riley Sample"},
             "call_ids": [5, "ft_3", "vm_9"], "voicemail_ids": [7]}})
         self.assertEqual(response["id"], "p-1")
+        # What the screen picked out, and the notes you share, go through as given
+        picked = server.handle_request({"id": "p-3", "method": "export_person", "params": {
+            "udid": "x", "output_dir": self.out, "format": "csv", "display_name": "Riley Sample",
+            "chat_ids": [1], "whatsapp_chat_ids": [1], "message_ids": [3], "whatsapp_message_ids": [],
+            "note_ids": ["41"]}})["result"]
+        self.assertEqual(picked["counts"], {"message": 1, "whatsapp": 0, "call": 0, "voicemail": 0, "note": 1})
         result = response["result"]
         self.assertEqual(result["counts"], {"message": 3, "whatsapp": 3, "call": 3, "voicemail": 1})
         progress = [p for m, p in notifications if m == "export.progress"]

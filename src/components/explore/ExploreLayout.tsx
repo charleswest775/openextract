@@ -119,6 +119,7 @@ export default function ExploreLayout({ udid, session, onBack, unfinished = fals
   // A message in the Timeline opens in its own thread, at that message (kept the same between renders, so cards don't redraw)
   const openMessageAt = useCallback((entry: TimelineEntry) => openTab('messages', { select: entry }), [openTab]);
   const openWhatsAppAt = useCallback((entry: TimelineEntry) => openTab('whatsapp', { select: entry }), [openTab]);
+  const openPersonAt = useCallback((person?: string) => openTab('people', person ? { person } : {}), [openTab]);
 
   // Cmd+K (Ctrl+K) from anywhere
   useEffect(() => {
@@ -199,7 +200,15 @@ export default function ExploreLayout({ udid, session, onBack, unfinished = fals
       case 'dashboard':
         return <BackupDashboard {...backupStats} onNavigate={t => openTab(t as Tab)} hasBrowserHistory={hasBrowserHistory} />;
       case 'people':
-        return <PeopleView key={target.person ?? ''} ctx={ctx} query={screenQuery} person={target.person} />;
+        return (
+          <PeopleView
+            key={`${target.person ?? ''}|${target.days?.from ?? ''}|${target.days?.to ?? ''}`}
+            ctx={ctx}
+            query={screenQuery}
+            person={target.person}
+            days={target.days}
+          />
+        );
       case 'timeline':
         return (
           <TimelineView
@@ -208,6 +217,7 @@ export default function ExploreLayout({ udid, session, onBack, unfinished = fals
             index={index}
             startingFilters={target.timeline}
             query={screenQuery}
+            onOpenPerson={openPersonAt}
             onOpenWhatsApp={openWhatsAppAt}
             onOpenMessage={openMessageAt}
           />
@@ -218,7 +228,10 @@ export default function ExploreLayout({ udid, session, onBack, unfinished = fals
             udid={udid}
             selection={yearSelection}
             onSelectionChange={setYearSelection}
-            onOpenDay={filters => openTab('timeline', { timeline: filters })}
+            onOpenDay={filters => filters.contactIdentifier
+              // Someone picked: that day on their page in People, where everything with one person is
+              ? openTab('people', { person: filters.contactIdentifier, days: { from: filters.dateFrom ?? '', to: filters.dateTo ?? '' } })
+              : openTab('timeline', { timeline: filters })}
           />
         );
       case 'messages':

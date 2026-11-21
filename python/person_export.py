@@ -2,9 +2,12 @@
 Everything with one person, in one save (engine method ``export_person``).
 
 The People screen shows one person's Messages conversations, WhatsApp chats,
-calls and voicemails as a single stream. This saves that stream: whole chats
-(not only what the screen has read), oldest first, with every photo, video,
-voice message, document and voicemail recording copied out of the backup.
+calls, voicemails and the notes you share as a single stream. This saves that
+stream: whole chats (not only what the screen has read), oldest first, with
+every photo, video, voice message, document and voicemail recording copied out
+of the backup. When the screen's dates, search or Photos chip pick out some of
+a chat's messages, ``message_ids`` and ``whatsapp_message_ids`` save only
+those.
 
 Formats (``FORMATS``):
 
@@ -85,6 +88,7 @@ MESSAGES_UNREADABLE = "Some Messages conversations couldn't be read."
 WHATSAPP_UNREADABLE = "WhatsApp couldn't be read."
 CALLS_UNREADABLE = "Call history couldn't be read."
 VOICEMAIL_UNREADABLE = "Voicemail couldn't be read."
+NOTES_UNREADABLE = "Notes couldn't be read."
 
 _EXTENSIONS = {"html": ".html", "pdf_source": ".html", "csv": ".csv", "txt": ".txt"}
 
@@ -146,6 +150,13 @@ def _int_ids(values) -> list:
             seen.add(number)
             out.append(number)
     return out
+
+
+def _keep_ids(values) -> Optional[set]:
+    """Message ids to keep, as integers; None (keep every message) when none were given."""
+    if values is None:
+        return None
+    return set(_int_ids(values))
 
 
 def _str_ids(values) -> set:
@@ -225,6 +236,23 @@ def _voicemail_title(vm: dict) -> str:
     return f"Voicemail ({', '.join(notes)})" if notes else "Voicemail"
 
 
+def _note_parts(note: dict) -> tuple:
+    """A shared note's title and the rest of its text. A note starts with its
+    title, which is already its heading, so the text leaves it out, as the
+    Notes save and screen do (notes.py)."""
+    raw_title = _without_lone_surrogates(str(note.get("title") or ""))
+    body = _without_lone_surrogates(str(note.get("body") or ""))
+    if raw_title.strip() and body.lstrip().startswith(raw_title.strip()):
+        body = body.lstrip()[len(raw_title.strip()):]
+    return _visible(raw_title).strip() or "Untitled", body.strip()
+
+
+def _note_text(note: dict) -> str:
+    """A shared note in text: its title in quotes, then the rest of it on the lines after."""
+    title, body = _note_parts(note)
+    return f"“{title}”" + (f"\n{body}" if body else "")
+
+
 def _messages_kind(att: dict) -> str:
     mime = (att.get("mime_type") or "").lower()
     if _PrintAttachmentWriter._is_image(att):
@@ -261,14 +289,14 @@ def _safe_id(value) -> str:
 # ── One item of the stream ────────────────────────────────────────────────────
 
 class _Item:
-    """A message, WhatsApp message, call or voicemail, with where it's from."""
+    """A message, WhatsApp message, call, voicemail or shared note, with where it's from."""
 
     __slots__ = ("kind", "data", "conversation", "date", "moment")
 
     def __init__(self, kind: str, data: dict, conversation: str, date):
-        self.kind = kind                  # "message", "whatsapp", "call" or "voicemail"
+        self.kind = kind                  # "message", "whatsapp", "call", "voicemail" or "note"
         self.data = data
-        self.conversation = conversation  # the chat's name; "" for calls and voicemail
+        self.conversation = conversation  # the chat's name; "" for calls, voicemail and notes
         self.date = date
         self.moment = _moment(date)
 
@@ -515,13 +543,15 @@ class _Writers:
 # ── The save ──────────────────────────────────────────────────────────────────
 
 class PersonExporter:
-    """Writes one person's messages, WhatsApp messages, calls and voicemails into one file."""
+    """Writes one person's messages, WhatsApp messages, calls, voicemails and shared notes into one file."""
 
-    def __init__(self, message_extractor, whatsapp_extractor, call_extractor, voicemail_extractor):
+    def __init__(self, message_extractor, whatsapp_extractor, call_extractor, voicemail_extractor,
+                 note_extractor=None):
         self.messages = message_extractor
         self.whatsapp = whatsapp_extractor
         self.calls = call_extractor
         self.voicemail = voicemail_extractor
+        self.notes = note_extractor
 
     # The time zone dates are shown in: None is this computer's, as the app's.
     # Shared with the Messages adapter, whose file naming this save uses.
@@ -536,13 +566,18 @@ class PersonExporter:
     def export(self, backup, contacts: dict, output_dir: str, fmt: str, display_name: Optional[str] = None,
                chat_ids=(), conversation_names=None, whatsapp_chat_ids=(), whatsapp_names=None,
                call_ids=(), voicemail_ids=(), media_dir: Optional[str] = None,
-               on_progress: Optional[Callable[[int, int, int], None]] = None) -> dict:
+               on_progress: Optional[Callable[[int, int, int], None]] = None,
+               message_ids=None, whatsapp_message_ids=None, note_ids=()) -> dict:
         """Save everything with one person. See the module's docstring for the formats.
 
         ``chat_ids``: sms.db chat ROWIDs; ``whatsapp_chat_ids``: ChatStorage
         chat ids (never mixed: they overlap). Both are whole chats.
         ``call_ids``: as list_calls gives them (12, "ft_3", "vm_9").
-        ``voicemail_ids``: as list_voicemails gives them. The names map a chat
+        ``voicemail_ids``: as list_voicemails gives them. ``note_ids``: shared
+        notes, as list_notes gives them. ``message_ids`` (sms.db ROWIDs) and
+        ``whatsapp_message_ids`` (ChatStorage primary keys): when given, only
+        those messages of the chats are saved; absent, the chats are saved
+        whole. The names map a chat
         id (as text or a number) to its name. ``media_dir``: for
         ``pdf_source`` only, the folder the PDF goes in; every original is
         copied there too.
@@ -550,7 +585,8 @@ class PersonExporter:
         Returns ``{file, message_count, counts, media, errors}``, plus
         ``media_folder`` when files were copied into one. ``counts`` has
         ``message``, ``whatsapp``, ``call`` and ``voicemail``; ``media`` has
-        ``copied``, ``not_in_backup`` and ``failed``; ``errors`` names each
+        ``copied``, ``not_in_backup`` and ``failed`` (``note`` too, with notes);
+        ``errors`` names each
         part that couldn't be read (the rest is still saved). Nothing found at
         all is ``{error, errors}``, and so is a folder that can't be written
         to (whatever was half-written is removed).
@@ -564,7 +600,9 @@ class PersonExporter:
 
         errors: dict = {}
         items, counts = self._read(backup, contacts, display_name, chat_ids, conversation_names,
-                                   whatsapp_chat_ids, whatsapp_names, call_ids, voicemail_ids, errors)
+                                   whatsapp_chat_ids, whatsapp_names, call_ids, voicemail_ids, errors,
+                                   message_ids=message_ids, whatsapp_message_ids=whatsapp_message_ids,
+                                   note_ids=note_ids)
         if not items:
             return {"error": next(iter(errors.values()), NOTHING_TO_SAVE), "errors": errors}
 
@@ -620,28 +658,32 @@ class PersonExporter:
     # ── reading ──────────────────────────────────────────────────────────────
 
     def _read(self, backup, contacts, display_name, chat_ids, conversation_names, whatsapp_chat_ids,
-              whatsapp_names, call_ids, voicemail_ids, errors) -> tuple:
+              whatsapp_names, call_ids, voicemail_ids, errors, message_ids=None, whatsapp_message_ids=None,
+              note_ids=()) -> tuple:
         """Every item, merged by date (oldest first), and how many of each kind."""
         messages = self._read_messages(backup, contacts, _int_ids(chat_ids), _names(conversation_names),
-                                       display_name, errors)
+                                       display_name, errors, keep=_keep_ids(message_ids))
         chats = self._read_whatsapp(backup, contacts, _int_ids(whatsapp_chat_ids), _names(whatsapp_names),
-                                    display_name, errors)
+                                    display_name, errors, keep=_keep_ids(whatsapp_message_ids))
         calls = self._read_calls(backup, contacts, _str_ids(call_ids), errors)
         voicemails = self._read_voicemails(backup, contacts, _str_ids(voicemail_ids), errors)
+        notes = self._read_notes(backup, _str_ids(note_ids), errors)
         counts = {
             "message": len(messages),
             "whatsapp": sum(len(chat) for chat in chats),
             "call": len(calls),
             "voicemail": len(voicemails),
         }
+        if notes:
+            counts["note"] = len(notes)
         # Each Messages, call and voicemail stream is in date order. A WhatsApp
         # chat stays in arrival order, where a late message can carry an earlier
         # date: merging interleaves the streams by date but never reorders one,
         # as WhatsApp's own merged save does.
-        items = list(heapq.merge(messages, *chats, calls, voicemails, key=lambda it: it.moment))
+        items = list(heapq.merge(messages, *chats, calls, voicemails, notes, key=lambda it: it.moment))
         return items, counts
 
-    def _read_messages(self, backup, contacts, chat_ids, names, display_name, errors) -> list:
+    def _read_messages(self, backup, contacts, chat_ids, names, display_name, errors, keep=None) -> list:
         items, seen = [], set()
         for chat_id in chat_ids:
             try:
@@ -655,6 +697,8 @@ class PersonExporter:
                 if msg.get("is_reaction"):
                     continue
                 message_id = msg.get("message_id")
+                if keep is not None and message_id not in keep:  # not among those the screen picked out
+                    continue
                 if message_id is not None:
                     if message_id in seen:  # in two of the person's chats: once, as People shows it
                         continue
@@ -663,7 +707,7 @@ class PersonExporter:
         items.sort(key=lambda it: (it.moment, it.data.get("message_id") or 0))
         return items
 
-    def _read_whatsapp(self, backup, contacts, chat_ids, names, display_name, errors) -> list:
+    def _read_whatsapp(self, backup, contacts, chat_ids, names, display_name, errors, keep=None) -> list:
         chats = []
         export = self.whatsapp._export
         for chat_id in chat_ids:
@@ -679,7 +723,8 @@ class PersonExporter:
                 continue
             name = names.get(chat_id) or display_name
             chats.append([_Item("whatsapp", msg, name, msg.get("date"))
-                          for msg in messages if not msg.get("is_reaction")])
+                          for msg in messages
+                          if not msg.get("is_reaction") and (keep is None or msg.get("message_id") in keep)])
         return chats
 
     def _read_calls(self, backup, contacts, wanted: set, errors) -> list:
@@ -714,6 +759,27 @@ class PersonExporter:
         items = [_Item("voicemail", vm, "", vm.get("date_received"))
                  for vm in voicemails if str(vm.get("id")) in wanted]
         items.sort(key=lambda it: (it.moment, str(it.data.get("id"))))
+        return items
+
+    def _read_notes(self, backup, wanted: set, errors) -> list:
+        """The shared notes asked for, dated as the Timeline dates them (made, else last changed)."""
+        if not wanted:
+            return []
+        if self.notes is None:
+            errors["note"] = NOTES_UNREADABLE
+            return []
+        try:
+            result = self.notes.list_notes(backup)
+        except Exception as e:
+            _log(f"couldn't read notes: {e}")
+            errors["note"] = NOTES_UNREADABLE
+            return []
+        notes = (result.get("notes") if isinstance(result, dict) else result) or []
+        if isinstance(result, dict) and result.get("error") and not notes:
+            errors["note"] = result["error"]
+        items = [_Item("note", note, "", note.get("created") or note.get("modified"))
+                 for note in notes if str(note.get("note_id")) in wanted]
+        items.sort(key=lambda it: (it.moment, str(it.data.get("note_id"))))
         return items
 
     # ── names and writers ────────────────────────────────────────────────────
@@ -790,6 +856,8 @@ class PersonExporter:
             return "WhatsApp"
         if it.kind == "message":
             return _SERVICE_WORDS.get(it.data.get("service") or "", "Messages")
+        if it.kind == "note":
+            return "Shared note"
         return "Call" if it.kind == "call" else "Voicemail"
 
     def _messages_text(self, msg: dict) -> str:
@@ -866,6 +934,8 @@ class PersonExporter:
             direction = "Outgoing" if outgoing else "Incoming"
             sender = "me" if outgoing else _who(data.get("contact_name"), data.get("address"))
             text, duration = _call_title(data), _duration_seconds(data.get("duration"))
+        elif it.kind == "note":
+            direction, sender, text = "", "", _note_text(data)
         else:
             direction = "Received"
             sender = _who(data.get("contact_name"), data.get("phone_number"))
@@ -900,6 +970,8 @@ class PersonExporter:
             parts = [_call_title(data), _who(data.get("contact_name"), data.get("address")),
                      _duration_text(data.get("duration"))]
             body = " · ".join(p for p in parts if p)
+        elif it.kind == "note":
+            body = _note_text(data).replace("\n", "\n    ")
         else:
             parts = [_voicemail_title(data), _who(data.get("contact_name"), data.get("phone_number")),
                      _duration_text(data.get("duration"))]
@@ -947,6 +1019,8 @@ class PersonExporter:
             parts.append(_plural(counts["call"], "call", "calls"))
         if counts["voicemail"]:
             parts.append(_plural(counts["voicemail"], "voicemail", "voicemails"))
+        if counts.get("note"):
+            parts.append(_plural(counts["note"], "shared note", "shared notes"))
         dated = [dt for it in items if (dt := local_datetime(it.date, self.local_tz)) is not None]
         if dated:
             first, last = format_day(min(dated)), format_day(max(dated))
@@ -1025,6 +1099,15 @@ class PersonExporter:
         return (f'<div class="item log voicemail"><div class="meta">{_esc(when)}</div>'
                 f'<div class="log-box">{"".join(parts)}</div></div>')
 
+    @staticmethod
+    def _note_html(it: _Item, when: str) -> str:
+        title, body = _note_parts(it.data)
+        parts = [f'<div class="log-title">{_esc(title)}</div>']
+        if body:
+            parts.append(f'<div class="note-body">{_esc(body, preserve_newlines=True)}</div>')
+        return (f'<div class="item log note"><div class="meta">{_esc(when)} · <span class="src">Shared note</span></div>'
+                f'<div class="log-box">{"".join(parts)}</div></div>')
+
     def _files_note(self, fmt: str, folder_name: str, media_total: int, has_folder: bool) -> str:
         if not media_total or not has_folder:
             return ""
@@ -1060,6 +1143,8 @@ class PersonExporter:
                     f.write(self._whatsapp_html(it, when, writers, display_name))
                 elif it.kind == "call":
                     f.write(self._call_html(it, when))
+                elif it.kind == "note":
+                    f.write(self._note_html(it, when))
                 else:
                     f.write(self._voicemail_html(it, when, writers, fmt, folder_name))
                 f.write("\n")
@@ -1129,6 +1214,7 @@ _PERSON_CSS = """body { font-family: -apple-system, "Segoe UI", sans-serif; max-
 .call.missed .log-title { color: #d70015; }
 .log-detail { font-size: 12px; color: #666; }
 .transcript { margin-top: 4px; font-size: 13px; font-style: italic; text-align: left; }
+.note-body { margin-top: 4px; font-size: 13px; text-align: left; white-space: pre-wrap; }
 .log-box a { color: inherit; }
 @media print {
   body { background: #fff; max-width: none; }

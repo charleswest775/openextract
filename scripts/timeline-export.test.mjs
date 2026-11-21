@@ -120,6 +120,11 @@ test('what each kind of entry says', () => {
   assert.equal(describe(message(DAY, 'Look at this', { isFromMe: true, attachments: [heic] })), 'Sent: Look at this [Photo: IMG_4127.HEIC]');
   const caf = { attachment_id: 3, filename: '~/Library/SMS/Attachments/a/3/Z/Audio Message.caf', mime_type: 'audio/x-caf', transfer_name: 'Audio Message.caf' };
   assert.equal(describe(message(DAY, null, { messageType: 'audio', attachments: [caf] })), 'Received: [Voice message: Audio Message.caf]');
+  // Photos alone, when the engine didn't list the files: how many
+  const pic = { attachment_id: 1, filename: '~/Library/SMS/Attachments/a.jpg', mime_type: 'image/jpeg', transfer_name: 'a.jpg' };
+  assert.equal(describe(message(DAY, null, { messageType: 'attachment', photos: [pic] })), 'Received: [Photo]');
+  assert.equal(describe(message(DAY, null, { messageType: 'attachment', photos: [pic, { ...pic, attachment_id: 2 }] })), 'Received: [2 photos]');
+  assert.equal(describe(message(DAY, 'Look!', { messageType: 'attachment', photos: [pic] })), 'Received: Look!');
   assert.equal(describe(message(DAY, null, { messageType: 'digital_touch' })), 'Received: [Digital Touch]');
   assert.equal(describe(message(DAY, '', { messageType: 'sticker' })), 'Received: [sticker]');
   assert.equal(describe(message(DAY, null, { messageType: '' })), 'Received: [No text]');

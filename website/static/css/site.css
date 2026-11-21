@@ -1278,3 +1278,27 @@ a.pay-tier:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(31,
   .alts h2 { font-size: 32px; }
   .alts__list { padding: 4px 18px; }
 }
+
+/* ── Backup file reference (backup-files.html, backup-files/*.html) ── */
+/* A hash is one 40-character word: it gets a line of its own in the heading and breaks anywhere on a phone. */
+.ref-head h1 { font-size: 56px; overflow-wrap: anywhere; }
+.ref-hash { display: block; font-family: var(--mono); font-size: 0.48em; font-weight: 400; letter-spacing: 0; line-height: 1.3; color: var(--ink-soft); margin-bottom: 14px; }
+.ref-head .page-head__eyebrow a { color: var(--coral); }
+/* Tables scroll inside their own box, never the page. After .matrix, whose overflow: hidden would clip them. */
+.ref-scroll { overflow-x: auto; margin: 8px 0 28px; }
+.prose__inner .matrix code { font-size: 0.86em; padding: 1px 6px; }
+.prose__inner .matrix td { vertical-align: top; line-height: 1.5; }
+.ref-scroll .matrix__sub { overflow-wrap: anywhere; } /* domains like AppDomainGroup-243LU875E5.groups.com.apple.podcasts */
+/* The hub's lookup table: room for the whole hash on one line, on a desktop and on most phones. */
+.ref-lookup th.matrix__head--label { width: 46%; }
+.prose__inner .ref-lookup td.matrix__k code { font-size: 0.78em; }
+.prose__inner h3.ref-sub { font-size: 19px; font-weight: 600; margin: 24px 0 8px; }
+@media (max-width: 720px) {
+  .ref-head h1 { font-size: 34px; }
+  /* The hub's lookup table: three columns are too narrow on a phone, so each row becomes a card. */
+  .ref-lookup thead { display: none; }
+  .ref-lookup tr, .ref-lookup td { display: block; }
+  .ref-lookup tr { padding: 10px 0; border-top: 1px solid var(--line); }
+  .ref-lookup tr:first-child { border-top: 0; }
+  .prose__inner .ref-lookup td { border-top: 0; padding: 3px 16px; }
+}

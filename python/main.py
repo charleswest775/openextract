@@ -175,6 +175,7 @@ class SidecarServer:
         )
         self.person_exporter = PersonExporter(
             self.message_extractor, self.whatsapp_extractor, self.call_extractor, self.voicemail_extractor,
+            self.note_extractor,
         )
 
         # Method dispatch table
@@ -577,15 +578,17 @@ class SidecarServer:
         )
 
     def export_person(self, params):
-        """Save everything with one person: whole Messages and WhatsApp chats, calls and voicemails,
-        merged by date, with every original file copied beside the save (python/person_export.py).
+        """Save everything with one person: whole Messages and WhatsApp chats, calls, voicemails and
+        shared notes, merged by date, with every original file copied beside the save
+        (python/person_export.py).
 
         params: output_dir; format ("html", "pdf_source", "csv" or "txt"); display_name;
         chat_ids (sms.db chats) with conversation_names; whatsapp_chat_ids (ChatStorage chats,
         never mixed with sms.db's: the ids overlap) with whatsapp_names; call_ids (as list_calls
-        gives them: 12, "ft_3", "vm_9"); voicemail_ids; media_dir (pdf_source: the folder the
-        PDF goes in, which also gets the originals). Progress goes out as export.progress with
-        kind "person". Returns { file, message_count, counts, media, errors, media_folder? }.
+        gives them: 12, "ft_3", "vm_9"); voicemail_ids; note_ids (shared notes); message_ids and
+        whatsapp_message_ids (when given, only those messages of the chats; absent, whole chats);
+        media_dir (pdf_source: the folder the PDF goes in, which also gets the originals).
+        Progress goes out as export.progress with kind "person". Returns { file, message_count, counts, media, errors, media_folder? }.
         """
         udid = params["udid"]
         backup = self.backup_manager.get_open_backup(udid)
@@ -599,6 +602,10 @@ class SidecarServer:
             whatsapp_names=params.get("whatsapp_names") or {},
             call_ids=params.get("call_ids") or [],
             voicemail_ids=params.get("voicemail_ids") or [],
+            note_ids=params.get("note_ids") or [],
+            # Only some of the chats' messages, when the screen picked them out; absent, whole chats
+            message_ids=params.get("message_ids"),
+            whatsapp_message_ids=params.get("whatsapp_message_ids"),
             media_dir=params.get("media_dir"),
             on_progress=self._export_progress("person"),
         )

@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Loader2, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
 import { useTimeline, type BackupIndex } from '../../hooks/useTimeline';
 import { TimelineEntry, TimelineEntryType, TimelineFilters } from '../../types/timeline';
 import TimelineFilterBar from './TimelineFilterBar';
 import EventStream from './EventStream';
+import { gatherPeople } from '../people/gather';
+import { personNamed } from '../people/stream';
+import { formatPhone } from '../../lib/people';
 import { saveFolder } from '../../lib/ipc';
 import type { ExportFormat } from '../../lib/timelineExport';
 import OrganicLoader from '../shared/OrganicLoader';
@@ -11,7 +14,7 @@ import { ReportProblemButton } from '../shared/Feedback';
 import PageHeader from '../shared/PageHeader';
 import EmptyState from '../shared/EmptyState';
 import SaveDialog, { RECORD_FORMATS, SaveButton } from '../shared/SaveDialog';
-import { ClockIcon } from '../shared/Icons';
+import { ChevronRightIcon, ClockIcon, PeopleIcon } from '../shared/Icons';
 import { useSaveAction } from '../../hooks/useSaveAction';
 import { plural, writeTimeline } from '../../lib/saveData';
 
@@ -22,6 +25,8 @@ interface Props {
   startingFilters?: Partial<TimelineFilters>;
   /** What the top search box holds; the Timeline shows only events that match. */
   query: string;
+  /** Opens People: at this person, or at whoever's first. */
+  onOpenPerson?: (person?: string) => void;
   /** Opens a WhatsApp message in its chat on the WhatsApp screen. */
   onOpenWhatsApp?: (entry: TimelineEntry) => void;
   /** Opens a text message in its conversation on the Messages screen. */
@@ -40,11 +45,12 @@ const LOADING_LABELS: Record<TimelineEntryType, string> = {
 
 const ALL_TYPES: TimelineEntryType[] = ['message', 'whatsapp', 'call', 'photo', 'voicemail', 'note', 'browser'];
 
-export default function TimelineView({ udid, index, startingFilters, query, onOpenWhatsApp, onOpenMessage }: Props) {
+export default function TimelineView({ udid, index, startingFilters, query, onOpenPerson, onOpenWhatsApp, onOpenMessage }: Props) {
   const {
+    allEntries,
     filteredEntries,
-    allContacts,
     counts,
+    totals,
     totalFiltered,
     loading,
     loadingTypes,
@@ -53,6 +59,10 @@ export default function TimelineView({ udid, index, startingFilters, query, onOp
     filters,
     setFilters,
   } = useTimeline(index, startingFilters);
+
+  // Everything with one person is on People: a name in the search box points there
+  const people = useMemo(() => gatherPeople(allEntries, index.addressBook ?? []), [allEntries, index.addressBook]);
+  const named = personNamed(people, query);
 
   const [choosing, setChoosing] = useState(false);
   const { busy: exporting, run } = useSaveAction('timeline');
@@ -84,14 +94,26 @@ export default function TimelineView({ udid, index, startingFilters, query, onOp
         count={loading
           ? <span className="inline-flex items-center gap-1.5"><Loader2 size={16} className="animate-spin" />Loading…</span>
           : plural(totalFiltered, 'event')}
-        actions={<SaveButton onClick={() => setChoosing(true)} busy={exporting} disabled={loading || totalFiltered === 0} />}
+        actions={<>
+          {onOpenPerson && people.length > 0 && (
+            <button
+              onClick={() => onOpenPerson(named?.identifier)}
+              className="flex items-center gap-1.5 text-sm text-accent font-medium hover:underline whitespace-nowrap"
+            >
+              <PeopleIcon size={18} />
+              {named ? `Everything with ${formatPhone(named.name)}` : 'Everything with one person'}
+              <ChevronRightIcon size={16} />
+            </button>
+          )}
+          <SaveButton onClick={() => setChoosing(true)} busy={exporting} disabled={loading || totalFiltered === 0} />
+        </>}
       />
 
       {/* Filter bar */}
       <TimelineFilterBar
         filters={filters}
         counts={counts}
-        allContacts={allContacts}
+        totals={totals}
         onFiltersChange={setFilters}
       />
 
@@ -157,7 +179,7 @@ export default function TimelineView({ udid, index, startingFilters, query, onOp
                   }
                   <span>{LOADING_LABELS[type]}</span>
                   {!isLoading && !hasError && (
-                    <span style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>({counts[type].toLocaleString()})</span>
+                    <span style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>({totals[type].toLocaleString()})</span>
                   )}
                   {hasError && (
                     <span style={{ color: 'var(--error)', fontSize: 14 }}>failed</span>
@@ -175,7 +197,7 @@ export default function TimelineView({ udid, index, startingFilters, query, onOp
           <EmptyState
             icon={ClockIcon}
             title="Nothing matches these filters"
-            detail="Try more kinds of events, someone else, or a wider date range."
+            detail="Try more kinds of events, other words, or a wider date range."
           />
         </div>
       )}

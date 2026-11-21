@@ -170,7 +170,7 @@ export async function saveRecoveredMessages(udid: string, format: RecordFormat):
   return { title: `Saved ${plural(result?.message_count ?? 0, 'recovered message')}`, path: savedFile(result) ?? outputDir };
 }
 
-// ── Pages built here: the Timeline (and, for now, a person's history) ──────────
+// ── Pages built here: the Timeline ─────────────────────────────────────────────
 
 /**
  * The most Timeline events one PDF holds. Chromium prints the whole page at once:
@@ -194,7 +194,7 @@ export async function writeTimeline(
   if (format === 'pdf') {
     if (entries.length > MAX_PDF_EVENTS) {
       throw new Error(`This is too much for one PDF: ${plural(entries.length, 'event')}, and one PDF holds up to ${MAX_PDF_EVENTS.toLocaleString()}. `
-        + 'Narrow it down to a date range, a person or fewer kinds, or save it as a web page or spreadsheet, which have no limit.');
+        + 'Narrow it down to a date range, a search or fewer kinds, or save it as a web page or spreadsheet, which have no limit.');
     }
     return (await exportHtmlPdf(formatTimeline(entries, 'pdf', { title }), folder, baseName)).file;
   }
@@ -221,16 +221,30 @@ export interface PersonExportSpec {
   whatsapp_names: Record<number, string>;
   call_ids: string[];
   voicemail_ids: string[];
+  /** Shared notes, as list_notes gives their ids. */
+  note_ids: string[];
+  /** Only these sms.db messages from the chats, when given; else the whole chats. */
+  message_ids?: number[];
+  /** Only these ChatStorage messages from the WhatsApp chats, when given; else the whole chats. */
+  whatsapp_message_ids?: number[];
 }
 
-/** The save request for a person's stream, from the entries People shows for them. */
-export function personExportSpec(displayName: string, entries: TimelineEntry[]): PersonExportSpec {
+/**
+ * The save request for a person's stream, from the entries People shows for
+ * them. A chat is saved whole (People may have read only its newest messages)
+ * unless `onlyThese`: then only the messages shown, for when dates, a search
+ * or Photos picked out some of them.
+ */
+export function personExportSpec(displayName: string, entries: TimelineEntry[], { onlyThese = false } = {}): PersonExportSpec {
   const spec: PersonExportSpec = {
     display_name: displayName, chat_ids: [], conversation_names: {},
-    whatsapp_chat_ids: [], whatsapp_names: {}, call_ids: [], voicemail_ids: [],
+    whatsapp_chat_ids: [], whatsapp_names: {}, call_ids: [], voicemail_ids: [], note_ids: [],
   };
   const calls = new Set<string>();
   const voicemails = new Set<string>();
+  const notes = new Set<string>();
+  const messages: number[] = [];
+  const whatsapp: number[] = [];
   for (const e of entries) {
     const id = e.id.slice(e.id.indexOf(':') + 1);
     if (e.type === 'message' && e.message?.chatId != null) {
@@ -239,20 +253,29 @@ export function personExportSpec(displayName: string, entries: TimelineEntry[]):
         spec.chat_ids.push(chat);
         spec.conversation_names[chat] = e.message.conversationName;
       }
+      if (/^\d+$/.test(id)) messages.push(Number(id));
     } else if (e.type === 'whatsapp' && e.whatsapp) {
       const chat = e.whatsapp.chatId;
       if (!(chat in spec.whatsapp_names)) {
         spec.whatsapp_chat_ids.push(chat);
         spec.whatsapp_names[chat] = e.whatsapp.conversationName;
       }
+      if (/^\d+$/.test(id)) whatsapp.push(Number(id));
     } else if (e.type === 'call' && id) {
       calls.add(id);
     } else if (e.type === 'voicemail' && id) {
       voicemails.add(id);
+    } else if (e.type === 'note' && id) {
+      notes.add(id);
     }
   }
   spec.call_ids = [...calls];
   spec.voicemail_ids = [...voicemails];
+  spec.note_ids = [...notes];
+  if (onlyThese) {
+    spec.message_ids = messages;
+    spec.whatsapp_message_ids = whatsapp;
+  }
   return spec;
 }
 
