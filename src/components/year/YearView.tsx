@@ -7,7 +7,7 @@ import { buildYearGrid, formatDay, shadeLevels } from '../../lib/yearGrid';
 import TimelineTypeChips, { TYPE_CONFIG } from '../timeline/TimelineTypeChips';
 import PageHeader from '../shared/PageHeader';
 import EmptyState from '../shared/EmptyState';
-import { CalendarIcon } from '../shared/Icons';
+import { YearIcon } from '../shared/Icons';
 import { plural } from '../../lib/saveData';
 import ContactPicker from '../timeline/ContactPicker';
 import OrganicLoader from '../shared/OrganicLoader';
@@ -265,7 +265,7 @@ export default function YearView({ udid, selection, onSelectionChange, onOpenDay
       {noData && (
         <div style={{ flex: 1 }}>
           <EmptyState
-            icon={CalendarIcon}
+            icon={YearIcon}
             title="No dated activity in this backup"
             detail="Messages, calls, photos, voicemail, notes and web visits would show here."
           />

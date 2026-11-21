@@ -16,7 +16,8 @@ whatsapp_backup.py: a copy of Einstein's backup with WhatsApp added (so
 sms.db's ids and WhatsApp's collide) and an encrypted backup holding only
 WhatsApp. Podcasts, likewise, come from podcasts_backup.py: a copy of
 Einstein's backup with an Apple Podcasts library added, and an encrypted
-backup holding only that library. Without backupgen, or without network the first time
+backup holding only that library; Voice Memos and Calendar the same way, from
+voice_memos_backup.py and calendar_backup.py. Without backupgen, or without network the first time
 Maren's photos are needed, these tests skip, unless OPENEXTRACT_REQUIRE_GENERATED=1
 (set in CI) makes that a failure.
 
@@ -50,6 +51,7 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rpc_contract_support import (  # noqa: E402
     AMR_MAGIC,
+    M4A_MAGIC,
     DELETED_AT,
     DEVICE_SETUP_PREFIXES,
     EINSTEIN,
@@ -76,6 +78,8 @@ from rpc_contract_support import (  # noqa: E402
 from bundle_schema import check_bundle, read_lines  # noqa: E402
 import whatsapp_backup as wb  # noqa: E402
 import podcasts_backup as pb  # noqa: E402
+import voice_memos_backup as vb  # noqa: E402
+import calendar_backup as cb  # noqa: E402
 
 # ── Performance budgets ──────────────────────────────────────────────────────
 # Seconds of wall-clock time for one cold call on a freshly started engine with
@@ -157,6 +161,26 @@ class Ctx:
     def podcasts_enc(self) -> BackupEngine:
         """An encrypted backup holding only the Podcasts library (password "test")."""
         return self.runtime.podcasts(encrypted=True)
+
+    @property
+    def voice_memos(self) -> BackupEngine:
+        """Einstein's backup with the Voice Memos test library added; ``.plan.scenario`` says what's in it."""
+        return self.runtime.voice_memos()
+
+    @property
+    def voice_memos_enc(self) -> BackupEngine:
+        """An encrypted backup holding only the Voice Memos test library (password "test")."""
+        return self.runtime.voice_memos(encrypted=True)
+
+    @property
+    def calendar(self) -> BackupEngine:
+        """Einstein's backup with the Calendar test database added; ``.plan.scenario`` says what's in it."""
+        return self.runtime.calendar()
+
+    @property
+    def calendar_enc(self) -> BackupEngine:
+        """An encrypted backup holding only the Calendar test database (password "test")."""
+        return self.runtime.calendar(encrypted=True)
 
     @property
     def plain(self) -> Engine:
@@ -1185,6 +1209,229 @@ def case_export_podcasts(ctx):
     assert files_under(out) == []
 
 
+# ── Voice Memos ──────────────────────────────────────────────────────────────
+# The test library (CloudRecordings.db and its .m4a files) in a copy of
+# Einstein's backup, and in an encrypted backup holding only it. A recording
+# kept in iCloud only has no audio in the backup: said calmly, never an error.
+
+VOICE_MEMO_CSV_HEADER = ["Title", "Date", "Duration", "Folder", "Favorite", "Recently Deleted", "Deleted Date",
+                         "Recorded on Watch", "Audio File", "Transcript"]
+RECORDING_NOT_FOUND = {"error": "Recording not found."}
+KEPT_IN_ICLOUD = {"error": "This recording was kept in iCloud only, so it isn't in the backup.",
+                  "empty_reason": "in_icloud_only"}
+
+
+@contract("list_voice_memos")
+def case_list_voice_memos(ctx):
+    vm = ctx.voice_memos
+    s = vm.plan.scenario
+    result = vm.rpc("list_voice_memos")
+    assert "error" not in result and "empty_reason" not in result, result
+    memos = result["voice_memos"]
+    assert [m["id"] for m in memos] == s.newest_first()  # newest first
+    for m in memos:
+        assert {k: m[k] for k in s.memos[m["id"]]} == s.memos[m["id"]], m["id"]
+        local_day(m["date"])
+    assert result["folders"] == s.folders
+    assert next(m for m in memos if m["id"] == vb.BLOB)["title"] == vb.BLOB_TITLE  # stored as a BLOB
+    # The encrypted backup reads the same
+    assert ctx.voice_memos_enc.voice_memos == memos
+
+
+@contract("get_voice_memo_audio")
+def case_get_voice_memo_audio(ctx):
+    for engine in (ctx.voice_memos, ctx.voice_memos_enc):
+        s = engine.plan.scenario
+        for memo_id in sorted(s.available):
+            result = engine.rpc("get_voice_memo_audio", memo_id=memo_id)
+            data = decoded(result, f"recording {memo_id}")
+            assert data == s.audio[memo_id] and data[4:8] == M4A_MAGIC
+            assert (result["mime_type"], result["memo_id"], result["size"]) == ("audio/mp4", memo_id, len(data))
+            assert result["filename"].endswith("." + s.memos[memo_id]["format"]), result["filename"]
+        # The app sends a number; a string reads the same.
+        assert engine.rpc("get_voice_memo_audio", memo_id=str(vb.SITE_WALK))["data"] == \
+            engine.rpc("get_voice_memo_audio", memo_id=vb.SITE_WALK)["data"]
+        # A copy under its own name, for another app; never the backup's own file
+        copy = engine.rpc("get_voice_memo_audio", memo_id=vb.LAYERED_MEMO, as_file=True)
+        path = Path(copy["path"])
+        assert path.read_bytes() == s.audio[vb.LAYERED_MEMO]
+        assert (path.name, path.suffix, copy["openable"], copy["mime_type"]) == (copy["filename"], ".qta", True,
+                                                                                 "audio/mp4")
+        assert not path.resolve().is_relative_to(engine.backup_dir.resolve())
+        assert engine.rpc("get_voice_memo_audio", memo_id=vb.ICLOUD) == KEPT_IN_ICLOUD
+        for bad in (10 ** 6, "../../Manifest", -1, True):
+            assert engine.rpc("get_voice_memo_audio", memo_id=bad) == RECORDING_NOT_FOUND, bad
+
+
+@contract("get_voice_memo_transcript")
+def case_get_voice_memo_transcript(ctx):
+    for engine in (ctx.voice_memos, ctx.voice_memos_enc):
+        result = engine.rpc("get_voice_memo_transcript", memo_id=vb.SITE_WALK)
+        assert (result["memo_id"], result["text"], result["locale"]) == (vb.SITE_WALK, vb.TRANSCRIPT_TEXT, "en_US")
+        assert [(x["text"], x["start"], x["end"]) for x in result["segments"]] == vb.TRANSCRIPT
+        for memo_id in (vb.FORMULA, vb.ICLOUD):
+            assert engine.rpc("get_voice_memo_transcript", memo_id=memo_id) == \
+                {"memo_id": memo_id, "text": None, "segments": [], "locale": None}
+        assert engine.rpc("get_voice_memo_transcript", memo_id=10 ** 6) == RECORDING_NOT_FOUND
+
+
+@contract("export_voice_memos")
+def case_export_voice_memos(ctx):
+    vm = ctx.voice_memos
+    s = vm.plan.scenario
+    # Audio files: a "Voice Memos" folder with the recordings, their transcripts and a spreadsheet
+    out = ctx.folder("voice-memos")
+    seen = len(vm.notifications)
+    result = vm.rpc("export_voice_memos", output_dir=str(out), format="recordings")
+    folder = out / "Voice Memos"
+    assert result["status"] == "success" and same_path(result["path"], folder), result
+    assert (result["count"], result["not_in_backup"], result["failed"]) == \
+        (len(s.available), len(s.memos) - len(s.available), 0)
+    assert sorted(Path(f) for f in result["files"]) == files_under(out)
+    audio = [p for p in files_under(folder) if p.suffix in (".m4a", ".qta")]
+    assert len(audio) == len(s.available) and all(p.read_bytes()[4:8] == M4A_MAGIC for p in audio)
+    assert [p.parent.name for p in audio if p.parent != folder] == ["Recently Deleted"]
+    (text,) = [p for p in files_under(folder) if p.suffix == ".txt"]
+    assert text.read_text(encoding="utf-8").strip() == vb.TRANSCRIPT_TEXT
+    rows = read_csv(folder / "Voice Memos.csv")
+    assert rows[0] == VOICE_MEMO_CSV_HEADER and len(rows) - 1 == len(s.memos)
+    assert "'" + vb.FORMULA_TITLE in [r[0] for r in rows[1:]]  # never a formula
+    assert datetime.fromisoformat(rows[1][1]).utcoffset() is not None  # local time, with its offset
+    progress = [n["params"] for n in vm.notifications[seen:]]
+    assert progress and {p["kind"] for p in progress} == {"voice_memos"}
+    assert (progress[-1]["done"], progress[-1]["total"], progress[-1]["failed"]) == \
+        (len(s.available), len(s.available), 0)
+    # Saving again never overwrites
+    again = vm.rpc("export_voice_memos", output_dir=str(out), format="recordings")
+    assert Path(again["path"]).name == "Voice Memos (2)"
+    # One recording, straight into the folder picked
+    out = ctx.folder("voice-memo-one")
+    result = vm.rpc("export_voice_memos", output_dir=str(out), format="recordings", memo_ids=[vb.SITE_WALK])
+    assert result["count"] == 1 and Path(result["path"]).read_bytes() == s.audio[vb.SITE_WALK]
+    assert sorted(p.suffix for p in files_under(out)) == [".m4a", ".txt"]
+    assert vm.rpc("export_voice_memos", output_dir=str(out), format="recordings", memo_ids=[vb.ICLOUD]) == \
+        KEPT_IN_ICLOUD
+    assert vm.rpc("export_voice_memos", output_dir=str(out), format="recordings", memo_ids=[10 ** 6]) == \
+        RECORDING_NOT_FOUND
+    assert len(files_under(out)) == 2
+    # The spreadsheet alone
+    out = ctx.folder("voice-memos-csv")
+    result = vm.rpc("export_voice_memos", output_dir=str(out), format="csv")
+    assert (result["count"], [Path(f).name for f in result["files"]]) == (len(s.memos), ["Voice Memos.csv"])
+    assert files_under(out) == [out / "Voice Memos.csv"]
+    # The encrypted backup saves the same recordings
+    out = ctx.folder("voice-memos-encrypted")
+    result = ctx.voice_memos_enc.rpc("export_voice_memos", output_dir=str(out), format="recordings")
+    assert result["count"] == len(s.available)
+    out = ctx.folder("voice-memos-mp3")
+    assert_error_dict(vm.rpc("export_voice_memos", output_dir=str(out), format="mp3"), "Unsupported format")
+    assert files_under(out) == []
+
+
+# ── Calendar ─────────────────────────────────────────────────────────────────
+# The test database (Calendar.sqlitedb) in a copy of Einstein's backup, and in
+# an encrypted backup holding only it. Each kind of date has its own fields:
+# instants for zoned events, wall-clock times for floating ones, days for
+# all-day ones, and only instants are ever moved to another zone.
+
+CALENDAR_CSV_HEADER = ["Calendar", "Account", "Title", "Start", "End", "All Day", "Time Zone", "Location",
+                       "Address", "Latitude", "Longitude", "Notes", "URL", "Repeats", "RRULE", "Status",
+                       "Availability", "Organizer", "Invitees", "Alerts", "Created", "Modified"]
+
+
+@contract("list_calendars")
+def case_list_calendars(ctx):
+    cal = ctx.calendar
+    s = cal.plan.scenario
+    result = cal.rpc("list_calendars")
+    assert "error" not in result and "empty_reason" not in result, result
+    calendars = result["calendars"]
+    assert [c["id"] for c in calendars] == [cb.CAL_DEFAULT, cb.CAL_HOME, cb.CAL_WORK, cb.CAL_HOLIDAYS,
+                                            cb.CAL_BIRTHDAYS]  # no scheduling inbox, no reminders list
+    for c in calendars:
+        assert {k: c[k] for k in s.calendars[c["id"]]} == s.calendars[c["id"]], c["id"]
+        assert c["event_count"] == len(cal.rpc("list_calendar_events", calendar_id=c["id"])["events"])
+    assert ctx.calendar_enc.calendars == calendars
+
+
+@contract("list_calendar_events")
+def case_list_calendar_events(ctx):
+    cal = ctx.calendar
+    s = cal.plan.scenario
+    result = cal.rpc("list_calendar_events")
+    assert "error" not in result and "empty_reason" not in result, result
+    assert result["hidden_count"] == len(s.hidden)
+    events = result["events"]
+    assert [e["id"] for e in events] == s.in_order()
+    for e in events:
+        assert {k: e[k] for k in s.events[e["id"]]} == s.events[e["id"]], e["id"]
+    by_id = {e["id"]: e for e in events}
+    assert by_id[cb.EV_FATHERS_DAY]["repeats"] == "Every year on the third Sunday of June, 10 times"
+    assert by_id[cb.EV_CLIMB]["repeats"] == "Every week on Tuesday, until Aug 26, 2025"
+    assert by_id[cb.EV_TRIP]["repeats"] is None
+    # One calendar's. The app sends a number; a string reads the same.
+    for calendar_id in (cb.CAL_WORK, str(cb.CAL_WORK)):
+        ids = [e["id"] for e in cal.rpc("list_calendar_events", calendar_id=calendar_id)["events"]]
+        assert ids == s.in_order(s.events_of(cb.CAL_WORK))
+    assert cal.rpc("list_calendar_events", calendar_id=999) == {"events": [], "empty_reason": "no_records",
+                                                                "hidden_count": 0}
+    every = cal.rpc("list_calendar_events", include_hidden=True)
+    assert {e["id"] for e in every["events"]} == set(s.events) | s.hidden and every["hidden_count"] == 0
+    assert ctx.calendar_enc.calendar_events == events
+
+
+@contract("export_calendar")
+def case_export_calendar(ctx):
+    cal = ctx.calendar
+    s = cal.plan.scenario
+    # Calendar files: one per calendar with events, in a folder named after the iPhone
+    out = ctx.folder("calendar-ics")
+    result = cal.rpc("export_calendar", output_dir=str(out), format="ics")
+    folder = out / f"{cb.DEVICE_NAME} Calendar"
+    assert (result["status"], result["count"], result["calendars"]) == ("success", len(s.events), 3), result
+    assert same_path(result["path"], folder)
+    assert sorted(Path(f).name for f in result["files"]) == ["Home.ics", "US Holidays.ics", "Work.ics"]
+    assert sorted(Path(f) for f in result["files"]) == files_under(out)
+    home = (folder / "Home.ics").read_bytes()
+    assert home.startswith(b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\n") and home.endswith(b"END:VCALENDAR\r\n")
+    assert all(len(line) <= 75 for line in home.split(b"\r\n"))
+    assert home.count(b"BEGIN:VEVENT") == len(s.events_of(cb.CAL_HOME))
+    assert b"DTSTART;VALUE=DATE:20250704\r\nDTEND;VALUE=DATE:20250707\r\n" in home  # July 4 to 6
+    assert b"DTSTART:20250401T183000\r\n" in home  # floating: no zone, no Z
+    assert b"RECURRENCE-ID;TZID=America/Los_Angeles:20250708T190000\r\n" in home
+    assert b"BEGIN:VTIMEZONE\r\nTZID:America/Los_Angeles\r\n" in home
+    assert b"ORGANIZER" not in home and b"ATTENDEE" not in home
+    again = cal.rpc("export_calendar", output_dir=str(out), format="ics")
+    assert Path(again["path"]).name == f"{cb.DEVICE_NAME} Calendar (2)"
+    # One calendar: one file
+    out = ctx.folder("calendar-one")
+    result = cal.rpc("export_calendar", output_dir=str(out), format="ics", calendar_id=cb.CAL_WORK)
+    assert result["files"] == [str(out / "Work.ics")] and result["count"] == len(s.events_of(cb.CAL_WORK))
+    assert Path(cal.rpc("export_calendar", output_dir=str(out), format="ics",
+                        calendar_id=cb.CAL_WORK)["path"]).name == "Work (2).ics"
+    assert cal.rpc("export_calendar", output_dir=str(out), format="ics", calendar_id=999) == \
+        {"error": "That calendar isn't in this backup."}
+    assert len(files_under(out)) == 2
+    # A spreadsheet: days and wall-clock times as stored, instants in local time
+    out = ctx.folder("calendar-csv")
+    result = cal.rpc("export_calendar", output_dir=str(out), format="csv")
+    assert (result["count"], [Path(f).name for f in result["files"]]) == (len(s.events), ["Calendar.csv"])
+    rows = read_csv(out / "Calendar.csv")
+    assert rows[0] == CALENDAR_CSV_HEADER and len(rows) - 1 == len(s.events)
+    by_title = {r[2]: r for r in rows[1:]}
+    assert by_title[cb.TRIP_TITLE][3:6] == ["2025-07-04", "2025-07-06", "Yes"]
+    assert by_title["Call grandma"][3:5] == ["2025-04-01T18:30:00", "2025-04-01T19:00:00"]
+    standup = datetime.fromisoformat(by_title[cb.STANDUP_TITLE][3])
+    assert standup.utcoffset() is not None and standup == datetime.fromisoformat(s.events[cb.EV_STANDUP]["start"])
+    assert "'" + cb.FORMULA_TITLE in by_title  # never a formula
+    # The encrypted backup saves the same events
+    out = ctx.folder("calendar-encrypted")
+    assert ctx.calendar_enc.rpc("export_calendar", output_dir=str(out), format="ics")["count"] == len(s.events)
+    out = ctx.folder("calendar-vcs")
+    assert_error_dict(cal.rpc("export_calendar", output_dir=str(out), format="vcs"), "Unsupported format")
+    assert files_under(out) == []
+
+
 @contract("recover_messages")
 def case_recover_messages(ctx):
     rec = ctx.runtime.recovery()
@@ -1333,6 +1580,44 @@ def case_get_backup_stats(ctx):
                 o["podcasts_status"]) == (len(s.shows), len(s.followed), len(s.listened), "ok")
         assert o["total_podcasts"] == len(engine.podcasts)
         assert o["total_podcast_episodes_listened"] == len(engine.rpc("list_podcast_episodes", listened_only=True)["episodes"])
+    # Voice Memos and Calendar: Maren's as her answer key has them (none from a backupgen that predates them),
+    # and the test libraries' as their screens list them
+    for engine in (ctx.maren, ctx.maren_enc):
+        o, memos, cal = engine.rpc("get_backup_stats")["overview"], engine.expected.get("voice_memos"), \
+            engine.expected.get("calendar")
+        kept = [m for m in memos or [] if not m["is_deleted"]]
+        want = (len(kept), int(round(sum(m["duration_seconds"] for m in kept))), len(memos) - len(kept), "ok") \
+            if memos else (0, 0, 0, "not_in_backup")
+        assert (o["total_voice_memos"], o["total_voice_memo_seconds"], o["total_deleted_voice_memos"],
+                o["voice_memos_status"]) == want
+        assert o["total_voice_memos_with_audio"] == sum(1 for m in memos or [] if m["audio_available"])
+        if cal:
+            kinds = {c["id"]: c["kind"] for c in cal["calendars"]}
+            mine = [e for e in cal["events"] if kinds[e["calendar_id"]] == "normal"]
+            want = (len(mine), len(cal["events"]) - len(mine),
+                    sum(1 for c in cal["calendars"] if c["kind"] == "normal"), len({e["calendar_id"] for e in mine}),
+                    "ok")
+        else:
+            want = (0, 0, 0, 0, "not_in_backup")
+        assert (o["total_calendar_events"], o["total_subscribed_events"], o["total_calendars"],
+                o["total_calendars_with_events"], o["calendar_status"]) == want
+    for engine in (ctx.voice_memos, ctx.voice_memos_enc):
+        s = engine.plan.scenario
+        stats = engine.rpc("get_backup_stats")
+        assert stats["errors"] == []
+        o = stats["overview"]
+        assert (o["total_voice_memos"], o["total_voice_memo_seconds"], o["total_deleted_voice_memos"],
+                o["voice_memos_status"]) == (len(s.kept), s.kept_seconds, len(s.memos) - len(s.kept), "ok")
+        assert o["total_voice_memos_with_audio"] == len(s.available)
+    for engine in (ctx.calendar, ctx.calendar_enc):
+        s = engine.plan.scenario
+        stats = engine.rpc("get_backup_stats")
+        assert stats["errors"] == []
+        o = stats["overview"]
+        assert (o["total_calendar_events"], o["total_subscribed_events"], o["total_calendars"],
+                o["total_calendars_with_events"], o["calendar_status"]) == \
+            (len(s.own_events), len(s.events) - len(s.own_events), len(s.own),
+             len({s.events[i]["calendar_id"] for i in s.own_events}), "ok")
 
 
 @contract("get_year_counts")
@@ -1684,6 +1969,51 @@ def empty_export_podcasts(e, out):
     assert files_under(out) == []
 
 
+@empty_state("list_voice_memos")
+def empty_list_voice_memos(e, out):
+    assert e.rpc("list_voice_memos") == {"voice_memos": [], "empty_reason": "not_in_backup"}
+
+
+@empty_state("get_voice_memo_audio")
+def empty_get_voice_memo_audio(e, out):
+    for memo_id in (1, "1"):
+        assert e.rpc("get_voice_memo_audio", memo_id=memo_id) == RECORDING_NOT_FOUND
+        assert e.rpc("get_voice_memo_audio", memo_id=memo_id, as_file=True) == RECORDING_NOT_FOUND
+
+
+@empty_state("get_voice_memo_transcript")
+def empty_get_voice_memo_transcript(e, out):
+    assert e.rpc("get_voice_memo_transcript", memo_id=1) == RECORDING_NOT_FOUND
+
+
+@empty_state("export_voice_memos")
+def empty_export_voice_memos(e, out):
+    nothing = {"error": "There are no voice memos in this backup to save.", "empty_reason": "not_in_backup"}
+    for params in ({"format": "recordings"}, {"format": "csv"}, {"format": "recordings", "memo_ids": [1]}):
+        assert e.rpc("export_voice_memos", output_dir=str(out), **params) == nothing
+    assert files_under(out) == []
+
+
+@empty_state("list_calendars")
+def empty_list_calendars(e, out):
+    assert e.rpc("list_calendars") == {"calendars": [], "empty_reason": "not_in_backup"}
+
+
+@empty_state("list_calendar_events")
+def empty_list_calendar_events(e, out):
+    nothing = {"events": [], "empty_reason": "not_in_backup"}
+    assert e.rpc("list_calendar_events") == nothing
+    assert e.rpc("list_calendar_events", calendar_id=1, include_hidden=True) == nothing
+
+
+@empty_state("export_calendar")
+def empty_export_calendar(e, out):
+    nothing = {"error": "There are no calendar events in this backup to save.", "empty_reason": "not_in_backup"}
+    for params in ({"format": "ics"}, {"format": "csv"}, {"format": "ics", "calendar_id": 1}):
+        assert e.rpc("export_calendar", output_dir=str(out), **params) == nothing
+    assert files_under(out) == []
+
+
 @empty_state("get_backup_stats")
 def empty_get_backup_stats(e, out):
     stats = e.rpc("get_backup_stats")
@@ -1692,10 +2022,14 @@ def empty_get_backup_stats(e, out):
     assert o["total_messages"] == len(e.expected["messages"]) and o["total_contacts"] == len(e.expected["contacts"])
     for key in ("total_photos", "total_videos", "photos_in_backup", "total_calls", "total_notes", "total_voicemails",
                 "total_whatsapp_messages", "total_whatsapp_chats", "total_podcasts", "total_podcasts_followed",
-                "total_podcast_episodes_listened"):
+                "total_podcast_episodes_listened", "total_voice_memos", "total_voice_memo_seconds",
+                "total_deleted_voice_memos", "total_voice_memos_with_audio", "total_calendar_events", "total_subscribed_events", "total_calendars",
+                "total_calendars_with_events"):
         assert o[key] == 0, key
     assert o["whatsapp_status"] == "not_in_backup"
     assert o["podcasts_status"] == "not_in_backup"
+    assert o["voice_memos_status"] == "not_in_backup"
+    assert o["calendar_status"] == "not_in_backup"
 
 
 @empty_state("get_year_counts")
@@ -1743,6 +2077,8 @@ def test_unknown_method_gets_method_not_found(runtime):
     ("get_messages", {"udid": FAKE_UDID}, "chat_id"),
     ("get_whatsapp_messages", {"udid": FAKE_UDID}, "chat_id"),
     ("get_whatsapp_attachment", {"udid": FAKE_UDID}, "attachment_id"),
+    ("get_voice_memo_audio", {"udid": FAKE_UDID}, "memo_id"),
+    ("get_voice_memo_transcript", {"udid": FAKE_UDID}, "memo_id"),
     ("write_file", {"path": "never-written.txt"}, "content"),
     ("get_backup_size", {}, "backup_dir"),
     ("backup.pair_device", {}, "udid"),
@@ -1759,7 +2095,7 @@ def _unopened_params(tmp_path: Path) -> dict:
     return {
         "udid": "00000000-NOT-OPENED-0000", "chat_id": 1, "chat_ids": [1], "message_id": 1,
         "attachment_id": 1, "query": "hello", "file_hash": "0" * 40, "asset_uuid": "X",
-        "voicemail_id": 1, "note_ids": [1], "year": 2025, "day": "2025-01-01", "format": "txt",
+        "voicemail_id": 1, "memo_id": 1, "note_ids": [1], "year": 2025, "day": "2025-01-01", "format": "txt",
         "output_dir": str(tmp_path / "never-written"), "offset": 0, "limit": 10,
     }
 
@@ -1877,6 +2213,37 @@ def test_podcast_reads_send_no_raw_bytes(runtime):
     pod.rpc("list_podcast_episodes", listened_only=True)
     pod.rpc("get_backup_stats")
     log = Path(pod.client._tmp.name) / "python_log.txt"
+    errors = [line for line in log.read_text(encoding="utf-8").splitlines() if "[RPC ERROR]" in line] if log.exists() else []
+    assert not errors, errors[:5]
+
+
+def test_voice_memo_reads_send_no_raw_bytes(runtime):
+    """Every Voice Memos read, over the whole test library, leaves no "[RPC ERROR]" in the engine's log.
+
+    One title is stored as a BLOB: it must come back as text, and the engine
+    would only log raw bytes, not fail.
+    """
+    vm = runtime.voice_memos()
+    for memo in vm.rpc("list_voice_memos")["voice_memos"]:
+        vm.rpc("get_voice_memo_audio", memo_id=memo["id"])
+        vm.rpc("get_voice_memo_transcript", memo_id=memo["id"])
+    vm.rpc("get_backup_stats")
+    log = Path(vm.client._tmp.name) / "python_log.txt"
+    errors = [line for line in log.read_text(encoding="utf-8").splitlines() if "[RPC ERROR]" in line] if log.exists() else []
+    assert not errors, errors[:5]
+
+
+def test_calendar_reads_send_no_raw_bytes(runtime):
+    """Every Calendar read, over the whole test database, leaves no "[RPC ERROR]" in the engine's log.
+
+    One event's title is stored as a BLOB: it must come back as text.
+    """
+    cal = runtime.calendar()
+    for calendar in cal.rpc("list_calendars")["calendars"]:
+        cal.rpc("list_calendar_events", calendar_id=calendar["id"])
+    cal.rpc("list_calendar_events", include_hidden=True)
+    cal.rpc("get_backup_stats")
+    log = Path(cal.client._tmp.name) / "python_log.txt"
     errors = [line for line in log.read_text(encoding="utf-8").splitlines() if "[RPC ERROR]" in line] if log.exists() else []
     assert not errors, errors[:5]
 

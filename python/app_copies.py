@@ -9,8 +9,8 @@ a video opened Terminal (issue #297).
 
 So nothing is opened in place. The file is copied to the system's temp folder
 under its own name, without its permissions, and the copy is what another app
-opens. WhatsApp's media (whatsapp.py) and the Photos screen's videos
-(photos.py) both come through here.
+opens. WhatsApp's media (whatsapp.py), the Photos screen's videos
+(photos.py) and Voice Memos recordings (voice_memos.py) all come through here.
 """
 
 import atexit
@@ -49,8 +49,8 @@ OPENABLE_EXTENSIONS = frozenset({
     "jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "bmp", "tif", "tiff",
     # video
     "mp4", "mov", "m4v", "3gp", "avi", "mkv", "webm",
-    # audio
-    "opus", "ogg", "oga", "mp3", "m4a", "aac", "wav", "amr", "caf", "flac",
+    # audio (qta, qt: QuickTime files; Voice Memos keeps layered recordings as .qta and also knows .qt)
+    "opus", "ogg", "oga", "mp3", "m4a", "aac", "wav", "amr", "caf", "flac", "qta", "qt",
     # documents
     "pdf", "txt", "rtf", "csv", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
     "odt", "ods", "odp", "pages", "numbers", "key", "epub",
@@ -129,6 +129,39 @@ def join_name(stem: str, ext: str, default_stem: str) -> str:
     if stem.split(".")[0].rstrip().upper() in _WINDOWS_DEVICE_NAMES:
         stem = f"_{stem}"
     return stem + cut_utf8(ext, EXT_BYTES)
+
+
+_ZWJ = "\N{ZERO WIDTH JOINER}"
+
+
+def _joins_emoji(text: str, i: int) -> bool:
+    """Whether the zero-width joiner at ``text[i]`` joins two emoji into one (a woman, the joiner and a
+    laptop make one emoji, a woman at a computer): an emoji after it, and before it an emoji, its skin
+    tone or the mark that asks for emoji style (U+FE0F)."""
+    before = text[i - 1] if i > 0 else ""
+    after = text[i + 1] if i + 1 < len(text) else ""
+    if not before or not after or unicodedata.category(after) != "So":
+        return False
+    return (unicodedata.category(before) == "So" or before == "\N{VARIATION SELECTOR-16}"
+            or "\U0001F3FB" <= before <= "\U0001F3FF")
+
+
+def title_stem(text: str, default_stem: str) -> str:
+    """A file name without its extension, made from a title ("Plans / sketches: v2" → "Plans sketches v2").
+
+    Not split_name, which is for a file's own name: that takes "/" as a folder
+    and keeps only what follows it, and "14.15" as an extension. Here every
+    character a file name can't hold becomes a space; ``default_stem`` when
+    nothing is left. Invisible characters go (see visible), except the joiners
+    inside an emoji sequence: without them a family emoji (woman, joiner,
+    woman, joiner, girl) would be saved as three separate people. Used for
+    saved voice memos and calendar files.
+    """
+    text = _without_lone_surrogates(text or "")
+    text = "".join(ch for i, ch in enumerate(text) if (ch == _ZWJ and _joins_emoji(text, i)) or visible(ch))
+    text = " ".join(re.sub(_FILE_NAME_UNSAFE, " ", text).split())
+    # A name cut short inside an emoji sequence would end on an invisible joiner.
+    return join_name(text, "", default_stem).rstrip(_ZWJ) or default_stem
 
 
 def safe_part(value) -> str:

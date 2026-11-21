@@ -95,6 +95,35 @@ def test_fails_without_source_files(tmp_path):
     assert self_check.run(tmp_path) == 1
 
 
+def test_the_new_readers_are_checked_too():
+    # Voice Memos and Calendar import the library's extractors inside a try: a built engine
+    # without them would quietly show both as not in the backup, so the check runs them.
+    imports = dict(self_check.engine_imports(ENGINE_DIR))
+    assert set(imports["ios_backup_core.extractors.calendar_events"]) >= {"CalendarExtractor", "events_to_ics"}
+    assert "VoiceMemoExtractor" in imports["ios_backup_core.extractors.voice_memos"]
+
+
+def test_a_time_zone_resolves_here():
+    assert self_check.zone_problem() is None
+
+
+def test_fails_when_time_zones_dont_resolve(made_up, capsys, monkeypatch):
+    # A Windows engine built without the tzdata package's files: every zone name fails.
+    import zoneinfo
+
+    site, source = made_up
+    _package(site, "oe_selfcheck_tz", "VALUE = 1\n")
+    (source / "feature.py").write_text("def use():\n    from oe_selfcheck_tz import VALUE\n", encoding="utf-8")
+
+    def no_zones(name):
+        raise zoneinfo.ZoneInfoNotFoundError(f"No time zone found with key {name}")
+
+    monkeypatch.setattr(zoneinfo, "ZoneInfo", no_zones)
+    assert self_check.run(source) == 1
+    err = capsys.readouterr().err
+    assert "America/New_York can't be resolved" in err and "tzdata" in err
+
+
 def test_main_runs_the_check_and_exits_without_serving(tmp_path):
     (tmp_path / "feature.py").write_text("def use():\n    import oe_selfcheck_not_there\n", encoding="utf-8")
     result = subprocess.run(

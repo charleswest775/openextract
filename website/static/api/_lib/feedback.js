@@ -42,6 +42,8 @@ const AREAS = {
   notes: { label: 'Notes', labels: ['python-engine'] },
   voicemail: { label: 'Voicemail', labels: ['voicemail'] },
   podcasts: { label: 'Podcasts', labels: ['python-engine'] },
+  voice_memos: { label: 'Voice Memos', labels: ['python-engine'] },
+  calendar: { label: 'Calendar', labels: ['python-engine'] },
   browser_history: { label: 'Web history', labels: ['python-engine'] },
   record_recovery: { label: 'Recovering deleted messages', labels: ['messages'] },
   export: { label: 'Exporting', labels: ['export'] },

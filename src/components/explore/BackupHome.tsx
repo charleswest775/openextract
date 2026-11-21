@@ -1,11 +1,16 @@
 import { useMemo } from 'react';
 import {
-  ChartIcon, ChevronRightIcon, ClockIcon, CalendarIcon, ExportIcon, FolderIcon, NoteIcon, RecoverIcon, SearchIcon, VoicemailIcon,
+  ChartIcon, ChevronRightIcon, ClockIcon, YearIcon, ExportIcon, FolderIcon, NoteIcon, RecoverIcon, SearchIcon, VoicemailIcon,
 } from '../shared/Icons';
 import { gatherPeople } from '../people/gather';
 import { plural } from '../../lib/saveData';
 import { podcastsHomeLine } from '../../lib/podcasts';
-import { DATA_SECTIONS, podcastsUnreadable, whatsappChatsLeftOut, whatsappUnreadable, type ExploreContext, type Icon, type Tab } from './sections';
+import { voiceMemosHomeLine } from '../../lib/voiceMemos';
+import { calendarHomeLine } from '../../lib/calendar';
+import {
+  DATA_SECTIONS, NEVER_MISSING, calendarUnreadable, podcastsUnreadable, voiceMemosUnreadable, whatsappChatsLeftOut, whatsappUnreadable,
+  type ExploreContext, type Icon, type Tab,
+} from './sections';
 
 function monthYear(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -73,6 +78,9 @@ export default function BackupHome({ ctx, onSearch }: { ctx: ExploreContext; onS
           : overview.total_whatsapp_chats ? plural(overview.total_whatsapp_chats, 'chat') : 'Chats, groups and calls';
     // Podcasts' too: the shows followed, or that it couldn't be read
     lines.podcasts = podcastsHomeLine(overview);
+    // And Voice Memos' and Calendar's: how much there is, or that it couldn't be read
+    lines.voice_memos = voiceMemosHomeLine(overview);
+    lines.calendar = calendarHomeLine(overview);
   }
 
   const tiles: Tile[] = [
@@ -82,11 +90,15 @@ export default function BackupHome({ ctx, onSearch }: { ctx: ExploreContext; onS
         // An unreadable WhatsApp, or one whose chats aren't in the backup, has no number to show, only why
         : s.id === 'whatsapp' && (whatsappUnreadable(overview) || whatsappChatsLeftOut(overview)) ? undefined
         : s.id === 'podcasts' && podcastsUnreadable(overview) ? undefined
+        // Unreadable, or only recordings in Recently Deleted: no number of them to show
+        : s.id === 'voice_memos' && (voiceMemosUnreadable(overview) || !overview?.total_voice_memos) ? undefined
+        // Unreadable, or only holidays and subscriptions: no number of the person's own events to show
+        : s.id === 'calendar' && (calendarUnreadable(overview) || !overview?.total_calendar_events) ? undefined
         : s.count && overview ? s.count(overview) : undefined,
       line: lines[s.id] ?? '',
     })),
     { tab: 'timeline', icon: ClockIcon, label: 'Timeline', line: 'Every event, newest first' },
-    { tab: 'year', icon: CalendarIcon, label: 'Year', line: 'A year at a glance, day by day' },
+    { tab: 'year', icon: YearIcon, label: 'Year', line: 'A year at a glance, day by day' },
   ];
 
   const why = (tab: Tab): string => {
@@ -96,13 +108,14 @@ export default function BackupHome({ ctx, onSearch }: { ctx: ExploreContext; onS
         : 'They may be only in iCloud';
       case 'calls': return overview && !overview.encrypted ? 'Only in encrypted backups' : 'None in this backup';
       case 'voicemail': return 'Needs Visual Voicemail from the carrier';
+      case 'calendar': return "No events in this iPhone's calendars";
       case 'browser_history': return 'No Safari or Firefox history found';
       default: return '';
     }
   };
-  // WhatsApp and Podcasts aren't listed as missing: many iPhones don't use them, so a backup without them lacks nothing
+  // WhatsApp, Podcasts and Voice Memos aren't listed as missing: many iPhones don't use them, so a backup without them lacks nothing
   const missing = overview
-    ? DATA_SECTIONS.filter(s => s.id !== 'people' && s.id !== 'whatsapp' && s.id !== 'podcasts' && !has(s.id) && (s.id !== 'browser_history' || !hasBrowserHistory))
+    ? DATA_SECTIONS.filter(s => !NEVER_MISSING.includes(s.id) && !has(s.id) && (s.id !== 'browser_history' || !hasBrowserHistory))
     : [];
 
   const tasks: { icon: Icon; label: string; tab: Tab }[] = [

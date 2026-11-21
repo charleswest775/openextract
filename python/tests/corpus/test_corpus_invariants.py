@@ -31,6 +31,10 @@ VOICEMAIL = ("HomeDomain", "Library/Voicemail/voicemail.db")
 SAFARI = ("HomeDomain", "Library/Safari/History.db")
 WHATSAPP = ("AppDomainGroup-group.net.whatsapp.WhatsApp.shared", "ChatStorage.sqlite")
 PODCASTS = ("AppDomainGroup-243LU875E5.groups.com.apple.podcasts", "Documents/MTLibrary.sqlite")
+CALENDAR = ("HomeDomain", "Library/Calendar/Calendar.sqlitedb")
+# Voice Memos' database: the app group's on current iOS, MediaDomain's on iOS 12 to 16 (see _voice_memos_db).
+VOICE_MEMOS = ("AppDomainGroup-group.com.apple.VoiceMemos.shared", "Recordings/CloudRecordings.db")
+VOICE_MEMOS_MEDIA = ("MediaDomain", "Media/Recordings/CloudRecordings.db")
 # ZGENERICALBUM kinds the Photos app keeps for itself and never shows: the progress-sync,
 # progress-ota-restore and progress-fs-import albums, and the library's root folders.
 PHOTOS_INTERNAL_ALBUM_KINDS = {3571, 3572, 3573, 3998, 3999}
@@ -119,11 +123,19 @@ def test_no_extractor_errors(ctx):
         ("list_whatsapp_chats", lambda: ctx.whatsapp_result, WHATSAPP),
         ("list_podcasts", lambda: ctx.podcasts_result, PODCASTS),
         ("list_podcast_episodes", lambda: ctx.podcast_episodes_result, PODCASTS),
+        ("list_voice_memos", lambda: ctx.voice_memos_result, VOICE_MEMOS),
+        ("list_calendars", lambda: ctx.calendars_result, CALENDAR),
+        ("list_calendar_events", lambda: ctx.calendar_events_result, CALENDAR),
     ]
     problems = []
     for method, fetch, (domain, path) in checks:
         # An empty photo library legitimately falls back to the DCIM scan.
-        present = _has_photo_assets(ctx) if method == "list_photos" else raw.has_file(domain, path)
+        if method == "list_photos":
+            present = _has_photo_assets(ctx)
+        elif method == "list_voice_memos":
+            present = raw.has_file(*VOICE_MEMOS) or raw.has_file(*VOICE_MEMOS_MEDIA)
+        else:
+            present = raw.has_file(domain, path)
         try:
             result = fetch()
         except SidecarError as e:
@@ -563,6 +575,51 @@ def test_stats_agree_with_lists(ctx):
         status = ("ok" if shows else podcasts.get("empty_reason")
                   or ("error" if podcasts.get("error") else "no_records"))
         expected["overview.podcasts_status"] = (overview.get("podcasts_status"), status)
+    try:
+        voice_memos = ctx.voice_memos_result
+    except SidecarError:
+        pass  # reported by test_no_extractor_errors
+    else:
+        # The home tile counts what "All Recordings" lists: everything but Recently Deleted.
+        memos = voice_memos.get("voice_memos", [])
+        kept = [m for m in memos if not m.get("is_deleted")]
+        expected["overview.total_voice_memos"] = (overview.get("total_voice_memos"), len(kept))
+        # Recently Deleted is listed too (and saved), so the section shows when it's all there is.
+        expected["overview.total_deleted_voice_memos"] = (overview.get("total_deleted_voice_memos"),
+                                                          len(memos) - len(kept))
+        # An "Audio files" save is offered only when some listed recording's audio is in the backup.
+        expected["overview.total_voice_memos_with_audio"] = (overview.get("total_voice_memos_with_audio"),
+                                                             sum(1 for m in memos if m.get("audio_available")))
+        expected["overview.total_voice_memo_seconds"] = (
+            overview.get("total_voice_memo_seconds"),
+            int(round(sum(m.get("duration_seconds") or 0 for m in kept if (m.get("duration_seconds") or 0) > 0))),
+        )
+        status = ("ok" if memos else voice_memos.get("empty_reason")
+                  or ("error" if voice_memos.get("error") else "no_records"))
+        expected["overview.voice_memos_status"] = (overview.get("voice_memos_status"), status)
+    try:
+        calendars, events_result = ctx.calendars_result, ctx.calendar_events_result
+    except SidecarError:
+        pass  # reported by test_no_extractor_errors
+    else:
+        # "All calendars" (the person's own) on the tile; holidays, birthdays, Found in Mail and
+        # subscriptions apart, as the screen's "Other calendars".
+        kinds = {c["id"]: c.get("kind") for c in calendars.get("calendars", [])}
+        events = events_result.get("events", [])
+        mine = [e for e in events if kinds.get(e.get("calendar_id"), "normal") == "normal"]
+        expected["overview.total_calendar_events"] = (overview.get("total_calendar_events"), len(mine))
+        expected["overview.total_subscribed_events"] = (overview.get("total_subscribed_events"),
+                                                        len(events) - len(mine))
+        expected["overview.total_calendars"] = (
+            overview.get("total_calendars"), sum(1 for kind in kinds.values() if kind == "normal")
+        )
+        # Empty own calendars (the local one, unused iCloud ones) aren't "calendars with events".
+        expected["overview.total_calendars_with_events"] = (
+            overview.get("total_calendars_with_events"), len({e.get("calendar_id") for e in mine})
+        )
+        status = ("ok" if events else events_result.get("empty_reason")
+                  or ("error" if events_result.get("error") else "no_records"))
+        expected["overview.calendar_status"] = (overview.get("calendar_status"), status)
     mismatches = {name: f"stats={a} list={b}" for name, (a, b) in expected.items() if a != b}
     assert not mismatches, f"stats disagree with the list screens: {mismatches}"
 
@@ -577,6 +634,8 @@ def test_timestamps_plausible(ctx):
         "photos.date_created": [p.get("date_created") for p in ctx.photos_result.get("photos", [])],
         "browser.visit_date": [v.get("visit_date") for v in ctx.browser_result.get("visits", [])],
         "voicemails.date_received": [v.get("date_received") for v in ctx.voicemails_result.get("voicemails", [])],
+        # Calendar events are left out on purpose: holiday subscriptions run years past the backup.
+        "voice_memos.date": [m.get("date") for m in ctx.result_or_empty("voice_memos_result").get("voice_memos", [])],
     }
     problems = {}
     for name, values in sources.items():
@@ -640,6 +699,13 @@ def _what_every_screen_shows(c) -> dict:
             (x["id"], x.get("episode_count"), x.get("listened_count"))
             for x in c.result_or_empty("podcasts_result").get("podcasts", [])
         ),
+        "voice_memos": sorted(
+            (x["id"], x.get("audio_available")) for x in c.result_or_empty("voice_memos_result").get("voice_memos", [])
+        ),
+        "calendars": sorted(
+            (x["id"], x.get("event_count")) for x in c.result_or_empty("calendars_result").get("calendars", [])
+        ),
+        "calendar_events": sorted(x["id"] for x in c.result_or_empty("calendar_events_result").get("events", [])),
         "stats": c.result_or_empty("stats"),
     }
 

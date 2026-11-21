@@ -7,12 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Voice Memos: a new section with the iPhone's recordings, arranged like the Voice Memos app: All Recordings, Favorites, your folders, and Recently Deleted (recordings deleted on the iPhone that are still in the backup). Click a recording to play it, read its transcript if the iPhone made one, or save it. A recording the computer can't play here, or one too long to play here, opens in another app. A recording kept only in iCloud isn't in an iPhone backup, and the app says so. Save copies every recording with its date and name, with its transcript and a spreadsheet of them all, or saves just the spreadsheet
+- Calendar: a new section with the events in the iPhone's calendars, grouped by account (iCloud, On My iPhone, Exchange and others), with holidays, birthdays and subscribed calendars listed apart so they don't crowd your own. Upcoming and Past are split at the date of the backup, a day at a time, and an event opens to its time, place, notes, links, who was invited and how they answered, alerts and how it repeats. All-day events stay on their own day in every time zone, and an event set in another time zone shows its time there too. Save writes calendar files (.ics) that Calendar, Outlook and Google import, one per calendar or just the one you're looking at, or a spreadsheet
+
 ### Changed
 - People: a person's page now shows everything between you, not only messages, WhatsApp, calls and voicemail. Photos sent in your chats and notes you share with them over iCloud are there too, each with a chip of its own. A date range and a search box narrow the page to a stretch of time or to the words you're after, and the chips count what's left. Save these saves what's on screen. The page says what it is ("Everything between you and Karin"), and the list explains what picking someone shows
 - People and Timeline: everything with one person is on People now. The Timeline no longer has a person picker: it shows the whole backup by day, with a link to People, and when you type someone's name in its search, the link opens their page. The picker also used to add every photo, note and web visit from between your first and last contact with them, which People leaves out. In the Year view, clicking a day with someone picked opens that day on their page in People
 - Timeline and People: a text or WhatsApp message with a photo shows it, small in the list and full size when you open the message
 
 ### Fixed
+- Messages, Calls, Voicemail and WhatsApp: an email address with digits in it is no longer given the name of a contact whose phone number ends in those digits. An address like mike86@example.com could be shown with the name of a contact saved with a number ending in 86. An email address is now named only from a contact card that has that address
 - Timeline: the number beside each kind of event now counts only what the dates and search leave, so it's how many ticking that kind would show. It used to count the whole backup whatever the filters were
 
 ## [0.18.0] - 2026-11-19

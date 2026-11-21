@@ -5,7 +5,11 @@
 import { formatSavedDateTime } from './dates';
 import { exportMessagesPdf, saveFolder, sidecarCall } from './ipc';
 import { chatName } from './whatsapp';
+import { voiceMemoSaveDetail } from './voiceMemos';
+import { calendarSaveDetail } from './calendar';
 import type { PodcastExportResult, PodcastSaveFormat } from '../types/podcasts';
+import type { VoiceMemoExportResult, VoiceMemoSaveFormat } from '../types/voiceMemos';
+import type { CalendarExportResult, CalendarSaveFormat } from '../types/calendar';
 
 /** What a finished save reports in its notice. */
 export interface SaveResult {
@@ -252,6 +256,60 @@ export async function savePodcasts(udid: string, format: PodcastSaveFormat): Pro
   return {
     title: `Saved ${plural(result.count ?? 0, 'podcast')}`,
     detail: format === 'opml' ? 'Subscription list for another podcast app' : 'Spreadsheets of the shows and their episodes',
+    path: result.path ?? result.files?.[0] ?? outputDir,
+  };
+}
+
+// ── Voice Memos ────────────────────────────────────────────────────────────────
+
+/**
+ * Save voice memos into a folder the person picks: the recordings as audio
+ * files (with their transcripts and a spreadsheet, in a "Voice Memos" folder),
+ * or only the spreadsheet. With `memoIds`, just those recordings, straight
+ * into the folder (a screen's Save on one recording; `name` is what it's
+ * called). The engine copies the files and never overwrites one; nothing to
+ * save comes back as { error, empty_reason } and is reported.
+ */
+export async function saveVoiceMemos(
+  udid: string,
+  format: VoiceMemoSaveFormat,
+  opts: { memoIds?: number[]; name?: string } = {},
+): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const params: Record<string, unknown> = { udid, output_dir: outputDir, format };
+  if (opts.memoIds) params.memo_ids = opts.memoIds;
+  const result = checkEngineResult(await sidecarCall<VoiceMemoExportResult>('export_voice_memos', params));
+  const one = opts.memoIds?.length === 1 && opts.name;
+  return {
+    title: one ? `Saved "${opts.name}"` : `Saved ${plural(result.count ?? 0, 'voice memo')}`,
+    detail: voiceMemoSaveDetail(result, format),
+    path: result.path ?? result.files?.[0] ?? outputDir,
+  };
+}
+
+// ── Calendar ───────────────────────────────────────────────────────────────────
+
+/**
+ * Save calendar events into a folder the person picks: calendar files (.ics,
+ * one per calendar, in a folder) that Calendar, Outlook or Google import, or a
+ * spreadsheet. With `calendarId`, only that calendar, as one file. The engine
+ * writes the files and never overwrites one; nothing to save comes back as
+ * { error, empty_reason } and is reported.
+ */
+export async function saveCalendar(
+  udid: string,
+  format: CalendarSaveFormat,
+  opts: { calendarId?: number } = {},
+): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const params: Record<string, unknown> = { udid, output_dir: outputDir, format };
+  if (opts.calendarId != null) params.calendar_id = opts.calendarId;
+  const result = checkEngineResult(await sidecarCall<CalendarExportResult>('export_calendar', params));
+  return {
+    title: `Saved ${plural(result.count ?? 0, 'event')}`,
+    detail: calendarSaveDetail(result, format, opts.calendarId != null),
     path: result.path ?? result.files?.[0] ?? outputDir,
   };
 }

@@ -69,6 +69,8 @@ export function whatWasSaved(area?: FeedbackArea): { noun: string; plural: boole
     case 'notes': return { noun: 'notes', plural: true };
     case 'voicemail': return { noun: 'voicemails', plural: true };
     case 'podcasts': return { noun: 'podcasts', plural: true };
+    case 'voice_memos': return { noun: 'voice memos', plural: true };
+    case 'calendar': return { noun: 'calendar', plural: false };
     case 'browser_history': return { noun: 'web history', plural: false };
     default: return { noun: 'data', plural: false };
   }
