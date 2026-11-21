@@ -8,7 +8,7 @@
 //    React that keeps state between renders runs the load and reads the state;
 //  - latestYear (useYearCounts.ts) and releaseNotesUrl (useUpdates.ts).
 //  - useBackupIndex's other loads (calls) against a fake engine, the same way.
-// Other hook state over time (paging, retries) is left to the end-to-end UI tests.
+// Other hook state over time (growing the list as you scroll, retries) is left to the end-to-end UI tests.
 // Run with: node --test scripts/hooks.test.mjs (also re-runs itself in other time zones)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -72,6 +72,18 @@ test('normalizeMessage: a message in its conversation', () => {
   const unnamed = normalizeMessage(msg(1, local(2024, 1, 1), null), { ...MOM_CHAT, display_name: '' });
   assert.equal(unnamed.contactName, '+15035550123');
   assert.equal(unnamed.message.conversationName, '+15035550123');
+});
+
+test('normalizeMessage keeps the files a message came with, so People and the Timeline can show them', () => {
+  const photo = { attachment_id: 41, filename: '~/Library/SMS/Attachments/ab/11/A/IMG_0001.HEIC', mime_type: 'image/heic', transfer_name: 'IMG_0001.HEIC', total_bytes: 2_048_000, available: true, uti: 'public.heic', is_sticker: false };
+  const video = { attachment_id: 42, filename: '~/Library/SMS/Attachments/ab/12/B/IMG_0002.MOV', mime_type: 'video/quicktime', transfer_name: 'IMG_0002.MOV', total_bytes: 9_000_000, available: true, uti: 'com.apple.quicktime-movie', is_sticker: false };
+  const e = normalizeMessage(msg(9003, local(2024, 3, 10, 8, 17), null, { message_type: 'attachment', has_attachments: true, attachments: [photo, video] }), MOM_CHAT);
+  assert.deepEqual(e.message.attachments, [photo, video]);
+  // A message with no files has no attachments key at all (nothing extra held for 200,000 texts)
+  const plain = normalizeMessage(msg(9004, local(2024, 3, 10, 8, 18), 'hi'), MOM_CHAT);
+  assert.equal('attachments' in plain.message, false);
+  const flaggedButEmpty = normalizeMessage(msg(9005, local(2024, 3, 10, 8, 19), 'hi', { has_attachments: true, attachments: [] }), MOM_CHAT);
+  assert.equal('attachments' in flaggedButEmpty.message, false);
 });
 
 // ── WhatsApp, as the engine sends it (fictional people, 555 numbers) ────────────
@@ -148,6 +160,9 @@ test('normalizeWhatsApp keeps what a message without words was', () => {
     attachments: [{ attachment_id: 4, filename: '', mime_type: 'image/jpeg', transfer_name: 'Photo', total_bytes: null, thumbnail_path: null, width: null, height: null, duration: null, available: false }],
   }), WA_RILEY);
   assert.deepEqual([photo.whatsapp.text, photo.whatsapp.messageType, photo.whatsapp.attachmentLabel], [null, 'image', 'Photo']);
+  // Its media rides along, for the tiles on its card (a photo not in the backup says so instead of loading)
+  assert.equal(photo.whatsapp.attachments.length, 1);
+  assert.equal(photo.whatsapp.attachments[0].available, false);
   const call = normalizeWhatsApp(waMsg(2, at, '', {
     message_type: 'call', event_text: 'Missed voice call',
     call: { is_video: false, duration: null, outcome: 'missed', direction: 'incoming' },
@@ -407,6 +422,146 @@ test("someone's stream has the WhatsApp chats People counts for them, through th
   assert.deepEqual(filtered(noCard, { contactIdentifier: 'mom@icloud.com' }), ['message:1', 'call:2']);
 });
 
+// ── People's counts are their streams ──────────────────────────────────────────
+// Everyone People lists, against their stream on the People page (the person filter
+// on their identifier, with People's kinds): the same records, so the Everything
+// chip, each kind's chip and the list's summary say what the stream shows.
+const PERSON_TYPES = ['message', 'whatsapp', 'call', 'voicemail'];
+function assertCountsAreStreams(entries, cards = []) {
+  const { index } = indexOf(entries, cards);
+  return gatherPeople(index.entries, cards).map(person => {
+    const streamOf = types => useTimeline(index, { types: new Set(types), contactIdentifier: person.identifier }).filteredEntries;
+    const stream = streamOf(PERSON_TYPES).map(e => e.id);
+    assert.equal(stream.length, person.total, `${person.name}: the stream has ${stream.length}, the count says ${person.total}`);
+    for (const kind of PERSON_TYPES) assert.equal(streamOf([kind]).length, person.counts[kind], `${person.name}'s ${kind} count`);
+    return { person, stream };
+  });
+}
+const DIANE = '+15035550301';
+const DIANE_CHAT = { ...MOM_CHAT, chat_id: 40, chat_identifier: DIANE, display_name: 'Diane' };
+const dianeMsg = (id, date, chat = DIANE_CHAT) => normalizeMessage(msg(id, date, 'hi', { sender: chat.chat_identifier }), chat);
+const callFrom = (id, date, address, contactName, app = '') => normalizeCall({
+  call_id: id, address, contact_name: contactName, date: engine(date), duration: 60, direction: 'incoming', status: 'answered', app,
+});
+const voicemailFrom = (id, date, phoneNumber, contactName) => normalizeVoicemail({
+  id, phone_number: phoneNumber, contact_name: contactName, date_received: engine(date), duration: 20, is_read: true,
+});
+
+test("an app's call with only a name counts for the person of that name, as their stream shows it", () => {
+  // A WhatsApp or FaceTime call keeps an id in place of the number, and the name the app had
+  const entries = [
+    dianeMsg(1, local(2024, 3, 1, 9)),
+    callFrom(2, local(2024, 3, 12, 9), UUID, 'Diane', 'net.whatsapp.WhatsApp'),
+    dianeMsg(3, local(2024, 3, 9, 9)),
+    // One that kept no name goes by its app's name, and no one is called that
+    callFrom(4, local(2024, 3, 6, 9), '6B1F2C8E-1D2A-4C1B-9F7E-0A1B2C3D4E5F', '', 'com.apple.FaceTime'),
+  ];
+  assert.deepEqual([entries[1].contactIdentifier, entries[1].contactName], [null, 'Diane']);
+  assert.equal(entries[3].contactName, 'FaceTime');
+  const [diane, ...rest] = assertCountsAreStreams(entries);
+  assert.equal(rest.length, 0);
+  assert.deepEqual(diane.stream, ['call:2', 'message:3', 'message:1']);
+  assert.deepEqual(diane.person.counts, { message: 2, whatsapp: 0, call: 1, voicemail: 0 });
+  assert.equal(diane.person.last, entries[1].timestamp, 'last in touch on that call');
+  assert.deepEqual([...diane.person.numbers], [DIANE], 'the call adds no number');
+  // WhatsApp's own name for someone isn't enough: only the address book's names count
+  const pip = normalizeWhatsApp(waMsg(5, local(2024, 3, 2, 9), 'hey'), { ...WA_RILEY, chat_id: 22, display_name: 'Pip', handle: '+15035550399' });
+  const pipCall = callFrom(6, local(2024, 3, 3, 9), '7C2A9B1D-3E4F-4A5B-8C6D-7E8F9A0B1C2D', 'Pip', 'net.whatsapp.WhatsApp');
+  const people = assertCountsAreStreams([...entries, pip, pipCall]);
+  assert.deepEqual(people.map(p => [p.person.name, p.person.total]), [['Diane', 3], ['Pip', 1]]);
+});
+
+test("a voicemail or call with no number and no name is no one's, even while you were in touch", () => {
+  const photo = normalizePhoto({ uuid: 'p1', filename: 'p1.HEIC', file_hash: 'p1', kind: 'photo', width: 1, height: 1, duration: 0, date_created: engine(local(2024, 3, 4, 12)) });
+  const entries = [
+    dianeMsg(1, local(2024, 3, 1, 9)),
+    voicemailFrom(2, local(2024, 3, 3, 9), '', ''),
+    callFrom(3, local(2024, 3, 4, 9), '', ''),
+    // The engine's word for a caller with no number and no name
+    callFrom(4, local(2024, 3, 5, 9), '', 'Unknown'),
+    photo,
+    dianeMsg(5, local(2024, 3, 9, 9)),
+  ];
+  assert.deepEqual([entries[1].contactIdentifier, entries[1].contactName], ['', '']);
+  assert.deepEqual([entries[2].contactIdentifier, entries[2].contactName], ['', null]);
+  const [diane, ...rest] = assertCountsAreStreams(entries);
+  assert.equal(rest.length, 0);
+  assert.deepEqual(diane.stream, ['message:5', 'message:1']);
+  // Nor is a camera-roll photo from while you were in touch: their stream is only what passed between you
+  assert.deepEqual(filtered(indexOf(entries).index, { contactIdentifier: DIANE }), ['message:5', 'message:1']);
+});
+
+test("a number on someone's address-book card counts for them, whatever kind of record it is", () => {
+  // Diane's other number, which these records didn't get her name on
+  const other = '+15035550302';
+  const entries = [
+    dianeMsg(1, local(2024, 3, 1, 9)),
+    callFrom(2, local(2024, 3, 2, 9), other, other),
+    voicemailFrom(3, local(2024, 3, 3, 9), other, ''),
+    dianeMsg(4, local(2024, 3, 4, 9), { ...DIANE_CHAT, chat_id: 41, chat_identifier: other, display_name: '' }),
+  ];
+  const card = { id: 1, display_name: 'Diane', phones: ['+1 503 555 0301', '+1 503 555 0302'], emails: [] };
+  const [diane, ...rest] = assertCountsAreStreams(entries, [card]);
+  assert.equal(rest.length, 0, 'one person, not her other number on its own');
+  assert.deepEqual(diane.person.counts, { message: 2, whatsapp: 0, call: 1, voicemail: 1 });
+  assert.equal(diane.person.identifier, DIANE);
+  // The same when her newest record is from an address that isn't on that card
+  const fromICloud = dianeMsg(5, local(2024, 3, 10, 9), { ...DIANE_CHAT, chat_id: 42, chat_identifier: 'diane@icloud.com' });
+  const [withICloud, ...none] = assertCountsAreStreams([...entries, fromICloud], [card]);
+  assert.equal(none.length, 0);
+  assert.deepEqual([withICloud.person.identifier, withICloud.person.total], ['diane@icloud.com', 5]);
+  // Without the address book nothing says the other number is hers: it's someone of its own
+  assert.deepEqual(assertCountsAreStreams(entries).map(p => [p.person.name, p.person.total]), [[other, 3], ['Diane', 1]]);
+  // Two numbers on one card that nothing names: one person
+  const unnamed = [callFrom(6, local(2024, 3, 5, 9), DIANE, DIANE), voicemailFrom(7, local(2024, 3, 6, 9), other, '')];
+  const [both, ...nobody] = assertCountsAreStreams(unnamed, [card]);
+  assert.deepEqual([nobody.length, both.person.total, both.person.key], [0, 2, 'card:1']);
+});
+
+test('a record named only by its number counts for whoever has the number, read first or not', () => {
+  // The engine names a record by its number when it has no name for it
+  const entries = [
+    callFrom(1, local(2024, 3, 12, 9), '5035550301', '5035550301'),
+    voicemailFrom(2, local(2024, 3, 11, 9), '+1 (503) 555-0301', ''),
+    dianeMsg(3, local(2024, 3, 1, 9)),
+    // Her email, hers by name only
+    dianeMsg(4, local(2024, 3, 2, 9), { ...DIANE_CHAT, chat_id: 42, chat_identifier: 'diane@icloud.com' }),
+  ];
+  const [diane, ...rest] = assertCountsAreStreams(entries);
+  assert.equal(rest.length, 0);
+  assert.equal(diane.person.name, 'Diane');
+  assert.deepEqual(diane.person.counts, { message: 2, whatsapp: 0, call: 1, voicemail: 1 });
+  // The picker lists the number under her name too, though a record with only the number is read first
+  assert.deepEqual(indexOf(entries).index.contacts.filter(c => c.identifier.endsWith('0301')), [{ identifier: DIANE, name: 'Diane' }]);
+});
+
+test("everyone's count is their stream, in one backup with all of these", () => {
+  const other = '+15035550302';
+  const card = { id: 1, display_name: 'Diane', phones: ['+1 503 555 0301', '+1 503 555 0302'], emails: [] };
+  const momCard = { id: 2, display_name: 'Mom', phones: ['+1 503 555 0123', '+44 7700 900999'], emails: ['mom@icloud.com'] };
+  const momWhatsApp = { ...WA_RILEY, chat_id: 21, chat_identifier: '447700900999@s.whatsapp.net', chat_jid: '447700900999@s.whatsapp.net', display_name: 'Mum', handle: '+447700900999' };
+  const entries = [
+    dianeMsg(1, local(2024, 3, 1, 9)),
+    callFrom(2, local(2024, 3, 2, 9), UUID, 'Diane', 'net.whatsapp.WhatsApp'),
+    callFrom(3, local(2024, 3, 3, 9), other, other),
+    voicemailFrom(4, local(2024, 3, 4, 9), '', ''),
+    callFrom(5, local(2024, 3, 5, 9), '', 'Unknown'),
+    normalizeMessage(msg(6, local(2024, 3, 6, 9), 'hi'), MOM_CHAT),
+    normalizeMessage(msg(7, local(2024, 3, 7, 9), 'from iCloud'), { ...MOM_CHAT, chat_id: 14, chat_identifier: 'mom@icloud.com', display_name: 'mom@icloud.com' }),
+    normalizeWhatsApp(waMsg(8, local(2024, 3, 8, 9), 'from WhatsApp'), momWhatsApp),
+    callFrom(9, local(2024, 3, 9, 9), '5035550123', ''),
+    normalizeWhatsApp(waMsg(10, local(2024, 3, 10, 9), 'Ana is driving', { sender: 'Ana' }), WA_FAMILY),
+    normalizeWhatsApp(waMsg(11, local(2024, 3, 11, 9), 'tent?'), WA_RILEY),
+    callFrom(12, local(2024, 3, 12, 9), '+15035550142', 'Riley Okafor'),
+    normalizeMessage(msg(13, local(2024, 3, 13, 9), 'Ana added you', { message_type: 'group_member_added' }), { ...MOM_CHAT, chat_id: 50, chat_identifier: 'chat684461829582950397', display_name: 'Book club', is_group: true }),
+  ];
+  const people = assertCountsAreStreams(entries, [card, momCard]);
+  assert.deepEqual(people.map(p => [p.person.name, p.person.total]).sort(),
+    [['Book club', 1], ['Diane', 3], ['Family', 1], ['Mom', 4], ['Riley Okafor', 2]]);
+  // Every record of theirs is someone's, once; the two with no number and no name are no one's
+  assert.equal(people.reduce((n, p) => n + p.person.total, 0), entries.length - 2);
+});
+
 test("picking a phone number never brings in a WhatsApp group whose address ends in its digits", () => {
   const club = { ...WA_FAMILY, chat_id: 31, chat_identifier: '120363025246125486@g.us', chat_jid: '120363025246125486@g.us', display_name: 'Book club' };
   const pat = { ...MOM_CHAT, chat_id: 8, chat_identifier: '+15246125486', display_name: 'Pat' };
@@ -553,15 +708,15 @@ test('searching for "photo" finds texts with photos', () => {
   assert.deepEqual(filtered(index, { searchQuery: 'photo' }), ['message:1']);
 });
 
-test('the list is shown 100 at a time', () => {
+test('the whole filtered list comes back, newest first, with no pages (the screens grow it as you scroll)', () => {
   const entries = Array.from({ length: 250 }, (_, i) => normalizeMessage(msg(i, new Date(Date.UTC(2024, 0, 1) + i * 60_000), `m${i}`), MOM_CHAT));
   const { index } = indexOf(entries);
   const view = useTimeline(index, { types: ALL_TYPES });
-  assert.equal(view.pageSize, 100);
-  assert.equal(view.page, 0);
   assert.equal(view.totalFiltered, 250);
-  assert.equal(view.entries.length, 100);
-  assert.equal(view.entries[0].id, 'message:249'); // newest first
+  assert.equal(view.filteredEntries.length, 250);
+  assert.equal(view.filteredEntries[0].id, 'message:249'); // newest first
+  assert.equal(view.filteredEntries[249].id, 'message:0');
+  for (const gone of ['page', 'setPage', 'pageSize', 'entries']) assert.equal(gone in view, false, `${gone} is gone`);
 });
 
 test("opening the Timeline on one day reads that day's messages first", () => {

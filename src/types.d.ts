@@ -6,11 +6,19 @@ declare global {
   interface Window {
     openextract: {
       call: (method: string, params?: any) => Promise<{ success: boolean; data?: any; error?: string }>;
-      /** Export conversations or WhatsApp chats as PDF; same params as export_conversation(s) / export_whatsapp_chat(s) minus format. */
+      /**
+       * Save an engine export as PDF; same params as the method's own save minus format.
+       * `count` is the engine's count of records (notes, calls, page visits) when it gives one;
+       * `media_folder` where export_person copied a person's photos and files, `media` how many
+       * files it copied or couldn't, `errors` the parts it couldn't read.
+       */
       exportPdf: (
-        method: 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats',
+        method: 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats'
+          | 'export_person' | 'export_notes' | 'export_calls' | 'export_browser_history' | 'export_recovered_messages',
         params: any,
       ) => Promise<{ success: boolean; data?: import('./lib/ipc').PdfExportResult; error?: string }>;
+      /** Print a page the window built (the Timeline) to `<outputDir>/<baseName>.pdf`, never overwriting a file. */
+      exportHtmlPdf: (html: string, outputDir: string, baseName: string) => Promise<{ success: boolean; data?: { file: string }; error?: string }>;
       selectFolder: () => Promise<string | null>;
       saveFolder: () => Promise<string | null>;
       saveFile: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<string | null>;
@@ -19,6 +27,11 @@ declare global {
       openPath: (filePath: string) => Promise<string>;
       /** Reveal a file or folder in Finder / Explorer. */
       showInFolder: (filePath: string) => Promise<void>;
+      /**
+       * A poster frame (JPEG data: URL, at most `size` px on its longer side) for a video the
+       * engine copied out with as_file. Null on Linux, for any other path, or when it can't be drawn.
+       */
+      mediaThumbnail: (filePath: string, size?: number) => Promise<string | null>;
       platform: 'darwin' | 'win32' | 'linux' | string;
       textSize: {
         get: () => Promise<TextSize>;

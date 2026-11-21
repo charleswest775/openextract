@@ -47,6 +47,53 @@ class PeopleMergeFixtureTest(unittest.TestCase):
                 )
 
 
+class NamedByNumberTest(unittest.TestCase):
+    """named_by_number is namedByNumber (src/lib/people.ts), case for case (scripts/people.test.mjs)."""
+
+    def test_records_the_address_book_had_no_name_for(self):
+        for name, identifier in [
+            (None, "+15035550123"), ("", "+15035550123"), ("+15035550123", "+15035550123"),
+            ("(503) 555-0123", "+15035550123"), ("5035550123", "+1 503 555 0123"),
+            ("Mom@iCloud.com", "mom@icloud.com"), ("72727", "72727"),
+        ]:
+            with self.subTest(name=name, identifier=identifier):
+                self.assertTrue(people_merge.named_by_number(
+                    {"type": "call", "contactName": name, "contactIdentifier": identifier}))
+
+    def test_named_records_and_records_with_no_number(self):
+        for name, identifier in [
+            ("Mom", "+15035550123"), ("Unknown", "+15035550123"), ("+15035550100", "+15035550123"),
+            ("Mom", "mom@icloud.com"), ("Diane", None), ("Diane", ""), (None, None), ("", ""),
+        ]:
+            with self.subTest(name=name, identifier=identifier):
+                self.assertFalse(people_merge.named_by_number(
+                    {"type": "call", "contactName": name, "contactIdentifier": identifier}))
+
+    def test_a_group_conversation_never_is(self):
+        for name in ("chat123456789012345678", None):
+            self.assertFalse(people_merge.named_by_number({
+                "type": "message", "contactName": name, "contactIdentifier": "chat123456789012345678",
+                "message": {"isGroup": True, "chatId": 1}}))
+
+
+class BundleEntriesTest(unittest.TestCase):
+    """The data bundle's people.json counts what the People page counts."""
+
+    def test_an_apps_call_counts_for_the_person_of_that_name(self):
+        conversation = {"chat_id": 4, "chat_identifier": "+15035550301", "display_name": "Diane", "is_group": False}
+        entries = [
+            {**people_merge.message_entry(conversation, "2026-03-01T00:00:00Z"), "count": 12},
+            people_merge.call_entry({"address": "5B9C7F2E-1D3A-4E8B-9F60-2A7C1E4D8B93", "contact_name": "Diane",
+                                     "app": "net.whatsapp.WhatsApp"}, "2026-03-02T00:00:00Z"),
+            people_merge.call_entry({"address": "+15035550301", "contact_name": ""}, "2026-03-03T00:00:00Z"),
+            people_merge.voicemail_entry({"phone_number": "", "contact_name": ""}, "2026-03-04T00:00:00Z"),
+        ]
+        [diane] = people_merge.gather_people(entries)
+        self.assertEqual((diane["name"], diane["total"], diane["counts"]["call"], diane["last"]),
+                         ("Diane", 14, 2, "2026-03-03T00:00:00Z"))
+        self.assertEqual(diane["ids"], {"5035550301"})
+
+
 class EntriesFromRecordsTest(unittest.TestCase):
     """Engine records become entries the way the app's Timeline makes them (useTimeline.ts)."""
 

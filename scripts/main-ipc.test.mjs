@@ -25,12 +25,14 @@ import {
 // make sure they're wired through preload.
 const EXPECTED_CHANNELS = [
   'add-session', 'app:get-version', 'app:relaunch', 'clipboard:writeText', 'dialog:saveFile',
-  'dialog:saveFolder', 'dialog:selectFolder', 'export:pdf', 'feedback:export-check-opt-out',
+  'dialog:saveFolder', 'dialog:selectFolder', 'export:pdf', 'export:pdf-html', 'feedback:export-check-opt-out',
   'feedback:fixed-reports', 'feedback:get-diagnostics', 'feedback:mark-announced', 'feedback:saved-email',
   'feedback:send', 'fs:writeFile', 'get-app-state', 'get-recent-sessions', 'increment-export-count',
   'remove-session', 'set-first-launch-completed', 'shell:openExternal', 'shell:openPath',
   'shell:showItemInFolder', 'sidecar:call', 'support:paid', 'support:snooze', 'support:status', 'text-size:get', 'text-size:set', 'updates:check',
   'updates:download', 'updates:get-state', 'updates:install', 'updates:set-auto-check',
+  // Media in the window (electron/localMedia.ts)
+  'media:thumbnail',
 ];
 
 // Development-only switches in main.ts that a developer's shell might have set.
@@ -45,8 +47,9 @@ process.on('exit', () => quiet.restore());
 // ── Fakes for main.ts's own modules ─────────────────────────────────────────
 
 function fakeModules() {
-  const f = { sidecars: [], updaterInits: [], pdfCalls: [], staleCleanups: 0, recorders: [], reports: [] };
+  const f = { sidecars: [], updaterInits: [], pdfCalls: [], pageCalls: [], staleCleanups: 0, recorders: [], reports: [] };
   f.pdfAnswer = async () => ({ files: ['Mom.pdf'], message_count: 3 });
+  f.pageAnswer = async (_html, dir, base) => ({ file: `${dir}/${base}.pdf` });
 
   class PythonSidecar {
     constructor(pythonPath, pythonArgs, logPath) {
@@ -115,6 +118,10 @@ function fakeModules() {
         f.pdfCalls.push({ sidecar, method, params });
         return f.pdfAnswer(method, params);
       },
+      exportHtmlToPdf: async (html, outputDir, baseName) => {
+        f.pageCalls.push({ html, outputDir, baseName });
+        return f.pageAnswer(html, outputDir, baseName);
+      },
       removeStaleStagingDirs: () => f.staleCleanups++,
     },
     './feedback': { FeedbackRecorder },
@@ -138,10 +145,12 @@ function fakeAutoUpdater() {
  * `real`, the real updater, pdfExport and feedback modules are used (only the
  * engine is faked).
  */
-async function loadMain({ userData = freshDir('main-userdata'), state, isPackaged = true, real = false, paths = {} } = {}) {
+async function loadMain({ userData = freshDir('main-userdata'), state, isPackaged = true, real = false, paths = {}, nativeImage } = {}) {
   const stateFile = path.join(userData, 'openextract-state.json');
   if (state !== undefined) fs.writeFileSync(stateFile, typeof state === 'string' ? state : JSON.stringify(state));
   const env = createElectron({ paths: { userData, temp: freshDir('main-temp'), ...paths }, isPackaged });
+  // electron.nativeImage, for media:thumbnail (the shared stub has none)
+  if (nativeImage) env.electron.nativeImage = nativeImage;
   const fakes = fakeModules();
   const stubs = { electron: env.electron, 'electron-updater': { autoUpdater: fakeAutoUpdater() } };
   Object.assign(stubs, real ? { './sidecar': fakes.stubs['./sidecar'] } : fakes.stubs);
@@ -376,6 +385,91 @@ describe('shell:openExternal', () => {
     assert.ok(links.size > 0, 'found no app links in src/');
     for (const link of links) await m.invoke('shell:openExternal', link);
     assert.deepEqual(sorted(m.env.callsTo('shell.openExternal').map(([u]) => u)), sorted(links));
+  });
+});
+
+// ── Media in the window: posters and the local-media:// protocol ────────────
+// Both read only from the engine's copy folders in the temp folder (python/app_copies.py);
+// electron/localMedia.ts is tested on its own in local-media.test.mjs.
+
+describe('media in the window', () => {
+  /** A temp folder holding one engine copy folder with a video in it, and a video outside it. */
+  function mediaTemp() {
+    const temp = freshDir('media-temp');
+    const folder = path.join(temp, 'openextract-messages-4242-ab12cd', 'udid-1', '7');
+    fs.mkdirSync(folder, { recursive: true });
+    const video = path.join(folder, 'IMG_0007.mov');
+    fs.writeFileSync(video, Buffer.from('0123456789abcdefghij'));
+    const outside = path.join(freshDir('media-elsewhere'), 'IMG_0007.mov');
+    fs.writeFileSync(outside, 'secret');
+    return { temp, video, outside };
+  }
+
+  function fakeNativeImage() {
+    const asked = [];
+    return {
+      asked,
+      async createThumbnailFromPath(file, size) {
+        asked.push([file, size]);
+        return { isEmpty: () => false, toJPEG: q => Buffer.from(`jpeg ${q}`) };
+      },
+    };
+  }
+
+  test('media:thumbnail makes a poster of a copy the engine made, on macOS and Windows', async () => {
+    const { temp, video, outside } = mediaTemp();
+    const nativeImage = fakeNativeImage();
+    const m = await loadMain({ paths: { temp }, nativeImage });
+    for (const platform of ['darwin', 'win32']) {
+      const url = await asPlatform(platform, () => m.invoke('media:thumbnail', video, 480));
+      assert.equal(url, `data:image/jpeg;base64,${Buffer.from('jpeg 80').toString('base64')}`, platform);
+    }
+    // The real path as the system gives it (Windows' long names, not RUNNER~1-style short ones)
+    assert.deepEqual(nativeImage.asked, [[fs.realpathSync.native(video), { width: 480, height: 480 }], [fs.realpathSync.native(video), { width: 480, height: 480 }]]);
+
+    // Linux has no previewer; nothing outside the copy folders, nor anything that isn't a path
+    await asPlatform('linux', async () => assert.equal(await m.invoke('media:thumbnail', video, 480), null));
+    await asPlatform('darwin', async () => {
+      for (const bad of [outside, path.dirname(video), '', null, 42, {}, 'IMG_0007.mov']) {
+        assert.equal(await m.invoke('media:thumbnail', bad, 480), null, String(bad));
+      }
+    });
+    assert.equal(nativeImage.asked.length, 2, 'the previewer was never asked about anything else');
+  });
+
+  test('media:thumbnail is null, not an error, without a previewer or when it fails', async () => {
+    const { temp, video } = mediaTemp();
+    await asPlatform('darwin', async () => {
+      const none = await loadMain({ paths: { temp } }); // electron without nativeImage
+      assert.equal(await none.invoke('media:thumbnail', video, 480), null);
+      const failing = await loadMain({ paths: { temp }, nativeImage: { createThumbnailFromPath: async () => { throw new Error('unable to retrieve thumbnail preview image for the given path'); } } });
+      assert.equal(await failing.invoke('media:thumbnail', video, 480), null);
+    });
+  });
+
+  test('local-media:// serves a copy the engine made, a range at a time, and nothing else', async () => {
+    const { temp, video, outside } = mediaTemp();
+    const m = await loadMain({ paths: { temp } });
+    const [[scheme, handler]] = m.env.callsTo('protocol.handle');
+    assert.equal(scheme, 'local-media');
+    const url = file => `local-media://media/${file.split(path.sep).filter(Boolean).map(encodeURIComponent).join('/')}`;
+    const get = (file, range) => handler({ url: url(file), method: 'GET', headers: new Headers(range ? { Range: range } : {}) });
+
+    const part = await get(video, 'bytes=2-5');
+    assert.equal(part.status, 206);
+    assert.equal(part.headers.get('content-range'), 'bytes 2-5/20');
+    assert.equal(part.headers.get('content-type'), 'video/quicktime');
+    assert.equal(await part.text(), '2345');
+    const all = await get(video);
+    assert.equal(all.status, 200);
+    assert.equal(await all.text(), '0123456789abcdefghij');
+
+    for (const file of [outside, path.dirname(video)]) {
+      const refused = await get(file, 'bytes=0-');
+      assert.equal(refused.status, 404, file);
+    }
+    assert.ok(quiet.lines.some(l => l.includes('[local-media] refused')), 'refusals are logged');
+    assert.deepEqual(m.env.callsTo('net.fetch'), [], 'files are read directly, never through net.fetch');
   });
 });
 
@@ -1019,6 +1113,38 @@ describe('export:pdf', () => {
     assert.deepEqual(m.recorder.recorded, [
       { method: 'pdf:export_conversations', params: { output_dir: '' }, outcome: { ok: false, error: 'Choose a folder to save the PDF in.' } },
     ]);
+  });
+});
+
+describe('export:pdf-html', () => {
+  test('passes the page, folder and name through and wraps the answer', async () => {
+    const m = await loadMain();
+    const page = '<!DOCTYPE html><h1>Timeline</h1>';
+    assert.deepEqual(await m.invoke('export:pdf-html', page, m.userData, 'timeline-export'), {
+      success: true,
+      data: { file: `${m.userData}/timeline-export.pdf` },
+    });
+    assert.deepEqual(m.fakes.pageCalls, [{ html: page, outputDir: m.userData, baseName: 'timeline-export' }]);
+    assert.equal(m.fakes.pdfCalls.length, 0, 'the engine is not asked');
+  });
+
+  test('a failure is wrapped and recorded for feedback, without the page itself', async () => {
+    const m = await loadMain();
+    m.fakes.pageAnswer = async () => {
+      throw new Error('Printing failed');
+    };
+    const page = '<p>Messages from the backup</p>';
+    assert.deepEqual(await m.invoke('export:pdf-html', page, '/Users/jane/Desktop', 'Mom'), { success: false, error: 'Printing failed' });
+    assert.deepEqual(m.recorder.recorded, [
+      { method: 'pdf:page', params: { output_dir: '/Users/jane/Desktop' }, outcome: { ok: false, error: 'Printing failed' } },
+    ]);
+    assert.ok(!JSON.stringify(m.recorder.recorded).includes('Messages from the backup'));
+  });
+
+  test('the real exporter refuses a folder that doesn\'t exist, before printing anything', async () => {
+    const m = await loadMain({ real: true });
+    const answer = await m.invoke('export:pdf-html', '<p>x</p>', path.join(m.userData, 'not-there'), 'x');
+    assert.deepEqual(answer, { success: false, error: 'Choose a folder to save the PDF in.' });
   });
 });
 

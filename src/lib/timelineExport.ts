@@ -1,7 +1,8 @@
 import { TimelineEntry } from '../types/timeline';
-import { formatDate, formatTime, formatDateTime, formatDuration } from './dates';
+import { attachmentLabels } from './attachmentSummary';
+import { formatDate, formatTime, formatDuration } from './dates';
 
-export type ExportFormat = 'html' | 'md' | 'csv';
+export type ExportFormat = 'pdf' | 'html' | 'csv' | 'txt';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -96,6 +97,9 @@ function entryDescription(e: TimelineEntry): string {
         handwriting: '[Handwriting]',
         system: '[System message]',
       };
+      // Its files by name ("[Photo: IMG_4127.HEIC]"), after its words or in place of them
+      const files = attachmentLabels(m.attachments, m.messageType).map(l => `[${l}]`).join(' ');
+      if (files) return `${dir}: ${m.text ? `${m.text} ${files}` : files}`;
       const photos = m.photos?.length ?? 0;
       const photoLabel = photos > 1 ? `[${photos} photos]` : photos === 1 ? '[Photo]' : null;
       const text = m.text || (m.eventText && `[${m.eventText}]`) || photoLabel || typeLabels[m.messageType]
@@ -153,6 +157,10 @@ function entryContact(e: TimelineEntry): string {
 
 // ── CSV ──────────────────────────────────────────────────────────────────────
 
+// A byte-order mark first: Excel on Windows reads a CSV without one in the computer's
+// old code page, which garbles accents, other alphabets and emoji (the engine's CSVs have one too).
+export const CSV_BOM = '\uFEFF';
+
 function toCsv(entries: TimelineEntry[]): string {
   const header = 'Date,Time,Type,Contact,Description';
   const rows = entries.map(e => {
@@ -164,40 +172,37 @@ function toCsv(entries: TimelineEntry[]): string {
       escapeCsv(entryDescription(e)),
     ].join(',');
   });
-  return [header, ...rows].join('\n');
+  return CSV_BOM + [header, ...rows].join('\n');
 }
 
-// ── Markdown ─────────────────────────────────────────────────────────────────
+// "1,234 events · Saved Nov 20, 2026"
+function savedLine(count: number): string {
+  return `${count.toLocaleString()} ${count === 1 ? 'event' : 'events'} · Saved ${new Date().toLocaleDateString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+  })}`;
+}
 
-function toMarkdown(entries: TimelineEntry[]): string {
-  const lines: string[] = ['# Timeline Export', ''];
+// ── Plain text ───────────────────────────────────────────────────────────────
 
-  // Group by day
-  let lastDate = '';
+function toText(entries: TimelineEntry[], title: string): string {
+  const lines: string[] = [title, savedLine(entries.length)];
+  let lastDate: string | null = null;
   for (const e of entries) {
     const d = formatDate(e.timestamp) || 'Unknown date';
     if (d !== lastDate) {
       lastDate = d;
-      lines.push(`## ${d}`, '');
+      lines.push('', d, '-'.repeat(Math.max(10, d.length)));
     }
-
-    const time = formatTime(e.timestamp) || '--:--';
-    const typeLabel = TYPE_LABELS[e.type] ?? e.type;
     const contact = entryContact(e);
-    const contactStr = contact ? ` | **${contact}**` : '';
-
-    lines.push(`- \`${time}\` **${typeLabel}**${contactStr}`);
-    lines.push(`  ${entryDescription(e)}`);
-    lines.push('');
+    lines.push('', [formatTime(e.timestamp) || '--:--', TYPE_LABELS[e.type] ?? e.type, contact].filter(Boolean).join(' · '));
+    lines.push(entryDescription(e));
   }
-
-  lines.push('---', `*Exported ${entries.length.toLocaleString()} entries on ${new Date().toLocaleDateString()}*`);
-  return lines.join('\n');
+  return lines.join('\n') + '\n';
 }
 
-// ── HTML ─────────────────────────────────────────────────────────────────────
+// ── HTML (also the page printed for the PDF) ─────────────────────────────────
 
-function toHtml(entries: TimelineEntry[]): string {
+function toHtml(entries: TimelineEntry[], title: string): string {
   const TYPE_COLORS: Record<string, string> = {
     message: '#007AFF', whatsapp: '#128C7E', call: '#30d158', photo: '#AF52DE',
     voicemail: '#ff9f0a', note: '#5AC8FA', browser: '#34C759',
@@ -219,11 +224,11 @@ function toHtml(entries: TimelineEntry[]): string {
     const contact = entryContact(e);
     const contactHtml = contact ? ` &mdash; <strong>${escapeHtml(contact)}</strong>` : '';
 
-    body += `<div style="margin:4px 0;padding:6px 10px;border-left:3px solid ${color};background:#fafafa;border-radius:4px;font-size:13px">`;
+    body += `<div class="entry" style="margin:4px 0;padding:6px 10px;border-left:3px solid ${color};background:#fafafa;border-radius:4px;font-size:13px">`;
     body += `<span style="color:#888;font-size:11px">${escapeHtml(time)}</span> `;
     body += `<span style="background:${color};color:#fff;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:0.03em">${escapeHtml(typeLabel)}</span>`;
     body += contactHtml;
-    body += `<div style="margin-top:2px">${escapeHtml(entryDescription(e))}</div>`;
+    body += `<div style="margin-top:2px;white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(entryDescription(e))}</div>`;
     body += `</div>\n`;
   }
 
@@ -232,16 +237,21 @@ function toHtml(entries: TimelineEntry[]): string {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Timeline Export</title>
+<title>${escapeHtml(title)}</title>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; color: #222; }
   h1 { font-size: 22px; margin-bottom: 4px; }
   .meta { font-size: 12px; color: #888; margin-bottom: 16px; }
+  @media print {
+    body { max-width: none; padding: 0; }
+    h2 { break-after: avoid; }
+    .entry { break-inside: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
 </style>
 </head>
 <body>
-<h1>Timeline Export</h1>
-<div class="meta">${entries.length.toLocaleString()} entries &middot; Exported ${escapeHtml(new Date().toLocaleDateString())}</div>
+<h1>${escapeHtml(title)}</h1>
+<div class="meta">${escapeHtml(savedLine(entries.length))}</div>
 ${body}
 </body>
 </html>`;
@@ -249,16 +259,23 @@ ${body}
 
 // ── Public API ───────────────────────────────────────────────────────────────
 
-export function formatTimeline(entries: TimelineEntry[], format: ExportFormat): string {
+/**
+ * The saved Timeline (or a person's history) in `format`. 'pdf' is the web page,
+ * for the main process to print (exportHtmlPdf); the others are the file itself.
+ * `title` heads the page and the text ("Timeline" unless given).
+ */
+export function formatTimeline(entries: TimelineEntry[], format: ExportFormat, { title = 'Timeline' }: { title?: string } = {}): string {
   switch (format) {
     case 'csv': return toCsv(entries);
-    case 'md': return toMarkdown(entries);
-    case 'html': return toHtml(entries);
+    case 'txt': return toText(entries, title);
+    case 'html':
+    case 'pdf': return toHtml(entries, title);
   }
 }
 
 export const FORMAT_FILTERS: Record<ExportFormat, { name: string; extensions: string[] }> = {
+  pdf: { name: 'PDF Document', extensions: ['pdf'] },
   html: { name: 'HTML Document', extensions: ['html'] },
-  md: { name: 'Markdown', extensions: ['md'] },
   csv: { name: 'CSV Spreadsheet', extensions: ['csv'] },
+  txt: { name: 'Plain Text', extensions: ['txt'] },
 };

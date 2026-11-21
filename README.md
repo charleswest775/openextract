@@ -17,8 +17,8 @@ Made by an independent developer with help from contributors.
 
 - 🔎 **Search** — One box searches messages, WhatsApp, notes, calls, voicemail, people and web history, and opens the exact message
 - 💬 **Messages** — Browse iMessage/SMS conversations with chat-bubble UI
-- 🟢 **WhatsApp** — Chats, groups and broadcast lists with replies, reactions, photos, voice messages, locations and calls; save one chat or all of them as a web page, PDF, CSV or text ([guide](https://www.openextract.app/use-cases/export-whatsapp-chats-from-iphone-backup?ref=gh-readme))
-- 👥 **People** — Everyone you were in touch with, with your messages, WhatsApp chats, calls and voicemails together
+- 🟢 **WhatsApp** — Chats, groups and broadcast lists with replies, reactions, photos, voice messages, locations and calls; save one chat or all of them as a PDF, web page, spreadsheet (CSV) or text ([guide](https://www.openextract.app/use-cases/export-whatsapp-chats-from-iphone-backup?ref=gh-readme))
+- 👥 **People** — Everyone you were in touch with, with your messages, WhatsApp chats, calls and voicemails together in one scrolling history, photos and videos included; save everything with one person, every photo and file with it
 - 📷 **Photos & Videos** — Gallery view with thumbnails and bulk export
 - 📞 **Voicemail** — Listen to voicemails with caller ID
 - 📋 **Calls** — View calls with contact name resolution
@@ -26,7 +26,7 @@ Made by an independent developer with help from contributors.
 - 📝 **Notes** — Read and export your iOS notes
 - 🎙️ **Podcasts** — The shows you follow and every episode you played; save your subscriptions as OPML for another podcast app, or everything as a spreadsheet ([guide](https://www.openextract.app/use-cases/export-podcasts-from-iphone-backup?ref=gh-readme))
 - 🔒 **Encrypted Backups** — Full support for password-protected backups
-- 📤 **Export** — Save conversations as PDF, HTML, CSV, or plain text
+- 📤 **Export** — Every save lists its formats the same way and in the same order: PDF, web page (HTML), spreadsheet (CSV) and plain text for messages, WhatsApp, people, the timeline, calls and web history, with contact cards, podcast subscriptions, original photos and voicemail audio where they apply
 
 ## Writing
 
@@ -106,7 +106,7 @@ These use a made-up test backup, so none of the people or messages are real. Cli
   <tr>
     <td width="50%" valign="top">
       <a href="website/static/img/screens/notes-2000.webp"><img src="website/static/img/screens/notes-1000.webp" width="100%" alt="The Notes screen with a note listing national parks visited and planned."></a>
-      <br><b>Notes</b>: read any Apple Note and save it as text or PDF.
+      <br><b>Notes</b>: read any Apple Note and save it as a PDF, web page or text.
     </td>
     <td width="50%" valign="top">
       <a href="website/static/img/screens/web-history-2000.webp"><img src="website/static/img/screens/web-history-1000.webp" width="100%" alt="Web history: Safari visits with a bar chart of the most visited sites."></a>

@@ -37,6 +37,34 @@ export function normPhone(s: string): string {
   return d.length >= 10 ? d.slice(-10) : d;
 }
 
+// How People tells one name from another: a name that is a number compares by its
+// digits ("+14065550109" and "(406) 555-0109" are one person), any other without case.
+const NUMBER_LIKE = /^[+\d\s().-]+$/;
+export function personKey(name: string): string {
+  if (NUMBER_LIKE.test(name)) {
+    const digits = normPhone(name);
+    if (digits.length >= 7) return digits;
+  }
+  return name.trim().toLowerCase();
+}
+
+/**
+ * A text, call or voicemail the address book had no name for: it has no name, or
+ * its name is only its own number or address. It isn't anyone by name, so it's
+ * whoever has that number, or another number on the same address-book card: People
+ * (gather.ts) counts it that way and the Timeline's person filter shows it that way.
+ * A group conversation never is one, whatever it's called: its id isn't a number.
+ */
+export function namedByNumber(e: PersonRow & { message?: { isGroup?: boolean } }): boolean {
+  const id = e.contactIdentifier;
+  if (!id || e.message?.isGroup) return false;
+  const name = e.contactName;
+  if (!name) return true;
+  // personKey(name) === personKey(id). A name that isn't a number can only equal the
+  // address written out, so that's compared straight away (this runs on every record).
+  return NUMBER_LIKE.test(name) ? personKey(name) === personKey(id) : name.trim().toLowerCase() === id.trim().toLowerCase();
+}
+
 // Returns true when two contact identifiers refer to the same entity.
 // Emails match whatever their case, as the picker merges them; then falls back
 // to normalised phone comparison.
@@ -90,18 +118,23 @@ export function getContactGroup(id: string, idMap: IdentifierGroupMap): Set<stri
 // The picker's list. Keyed by normalised phone / raw identifier so the same person
 // isn't listed twice when calls use "+15551234567" and messages use "5551234567".
 // The first name seen is the one listed, except that the address book's name (on
-// texts, calls or voicemail) wins over WhatsApp's for the same number.
+// texts, calls or voicemail) wins over WhatsApp's for the same number, and a real
+// name wins over the number itself ("Mom" over "+15035550123", whichever is read
+// first). People names a person the same way, so picking them matches what it counts.
 export function buildContactOptions(rows: PersonRow[]): ContactOption[] {
   const seen = new Map<string, ContactOption>();
-  const fromWhatsApp = new Set<string>();
+  const rankOf = new Map<string, number>();
+  const rank = (e: PersonRow) => isWhatsApp(e) ? 0 : namedByNumber(e) ? 1 : 2;
   for (const e of rows) {
     if (e.contactIdentifier && e.contactName) {
       const np = normPhone(e.contactIdentifier);
       const key = np.length >= 7 ? np : e.contactIdentifier.toLowerCase();
-      if (!seen.has(key) || (fromWhatsApp.has(key) && !isWhatsApp(e))) {
+      const was = rankOf.get(key);
+      if (was === 2) continue; // a real name, seen first: it stays
+      const r = rank(e);
+      if (was === undefined || r > was) {
         seen.set(key, { identifier: e.contactIdentifier, name: e.contactName });
-        if (isWhatsApp(e)) fromWhatsApp.add(key);
-        else fromWhatsApp.delete(key);
+        rankOf.set(key, r);
       }
     }
   }

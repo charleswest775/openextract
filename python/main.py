@@ -148,6 +148,7 @@ from device_backup import DeviceBackupManager  # noqa: E402
 from stats import StatsComputer  # noqa: E402
 from year_counts import YearCounter  # noqa: E402
 from bundle import BundleExporter  # noqa: E402
+from person_export import PersonExporter  # noqa: E402
 import backup_files  # noqa: E402
 import build_info  # noqa: E402
 
@@ -178,6 +179,10 @@ class SidecarServer:
         )
         self.bundle_exporter = BundleExporter(
             self.message_extractor, self.call_extractor, self.voicemail_extractor, self.photo_extractor,
+        )
+        self.person_exporter = PersonExporter(
+            self.message_extractor, self.whatsapp_extractor, self.call_extractor, self.voicemail_extractor,
+            self.note_extractor,
         )
 
         # Method dispatch table
@@ -212,6 +217,8 @@ class SidecarServer:
             "export_notes": self.export_notes,
             # Data bundle: a documented export any tool can read (docs/BUNDLE.md)
             "export_bundle": self.export_bundle,
+            # Everything with one person (the People screen's Save)
+            "export_person": self.export_person,
             # Browser history
             "has_browser_history": self.has_browser_history,
             "list_browser_history": self.list_browser_history,
@@ -381,10 +388,20 @@ class SidecarServer:
         )
 
     def get_attachment(self, params):
+        """A Messages attachment as base64; a picture's thumbnail (thumbnail); or a copy on disk to open or play (as_file).
+
+        A long video copied out of the backup reports open.progress as it goes,
+        so the app keeps waiting (messages.py: get_attachment).
+        """
         udid = params["udid"]
         attachment_id = params["attachment_id"]
+        thumbnail = bool(params.get("thumbnail", False))
+        as_file = bool(params.get("as_file", False))
         backup = self.backup_manager.get_open_backup(udid)
-        return self.message_extractor.get_attachment(backup, attachment_id)
+        return self.message_extractor.get_attachment(
+            backup, attachment_id, thumbnail=thumbnail, as_file=as_file,
+            on_progress=self._open_progress("messages") if as_file else None,
+        )
 
     def get_message_offset(self, params):
         """Where one message sits in its conversation, for opening the conversation at it."""
@@ -537,19 +554,27 @@ class SidecarServer:
         return self.voicemail_extractor.export_voicemails(backup, contacts, output_dir)
 
     def export_calls(self, params):
+        """Every call, as format 'csv' (default), 'html', 'txt' or 'pdf_source'
+        (Electron prints that to a PDF). Returns {success, path, file, count}."""
         udid = params["udid"]
         output_dir = params["output_dir"]
+        fmt = params.get("format", "csv")
         backup = self.backup_manager.get_open_backup(udid)
         contacts = self.contact_resolver.load_contacts(backup)
-        return self.call_extractor.export_calls_csv(backup, contacts, output_dir)
+        return self.call_extractor.export_calls(backup, contacts, output_dir, fmt)
 
     def export_notes(self, params):
+        """The notes in note_ids (every note when it's left out), one file each
+        (mode 'separate', the default) or all in one (mode 'merged'), as format
+        'pdf_source' (Electron prints it), 'html', 'txt' or 'pdf' (reportlab).
+        Returns {status, exported, files, count} and, merged, file."""
         udid = params["udid"]
-        note_ids = params["note_ids"]
+        note_ids = params.get("note_ids")
         fmt = params.get("format", "pdf")
+        mode = params.get("mode", "separate")
         output_dir = params["output_dir"]
         backup = self.backup_manager.get_open_backup(udid)
-        return self.note_extractor.export_notes(backup, note_ids, fmt, output_dir)
+        return self.note_extractor.export_notes(backup, note_ids, fmt, output_dir, mode)
 
     def export_bundle(self, params):
         """Save an OpenExtract Bundle (docs/BUNDLE.md) into a new folder in output_dir.
@@ -570,6 +595,39 @@ class SidecarServer:
             on_progress=self._export_progress("bundle"),
         )
 
+    def export_person(self, params):
+        """Save everything with one person: whole Messages and WhatsApp chats, calls, voicemails and
+        shared notes, merged by date, with every original file copied beside the save
+        (python/person_export.py).
+
+        params: output_dir; format ("html", "pdf_source", "csv" or "txt"); display_name;
+        chat_ids (sms.db chats) with conversation_names; whatsapp_chat_ids (ChatStorage chats,
+        never mixed with sms.db's: the ids overlap) with whatsapp_names; call_ids (as list_calls
+        gives them: 12, "ft_3", "vm_9"); voicemail_ids; note_ids (shared notes); message_ids and
+        whatsapp_message_ids (when given, only those messages of the chats; absent, whole chats);
+        media_dir (pdf_source: the folder the PDF goes in, which also gets the originals).
+        Progress goes out as export.progress with kind "person". Returns { file, message_count, counts, media, errors, media_folder? }.
+        """
+        udid = params["udid"]
+        backup = self.backup_manager.get_open_backup(udid)
+        contacts = self.contact_resolver.load_contacts(backup)
+        return self.person_exporter.export(
+            backup, contacts, params.get("output_dir"), params.get("format"),
+            display_name=params.get("display_name"),
+            chat_ids=params.get("chat_ids") or [],
+            conversation_names=params.get("conversation_names") or {},
+            whatsapp_chat_ids=params.get("whatsapp_chat_ids") or [],
+            whatsapp_names=params.get("whatsapp_names") or {},
+            call_ids=params.get("call_ids") or [],
+            voicemail_ids=params.get("voicemail_ids") or [],
+            note_ids=params.get("note_ids") or [],
+            # Only some of the chats' messages, when the screen picked them out; absent, whole chats
+            message_ids=params.get("message_ids"),
+            whatsapp_message_ids=params.get("whatsapp_message_ids"),
+            media_dir=params.get("media_dir"),
+            on_progress=self._export_progress("person"),
+        )
+
     # ── Browser history ──────────────────────────────────────────────────────
 
     def has_browser_history(self, params):
@@ -588,12 +646,15 @@ class SidecarServer:
         )
 
     def export_browser_history(self, params):
+        """Every visit (browser 'all', 'safari' or 'firefox'), as format 'csv'
+        (default), 'html', 'txt' or 'pdf_source'. Returns {success, path, file, count}."""
         udid = params["udid"]
         output_dir = params["output_dir"]
         browser = params.get("browser", "all")
+        fmt = params.get("format", "csv")
         backup = self.backup_manager.get_open_backup(udid)
-        return self.browser_history_extractor.export_browser_history_csv(
-            backup, output_dir, browser
+        return self.browser_history_extractor.export_browser_history(
+            backup, output_dir, browser, fmt
         )
 
     # ── WhatsApp ─────────────────────────────────────────────────────────────

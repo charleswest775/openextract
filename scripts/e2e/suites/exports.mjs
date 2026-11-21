@@ -8,21 +8,30 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { check, csvRows, launch, looksValid, pdfStats, sleep, timing } from '../harness.mjs';
 
-// Every kind on "Save to this computer" (ExportPanel's KINDS) with every format it offers.
-// scripts/e2e-coverage.test.mjs fails if ExportPanel gains a kind or format missing here.
+// Every kind on "Save to this computer" (ExportPanel's KINDS) with every format it offers, in
+// the order its dialog lists them: the kind's own format first, then PDF, web page, spreadsheet,
+// plain text (scripts/save-formats.test.mjs). scripts/e2e-coverage.test.mjs fails if ExportPanel
+// gains a kind or format missing here.
 export const PANEL_EXPORTS = {
-  messages: ['html', 'pdf', 'csv', 'txt'],
-  whatsapp: ['html', 'pdf', 'csv', 'txt'],
+  messages: ['pdf', 'html', 'csv', 'txt'],
+  whatsapp: ['pdf', 'html', 'csv', 'txt'],
   photos: ['originals'],
   contacts: ['vcf', 'csv'],
-  calls: ['csv'],
+  calls: ['pdf', 'html', 'csv', 'txt'],
   voicemail: ['audio'],
   podcasts: ['opml', 'csv'],
   voice_memos: ['recordings', 'csv'],
   calendar: ['ics', 'csv'],
-  notes: ['txt'],
-  browser_history: ['csv'],
+  notes: ['pdf', 'html', 'txt'],
+  browser_history: ['pdf', 'html', 'csv', 'txt'],
 };
+// The four core formats, in that order: what a list of records saves as.
+const RECORD = ['pdf', 'html', 'csv', 'txt'];
+const escapeHtml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+// Rows in a saved record page (python/record_document.py: a heading row, then one per record),
+// and lines in its plain text (one per record, starting with its date in brackets).
+const pageRows = file => (fs.readFileSync(file, 'utf-8').match(/<tr>/g) || []).length - 1;
+const textRecords = file => fs.readFileSync(file, 'utf-8').split('\n').filter(l => l.startsWith('[')).length;
 const PANEL_LABELS = {
   messages: 'Messages', whatsapp: 'WhatsApp', photos: 'Photos & videos', contacts: 'Address book', calls: 'Call history',
   voicemail: 'Voicemail', podcasts: 'Podcasts', voice_memos: 'Voice Memos', calendar: 'Calendar', notes: 'Notes',
@@ -149,7 +158,14 @@ export default {
           if (kind === 'photos') { const media = files.filter(f => /\.(jpe?g|heic|png|mov|mp4|gif)$/i.test(f)); pass = media.length === key.photos.length; detail = { media: media.length, want: key.photos.length }; }
           if (kind === 'contacts' && format === 'vcf') { const cards = files.map(f => (fs.readFileSync(path.join(dir, f), 'utf-8').match(/BEGIN:VCARD/g) || []).length).reduce((a, n) => a + n, 0); pass = cards === key.contacts.length; detail = { cards }; }
           if (kind === 'contacts' && format === 'csv') { const rows = csvRows(path.join(dir, files.find(f => ext(f) === 'csv'))); pass = rows === key.contacts.length; detail = { rows }; }
-          if (kind === 'calls') { const rows = csvRows(path.join(dir, files.find(f => ext(f) === 'csv'))); const shown = tiles.Calls; pass = rows === shown; detail = { rows, shown }; }
+          // Calls and web history: one file, a row (or line) per record, in every format
+          const records = (format, file) => (format === 'csv' ? csvRows(file) : format === 'html' ? pageRows(file) : format === 'txt' ? textRecords(file) : null);
+          if (kind === 'calls') {
+            const one = files.filter(f => ext(f) === format);
+            const rows = one.length === 1 ? records(format, path.join(dir, one[0])) : -1;
+            const shown = tiles.Calls;
+            pass = one.length === 1 && files.length === 1 && (rows === null || rows === shown); detail = { files, rows, shown };
+          }
           if (kind === 'voicemail') { const audio = files.filter(f => /\.(amr|m4a|wav|mp3|caf)$/i.test(f)); pass = audio.length === key.voicemails.length; detail = { audio: audio.length }; }
           if (kind === 'podcasts' && format === 'opml') {
             const opml = files.filter(f => ext(f) === 'opml');
@@ -160,6 +176,18 @@ export default {
             const shows = files.find(f => /^Podcasts( \(\d+\))?\.csv$/.test(f));
             const rows = shows ? csvRows(path.join(dir, shows)) : -1;
             pass = rows === podcasts.length && files.some(f => /^Podcast episodes( \(\d+\))?\.csv$/.test(f)); detail = { rows, want: podcasts.length, files };
+          }
+          if (kind === 'notes') {
+            // Every note in one file, Notes.<format>
+            const one = files.length === 1 && files[0] === `Notes.${format}`;
+            const text = one && format !== 'pdf' ? fs.readFileSync(path.join(dir, files[0]), 'utf-8') : '';
+            const missing = format === 'pdf' ? [] : key.notes.filter(n => !text.includes(format === 'html' ? escapeHtml(n.title) : n.title)).map(n => n.title);
+            pass = one && missing.length === 0; detail = { files, missing: missing.slice(0, 3), kb: Math.round(text.length / 1024) };
+          }
+          if (kind === 'browser_history') {
+            const one = files.filter(f => ext(f) === format);
+            const rows = one.length === 1 ? records(format, path.join(dir, one[0])) : -1;
+            pass = one.length === 1 && files.length === 1 && (rows === null || rows === key.browser_history.length); detail = { files, rows };
           }
           if (kind === 'voice_memos' && format === 'recordings') {
             // A "Voice Memos" folder: every recording whose audio is in the backup (deleted ones in
@@ -186,8 +214,6 @@ export default {
             const rows = sheet.length === 1 ? csvRows(path.join(dir, sheet[0])) : -1;
             pass = rows === events.length; detail = { rows, want: events.length };
           }
-          if (kind === 'notes') { const txt = fs.readFileSync(path.join(dir, files[0]), 'utf-8'); pass = key.notes.every(n => txt.includes(n.title)); detail = { kb: Math.round(txt.length / 1024) }; }
-          if (kind === 'browser_history') { const rows = csvRows(path.join(dir, files.find(f => ext(f) === 'csv'))); pass = rows === key.browser_history.length; detail = { rows }; }
           if (format === 'pdf') { const stats = files.map(f => pdfStats(path.join(dir, f))); pass = pass && stats.every(s => s.header && s.pages > 0); }
           ok(`Save panel: ${kind} as ${format}`, res, { pass, detail });
           await prompts();
@@ -234,7 +260,15 @@ export default {
       await app.open('Messages', /\d+ conversations/);
       await app.click('Karin Lindqvist');
       await sleep(1500);
-      for (const format of ['html', 'pdf', 'csv', 'txt']) {
+      {
+        // PDF first, and preselected (the home page's "Save a conversation as a PDF" opens this)
+        await app.click('Save conversation');
+        const offered = await app.saveFormats();
+        const picked = await app.eval(() => document.querySelector('[role=dialog] input[name=save-format]:checked')?.value);
+        check('Save conversation offers PDF, web page, spreadsheet, plain text, PDF picked', offered?.join() === RECORD.join() && picked === 'pdf', { offered, picked });
+        await app.eval(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+      }
+      for (const format of RECORD) {
         const dir = path.join(root, `conversation-${format}`);
         const res = await run(dir, 'Save conversation', format);
         timing(`export one conversation ${format}`, res.ms ?? 0);
@@ -287,43 +321,59 @@ export default {
       }
 
       // ── Each screen's own Save button ──
+      // formats: what its dialog offers, in order ([null]: it saves straight away, no dialog)
       const screens = [
-        { name: 'Notes', ready: /\d+ notes?/, button: 'Save note', formats: ['pdf', 'txt'] },
+        { name: 'Notes', ready: /\d+ notes?/, button: 'Save note', formats: ['pdf', 'html', 'txt'] },
         { name: 'Address book', ready: /\d+ cards?/, button: 'Save contacts', formats: ['vcf', 'csv'] },
-        { name: 'Calls', ready: /\d+ calls?/, button: 'Save', formats: [null] },
+        { name: 'Calls', ready: /\d+ calls?/, button: 'Save', formats: RECORD },
         { name: 'Voicemail', ready: /\d+ voicemails?/, button: 'Save all', formats: [null] },
-        { name: 'Web history', ready: /Most Visited Sites|Browsing Activity/, button: 'Save all', formats: [null] },
-        { name: 'Timeline', ready: /[\d,]+ events/, button: 'Save', formats: ['html', 'csv', 'md'] },
+        { name: 'Web history', ready: /Most Visited Sites|Browsing Activity/, button: 'Save all', formats: RECORD },
+        { name: 'Timeline', ready: /[\d,]+ events/, button: 'Save', formats: RECORD },
         // Only on a backup with a Podcasts library
         ...(podcasts.length ? [{ name: 'Podcasts', ready: /\d+ podcasts?/, button: 'Save', formats: ['opml', 'csv'] }] : []),
         // Only with voice memos, and with calendar events (from All calendars: every calendar)
         ...(memos.length ? [{ name: 'Voice Memos', ready: /\d+ recordings?/, button: 'Save', formats: withAudio.length ? ['recordings', 'csv'] : ['csv'] }] : []),
         ...(events.length ? [{ name: 'Calendar', ready: /\d+ events?/, button: 'Save', formats: ['ics', 'csv'] }] : []),
       ];
+      const clickSave = label => app.eval(label => {
+        const el = [...document.querySelectorAll('button')].filter(b => !b.closest('.titlebar') && !b.disabled).find(b => b.textContent.trim() === label);
+        el?.click();
+        return !!el;
+      }, label);
       for (const s of screens) {
+        if (s.formats[0] !== null) {
+          // The dialog lists exactly these, in this order
+          await app.open(s.name, s.ready);
+          if (s.name === 'Notes') await app.click([...key.notes].sort((a, z) => z.modified.localeCompare(a.modified))[0].title);
+          await clickSave(s.button);
+          const offered = await app.saveFormats();
+          check(`${s.name} screen: Save offers ${s.formats.join(', ')}`, offered?.join() === s.formats.join(), offered);
+          await app.eval(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+        }
         for (const format of s.formats) {
           await app.open(s.name, s.ready);
           if (s.name === 'Notes') await app.click([...key.notes].sort((a, z) => z.modified.localeCompare(a.modified))[0].title);
           const dir = path.join(root, `screen-${s.name.replace(/\W+/g, '-').toLowerCase()}-${format ?? 'default'}`);
-          const res = await run(dir, () => app.eval(label => {
-            const el = [...document.querySelectorAll('button')].filter(b => !b.closest('.titlebar') && !b.disabled).find(b => b.textContent.trim() === label);
-            el?.click();
-            return !!el;
-          }, s.button), format ?? undefined);
+          const res = await run(dir, () => clickSave(s.button), format ?? undefined);
           timing(`export from ${s.name} ${format ?? ''}`.trim(), res.ms ?? 0);
-          ok(`${s.name} screen: Save${format ? ` as ${format}` : ''}`, res);
+          // One file in the format asked for (voicemail: audio and its list; voice memo recordings: their audio)
+          const inFormat = format === 'recordings' ? res.files.filter(f => /\.(m4a|qta|qt)$/i.test(f))
+            : format ? res.files.filter(f => path.extname(f).slice(1).toLowerCase() === format) : res.files;
+          const pdfOk = format !== 'pdf' || inFormat.every(f => pdfStats(path.join(dir, f)).pages > 0);
+          ok(`${s.name} screen: Save${format ? ` as ${format}` : ''}`, res, { pass: inFormat.length >= 1 && pdfOk, detail: { files: res.files.slice(0, 5) } });
           await prompts();
         }
       }
 
-      // People: a person's whole history.
-      for (const format of ['html', 'csv', 'md']) {
+      // People: a person's whole history, in the four core formats (PDF first).
+      for (const format of RECORD) {
         await app.open('People', /Most in touch first/);
         await app.click('Theo Navarro');
         await app.waitForText(/Save everything/, 10_000);
         const dir = path.join(root, `people-${format}`);
         const res = await run(dir, 'Save everything', format);
-        ok(`People: a person's history as ${format}`, res, { pass: res.files.length === 1 });
+        const page = res.files.filter(f => f.endsWith(`.${format}`) && !f.includes('/'));
+        ok(`People: a person's history as ${format}`, res, { pass: page.length === 1, detail: { files: res.files.slice(0, 5) } });
         await prompts();
       }
 
@@ -341,14 +391,15 @@ export default {
       await app.click('Look for deleted messages');
       await app.waitForText(/Nothing to recover|Pick a conversation|recovered|found/, 120_000);
       if (!/Nothing to recover/.test(await app.text())) {
-        for (const format of ['html', 'pdf', 'csv']) {
+        for (const format of RECORD) {
           const dir = path.join(root, `recovered-${format}`);
           const res = await run(dir, () => app.eval(() => {
             const el = [...document.querySelectorAll('button')].find(b => /^Save/.test(b.textContent.trim()) && !b.closest('.titlebar'));
             el?.click();
             return !!el;
           }), format);
-          ok(`recovered messages as ${format}`, res);
+          const one = res.files.length === 1 && res.files[0] === `recovered_messages.${format}`;
+          ok(`recovered messages as ${format}`, res, { pass: one, detail: { files: res.files } });
         }
       } else {
         check('recovered messages: nothing to recover in this backup, so nothing to save', true);

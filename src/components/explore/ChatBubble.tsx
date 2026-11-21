@@ -1,10 +1,10 @@
-import { useState, useEffect, type ComponentType } from 'react';
-import { Ban, ChartColumn, Eye, MapPin, Phone, PhoneMissed, Star, UserRound, Video } from 'lucide-react';
+import type { ComponentType } from 'react';
+import { Ban, ChartColumn, Eye, MapPin, Paperclip, Phone, PhoneMissed, Star, UserRound, Video } from 'lucide-react';
 import { formatDateTime, formatTime } from '../../lib/dates';
-import { sidecarCall } from '../../lib/ipc';
 import { eventLabel } from '../../lib/messageEvents';
 import {
-  callLength, callTitle, formatCoordinates, groupReactions, isMissedCall, quoteSender, quoteText, readVcard,
+  attachmentKind, callLength, callTitle, documentName, formatCoordinates, groupReactions, isMissedCall, quoteSender,
+  quoteText, readVcard,
 } from '../../lib/whatsapp';
 import type { WhatsAppCall, WhatsAppLocation, WhatsAppQuote, WhatsAppReaction } from '../../types/whatsapp';
 import Highlight from '../shared/Highlight';
@@ -20,8 +20,12 @@ export interface BubbleAttachment {
   width?: number | null;
   height?: number | null;
   duration?: number | null;
-  /** WhatsApp: whether the file is in the backup. */
+  /** Whether the file is in the backup (WhatsApp, and Messages from the engine's Manifest check). */
   available?: boolean;
+  /** Messages: the file's type as Apple names it ("public.jpeg", "com.apple.coreaudio-format"). */
+  uti?: string | null;
+  /** Messages: a sticker someone placed. */
+  is_sticker?: boolean;
 }
 
 /**
@@ -79,7 +83,11 @@ interface Props {
    * the default.
    */
   variant?: 'messages' | 'whatsapp';
-  /** How attachments are shown. Each source fetches its own files: ids from different databases collide. */
+  /**
+   * How attachments are shown (MediaAttachment.tsx's MessagesAttachment or WhatsAppAttachment).
+   * Each source fetches its own files: ids from different databases collide. Without one,
+   * a file's name is shown and nothing is fetched.
+   */
   Attachment?: ComponentType<AttachmentProps>;
   /** The map preview for a shared location (WhatsApp). */
   MapPreview?: ComponentType<MapPreviewProps>;
@@ -89,64 +97,18 @@ interface Props {
   showDate?: boolean;
 }
 
-const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.heic', '.heif', '.webp', '.bmp', '.tiff', '.tif'];
-
-function isImageAttachment(a: BubbleAttachment): boolean {
-  if (a.mime_type?.startsWith('image/')) return true;
-  const name = (a.transfer_name || a.filename || '').toLowerCase();
-  return IMAGE_EXTENSIONS.some(ext => name.endsWith(ext));
-}
-
-/** Messages' attachments (sms.db ids, get_attachment): photos inline, other files by name. */
-function AttachmentItem({ udid, attachment, isMine }: AttachmentProps) {
-  const [data, setData] = useState<string | null>(null);
-  const [error, setError] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!isImageAttachment(attachment)) return;
-    setLoading(true);
-    sidecarCall<{ data: string; mime_type: string; filename: string }>(
-      'get_attachment',
-      { udid, attachment_id: attachment.attachment_id }
-    ).then((result) => {
-      setData(`data:${result.mime_type};base64,${result.data}`);
-    }).catch(() => {
-      setError(true);
-    }).finally(() => {
-      setLoading(false);
-    });
-  }, [udid, attachment]);
-
-  if (!isImageAttachment(attachment)) {
-    return (
-      <div className={`text-xs truncate ${isMine ? 'text-white/75' : 'text-text-tertiary'}`}>
-        📎 {attachment.transfer_name || attachment.filename}
-      </div>
-    );
-  }
-
-  if (loading) {
-    return <div className={`text-xs italic ${isMine ? 'text-white/75' : 'text-text-tertiary'}`}>Loading…</div>;
-  }
-
-  if (error || !data) {
-    return (
-      <div className={`text-xs italic ${isMine ? 'text-white/75' : 'text-text-tertiary'}`}>
-        {attachment.transfer_name || attachment.filename}
-      </div>
-    );
-  }
-
+/** A file shown by its name only, for a bubble with no source to read files from (a recovered message). */
+function FileName({ attachment, isMine }: AttachmentProps) {
   return (
-    <img
-      src={data}
-      alt={attachment.transfer_name || 'Attachment'}
-      className="rounded-lg max-h-64 max-w-full object-contain mt-1"
-      onError={() => setError(true)}
-    />
+    <div className={`flex items-center gap-1 text-xs ${isMine ? 'text-white/75' : 'text-text-tertiary'}`}>
+      <Paperclip size={12} className="flex-shrink-0" />
+      <span className="truncate">{documentName(attachment) || attachment.transfer_name || 'Attachment'}</span>
+    </div>
   );
 }
+
+// What Messages draws on its own, without a bubble around it, when a message is only those
+const BARE_KINDS = new Set(['image', 'video', 'gif', 'sticker']);
 
 /** A reply's quote: who and what, and a way to go to it when it's in this chat. */
 function Quote({ quote, isMine, onClick }: { quote: WhatsAppQuote; isMine: boolean; onClick?: (id: number) => void }) {
@@ -277,7 +239,7 @@ function Reactions({ reactions, isMine }: { reactions: WhatsAppReaction[]; isMin
 
 export default function ChatBubble({
   message, showSender, udid, query = '', current = false, variant = 'messages',
-  Attachment = AttachmentItem, MapPreview, onQuoteClick, showDate = false,
+  Attachment = FileName, MapPreview, onQuoteClick, showDate = false,
 }: Props) {
   if (message.is_reaction) return null;
 
@@ -306,8 +268,11 @@ export default function ChatBubble({
   // Rows WhatsApp draws as something other than text
   const contact = wa && (type === 'contact' || !!message.vcard);
   const special = !!message.call || !!message.location || contact || (wa && ['deleted', 'poll', 'view_once'].includes(type));
-  // A sticker on its own is drawn without a bubble around it, as WhatsApp does
-  const bare = wa && type === 'sticker' && !message.text && attachments.length > 0;
+  // A sticker on its own is drawn without a bubble around it, as WhatsApp does; Messages
+  // draws photos, videos and stickers sent on their own that way too
+  const bare = !message.text && attachments.length > 0 && (wa
+    ? type === 'sticker'
+    : attachments.every(a => BARE_KINDS.has(attachmentKind(a, type, 'messages'))));
   // Messages puts the text above its files; WhatsApp shows a photo with its caption under it
   const text = message.text && !contact && !(wa && type === 'deleted') ? (
     <p className={`text-sm whitespace-pre-wrap break-words ${wa && type === 'poll' ? 'mt-1 font-medium' : ''} ${wa && attachments.length > 0 ? 'mt-1.5' : ''}`}>
@@ -317,7 +282,8 @@ export default function ChatBubble({
   const files = attachments.length > 0 ? (
     <div className={bare || (wa && !message.quoted) ? '' : 'mt-1 space-y-1'}>
       {attachments.map((a) => (
-        <Attachment key={a.attachment_id} udid={udid} attachment={a} isMine={isMine} messageType={type} />
+        // Outside a bubble a file sits on the page, not on the bubble's colour
+        <Attachment key={a.attachment_id} udid={udid} attachment={a} isMine={isMine && !bare} messageType={type} />
       ))}
     </div>
   ) : null;

@@ -47,3 +47,18 @@ export async function handOver(r: CopiedFile | null | undefined, files: FileHand
   const problem = await files.openPath(r.path);
   return problem ? `Couldn't open it: ${problem}` : null;
 }
+
+/**
+ * The address the window plays a copied video or sound from, in its own player:
+ * local-media://media/<the copy's path>, each part percent-encoded, since a
+ * name can hold spaces, "#", "%" or anything else. The main process serves
+ * only files inside the engine's copy folders (electron/localMedia.ts), so
+ * this is only for a `path` the engine answered with.
+ */
+export function localMediaUrl(filePath: string): string {
+  // Windows paths ("C:\Users\...", "\\server\share\...") are split at either slash; elsewhere a
+  // backslash can be part of a name
+  const windows = /^[A-Za-z]:[\\/]/.test(filePath) || filePath.startsWith('\\\\');
+  const parts = filePath.split(windows ? /[\\/]+/ : /\/+/).filter(Boolean);
+  return `local-media://media/${parts.map(encodeURIComponent).join('/')}`;
+}

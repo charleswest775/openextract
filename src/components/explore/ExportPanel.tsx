@@ -8,9 +8,9 @@ import {
   type BundleChoice, type BundleResult,
 } from '../../lib/bundle';
 import {
-  checkEngineResult, contactsToCsv, contactsToVcard, notesToText, plural, saveCalendar, saveConversations, savePodcasts,
-  saveTextFile, saveVoiceMemos, saveWhatsAppChats,
-  type ContactRecord, type ConversationFormat, type NoteRecord, type SaveResult,
+  checkEngineResult, contactsToCsv, contactsToVcard, plural, saveAllNotes, saveBrowserHistory, saveCalendar, saveCalls,
+  saveConversations, savePodcasts, saveTextFile, saveVoiceMemos, saveWhatsAppChats,
+  type ContactRecord, type ConversationFormat, type NotesFormat, type RecordFormat, type SaveResult,
 } from '../../lib/saveData';
 import type { WhatsAppChatsResult } from '../../types/whatsapp';
 import type { PodcastSaveFormat } from '../../types/podcasts';
@@ -53,12 +53,12 @@ const KINDS: KindInfo[] = [
   {
     id: 'messages', label: 'Messages', icon: LinesIcon, count: o => o.total_messages,
     what: n => `${n != null ? `All ${plural(n, 'message')}` : 'Every conversation'}, with names and dates`,
-    formats: [FORMATS.html, FORMATS.pdf, FORMATS.csv, FORMATS.txt],
+    formats: [FORMATS.pdf, FORMATS.html, FORMATS.csv, FORMATS.txt],
   },
   {
     id: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon, count: o => o.total_whatsapp_messages ?? 0,
     what: n => `${n != null ? `All ${plural(n, 'WhatsApp message')}` : 'Every WhatsApp chat'}, with names, dates, photos and replies`,
-    formats: [FORMATS.html, FORMATS.pdf, FORMATS.csv, FORMATS.txt],
+    formats: [FORMATS.pdf, FORMATS.html, FORMATS.csv, FORMATS.txt],
     title: 'WhatsApp chats',
   },
   {
@@ -80,7 +80,7 @@ const KINDS: KindInfo[] = [
   {
     id: 'calls', label: 'Call history', icon: CallIcon, count: o => o.total_calls,
     what: n => `${n != null ? plural(n, 'call') : 'Every call'}, with who, when and how long`,
-    formats: [FORMATS.csv],
+    formats: [FORMATS.pdf, FORMATS.html, FORMATS.csv, FORMATS.txt],
   },
   {
     id: 'voicemail', label: 'Voicemail', icon: VoicemailIcon, count: o => o.total_voicemails,
@@ -107,21 +107,15 @@ const KINDS: KindInfo[] = [
   },
   {
     id: 'notes', label: 'Notes', icon: NoteIcon, count: o => o.total_notes,
-    what: n => `${n != null ? plural(n, 'note') : 'Every note'}, in one text file`,
-    formats: [FORMATS.txt],
+    what: n => `${n != null ? plural(n, 'note') : 'Every note'}, in one file`,
+    formats: [FORMATS.pdf, FORMATS.html, FORMATS.txt],
   },
   {
     id: 'browser_history', label: 'Web history', icon: GlobeIcon,
     what: () => 'Every page visited, with titles and dates',
-    formats: [FORMATS.csv],
+    formats: [FORMATS.pdf, FORMATS.html, FORMATS.csv, FORMATS.txt],
   },
 ];
-
-// The bundle's one "format", for the Save dialog
-const BUNDLE_FORMAT = {
-  id: 'bundle', label: 'Data bundle (experimental)',
-  detail: 'JSON files, copies of the files you tick, and a SHA-256 integrity check, in one folder',
-};
 
 // "Web page, readable document, spreadsheet or plain text"
 function formatChoices(formats: SaveFormat[]): string {
@@ -206,16 +200,13 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
         });
         return path ? { title: `Saved ${plural(contacts.length, 'contact')}`, path } : null;
       }
-      case 'notes': {
-        const { notes } = await sidecarCall<{ notes: NoteRecord[] }>('list_notes', { udid });
-        const path = await saveTextFile({
-          title: 'Save notes',
-          defaultName: 'Notes.txt',
-          filter: { name: 'Text', extensions: ['txt'] },
-          content: notesToText(notes),
-        });
-        return path ? { title: `Saved ${plural(notes.length, 'note')}`, path } : null;
-      }
+      case 'notes':
+        // Every note in one file, written by the engine (the Notes screen saves one at a time)
+        return saveAllNotes(udid, format as NotesFormat);
+      case 'calls':
+        return saveCalls(udid, format as RecordFormat);
+      case 'browser_history':
+        return saveBrowserHistory(udid, format as RecordFormat);
       case 'podcasts':
         // The engine writes the files: subscriptions (OPML), or shows and episodes (CSV)
         return savePodcasts(udid, format as PodcastSaveFormat);
@@ -270,21 +261,11 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
         }));
         return { title: 'Saved photos and videos', detail: photoExportSummary(result), path: outputDir + '/Photos' };
       }
-      case 'calls': {
-        const result = checkEngineResult(await sidecarCall<{ path: string; count: number }>('export_calls', { udid, output_dir: outputDir }));
-        return { title: `Saved ${plural(result.count, 'call')}`, path: result.path };
-      }
       case 'voicemail': {
         const result = checkEngineResult(await sidecarCall<{ exported: number; path?: string }>(
           'export_voicemails', { udid, output_dir: outputDir + '/Voicemails' },
         ));
         return { title: `Saved ${plural(result.exported, 'voicemail')}`, path: result.path ?? outputDir + '/Voicemails' };
-      }
-      case 'browser_history': {
-        const result = checkEngineResult(await sidecarCall<{ path: string; count: number }>(
-          'export_browser_history', { udid, output_dir: outputDir },
-        ));
-        return { title: `Saved ${plural(result.count, 'page visit')}`, path: result.path };
       }
       default:
         return null;
@@ -362,12 +343,13 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
           {(choosing.id === 'messages' || choosing.id === 'whatsapp') && (
             <ConversationModeChoice mode={mode} onChange={setMode} noun={choosing.id === 'whatsapp' ? 'chat' : 'conversation'} />
           )}
+          {choosing.id === 'notes' && <p className="text-xs text-text-secondary">Every note goes in one file.</p>}
         </SaveDialog>
       )}
       {bundleChoice && (
         <SaveDialog
           title="Export a data bundle"
-          formats={[BUNDLE_FORMAT]}
+          formats={[FORMATS.bundle]}
           canSave={bundleChoice.kinds.size > 0}
           onSave={() => saveBundle(bundleChoice)}
           onCancel={() => setBundleChoice(null)}

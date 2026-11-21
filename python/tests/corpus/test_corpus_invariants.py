@@ -238,15 +238,28 @@ def test_attachments_resolve_or_are_really_missing(ctx):
     problems = []
     for attachment in attachments[:ATTACHMENT_SAMPLE]:
         result = ctx.rpc("get_attachment", attachment_id=attachment["attachment_id"])
+        relative = _relative_attachment_path(attachment.get("filename") or "")
+        in_backup = bool(relative) and (ctx.raw.has_file("MediaDomain", relative)
+                                        or ctx.raw.has_file("HomeDomain", relative))
+        # get_messages says so up front (a public backup's folder holds every file it lists)
+        if "available" in attachment and attachment["available"] is not in_backup:
+            problems.append(f"attachment {attachment['attachment_id']}: get_messages says available="
+                            f"{attachment['available']!r} but the file is {'' if in_backup else 'not '}in the backup")
         if "data" in result:
             if not result["data"] or not base64.b64decode(result["data"]):
                 problems.append(f"attachment {attachment['attachment_id']}: empty data")
             continue
+        if result.get("too_large"):
+            # Too big to send in one answer: the app opens a copy instead (as_file)
+            if not (isinstance(result.get("size"), int) and result["size"] > 0):
+                problems.append(f"attachment {attachment['attachment_id']}: too_large without a size: {result}")
+            continue
         error = result.get("error")
-        relative = _relative_attachment_path(attachment.get("filename") or "")
-        in_backup = relative and (ctx.raw.has_file("MediaDomain", relative) or ctx.raw.has_file("HomeDomain", relative))
         if in_backup:
             problems.append(f"attachment {attachment['attachment_id']}: reported {error!r} but the file is in the backup")
+        elif result.get("empty_reason") != "not_in_backup":
+            problems.append(f"attachment {attachment['attachment_id']}: a file not in the backup should say "
+                            f"empty_reason 'not_in_backup', not {result}")
     assert not problems, "\n".join(problems)
 
 

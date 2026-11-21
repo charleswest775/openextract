@@ -5,9 +5,16 @@ contextBridge.exposeInMainWorld('openextract', {
   call: (method: string, params?: any) =>
     ipcRenderer.invoke('sidecar:call', method, params || {}),
 
-  // Export conversations or WhatsApp chats as PDF (rendered by the main process)
-  exportPdf: (method: 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats', params: any) =>
-    ipcRenderer.invoke('export:pdf', method, params),
+  // Save an engine export as PDF (printed by the main process from the engine's print-ready page)
+  exportPdf: (
+    method: 'export_conversation' | 'export_conversations' | 'export_whatsapp_chat' | 'export_whatsapp_chats'
+      | 'export_person' | 'export_notes' | 'export_calls' | 'export_browser_history' | 'export_recovered_messages',
+    params: any,
+  ) => ipcRenderer.invoke('export:pdf', method, params),
+
+  // Print a page the window built (the Timeline) to <outputDir>/<baseName>.pdf, never overwriting
+  exportHtmlPdf: (html: string, outputDir: string, baseName: string) =>
+    ipcRenderer.invoke('export:pdf-html', html, outputDir, baseName),
 
   // Native dialogs
   selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
@@ -28,6 +35,9 @@ contextBridge.exposeInMainWorld('openextract', {
 
   // Reveal a saved file or folder in Finder / Explorer
   showInFolder: (filePath: string) => ipcRenderer.invoke('shell:showItemInFolder', filePath),
+
+  // A video's poster frame from a copy the engine made: a data: URL, or null (Linux, or it can't be drawn)
+  mediaThumbnail: (filePath: string, size?: number) => ipcRenderer.invoke('media:thumbnail', filePath, size),
 
   // 'darwin', 'win32' or 'linux', for platform-specific window chrome
   platform: process.platform,

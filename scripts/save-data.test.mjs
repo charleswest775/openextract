@@ -1,7 +1,8 @@
 // Tests for "Save to this computer" (src/lib/saveData.ts): the contacts CSV and
-// vCard, the notes text file, the engine's export results, and the save flow.
+// vCard, the engine's export results, and the save flow for conversations, chats,
+// notes, calls, web history, recovered messages, podcasts and the Timeline.
 // Contacts are shaped like list_contacts returns them; export results like
-// python/messages.py export_conversation(s).
+// python/messages.py export_conversation(s), python/notes.py, calls.py and so on.
 // Run with: node --test scripts/save-data.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,7 +16,8 @@ function loadWith(t, handlers = {}) {
   return { lib: loadTs('src/lib/saveData.ts'), calls: bridge.calls };
 }
 const lib = loadTs('src/lib/saveData.ts');
-const { checkEngineResult, csvEscape, plural, contactsToCsv, contactsToVcard, notesToText } = lib;
+const { checkEngineResult, csvEscape, plural, contactsToCsv, contactsToVcard } = lib;
+const BOM = '\uFEFF';
 
 /** RFC 4180 reader: quoted fields, doubled quotes, line breaks inside quotes. */
 function parseCsv(text) {
@@ -110,7 +112,9 @@ test('contacts CSV reads back field for field', () => {
   ];
   const csv = contactsToCsv(contacts);
   assert.ok(!csv.endsWith('\n'));
-  const rows = parseCsv(csv);
+  // A byte-order mark first, so Excel reads it as UTF-8
+  assert.ok(csv.startsWith(BOM));
+  const rows = parseCsv(csv.slice(1));
   assert.deepEqual(rows[0], ['First Name', 'Last Name', 'Display Name', 'Organization', 'Phone Numbers', 'Email Addresses', 'Notes']);
   assert.equal(rows.length, 5);
   for (const r of rows) assert.equal(r.length, 7);
@@ -121,7 +125,7 @@ test('contacts CSV reads back field for field', () => {
   ]);
   assert.deepEqual(rows[2].slice(0, 5), ['محمد', 'العلي', 'محمد العلي', '', '+971 50 123 4567']);
   assert.deepEqual(rows[4], ['No', 'Lists', '', '', '', '', '']);
-  assert.equal(contactsToCsv([]), '"First Name","Last Name","Display Name","Organization","Phone Numbers","Email Addresses","Notes"');
+  assert.equal(contactsToCsv([]), `${BOM}"First Name","Last Name","Display Name","Organization","Phone Numbers","Email Addresses","Notes"`);
 });
 
 test('vCard: one card per contact, CRLF lines, text escaped per vCard 3.0', () => {
@@ -158,20 +162,6 @@ test('vCard name falls back to first and last, then the organization', () => {
   assert.equal(cards[0].NOTE, undefined);
   assert.deepEqual(cards[2].ORG, ['Alderbrook Vet']);
   assert.equal(contactsToVcard([]), '\r\n');
-});
-
-test('notes text file: a header per note, separated by a rule, with local dates', () => {
-  // Instants at these local clock times, as UTC the way the engine sends them: the
-  // file shows the local time, so an evening edit isn't dated the next day.
-  const engine = (...args) => new Date(...args).toISOString().replace('Z', '+00:00');
-  const text = notesToText([
-    { title: 'Groceries', body: 'eggs\nflour', created: engine(2024, 2, 10, 9, 59, 59), modified: engine(2024, 2, 11, 22, 30) },
-    { title: 'שלום 🎉', body: '', created: '', modified: 'sometime' },
-  ]);
-  const [first, second] = text.split('\n\n' + '-'.repeat(60) + '\n\n');
-  assert.equal(first, `Title: Groceries\nCreated: Mar 10, 2024, 9:59 AM\nModified: Mar 11, 2024, 10:30 PM\n${'='.repeat(40)}\n\neggs\nflour`);
-  assert.equal(second, `Title: שלום 🎉\nCreated: Unknown date\nModified: sometime\n${'='.repeat(40)}\n\n`);
-  assert.equal(notesToText([]), '');
 });
 
 test('plural', () => {
@@ -529,6 +519,255 @@ test('savePodcasts: nothing to save, or a library that can\'t be read, is report
   await assert.rejects(save.savePodcasts('u', 'opml'), { message: "The Podcasts library couldn't be read." });
   data = null;
   await assert.rejects(save.savePodcasts('u', 'opml'), { message: 'The engine stopped.' });
+});
+
+// ── Notes, calls, web history, recovered messages: the engine writes every format ──
+
+const ENGINE_FILE = (params, base, count) => ({
+  success: true,
+  data: { success: true, path: `${params.output_dir}/${base}.${params.format}`, file: `${params.output_dir}/${base}.${params.format}`, count },
+});
+
+test('saveNote: one note in the chosen format, the PDF through the PDF exporter', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => '/Users/jane/Desktop',
+    call: async (_m, p) => ({ success: true, data: { status: 'ok', exported: [`${p.output_dir}/Groceries.${p.format}`], files: [`${p.output_dir}/Groceries.${p.format}`], count: 1 } }),
+    exportPdf: async () => ({ success: true, data: { files: ['/Users/jane/Desktop/Groceries.pdf'], message_count: 0, count: 1 } }),
+  });
+  const note = { note_id: 'x7', title: 'Groceries' };
+  assert.deepEqual(await save.saveNote('u', note, 'html'), { title: 'Saved "Groceries"', path: '/Users/jane/Desktop/Groceries.html' });
+  assert.deepEqual(calls[1], ['call', 'export_notes', { udid: 'u', note_ids: ['x7'], output_dir: '/Users/jane/Desktop', format: 'html' }]);
+  assert.deepEqual(await save.saveNote('u', note, 'pdf'), { title: 'Saved "Groceries"', path: '/Users/jane/Desktop/Groceries.pdf' });
+  assert.deepEqual(calls[3], ['exportPdf', 'export_notes', { udid: 'u', note_ids: ['x7'], output_dir: '/Users/jane/Desktop' }]);
+  assert.equal((await save.saveNote('u', { note_id: 1, title: '' }, 'txt')).title, 'Saved "Untitled"');
+});
+
+test('saveAllNotes: every note in one file, merged by the engine', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => 'D:\\Exports',
+    call: async (_m, p) => ({ success: true, data: { status: 'ok', exported: [`D:\\Exports\\Notes.${p.format}`], files: [`D:\\Exports\\Notes.${p.format}`], file: `D:\\Exports\\Notes.${p.format}`, count: 1234 } }),
+    exportPdf: async () => ({ success: true, data: { files: ['D:\\Exports\\Notes.pdf'], message_count: 0, count: 2 } }),
+  });
+  const txt = await save.saveAllNotes('u', 'txt');
+  assert.deepEqual(calls[1], ['call', 'export_notes', { udid: 'u', output_dir: 'D:\\Exports', mode: 'merged', format: 'txt' }]);
+  assert.deepEqual(txt, { title: `Saved ${(1234).toLocaleString()} notes`, detail: 'In one file', path: 'D:\\Exports\\Notes.txt' });
+  const pdf = await save.saveAllNotes('u', 'pdf');
+  assert.deepEqual(calls[3], ['exportPdf', 'export_notes', { udid: 'u', output_dir: 'D:\\Exports', mode: 'merged' }]);
+  assert.deepEqual(pdf, { title: 'Saved 2 notes', detail: 'In one file', path: 'D:\\Exports\\Notes.pdf' });
+});
+
+test('saving notes reports what the engine says went wrong', async t => {
+  let data = { status: 'error', message: 'No matching notes found.' };
+  const { lib: save } = loadWith(t, { saveFolder: async () => '/tmp/out', call: async () => ({ success: true, data }) });
+  await assert.rejects(save.saveAllNotes('u', 'html'), { message: 'No matching notes found.' });
+  data = { error: 'Unsupported format: docx' };
+  await assert.rejects(save.saveNote('u', { note_id: 1, title: 'x' }, 'docx'), { message: 'Unsupported format: docx' });
+});
+
+test('saveCalls and saveBrowserHistory: every record, in any format, from the engine', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => '/Users/jane/Desktop',
+    call: async (method, p) => ENGINE_FILE(p, method === 'export_calls' ? 'call_history' : 'browser_history_export', method === 'export_calls' ? 1 : 2500),
+    exportPdf: async method => ({ success: true, data: { files: [`/Users/jane/Desktop/${method}.pdf`], message_count: 0, count: 7 } }),
+  });
+  assert.deepEqual(await save.saveCalls('u', 'csv'), { title: 'Saved 1 call', path: '/Users/jane/Desktop/call_history.csv' });
+  assert.deepEqual(calls[1], ['call', 'export_calls', { udid: 'u', output_dir: '/Users/jane/Desktop', format: 'csv' }]);
+  assert.deepEqual(await save.saveCalls('u', 'pdf'), { title: 'Saved 7 calls', path: '/Users/jane/Desktop/export_calls.pdf' });
+  assert.deepEqual(calls[3], ['exportPdf', 'export_calls', { udid: 'u', output_dir: '/Users/jane/Desktop' }]);
+  assert.deepEqual(await save.saveBrowserHistory('u', 'txt'), {
+    title: `Saved ${(2500).toLocaleString()} page visits`, path: '/Users/jane/Desktop/browser_history_export.txt',
+  });
+  assert.deepEqual(calls[5], ['call', 'export_browser_history', { udid: 'u', output_dir: '/Users/jane/Desktop', format: 'txt' }]);
+  assert.deepEqual(await save.saveBrowserHistory('u', 'pdf'), { title: 'Saved 7 page visits', path: '/Users/jane/Desktop/export_browser_history.pdf' });
+});
+
+test('saveCalls and saveBrowserHistory: nothing to save is an error, cancelling saves nothing', async t => {
+  let folder = '/tmp/out';
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => folder,
+    call: async method => ({ success: true, data: { success: false, error: method === 'export_calls' ? 'No calls found to export.' : 'No browser history found to export.' } }),
+  });
+  await assert.rejects(save.saveCalls('u', 'html'), { message: 'No calls found to export.' });
+  await assert.rejects(save.saveBrowserHistory('u', 'csv'), { message: 'No browser history found to export.' });
+  folder = null;
+  const before = calls.length;
+  assert.equal(await save.saveCalls('u', 'pdf'), null);
+  assert.equal(await save.saveBrowserHistory('u', 'pdf'), null);
+  assert.deepEqual(calls.slice(before).map(c => c[0]), ['saveFolder', 'saveFolder']);
+});
+
+test('saveRecoveredMessages: one file, its message count in the notice', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => '/tmp/out',
+    call: async (_m, p) => ({ success: true, data: { file: `/tmp/out/recovered_messages.${p.format}`, message_count: 5, conversation_count: 2 } }),
+    exportPdf: async () => ({ success: true, data: { files: ['/tmp/out/recovered_messages.pdf'], message_count: 1 } }),
+  });
+  assert.deepEqual(await save.saveRecoveredMessages('u', 'txt'), { title: 'Saved 5 recovered messages', path: '/tmp/out/recovered_messages.txt' });
+  assert.deepEqual(calls[1], ['call', 'export_recovered_messages', { udid: 'u', output_dir: '/tmp/out', format: 'txt' }]);
+  assert.deepEqual(await save.saveRecoveredMessages('u', 'pdf'), { title: 'Saved 1 recovered message', path: '/tmp/out/recovered_messages.pdf' });
+  assert.deepEqual(calls[3], ['exportPdf', 'export_recovered_messages', { udid: 'u', output_dir: '/tmp/out' }]);
+});
+
+// ── The Timeline: built here, the PDF printed by the main process ──
+
+const ENTRY = {
+  id: 'message:1', type: 'message', timestamp: '2024-03-09T22:30:00+00:00', contactName: 'Mom', contactIdentifier: '+15035550123',
+  message: { text: 'See you at 7', isFromMe: false, sender: '+15035550123', messageType: 'text', conversationName: 'Mom', service: 'iMessage' },
+};
+
+test('writeTimeline writes text formats into the folder, and prints the PDF from the web page', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    writeFile: async () => {},
+    exportHtmlPdf: async (_html, dir, base) => ({ success: true, data: { file: `${dir}/${base} (2).pdf` } }),
+  });
+  assert.equal(await save.writeTimeline([ENTRY], 'csv', '/tmp/out', 'timeline-export'), '/tmp/out/timeline-export.csv');
+  assert.equal(calls[0][0], 'writeFile');
+  assert.equal(calls[0][1], '/tmp/out/timeline-export.csv');
+  assert.ok(calls[0][2].startsWith(`${BOM}Date,Time,Type,Contact,Description\n`));
+
+  assert.equal(await save.writeTimeline([ENTRY], 'txt', '/tmp/out', 'Mom', 'Everything with Mom'), '/tmp/out/Mom.txt');
+  assert.ok(calls[1][2].startsWith('Everything with Mom\n1 event · Saved '));
+  assert.equal(await save.writeTimeline([ENTRY], 'html', '/tmp/out', 'timeline-export'), '/tmp/out/timeline-export.html');
+  assert.ok(calls[2][2].includes('<h1>Timeline</h1>'));
+
+  // The PDF: the same page, printed; the main process picks a name that's free
+  assert.equal(await save.writeTimeline([ENTRY], 'pdf', '/tmp/out', 'Mom', 'Everything with Mom'), '/tmp/out/Mom (2).pdf');
+  const [method, html, dir, base] = calls[3];
+  assert.deepEqual([method, dir, base], ['exportHtmlPdf', '/tmp/out', 'Mom']);
+  assert.ok(html.startsWith('<!DOCTYPE html>') && html.includes('<h1>Everything with Mom</h1>') && html.includes('See you at 7'));
+  assert.equal(calls.length, 4, 'the PDF writes no file of its own');
+});
+
+test('writeTimeline passes on a PDF that couldn\'t be printed', async t => {
+  const { lib: save } = loadWith(t, { exportHtmlPdf: async () => ({ success: false, error: 'Choose a folder to save the PDF in.' }) });
+  await assert.rejects(save.writeTimeline([ENTRY], 'pdf', '/gone', 'x'), { message: 'Choose a folder to save the PDF in.' });
+});
+
+test('writeTimeline: more events than one PDF holds are refused before the page is built; the other formats have no limit', async t => {
+  assert.equal(lib.MAX_PDF_EVENTS, 25_000);
+  const { lib: save, calls } = loadWith(t, {
+    writeFile: async () => {},
+    exportHtmlPdf: async (_html, dir, base) => ({ success: true, data: { file: `${dir}/${base}.pdf` } }),
+  });
+  const many = n => Array.from({ length: n }, (_, i) => ({ ...ENTRY, id: `message:${i}` }));
+  const tooMany = many(lib.MAX_PDF_EVENTS + 1);
+  await assert.rejects(save.writeTimeline(tooMany, 'pdf', '/tmp/out', 'timeline-export'), {
+    message: `This is too much for one PDF: ${(25_001).toLocaleString()} events, and one PDF holds up to ${(25_000).toLocaleString()}. `
+      + 'Narrow it down to a date range, a search or fewer kinds, or save it as a web page or spreadsheet, which have no limit.',
+  });
+  assert.equal(calls.length, 0, 'nothing was sent to be printed');
+
+  // The other formats save them all (one is checked: formatting 25,000 events takes a moment)
+  assert.equal(await save.writeTimeline(tooMany, 'csv', '/tmp/out', 'timeline-export'), '/tmp/out/timeline-export.csv');
+  assert.deepEqual(calls.map(c => c[0]), ['writeFile']);
+
+  // Right at the limit it prints
+  assert.equal(await save.writeTimeline(many(lib.MAX_PDF_EVENTS), 'pdf', '/tmp/out', 'timeline-export'), '/tmp/out/timeline-export.pdf');
+  assert.equal(calls.at(-1)[0], 'exportHtmlPdf');
+});
+
+// ── One person (People's Save everything, export_person) ─────────────────────
+const msgEntry = (id, chatId, name) => ({ id: `message:${id}`, type: 'message', timestamp: '2026-11-17T10:00:00Z', contactName: name, contactIdentifier: '+15035550102', message: { text: 'hi', isFromMe: false, sender: '', messageType: 'text', conversationName: name, service: 'iMessage', chatId } });
+const waEntry = (id, chatId, name) => ({ id: `whatsapp:${id}`, type: 'whatsapp', timestamp: '2026-11-17T10:00:00Z', contactName: name, contactIdentifier: '+15035550102', whatsapp: { text: 'hi', isFromMe: false, sender: '', messageType: 'text', eventText: null, attachmentLabel: null, conversationName: name, chatId, chatType: 'individual', isGroup: false, sort: 1 } });
+const simple = (type, id) => ({ id: `${type}:${id}`, type, timestamp: '2026-11-17T10:00:00Z', contactName: 'Theo', contactIdentifier: '+15035550102' });
+
+test("personExportSpec: whole chats per source, each once, and calls and voicemails by their own ids, as text", () => {
+  const { personExportSpec } = lib;
+  const spec = personExportSpec('Theo Navarro', [
+    msgEntry(1, 17, 'Theo Navarro'), msgEntry(2, 17, 'Theo Navarro'), msgEntry(3, 21, 'theo@icloud.com'),
+    // A WhatsApp chat whose id is the same number as a Messages chat: never mixed up
+    waEntry(9, 17, 'Theo (WhatsApp)'), waEntry(10, 17, 'Theo (WhatsApp)'),
+    simple('call', 12), simple('call', 'ft_3'), simple('call', 12),
+    simple('voicemail', 7), simple('voicemail', 'A-0D1F2E3C-4B5A-6978-8796-A5B4C3D2E1F0.7'),
+  ]);
+  assert.deepEqual(spec, {
+    display_name: 'Theo Navarro',
+    chat_ids: [17, 21], conversation_names: { 17: 'Theo Navarro', 21: 'theo@icloud.com' },
+    whatsapp_chat_ids: [17], whatsapp_names: { 17: 'Theo (WhatsApp)' },
+    call_ids: ['12', 'ft_3'],
+    voicemail_ids: ['7', 'A-0D1F2E3C-4B5A-6978-8796-A5B4C3D2E1F0.7'],
+    note_ids: [],
+  });
+  assert.deepEqual(personExportSpec('Nobody', []), {
+    display_name: 'Nobody', chat_ids: [], conversation_names: {}, whatsapp_chat_ids: [], whatsapp_names: {}, call_ids: [], voicemail_ids: [], note_ids: [],
+  });
+});
+
+test('personExportSpec: the notes you share go in by id; picked-out messages only when asked', () => {
+  const { personExportSpec } = lib;
+  const entries = [msgEntry(1, 17, 'Theo'), msgEntry(4, 17, 'Theo'), waEntry(9, 17, 'Theo (WhatsApp)'), simple('note', 42), simple('note', 42), simple('call', 12)];
+  // Save everything: whole chats, so no message ids
+  const whole = personExportSpec('Theo', entries);
+  assert.deepEqual(whole.note_ids, ['42']);
+  assert.equal('message_ids' in whole, false);
+  assert.equal('whatsapp_message_ids' in whole, false);
+  // Dates, a search or Photos picked these out: only them, by each source's own ids
+  const these = personExportSpec('Theo', entries, { onlyThese: true });
+  assert.deepEqual(these.message_ids, [1, 4]);
+  assert.deepEqual(these.whatsapp_message_ids, [9]);
+  assert.deepEqual(these.chat_ids, [17]);
+  assert.deepEqual(these.whatsapp_chat_ids, [17]);
+  // Nothing of a source picked out is an empty list, not "every message"
+  assert.deepEqual(personExportSpec('Theo', [simple('call', 12)], { onlyThese: true }).message_ids, []);
+});
+
+const PERSON = { display_name: 'Theo', chat_ids: [17], conversation_names: { 17: 'Theo' }, whatsapp_chat_ids: [], whatsapp_names: {}, call_ids: ['12'], voicemail_ids: [] };
+
+test('savePerson: the engine saves the file and a folder of photos and files, and the notice says how many', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => '/Users/jane/Desktop',
+    call: async () => ({ success: true, data: {
+      file: '/Users/jane/Desktop/Theo, Jul 5 2024 - Nov 17 2026.html', message_count: 3083,
+      counts: { message: 3001, whatsapp: 0, call: 73, voicemail: 9 }, media: { copied: 214, not_in_backup: 0, failed: 0 }, errors: {},
+    } }),
+    exportPdf: async () => assert.fail('only a PDF is printed'),
+  });
+  const result = await save.savePerson('u', PERSON, 'html', 'Saved everything with Theo');
+  assert.deepEqual(result, {
+    title: 'Saved everything with Theo',
+    detail: `${(3083).toLocaleString()} events and 214 photos and files`,
+    path: '/Users/jane/Desktop/Theo, Jul 5 2024 - Nov 17 2026.html',
+  });
+  assert.deepEqual(calls[1], ['call', 'export_person', { udid: 'u', output_dir: '/Users/jane/Desktop', ...PERSON, format: 'html' }]);
+});
+
+test('savePerson as PDF: printed by Chromium, with the originals copied beside the PDF', async t => {
+  const { lib: save, calls } = loadWith(t, {
+    saveFolder: async () => '/Users/jane/Desktop',
+    exportPdf: async () => ({ success: true, data: {
+      files: ['/Users/jane/Desktop/Theo.pdf'], message_count: 10, media_folder: '/Users/jane/Desktop/Theo_attachments',
+      media: { copied: 3, not_in_backup: 1, failed: 0 }, errors: { whatsapp: "WhatsApp's chats couldn't be read" },
+    } }),
+    call: async () => assert.fail('PDF goes through exportPdf'),
+  });
+  const result = await save.savePerson('u', PERSON, 'pdf', 'Saved everything with Theo');
+  assert.deepEqual(result, {
+    title: 'Saved everything with Theo',
+    detail: "10 events and 3 photos and files. 1 file wasn't in the backup. WhatsApp's chats couldn't be read",
+    path: '/Users/jane/Desktop/Theo.pdf',
+  });
+  // The page is printed from a temporary folder; media_dir is where the originals go
+  assert.deepEqual(calls[1], ['exportPdf', 'export_person', { udid: 'u', output_dir: '/Users/jane/Desktop', ...PERSON, media_dir: '/Users/jane/Desktop' }]);
+});
+
+test('savePerson as PDF: a PDF that can\'t be made says why (its copied files are taken away by the main process)', async t => {
+  const tooMany = 'Too many photos for one PDF. Save it as a web page instead, which keeps every photo and video beside it.';
+  const { lib: save } = loadWith(t, {
+    saveFolder: async () => '/Users/jane/Desktop',
+    exportPdf: async () => ({ success: false, error: tooMany }),
+  });
+  await assert.rejects(save.savePerson('u', PERSON, 'pdf', 'Saved everything with Theo'), { message: tooMany });
+});
+
+test('savePerson: nothing saved is an error, and cancelling the folder saves nothing', async t => {
+  const { lib: save } = loadWith(t, {
+    saveFolder: async () => '/tmp/out',
+    call: async () => ({ success: true, data: { error: 'There was nothing to save with this person.', errors: {} } }),
+  });
+  await assert.rejects(save.savePerson('u', PERSON, 'csv', 'Saved'), /nothing to save/);
+  const { lib: cancelled, calls } = loadWith(t, { saveFolder: async () => null, call: async () => assert.fail('no folder, no save') });
+  assert.equal(await cancelled.savePerson('u', PERSON, 'txt', 'Saved'), null);
+  assert.equal(calls.length, 1);
 });
 
 // ── Voice Memos: the engine copies the recordings (export_voice_memos) ──

@@ -1,4 +1,5 @@
-// Tests for saving the Timeline as CSV, Markdown or HTML (src/lib/timelineExport.ts).
+// Tests for saving the Timeline as CSV, plain text, a web page or a PDF (src/lib/timelineExport.ts;
+// the PDF is the web page, printed by the main process).
 // Entries are shaped like useTimeline's normalizers make them from the engine's
 // records; timestamps are the engine's UTC ISO strings, grouped by local day.
 // Run with: node --test scripts/timeline-export.test.mjs (also re-runs itself in other time zones)
@@ -74,7 +75,14 @@ const visit = (when, over = {}) => ({
 });
 
 const DAY = local(2024, 3, 9, 15, 30);
-const csvRows = entries => parseCsv(formatTimeline(entries, 'csv'));
+const BOM = '\uFEFF';
+// Every CSV starts with a byte-order mark, so Excel reads it as UTF-8
+const csvText = entries => {
+  const text = formatTimeline(entries, 'csv');
+  assert.ok(text.startsWith(BOM), 'no byte-order mark');
+  return text.slice(1);
+};
+const csvRows = entries => parseCsv(csvText(entries));
 const describe = entry => csvRows([entry])[1][4];
 
 test('CSV: a header, then one row of five fields per entry', () => {
@@ -86,7 +94,7 @@ test('CSV: a header, then one row of five fields per entry', () => {
     assert.equal(r.length, 5);
     assert.deepEqual(r.slice(0, 3), [formatDate(entries[i].timestamp), formatTime(entries[i].timestamp), entries[i].type]);
   }
-  assert.equal(formatTimeline([], 'csv'), 'Date,Time,Type,Contact,Description');
+  assert.equal(formatTimeline([], 'csv'), `${BOM}Date,Time,Type,Contact,Description`);
 });
 
 test('CSV keeps commas, quotes, line breaks, emoji and right-to-left text intact', () => {
@@ -105,6 +113,14 @@ test('what each kind of entry says', () => {
   assert.equal(describe(message(DAY, 'See you soon')), 'Received: See you soon');
   assert.equal(describe(message(DAY, 'On my way', { isFromMe: true })), 'Sent: On my way');
   assert.equal(describe(message(DAY, null, { messageType: 'attachment' })), 'Received: [Attachment]');
+  // A message's files are named, after its words or in place of them
+  const heic = { attachment_id: 1, filename: '~/Library/SMS/Attachments/a/1/X/IMG_4127.HEIC', mime_type: 'image/heic', transfer_name: 'IMG_4127.HEIC' };
+  const mp4 = { attachment_id: 2, filename: '~/Library/SMS/Attachments/a/2/Y/trail-cam.mp4', mime_type: 'video/mp4', transfer_name: 'trail-cam.mp4' };
+  assert.equal(describe(message(DAY, null, { messageType: 'attachment', attachments: [heic, mp4] })), 'Received: [Photo: IMG_4127.HEIC] [Video: trail-cam.mp4]');
+  assert.equal(describe(message(DAY, 'Look at this', { isFromMe: true, attachments: [heic] })), 'Sent: Look at this [Photo: IMG_4127.HEIC]');
+  const caf = { attachment_id: 3, filename: '~/Library/SMS/Attachments/a/3/Z/Audio Message.caf', mime_type: 'audio/x-caf', transfer_name: 'Audio Message.caf' };
+  assert.equal(describe(message(DAY, null, { messageType: 'audio', attachments: [caf] })), 'Received: [Voice message: Audio Message.caf]');
+  // Photos alone, when the engine didn't list the files: how many
   const pic = { attachment_id: 1, filename: '~/Library/SMS/Attachments/a.jpg', mime_type: 'image/jpeg', transfer_name: 'a.jpg' };
   assert.equal(describe(message(DAY, null, { messageType: 'attachment', photos: [pic] })), 'Received: [Photo]');
   assert.equal(describe(message(DAY, null, { messageType: 'attachment', photos: [pic, { ...pic, attachment_id: 2 }] })), 'Received: [2 photos]');
@@ -219,9 +235,9 @@ test('who each entry is with', () => {
 
 test('WhatsApp is labelled "WhatsApp" in every format, with its own colour', () => {
   const entry = whatsapp(DAY, 'Bring the blue tent');
-  const md = formatTimeline([entry], 'md');
-  assert.ok(md.includes(`- \`${formatTime(entry.timestamp)}\` **WhatsApp** | **Riley Okafor**\n  Received: Bring the blue tent`), md);
-  assert.ok(!md.includes('Whatsapp'));
+  const txt = formatTimeline([entry], 'txt');
+  assert.ok(txt.includes(`\n${formatTime(entry.timestamp)} · WhatsApp · Riley Okafor\nReceived: Bring the blue tent\n`), txt);
+  assert.ok(!txt.includes('Whatsapp'));
   const html = formatTimeline([entry], 'html');
   assert.ok(html.includes('>WhatsApp</span>'));
   assert.ok(!html.includes('Whatsapp'));
@@ -229,7 +245,7 @@ test('WhatsApp is labelled "WhatsApp" in every format, with its own colour', () 
   // CSV keeps the kind as a plain word, like the others
   assert.deepEqual(csvRows([entry])[1].slice(2), ['whatsapp', 'Riley Okafor', 'Received: Bring the blue tent']);
   // The other kinds keep their labels
-  assert.ok(formatTimeline([message(DAY, 'x'), visit(DAY)], 'md').includes('**Message**'));
+  assert.ok(formatTimeline([message(DAY, 'x'), visit(DAY)], 'txt').includes(' · Message · Mom\n'));
   assert.ok(formatTimeline([visit(DAY)], 'html').includes('>Browser</span>'));
 });
 
@@ -251,13 +267,14 @@ test('entries are grouped under their local day, through midnight and DST change
     visit(local(2024, 11, 3, 23, 30)),
     visit(local(2024, 11, 3, 0, 15)),
   ].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-  const md = formatTimeline(entries, 'md');
-  const headings = md.split('\n').filter(l => l.startsWith('## '));
+  // In plain text each day is a line with a rule under it
+  const lines = formatTimeline(entries, 'txt').split('\n');
+  const headings = lines.filter((l, i) => /^-{10,}$/.test(lines[i + 1] ?? ''));
   assert.deepEqual(headings, [
-    `## ${formatDate(engine(local(2024, 11, 3, 12)))}`,
-    `## ${formatDate(engine(local(2024, 3, 11, 12)))}`,
-    `## ${formatDate(engine(local(2024, 3, 10, 12)))}`,
-    `## ${formatDate(engine(local(2024, 3, 9, 12)))}`,
+    formatDate(engine(local(2024, 11, 3, 12))),
+    formatDate(engine(local(2024, 3, 11, 12))),
+    formatDate(engine(local(2024, 3, 10, 12))),
+    formatDate(engine(local(2024, 3, 9, 12))),
   ]);
   const html = formatTimeline(entries, 'html');
   assert.equal((html.match(/<h2 /g) || []).length, 4);
@@ -266,26 +283,43 @@ test('entries are grouped under their local day, through midnight and DST change
 });
 
 test('entries with no time go under "Unknown date"', () => {
-  const md = formatTimeline([visit(null)], 'md');
-  assert.ok(md.includes('## Unknown date'));
-  assert.ok(md.includes('- `--:--` **Browser**'));
+  const txt = formatTimeline([visit(null)], 'txt');
+  assert.ok(txt.includes('\nUnknown date\n------------\n'));
+  assert.ok(txt.includes('\n--:-- · Browser\n'));
   assert.ok(formatTimeline([visit(null)], 'html').includes('>Unknown date</h2>'));
   assert.deepEqual(csvRows([visit(null)])[1].slice(0, 3), ['', '', 'browser']);
 });
 
-test('Markdown layout', () => {
-  const entry = message(DAY, 'See you at 7', { conversationName: 'Mom' });
-  const lines = formatTimeline([entry], 'md').split('\n');
-  assert.deepEqual(lines.slice(0, 6), [
-    '# Timeline Export', '',
-    `## ${formatDate(entry.timestamp)}`, '',
-    `- \`${formatTime(entry.timestamp)}\` **Message** | **Mom**`,
-    '  Received: See you at 7',
+test('plain text layout', () => {
+  const entry = message(DAY, 'See you at 7\nby the gate', { conversationName: 'Mom' });
+  const day = formatDate(entry.timestamp);
+  const lines = formatTimeline([entry, call(DAY)], 'txt').split('\n');
+  assert.equal(lines[0], 'Timeline');
+  assert.match(lines[1], /^2 events · Saved .+$/);
+  assert.deepEqual(lines.slice(2), [
+    '', day, '-'.repeat(Math.max(10, day.length)),
+    '', `${formatTime(entry.timestamp)} · Message · Mom`, 'Received: See you at 7', 'by the gate',
+    '', `${formatTime(entry.timestamp)} · Call · Dad`, 'Incoming - Answered',
+    '',
   ]);
-  assert.equal(lines.at(-2), '---');
-  assert.match(lines.at(-1), /^\*Exported 1 entries on .+\*$/);
   // Photos have no contact
-  assert.ok(formatTimeline([photo(DAY)], 'md').includes(`- \`${formatTime(at(DAY))}\` **Photo**\n`));
+  assert.ok(formatTimeline([photo(DAY)], 'txt').includes(`\n${formatTime(at(DAY))} · Photo\n`));
+  // A title of its own, for a person's history
+  assert.ok(formatTimeline([], 'txt', { title: 'Everything with Mom' }).startsWith('Everything with Mom\n0 events · Saved '));
+});
+
+test('the PDF is the web page, ready to print', () => {
+  const entries = [message(DAY, 'hi'), call(DAY)];
+  const pdf = formatTimeline(entries, 'pdf');
+  assert.equal(pdf, formatTimeline(entries, 'html'));
+  assert.ok(pdf.includes('@media print'));
+  assert.ok(pdf.includes('.entry { break-inside: avoid;'), 'an event is never cut across two pages');
+  assert.equal((pdf.match(/<div class="entry" /g) || []).length, 2);
+  // Nothing in it runs or loads from anywhere
+  assert.ok(!/<script|<img|<link|\ssrc=/i.test(pdf));
+  const titled = formatTimeline(entries, 'pdf', { title: 'Everything with <Mom>' });
+  assert.ok(titled.includes('<title>Everything with &lt;Mom&gt;</title>'));
+  assert.ok(titled.includes('<h1>Everything with &lt;Mom&gt;</h1>'));
 });
 
 test('HTML escapes everything that came from the backup', () => {
@@ -315,16 +349,18 @@ test('HTML keeps emoji and right-to-left text as they are', () => {
 });
 
 test('empty exports are still complete documents', () => {
-  assert.match(formatTimeline([], 'md'), /^# Timeline Export\n\n---\n\*Exported 0 entries on .+\*$/);
+  assert.match(formatTimeline([], 'txt'), /^Timeline\n0 events · Saved .+\n$/);
   const html = formatTimeline([], 'html');
-  assert.ok(html.includes('<div class="meta">0 entries &middot; Exported '));
+  assert.ok(html.includes('<h1>Timeline</h1>'));
+  assert.ok(html.includes('<div class="meta">0 events · Saved '));
   assert.ok(html.trimEnd().endsWith('</html>'));
+  assert.ok(formatTimeline([message(DAY, 'x')], 'html').includes('<div class="meta">1 event · Saved '));
 });
 
 test('entry counts are grouped for the locale', { skip: !enUS && 'needs an en-US locale' }, () => {
   const many = Array.from({ length: 1500 }, (_, i) => photo(local(2024, 3, 9, 10, 0, i % 60)));
-  assert.ok(formatTimeline(many, 'html').includes('1,500 entries &middot;'));
-  assert.match(formatTimeline(many, 'md'), /\*Exported 1,500 entries on /);
+  assert.ok(formatTimeline(many, 'html').includes('1,500 events · Saved'));
+  assert.match(formatTimeline(many, 'txt'), /^Timeline\n1,500 events · Saved /);
 });
 
 // About 40µs per entry per format, nearly all of it toLocaleDateString/toLocaleTimeString
@@ -332,7 +368,7 @@ test('a big Timeline (5,000 entries) exports in every format', { skip: childZone
   const entries = [];
   for (let i = 0; i < 5_000; i++) entries.push(message(new Date(Date.UTC(2024, 0, 1) + i * 3_600_000), `message ${i}, "quoted"`));
   entries.reverse();
-  for (const format of ['csv', 'md', 'html']) {
+  for (const format of ['csv', 'txt', 'html', 'pdf']) {
     const out = formatTimeline(entries, format);
     assert.ok(out.length > 5_000 * 20, format);
   }
@@ -341,9 +377,10 @@ test('a big Timeline (5,000 entries) exports in every format', { skip: childZone
 
 test('the save dialog filter matches each format', () => {
   assert.deepEqual(FORMAT_FILTERS, {
+    pdf: { name: 'PDF Document', extensions: ['pdf'] },
     html: { name: 'HTML Document', extensions: ['html'] },
-    md: { name: 'Markdown', extensions: ['md'] },
     csv: { name: 'CSV Spreadsheet', extensions: ['csv'] },
+    txt: { name: 'Plain Text', extensions: ['txt'] },
   });
 });
 

@@ -24,7 +24,6 @@ Read-only; nothing is written back to the backup.
 from __future__ import annotations
 
 import csv
-import html
 import os
 import sqlite3
 from typing import Optional
@@ -33,6 +32,25 @@ from ios_backup_core.contacts import resolve_contact
 from ios_backup_core.db import connect_readonly, get_database
 from ios_backup_core.text import parse_attributed_body
 from ios_backup_core.timestamps import apple_to_iso as apple_date_to_iso
+
+from local_dates import csv_date, readable_date
+from record_document import (
+    CSV_ENCODING,
+    Column,
+    RecordDocument,
+    Section,
+    csv_cell,
+    plural,
+    unused_path,
+    write_document,
+)
+
+# 'pdf' is the old PDF drawn by reportlab in the engine, kept so older callers
+# still work; the app prints 'pdf_source' with Chromium instead.
+FORMATS = ("csv", "html", "txt", "pdf_source", "pdf")
+
+# The file every format is named after ("recovered_messages.html", then "… (2).html")
+FILE_BASE = "recovered_messages"
 
 
 def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
@@ -102,6 +120,9 @@ def _build_message(row: sqlite3.Row, contacts: dict, source: str,
 
 class MessageRecoveryExtractor:
     """Scan sms.db and return recovered messages grouped by conversation."""
+
+    # The time zone saved dates are written in; None is this computer's.
+    local_tz = None
 
     def recover_messages(self, backup, contacts: dict) -> dict:
         db_path = get_database(backup, "Library/SMS/sms.db", "HomeDomain")
@@ -278,24 +299,30 @@ class MessageRecoveryExtractor:
 
     def export_recovered_messages(self, backup, contacts: dict,
                                   fmt: str, output_dir: str) -> dict:
-        """Export all recovered messages to a single file.
+        """Save every recovered message into one new file in ``output_dir``.
 
-        Formats: csv (flat), html (chat-style, grouped by conversation), pdf
-        (reportlab, grouped by conversation).
+        Formats: csv (one row per message), html / txt / pdf_source (a
+        document with a section per conversation, record_document.py; Electron
+        prints pdf_source to a PDF), pdf (the old reportlab PDF). Dates are in
+        the computer's time zone. Returns {file, message_count,
+        conversation_count}; an unknown format is {error}.
         """
+        fmt = str(fmt or "").lower()
+        if fmt not in FORMATS:
+            return {"error": f"Unsupported format: {fmt}"}
+
         data = self.recover_messages(backup, contacts)
         conversations = data["conversations"]
         messages_by_conversation = data["messages_by_conversation"]
 
-        fmt = (fmt or "").lower()
+        os.makedirs(output_dir, exist_ok=True)
         if fmt == "csv":
-            filepath = _export_csv(conversations, messages_by_conversation, output_dir)
-        elif fmt == "html":
-            filepath = _export_html(conversations, messages_by_conversation, output_dir)
+            filepath = _export_csv(conversations, messages_by_conversation, output_dir, self.local_tz)
         elif fmt == "pdf":
             filepath = _export_pdf(conversations, messages_by_conversation, output_dir)
         else:
-            return {"error": f"Unsupported format: {fmt}"}
+            doc = _document(conversations, messages_by_conversation, self.local_tz)
+            filepath = write_document(doc, output_dir, FILE_BASE, fmt)
 
         total = sum(len(m) for m in messages_by_conversation.values())
         return {
@@ -378,90 +405,82 @@ class MessageRecoveryExtractor:
 # ── Export helpers ───────────────────────────────────────────────────────────
 
 def _source_label(source: str) -> str:
+    """The spreadsheet's word for where a message was found."""
     return "Recently Deleted" if source == "recently_deleted" else "Orphaned"
 
 
+def _found_in(source: str) -> str:
+    """The same in the app's words (the Recover deleted messages screen)."""
+    return "Recently Deleted" if source == "recently_deleted" else "Left behind"
+
+
+def _convo_name(convo: dict) -> str:
+    return convo["display_name"] or convo["chat_identifier"] or "Unknown"
+
+
+def _sender_label(msg: dict) -> str:
+    return "Me" if msg["is_from_me"] else (msg["sender"] or msg["sender_handle"] or "")
+
+
 def _export_csv(conversations: list, messages_by_conversation: dict,
-                output_dir: str) -> str:
-    filepath = os.path.join(output_dir, "recovered_messages.csv")
-    with open(filepath, "w", newline="", encoding="utf-8-sig") as f:
+                output_dir: str, tz=None) -> str:
+    filepath = unused_path(output_dir, FILE_BASE, ".csv")
+    with open(filepath, "w", newline="", encoding=CSV_ENCODING) as f:
         writer = csv.writer(f)
         writer.writerow([
             "Conversation", "Source", "Date", "Sender", "Is From Me",
             "Text", "Deleted Date",
         ])
         for convo in conversations:
-            name = convo["display_name"] or convo["chat_identifier"] or "Unknown"
+            name = _convo_name(convo)
             for msg in messages_by_conversation.get(convo["recovery_id"], []):
-                sender = "Me" if msg["is_from_me"] else (msg["sender"] or msg["sender_handle"] or "")
                 writer.writerow([
-                    name,
+                    csv_cell(name),
                     _source_label(msg["source"]),
-                    msg["date"] or "",
-                    sender,
+                    csv_date(msg["date"], tz),
+                    csv_cell(_sender_label(msg)),
                     msg["is_from_me"],
-                    msg["text"] or "",
-                    msg.get("deleted_date") or "",
+                    # Somebody else may have written it: never a formula
+                    csv_cell(msg["text"] or ""),
+                    csv_date(msg.get("deleted_date"), tz),
                 ])
     return filepath
 
 
-_HTML_HEAD = """<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Recovered Messages</title>
-<style>
-body { font-family: -apple-system, sans-serif; max-width: 720px; margin: 0 auto; padding: 20px; background: #f5f5f5; color: #111; }
-h1 { font-size: 20px; margin-bottom: 4px; }
-.summary { color: #666; font-size: 12px; margin-bottom: 24px; }
-h2 { font-size: 15px; margin: 28px 0 4px; }
-.convo-meta { font-size: 11px; color: #888; margin-bottom: 10px; }
-.badge { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 10px; border: 1px solid; margin-left: 6px; vertical-align: 2px; }
-.badge.recently_deleted { color: #92400e; background: #fffbeb; border-color: #fde68a; }
-.badge.orphaned { color: #075985; background: #f0f9ff; border-color: #bae6fd; }
-.msg { margin: 6px 0; padding: 8px 12px; border-radius: 16px; max-width: 75%; clear: both; }
-.sent { background: #10b981; color: white; float: right; border-bottom-right-radius: 4px; }
-.received { background: #e9e9eb; color: #111; float: left; border-bottom-left-radius: 4px; }
-.meta { font-size: 11px; color: #888; clear: both; text-align: center; margin: 10px 0 4px; }
-.sender { font-size: 11px; color: #666; margin-bottom: 2px; }
-hr { border: none; border-top: 1px solid #ddd; margin: 24px 0; clear: both; }
-</style></head><body>
-"""
-
-
-def _export_html(conversations: list, messages_by_conversation: dict,
-                 output_dir: str) -> str:
-    filepath = os.path.join(output_dir, "recovered_messages.html")
-    total_msgs = sum(len(m) for m in messages_by_conversation.values())
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(_HTML_HEAD)
-        f.write("<h1>Recovered Messages</h1>\n")
-        f.write(
-            f'<div class="summary">{total_msgs} message(s) across '
-            f'{len(conversations)} conversation(s)</div>\n'
-        )
-        for convo in conversations:
-            name = html.escape(convo["display_name"] or convo["chat_identifier"] or "Unknown")
-            source = convo["source"]
-            badge = f'<span class="badge {source}">{_source_label(source)}</span>'
-            f.write(f'<hr><h2>{name}{badge}</h2>\n')
-            sub_bits = []
-            if convo.get("is_group"):
-                sub_bits.append("Group")
-            if source == "orphaned":
-                sub_bits.append("original chat deleted")
-            sub_bits.append(f'{convo["message_count"]} recovered')
-            f.write(f'<div class="convo-meta">{" · ".join(sub_bits)}</div>\n')
-            for msg in messages_by_conversation.get(convo["recovery_id"], []):
-                css_class = "sent" if msg["is_from_me"] else "received"
-                text = html.escape(msg["text"] or "").replace("\n", "<br>")
-                if not text:
-                    text = f'<i>[{html.escape(msg["message_type"])}]</i>'
-                date = html.escape(msg["date"] or "")
-                f.write(f'<div class="meta">{date}</div>\n')
-                if not msg["is_from_me"] and convo.get("is_group") and msg.get("sender"):
-                    f.write(f'<div class="sender">{html.escape(msg["sender"])}</div>\n')
-                f.write(f'<div class="msg {css_class}">{text}</div>\n')
-        f.write("</body></html>\n")
-    return filepath
+def _document(conversations: list, messages_by_conversation: dict, tz=None) -> RecordDocument:
+    """A section per conversation: where its messages were found, then each
+    message with when, who and when it was deleted (Recently Deleted keeps that)."""
+    total = sum(len(m) for m in messages_by_conversation.values())
+    sections = []
+    for convo in conversations:
+        msgs = messages_by_conversation.get(convo["recovery_id"], [])
+        meta = [_found_in(convo["source"])]
+        if convo.get("is_group"):
+            meta.append("Group")
+        if convo["source"] == "orphaned":
+            meta.append("original chat deleted")
+        meta.append(f"{plural(len(msgs), 'message')} recovered")
+        rows, lines = [], []
+        for msg in msgs:
+            when = readable_date(msg["date"], tz)
+            text = msg["text"] or f'[{msg["message_type"]}]'
+            deleted = readable_date(msg["deleted_date"], tz) if msg.get("deleted_date") else ""
+            sender = _sender_label(msg)
+            rows.append([when, sender, text, deleted])
+            line = f"[{when}] {sender or 'Unknown'}: {text}"
+            lines.append(f"{line} (deleted {deleted})" if deleted else line)
+        sections.append(Section(
+            heading=_convo_name(convo),
+            meta=" · ".join(meta),
+            columns=[Column("When", "when"), Column("From"), Column("Message"), Column("Deleted", "when")],
+            rows=rows,
+            text_lines=lines,
+        ))
+    return RecordDocument(
+        title="Recovered messages",
+        summary=f"{plural(total, 'message')} in {plural(len(conversations), 'conversation')}",
+        sections=sections or [Section(empty="No deleted messages were found in this backup.")],
+    )
 
 
 def _export_pdf(conversations: list, messages_by_conversation: dict,
@@ -472,7 +491,7 @@ def _export_pdf(conversations: list, messages_by_conversation: dict,
     except ImportError as e:
         raise RuntimeError("reportlab is required for PDF export.") from e
 
-    filepath = os.path.join(output_dir, "recovered_messages.pdf")
+    filepath = unused_path(output_dir, FILE_BASE, ".pdf")
     c = canvas.Canvas(filepath, pagesize=letter)
     width, height = letter
     left = 50

@@ -2,13 +2,16 @@ export {};
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu, protocol, net, session, clipboard, powerSaveBlocker, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { pathToFileURL } = require('url');
 import { PythonSidecar } from './sidecar';
 import { initUpdater } from './updater';
-import { exportMessagesPdf, PdfExportMethod, removeStaleStagingDirs } from './pdfExport';
+import { exportHtmlToPdf, exportMessagesPdf, PdfExportMethod, removeStaleStagingDirs } from './pdfExport';
 import { FeedbackRecorder } from './feedback';
 import { FeedbackReports } from './feedbackReports';
 import { installFolderFor, installFolderWarning, isInsideFolder, resolveReal } from './installFolder';
+// ── Media in the window (videos, posters): only from the engine's copy folders ──
+const os = require('os');
+const { nativeImage } = require('electron');
+import { handleLocalMedia, mediaThumbnail } from './localMedia';
 
 // Extensions that start a program or script when opened, on Windows, macOS or Linux.
 // shell:openPath refuses these: it opens media and documents from a backup, and a
@@ -259,6 +262,20 @@ function insideInstallFolder(chosen: string): boolean {
   }
 }
 
+/**
+ * The temp folders the engine's copies are in (python/app_copies.py uses Python's
+ * tempfile.gettempdir(), which follows the same TMPDIR / TEMP as these).
+ */
+function mediaFolders(): string[] {
+  const folders = [os.tmpdir()];
+  try {
+    folders.push(app.getPath('temp'));
+  } catch {
+    // os.tmpdir() alone
+  }
+  return folders;
+}
+
 function documentsFolder(): string | undefined {
   try {
     return app.getPath('documents');
@@ -366,20 +383,10 @@ app.whenReady().then(async () => {
     // macOS uses the system spell checker and rejects language changes.
   }
 
-  // Register custom protocol to serve local media files (videos, images)
-  // This avoids web security issues with file:// URLs
-  protocol.handle('local-media', (request: any) => {
-    // URL format: local-media://media/C:/path/to/file.mov
-    const url = new URL(request.url);
-    // hostname is 'media', pathname is '/C:/path/to/file.mov'
-    let filePath = decodeURIComponent(url.pathname);
-    // Remove leading slash on Windows paths (e.g. /C:/... → C:/...)
-    if (process.platform === 'win32' && filePath.startsWith('/')) {
-      filePath = filePath.slice(1);
-    }
-    console.log('[local-media] serving:', filePath);
-    return net.fetch(pathToFileURL(filePath).toString());
-  });
+  // local-media://media/<path>: a video or sound the engine copied out of the backup,
+  // played in the window with seeking. Only files in the engine's copy folders
+  // (electron/localMedia.ts); anything else on the computer is "not found".
+  protocol.handle('local-media', (request: any) => handleLocalMedia(request, mediaFolders()));
 
   // Start the Python sidecar
   const logPath = path.join(app.getPath('userData'), 'python_log.txt');
@@ -472,6 +479,18 @@ app.whenReady().then(async () => {
       return { success: false, error: error?.message || String(error) };
     }
   });
+  // A page the window built (the Timeline), printed the same way. Only the folder is
+  // recorded for feedback, never the page: it holds the backup's messages.
+  ipcMain.handle('export:pdf-html', async (_event: any, html: string, outputDir: string, baseName: string) => {
+    try {
+      const data = await exportHtmlToPdf(html, outputDir, baseName);
+      return { success: true, data };
+    } catch (error: any) {
+      console.error('PDF export failed', error);
+      feedback.recordCall('pdf:page', { output_dir: outputDir }, { ok: false, error: String(error?.message ?? error) });
+      return { success: false, error: error?.message || String(error) };
+    }
+  });
 
   // ── Native dialogs ──────────────────────────────────────────────────────
   // Open a backup folder only reads, so it isn't checked against the program folder:
@@ -528,6 +547,12 @@ app.whenReady().then(async () => {
   ipcMain.handle('shell:showItemInFolder', (_event: any, filePath: string) => {
     if (typeof filePath === 'string' && filePath) shell.showItemInFolder(filePath);
   });
+
+  // A video's poster frame, from a copy the engine made (get_attachment / get_whatsapp_attachment
+  // with as_file): a JPEG data: URL, or null (Linux, a path outside the copy folders, or a file the
+  // system's previewer can't draw).
+  ipcMain.handle('media:thumbnail', (_event: any, filePath: unknown, size: unknown) =>
+    mediaThumbnail(filePath, size, { tempDirs: mediaFolders(), nativeImage }));
 
   // ── Text size (Settings) ────────────────────────────────────────────────
   ipcMain.handle('text-size:get', () => store.get('textSize', 'default'));

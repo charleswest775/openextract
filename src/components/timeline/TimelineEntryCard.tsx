@@ -1,13 +1,81 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { memo, useState, useEffect, useRef, type ReactElement } from 'react';
+import { createPortal } from 'react-dom';
 import { MessageCircle, MessagesSquare, PhoneCall, Image, Voicemail, NotebookPen, Globe, ChevronDown, ChevronUp, ChevronRight, Loader2, X, ZoomIn } from 'lucide-react';
-import { TimelineEntry, MessagePhoto } from '../../types/timeline';
-import type { WhatsAppAttachment } from '../../types/whatsapp';
-import { loadPicture } from '../explore/WhatsAppAttachment';
+import type { TimelineAttachment, TimelineEntry } from '../../types/timeline';
 import { TYPE_COLORS } from './TimelineTypeChips';
 import { formatTime, formatDate, formatDuration } from '../../lib/dates';
 import { whatsAppMediaLabel, whatsAppSender, whatsAppText } from '../../lib/timelineExport';
 import { sidecarCall } from '../../lib/ipc';
+import { attachmentSummary } from '../../lib/attachmentSummary';
+import { useNearScreen } from '../../hooks/useNearScreen';
 import AmrPlayer from '../voicemail/AmrPlayer';
+import MediaAttachment, { type MediaSource } from '../explore/MediaAttachment';
+import type { BubbleAttachment } from '../explore/ChatBubble';
+
+/**
+ * A card's pop-ups sit over the whole window, not inside the scrolling stream:
+ * a fixed element inside the stream's pane would hide a photo viewer opened from
+ * it, and the pane would keep its pictures from ever counting as near the screen.
+ */
+function Overlay({ children }: { children: ReactElement }) {
+  return typeof document === 'undefined' || !document.body ? children : createPortal(children, document.body);
+}
+
+/** Escape closes a pop-up, unless something opened over it (a photo viewer) already took it. */
+function useEscape(onClose: () => void) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+}
+
+// ── A message's files ─────────────────────────────────────────────────────────
+
+// As many as fit on a card's row; the rest are in the message's own view
+const TILES = 4;
+
+/**
+ * A message's photos, videos, voice messages and documents as small tiles on
+ * its card, each opening on its own (full-size photo, video player, sound,
+ * document) without opening the card. Thumbnails load as they near the screen.
+ */
+function AttachmentTiles({ attachments, source, udid, isMine, messageType, onMore }: {
+  attachments: TimelineAttachment[];
+  source: MediaSource;
+  udid: string;
+  isMine: boolean;
+  messageType: string;
+  onMore: () => void;
+}) {
+  const shown = attachments.slice(0, TILES);
+  const rest = attachments.length - shown.length;
+  return (
+    // A tile's own clicks (and its viewer's) are its own, not the card's
+    <div className="flex flex-wrap items-center gap-2 mt-2" onClick={e => e.stopPropagation()}>
+      {shown.map(a => (
+        <MediaAttachment
+          key={a.attachment_id}
+          udid={udid}
+          attachment={a as BubbleAttachment}
+          isMine={isMine}
+          messageType={messageType}
+          source={source}
+          size="tile"
+        />
+      ))}
+      {rest > 0 && (
+        <button
+          type="button"
+          onClick={onMore}
+          className="h-[72px] px-3 rounded-lg bg-surface border border-rule text-sm text-text-secondary hover:bg-elevated"
+        >
+          +{rest} more
+        </button>
+      )}
+    </div>
+  );
+}
 
 // ── Full-size photo lightbox ───────────────────────────────────────────────────
 
@@ -40,14 +108,10 @@ export function TimelinePhotoLightbox({ fileHash, udid, filename, onClose }: Lig
     return () => { cancelled = true; };
   }, [fileHash, udid]);
 
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+  useEscape(onClose);
 
   return (
+    <Overlay>
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
@@ -107,6 +171,7 @@ export function TimelinePhotoLightbox({ fileHash, udid, filename, onClose }: Lig
         </div>
       )}
     </div>
+    </Overlay>
   );
 }
 
@@ -125,21 +190,23 @@ interface MessageViewerProps {
   /** Opens the whole conversation at this message, with this button label. */
   openLabel?: string;
   onOpen?: () => void;
-  /** The photos sent with it, shown above its words. */
-  photos?: ChatPhotoSource[];
+  /** The message's files, shown full width under its words. */
+  attachments?: TimelineAttachment[];
+  source?: MediaSource;
   udid?: string;
+  messageType?: string;
 }
 
-function MessageViewerModal({ text, displayText, isFromMe, conversationName, service, timestamp, onClose, sender, openLabel, onOpen, photos, udid }: MessageViewerProps) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+function MessageViewerModal({
+  text, displayText, isFromMe, conversationName, service, timestamp, onClose, sender, openLabel, onOpen,
+  attachments, source, udid, messageType,
+}: MessageViewerProps) {
+  useEscape(onClose);
 
   const isSpecial = !text || displayText !== text;
 
   return (
+    <Overlay>
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
@@ -199,8 +266,8 @@ function MessageViewerModal({ text, displayText, isFromMe, conversationName, ser
           </button>
         </div>
 
-        {/* Body */}
-        <div style={{
+        {/* Body: its own scroll pane, so its pictures load as they come into view */}
+        <div data-scroll-root style={{
           flex: 1, overflowY: 'auto',
           padding: '16px 20px',
           fontSize: 15, color: isSpecial ? 'var(--text-tertiary)' : 'var(--text-primary)',
@@ -209,15 +276,25 @@ function MessageViewerModal({ text, displayText, isFromMe, conversationName, ser
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
         }}>
-          {photos && udid && photos.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12, fontStyle: 'normal' }}>
-              {photos.map(p => <ChatPhoto key={p.photo.attachment_id} udid={udid} source={p} size="full" />)}
+          {displayText}
+          {attachments && attachments.length > 0 && source && udid && (
+            <div className="flex flex-wrap gap-3 mt-3 not-italic">
+              {attachments.map(a => (
+                <MediaAttachment
+                  key={a.attachment_id}
+                  udid={udid}
+                  attachment={a as BubbleAttachment}
+                  isMine={false}
+                  messageType={messageType ?? ''}
+                  source={source}
+                />
+              ))}
             </div>
           )}
-          {displayText}
         </div>
       </div>
     </div>
+    </Overlay>
   );
 }
 
@@ -231,13 +308,10 @@ interface NoteViewerProps {
 }
 
 function NoteViewerModal({ title, body, modified, onClose }: NoteViewerProps) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+  useEscape(onClose);
 
   return (
+    <Overlay>
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
@@ -298,6 +372,7 @@ function NoteViewerModal({ title, body, modified, onClose }: NoteViewerProps) {
         </div>
       </div>
     </div>
+    </Overlay>
   );
 }
 
@@ -319,108 +394,40 @@ function accentColor(entry: TimelineEntry): string {
   return TYPE_CONFIG[entry.type].color;
 }
 
-// ── Photos sent in a chat ─────────────────────────────────────────────────────
-
-/**
- * A photo from a Messages or WhatsApp chat. The two come from different
- * databases whose attachment ids overlap, so each is read its own way.
- */
-type ChatPhotoSource =
-  | { from: 'message'; photo: MessagePhoto }
-  | { from: 'whatsapp'; photo: WhatsAppAttachment };
-
-function chatPhotos(entry: TimelineEntry): ChatPhotoSource[] {
-  if (entry.message?.photos) return entry.message.photos.map(photo => ({ from: 'message' as const, photo }));
-  if (entry.whatsapp?.photos) return entry.whatsapp.photos.map(photo => ({ from: 'whatsapp' as const, photo }));
-  return [];
-}
-
-/** The photo as a data: URL, or null when it can't be shown. WhatsApp's own small copy for a thumbnail, when it kept one. */
-async function loadChatPhoto(udid: string, source: ChatPhotoSource, small: boolean): Promise<string | null> {
-  if (source.from === 'message') {
-    const r = await sidecarCall<{ data?: string; mime_type?: string; error?: string }>(
-      'get_attachment', { udid, attachment_id: source.photo.attachment_id },
-    );
-    return r.data ? `data:${r.mime_type || 'image/jpeg'};base64,${r.data}` : null;
-  }
-  const { attachment_id, thumbnail_path } = source.photo;
-  let loaded = await loadPicture(udid, attachment_id, small && !!thumbnail_path);
-  if (small && thumbnail_path && !('url' in loaded)) loaded = await loadPicture(udid, attachment_id, false);
-  return 'url' in loaded ? loaded.url : null;
-}
-
-function ChatPhoto({ udid, source, size }: { udid: string; source: ChatPhotoSource; size: 'thumb' | 'full' }) {
-  const [src, setSrc] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-  const name = source.photo.transfer_name || 'Photo';
-
-  useEffect(() => {
-    let cancelled = false;
-    setSrc(null);
-    setFailed(false);
-    loadChatPhoto(udid, source, size === 'thumb')
-      .then(url => { if (!cancelled) { if (url) setSrc(url); else setFailed(true); } })
-      .catch(() => { if (!cancelled) setFailed(true); });
-    return () => { cancelled = true; };
-  }, [udid, source, size]);
-
-  if (size === 'full') {
-    if (src) return <img src={src} alt={name} style={{ maxWidth: '100%', maxHeight: 360, objectFit: 'contain', borderRadius: 8, alignSelf: 'flex-start' }} />;
-    return (
-      <div style={{ fontSize: 14, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-        {failed ? `${name} couldn't be shown` : <><Loader2 size={16} className="animate-spin" /> Loading photo…</>}
-      </div>
-    );
-  }
-  return (
-    <div
-      title={name}
-      style={{
-        width: 48, height: 48, borderRadius: 6, overflow: 'hidden', flexShrink: 0,
-        background: 'var(--bg-elevated)', color: 'var(--text-tertiary)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}
-    >
-      {src
-        ? <img src={src} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => { setSrc(null); setFailed(true); }} />
-        : <Image size={18} strokeWidth={1.5} />}
-    </div>
-  );
-}
-
-// The first few photos sent with a message, small, and how many more there are.
-const THUMBS_SHOWN = 4;
-
-function ChatPhotoStrip({ udid, photos }: { udid: string; photos: ChatPhotoSource[] }) {
-  if (photos.length === 0) return null;
-  const more = photos.length - THUMBS_SHOWN;
-  return (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
-      {photos.slice(0, THUMBS_SHOWN).map(p => <ChatPhoto key={p.photo.attachment_id} udid={udid} source={p} size="thumb" />)}
-      {more > 0 && <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>+{more} more</span>}
-    </div>
-  );
-}
-
 // ── Thumbnail for photos ───────────────────────────────────────────────────────
 
+// Thumbnails already read, so scrolling back up doesn't ask the engine again
+const photoThumbs = new Map<string, string>();
+const PHOTO_THUMB_CACHE = 500;
+
 function PhotoThumb({ fileHash, udid, kind, onClick }: { fileHash: string; udid: string; kind: string; onClick?: () => void }) {
-  const [src, setSrc] = useState<string | null>(null);
+  const key = `${udid}:${fileHash}`;
+  const [src, setSrc] = useState<string | null>(() => photoThumbs.get(key) ?? null);
   const [hovered, setHovered] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  // The engine answers one call at a time: ask only for thumbnails about to be seen
+  const near = useNearScreen(ref);
   const isVideo = kind === 'video' || kind === 'live_photo';
   const isClickable = !isVideo && !!onClick;
 
   useEffect(() => {
-    if (isVideo) return; // videos have no image thumbnail
+    if (isVideo || !near || src) return; // videos have no image thumbnail
     let cancelled = false;
     sidecarCall<{ data: string; error?: string; is_video?: boolean }>('get_photo_thumbnail', { udid, file_hash: fileHash, size: 64 })
-      .then(r => { if (!cancelled && r.data && !r.is_video) setSrc(`data:image/jpeg;base64,${r.data}`); })
+      .then(r => {
+        if (!r.data || r.is_video) return;
+        const url = `data:image/jpeg;base64,${r.data}`;
+        photoThumbs.set(key, url);
+        if (photoThumbs.size > PHOTO_THUMB_CACHE) photoThumbs.delete(photoThumbs.keys().next().value as string);
+        if (!cancelled) setSrc(url);
+      })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [fileHash, udid, isVideo]);
+  }, [key, fileHash, udid, isVideo, near, src]);
 
   return (
     <div
+      ref={ref}
       style={{
         width: 48, height: 48,
         borderRadius: 6,
@@ -504,15 +511,18 @@ interface Props {
   udid: string;
   /** Opens a WhatsApp message in its chat. Without it, the message still shows, just with no way through to the chat. */
   onOpenWhatsApp?: (entry: TimelineEntry) => void;
+  /** Opens a text message in its conversation on the Messages screen. */
+  onOpenMessage?: (entry: TimelineEntry) => void;
 }
 
-export default function TimelineEntryCard({ entry, udid, onOpenWhatsApp }: Props) {
+// Drawn again only when its own entry changes: a stream holds thousands of cards
+export default memo(TimelineEntryCard);
+
+function TimelineEntryCard({ entry, udid, onOpenWhatsApp, onOpenMessage }: Props) {
   const [vmExpanded, setVmExpanded] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [msgOpen, setMsgOpen] = useState(false);
-  // Kept between renders: each photo loads once, not on every render
-  const photos = useMemo(() => chatPhotos(entry), [entry]);
   const color = accentColor(entry);
   const { icon: Icon, badge } = TYPE_CONFIG[entry.type];
 
@@ -530,14 +540,16 @@ export default function TimelineEntryCard({ entry, udid, onOpenWhatsApp }: Props
   let body: React.ReactNode = null;
 
   if (entry.type === 'message' && entry.message) {
-    const { text, isFromMe, conversationName, service, messageType, eventText } = entry.message;
-    const photoLabel = photos.length === 1 ? 'Photo' : `${photos.length} photos`;
-    const displayText = messageType === 'app' ? '📱 App message'
-      : messageType === 'attachment' && photos.length > 0 && !text ? photoLabel
+    const { text, isFromMe, conversationName, service, messageType, eventText, attachments } = entry.message;
+    const files = attachments ?? [];
+    // Its words; else what its files are ("Photo", "2 videos", "Voice message"); else what it was
+    const filesLine = attachmentSummary(files, messageType);
+    const displayText = text ? text
+      : filesLine ? filesLine
+      : messageType === 'app' ? '📱 App message'
       : messageType === 'attachment' ? '📎 Attachment'
       : messageType === 'audio' ? '🎙 Audio message'
       : messageType === 'location' ? '📍 Location'
-      : text ? text
       : eventText ? eventText
       : '(no text)';
 
@@ -549,21 +561,37 @@ export default function TimelineEntryCard({ entry, udid, onOpenWhatsApp }: Props
         <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 1 }}>
           {isFromMe ? `Me → ${conversationName}` : conversationName}
         </div>
-        <div style={{ fontSize: 14, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{
+          fontSize: 14, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          fontStyle: !text && filesLine ? 'italic' : 'normal',
+        }}>
           {displayText}
         </div>
-        <ChatPhotoStrip udid={udid} photos={photos} />
+        {files.length > 0 && (
+          <AttachmentTiles
+            attachments={files}
+            source="messages"
+            udid={udid}
+            isMine={isFromMe}
+            messageType={messageType}
+            onMore={() => setMsgOpen(true)}
+          />
+        )}
         {msgOpen && (
           <MessageViewerModal
             text={text}
-            displayText={displayText}
+            displayText={text || (files.length > 0 ? '' : displayText)}
             isFromMe={isFromMe}
             conversationName={conversationName}
             service={service}
             timestamp={entry.timestamp}
             onClose={() => setMsgOpen(false)}
-            photos={photos}
+            attachments={files}
+            source="messages"
             udid={udid}
+            messageType={messageType}
+            openLabel="Open in Messages"
+            onOpen={onOpenMessage && entry.message.chatId != null ? () => { setMsgOpen(false); onOpenMessage(entry); } : undefined}
           />
         )}
       </>
@@ -576,6 +604,7 @@ export default function TimelineEntryCard({ entry, udid, onOpenWhatsApp }: Props
     const hasWords = !!text?.trim();
     const shown = whatsAppText(w) || '(no text)';
     const label = hasWords ? whatsAppMediaLabel(w) : null;
+    const waFiles = w.attachments ?? [];
 
     body = (
       <>
@@ -591,13 +620,24 @@ export default function TimelineEntryCard({ entry, udid, onOpenWhatsApp }: Props
         }}>
           {shown}
         </div>
-        <ChatPhotoStrip udid={udid} photos={photos} />
+        {waFiles.length > 0 && (
+          <AttachmentTiles
+            attachments={waFiles}
+            source="whatsapp"
+            udid={udid}
+            isMine={isFromMe}
+            messageType={w.messageType}
+            onMore={() => setMsgOpen(true)}
+          />
+        )}
         {msgOpen && (
           <MessageViewerModal
             text={text}
-            displayText={hasWords ? text! : shown}
-            photos={photos}
+            displayText={hasWords ? text! : waFiles.length > 0 ? '' : shown}
+            attachments={waFiles}
+            source="whatsapp"
             udid={udid}
+            messageType={w.messageType}
             isFromMe={isFromMe}
             conversationName={conversationName}
             sender={sender}
@@ -771,6 +811,7 @@ export default function TimelineEntryCard({ entry, udid, onOpenWhatsApp }: Props
 
   return (
     <div
+      data-entry-id={entry.id}
       style={{
         display: 'flex',
         borderRadius: 10,

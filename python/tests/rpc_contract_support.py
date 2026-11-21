@@ -387,6 +387,7 @@ class ContractRuntime:
         self._recovery_plan: Optional[RecoveryPlan] = None
         self._whatsapp_plans: dict[str, WhatsAppPlan] = {}
         self._podcast_plans: dict[str, PodcastPlan] = {}
+        self._person_plan: Optional[PersonPlan] = None
         self._library_plans: dict[str, LibraryPlan] = {}
 
     def _get(self, name: str, start: Callable[[], Engine]) -> Engine:
@@ -457,6 +458,25 @@ class ContractRuntime:
         plan = self.whatsapp_plan(encrypted)
         name = "whatsapp-encrypted" if encrypted else "whatsapp"
         engine = self._get(name, lambda: BackupEngine(name, plan.backup_dir, plan.udid, plan.password))
+        engine.plan = plan
+        return engine
+
+    def person_plan(self) -> "PersonPlan":
+        """Einstein's backup with WhatsApp, calls, voicemail and Messages attachments (see make_person_copy)."""
+        if self._person_plan is None:
+            problem = whatsapp_backup.backupgen_problem()
+            if problem:
+                skip_or_fail(f"no person test backup: {problem}")
+            folder = self._tmp_factory.mktemp("person")
+            scenario = whatsapp_backup.build_files(folder / "parts")
+            _, source = generated_backup(EINSTEIN)
+            self._person_plan = make_person_copy(source, folder / PERSON_UDID, scenario)
+        return self._person_plan
+
+    def person(self) -> BackupEngine:
+        """An engine with the person backup open; ``.plan`` says what's in it."""
+        plan = self.person_plan()
+        engine = self._get("person", lambda: BackupEngine("person", plan.backup_dir, plan.udid))
         engine.plan = plan
         return engine
 
@@ -644,6 +664,148 @@ class WhatsAppPlan:
     udid: str
     password: Optional[str]
     scenario: "whatsapp_backup.Scenario"
+
+
+# ── A backup with everything one person can have ─────────────────────────────
+
+PERSON_UDID = "00008120-0000000000BEEF02"
+PERSON_NUMBER = "+12025550101"  # WhatsApp's Riley Sample, who also calls and leaves voicemail
+AMR_BYTES = AMR_MAGIC + b"\n" + bytes(32)
+VOICEMAIL_TRANSCRIPT = 'Call me back <b>soon</b> & bring "snacks"'
+_APPLE_EPOCH_UNIX = 978307200
+
+
+def _iso_seconds(iso: str) -> int:
+    return int(datetime.fromisoformat(iso).replace(tzinfo=timezone.utc).timestamp())
+
+
+def _sqlite_bytes(build: Callable[[sqlite3.Connection], None]) -> bytes:
+    """The bytes of a new SQLite file that ``build`` fills (rollback journal, so nothing is left in a -wal)."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "db.sqlite"
+        conn = sqlite3.connect(str(path))
+        try:
+            build(conn)
+            conn.commit()
+        finally:
+            conn.close()
+        return path.read_bytes()
+
+
+def _call_history(calls: list[tuple]) -> bytes:
+    """CallHistory.storedata with ``calls``: (Z_PK, address, iso date, seconds, outgoing, answered, provider, type)."""
+    def build(conn):
+        conn.execute("CREATE TABLE ZCALLRECORD (Z_PK INTEGER PRIMARY KEY, ZADDRESS TEXT, ZNAME TEXT, ZDATE REAL, "
+                     "ZDURATION REAL, ZCALLTYPE INTEGER, ZORIGINATED INTEGER, ZANSWERED INTEGER, "
+                     "ZSERVICE_PROVIDER TEXT, ZIS_VIDEO INTEGER)")
+        for pk, address, iso, seconds, outgoing, answered, provider, call_type in calls:
+            conn.execute("INSERT INTO ZCALLRECORD VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, 0)",
+                         (pk, address, _iso_seconds(iso) - _APPLE_EPOCH_UNIX, seconds, call_type,
+                          int(outgoing), int(answered), provider))
+    return _sqlite_bytes(build)
+
+
+def _voicemail_db(rows: list[tuple]) -> bytes:
+    """voicemail.db with ``rows``: (ROWID, iso date, sender, seconds); all in the Voicemail list."""
+    def build(conn):
+        conn.execute("CREATE TABLE voicemail (ROWID INTEGER PRIMARY KEY, remote_uid INTEGER, date INTEGER, "
+                     "token TEXT, sender TEXT, callback_num TEXT, duration INTEGER, expiration INTEGER, "
+                     "trashed_date INTEGER, flags INTEGER, receiver TEXT, label TEXT)")
+        for rowid, iso, sender, seconds in rows:
+            conn.execute("INSERT INTO voicemail (ROWID, date, sender, duration, flags, trashed_date) "
+                         "VALUES (?, ?, ?, ?, ?, 0)", (rowid, _iso_seconds(iso), sender, seconds, 0x1103))
+    return _sqlite_bytes(build)
+
+
+@dataclass
+class PersonPlan:
+    backup_dir: Path
+    udid: str
+    scenario: "whatsapp_backup.Scenario"   # WhatsApp's part
+    sms_chat_id: int                       # a Messages conversation with the id of WhatsApp's Riley chat
+    sms_message_id: int                    # the message in it that has the attachments below
+    sms_attachments: dict                  # Messages attachment id -> (name, bytes, or None when not in the backup)
+    call_ids: list                         # CallHistory.storedata's Z_PKs
+    voicemail_audio: dict                  # voicemail ROWID -> AMR bytes, None when the audio isn't in the backup
+
+
+def make_person_copy(source: Path, dest: Path, scenario) -> PersonPlan:
+    """Einstein's backup with WhatsApp, call history, voicemail and Messages attachments added.
+
+    Everything one person in People can have, in one backup, with the ids
+    colliding the way they do on real phones: the Messages conversation the
+    attachments are in has the id of WhatsApp's Riley chat, and the Messages
+    attachments have the ids of WhatsApp's photo, missing photo and document,
+    so a save that mixed the two sources up would show it.
+    """
+    wb = whatsapp_backup
+    sms_attachments = {
+        wb.ATT_IMAGE: ("IMG_0002.jpg", wb.jpeg((50, 40), (200, 30, 30)), "image/jpeg"),
+        wb.ATT_DOCUMENT: ("clip.mov", b"\x00\x00\x00\x14ftypqt  " + b"fictional movie" * 4, "video/quicktime"),
+        wb.ATT_MISSING_IMAGE: ("IMG_0009.heic", None, "image/heic"),
+    }
+    folder = "Library/SMS/Attachments/7f/07"
+    files = dict(scenario.files)
+    for att_id, (name, data, _) in sms_attachments.items():
+        if data is not None:
+            files[("MediaDomain", f"{folder}/{att_id}/{name}")] = data
+    call_ids = [1, 2]
+    files[("HomeDomain", "Library/CallHistoryDB/CallHistory.storedata")] = _call_history([
+        (1, PERSON_NUMBER, "2024-03-02T09:00:00", 125, True, False, "com.apple.Telephony", 1),
+        (2, PERSON_NUMBER, "2024-03-03T18:30:00", 0, False, False, "com.apple.FaceTime", 16),
+    ])
+    voicemail_audio = {1: AMR_BYTES + b"\x01", 2: None}
+    files[("HomeDomain", "Library/Voicemail/voicemail.db")] = _voicemail_db([
+        (1, "2024-03-04T10:00:00", PERSON_NUMBER, 23),
+        (2, "2024-03-05T10:00:00", PERSON_NUMBER, 8),
+    ])
+    files[("HomeDomain", "Library/Voicemail/1.amr")] = voicemail_audio[1]
+    files[("HomeDomain", "Library/Voicemail/1.transcript")] = plistlib.dumps(
+        {"transcriptionString": VOICEMAIL_TRANSCRIPT})
+
+    from types import SimpleNamespace
+    whatsapp_backup.make_plain_copy(source, dest, SimpleNamespace(files=files), udid=PERSON_UDID,
+                                    device_name="Person test copy")
+
+    db_path = dest / SMS_DB_ID[:2] / SMS_DB_ID
+    conn = sqlite3.connect(str(db_path))
+    try:
+        # iOS's triggers call functions only Messages defines; a test copy doesn't need them.
+        for (trigger,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'trigger'").fetchall():
+            conn.execute(f'DROP TRIGGER "{trigger}"')
+        chat_id = wb.CHAT_RILEY
+        row = conn.execute(
+            """SELECT m.ROWID FROM message m JOIN chat_message_join j ON j.message_id = m.ROWID
+               WHERE j.chat_id = ? AND COALESCE(m.associated_message_type, 0) = 0
+                 AND TRIM(COALESCE(m.text, '')) != ''
+                 AND (SELECT COUNT(*) FROM chat_message_join k WHERE k.message_id = m.ROWID) = 1
+               ORDER BY m.ROWID DESC LIMIT 1""", (chat_id,)).fetchone()
+        assert row, f"Einstein's backup has no text message in conversation {chat_id} for the person copy"
+        message_id = row[0]
+        for att_id, (name, data, mime) in sms_attachments.items():
+            conn.execute(
+                "INSERT INTO attachment (ROWID, guid, original_guid, filename, mime_type, transfer_name, total_bytes) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (att_id, f"person-att-{att_id}", f"person-att-{att_id}", f"~/{folder}/{att_id}/{name}", mime, name,
+                 len(data or b"")))
+            conn.execute("INSERT INTO message_attachment_join (message_id, attachment_id) VALUES (?, ?)",
+                         (message_id, att_id))
+        conn.execute("UPDATE message SET cache_has_attachments = 1 WHERE ROWID = ?", (message_id,))
+        conn.commit()
+        # The engine opens backup files "immutable", so nothing may stay in a -wal file.
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    finally:
+        conn.close()
+    for suffix in ("-wal", "-shm"):
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(f"{db_path}{suffix}")
+
+    return PersonPlan(
+        backup_dir=dest, udid=PERSON_UDID, scenario=scenario, sms_chat_id=chat_id, sms_message_id=message_id,
+        sms_attachments={att_id: (name, data) for att_id, (name, data, _) in sms_attachments.items()},
+        call_ids=call_ids, voicemail_audio=voicemail_audio,
+    )
 
 
 # ── A backup with Podcasts ───────────────────────────────────────────────────

@@ -31,9 +31,11 @@ nothing but JSON-RPC, and the common calls stay fast (PERF_BUDGETS).
 
 from __future__ import annotations
 
+import hashlib
 import html
 import io
 import json
+import os
 import re
 import shutil
 import sys
@@ -46,7 +48,7 @@ from pathlib import Path
 from typing import Callable
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageOps
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rpc_contract_support import (  # noqa: E402
@@ -60,6 +62,7 @@ from rpc_contract_support import (  # noqa: E402
     MAREN,
     MAREN_ENCRYPTED,
     PDF_MAGIC,
+    VOICEMAIL_TRANSCRIPT,
     BackupEngine,
     ContractRuntime,
     Engine,
@@ -87,8 +90,9 @@ import calendar_backup as cb  # noqa: E402
 # include the JSON-RPC round trip. Measured on an M-series Mac (2026-11, worst
 # of 3 runs): engine start 0.24 s; open_backup 0.002; list_conversations 0.005;
 # get_messages 0.004; list_photos 0.012; get_photo_thumbnail 0.056;
-# search_messages 0.014; get_backup_stats 0.013; get_year_counts 0.013. On a
-# Windows 11 PC: start 0.27 s, every call 0.025 s or less.
+# search_messages 0.014; get_backup_stats 0.013; get_year_counts 0.013;
+# get_attachment's thumbnail 0.011. On a Windows 11 PC: start 0.27 s, every
+# call 0.025 s or less.
 # A budget is 4x that, rounded up, but never under 1 s for a call (10 s to
 # start): hosted CI runners are several times slower and Windows ones add
 # Defender scans and slow first file opens, and a flaky budget is worse than
@@ -100,6 +104,7 @@ PERF_BUDGETS = {
     "open_backup": 1.0,
     "list_conversations": 1.0,
     "get_messages": 1.0,         # first page (50) of the biggest conversation
+    "get_attachment_thumb": 1.0,  # a message photo's first thumbnail: decode a 1600 px JPEG, scale, re-encode
     "list_photos": 1.0,          # first page (100)
     "get_photo_thumbnail": 1.0,  # first thumbnail: decode a 1600 px JPEG, scale, re-encode
     "search_messages": 1.0,      # a common word across every conversation
@@ -151,6 +156,12 @@ class Ctx:
     def whatsapp_enc(self) -> BackupEngine:
         """An encrypted backup holding only WhatsApp (password "test")."""
         return self.runtime.whatsapp(encrypted=True)
+
+    @property
+    def person(self) -> BackupEngine:
+        """Einstein's backup with WhatsApp, call history, voicemail and Messages attachments added, the
+        ids colliding across Messages and WhatsApp; ``.plan`` says what's in it (make_person_copy)."""
+        return self.runtime.person()
 
     @property
     def podcasts(self) -> BackupEngine:
@@ -367,13 +378,62 @@ def case_get_attachment(ctx):
     for engine in (ctx.maren, ctx.maren_enc):
         with_attachment = [msg for msg in engine.expected["messages"] if msg["attachment"]]
         assert len(engine.attachments) == len(with_attachment) > 0
+        # get_messages says what each one is and that its file is in the backup
+        for _, _, att in engine.attachments:
+            assert att["available"] is True and att["is_sticker"] is False, att
+            assert att["uti"] == "public.jpeg", att
         for _, _, att in engine.attachments[:6]:
+            what = f"attachment {att['attachment_id']}"
             result = engine.rpc("get_attachment", attachment_id=att["attachment_id"])
-            data = decoded(result, f"attachment {att['attachment_id']}")
+            data = decoded(result, what)
             assert result["filename"] == att["transfer_name"]
             assert result["mime_type"] == att["mime_type"] == "image/jpeg"
-            assert data.startswith(JPEG_MAGIC) and len(data) == att["total_bytes"]
-        assert engine.rpc("get_attachment", attachment_id=10 ** 9) == {"error": "Attachment not found"}
+            assert data.startswith(JPEG_MAGIC) and len(data) == att["total_bytes"] == result["size"]
+            # A thumbnail: a small JPEG, with the whole photo's size as it is shown
+            thumb = engine.rpc("get_attachment", attachment_id=att["attachment_id"], thumbnail=True)
+            small = decoded(thumb, f"{what} thumbnail")
+            assert thumb["mime_type"] == "image/jpeg" and small.startswith(JPEG_MAGIC) and len(small) < len(data)
+            assert (thumb["filename"], thumb["size"]) == (att["transfer_name"], att["total_bytes"])
+            with Image.open(io.BytesIO(small)) as img, Image.open(io.BytesIO(data)) as photo:
+                assert max(img.size) <= 400, img.size
+                assert (thumb["width"], thumb["height"]) == ImageOps.exif_transpose(photo).size
+            assert engine.rpc("get_attachment", attachment_id=att["attachment_id"], thumbnail=True) == thumb  # kept
+            # A copy under its own name, outside the backup, in the engine's folder of copies
+            copy = engine.rpc("get_attachment", attachment_id=att["attachment_id"], as_file=True)
+            path = Path(copy["path"])
+            assert path.name == att["transfer_name"] and path.read_bytes() == data
+            assert (copy["mime_type"], copy["filename"], copy["size"], copy["openable"]) == \
+                ("image/jpeg", att["transfer_name"], att["total_bytes"], True)
+            assert engine.backup_dir.resolve() not in path.resolve().parents
+            assert path.parent.parent.parent.name.startswith("openextract-messages-"), path
+        for flags in ({}, {"thumbnail": True}, {"as_file": True}):
+            assert engine.rpc("get_attachment", attachment_id=10 ** 9, **flags) == {"error": "Attachment not found"}
+
+    # A backup copied only partway (OE-102): one photo's file isn't in its folder
+    m = ctx.maren
+    _, _, gone = m.attachments[0]
+    partial = ctx.tmp / "partial" / m.udid
+    shutil.copytree(m.backup_dir, partial, copy_function=_link_or_copy)
+    file_id = hashlib.sha1(f"MediaDomain-{gone['filename'].removeprefix('~/')}".encode()).hexdigest()
+    (partial / file_id[:2] / file_id).unlink()
+    engine = ctx.runtime.fresh("partial")
+    assert engine.call("open_backup", {"udid": m.udid, "backup_dir": str(partial)})["status"] == "open"
+    page = engine.call("get_messages", {"udid": m.udid, "chat_id": next(c for c, msg, a in m.attachments if a is gone),
+                                        "offset": 0, "limit": 10_000})
+    found = {a["attachment_id"]: a["available"] for msg in page["messages"] for a in msg["attachments"]}
+    assert found[gone["attachment_id"]] is False and sum(found.values()) == len(found) - 1, found
+    for flags in ({}, {"thumbnail": True}, {"as_file": True}):
+        result = engine.call("get_attachment", {"udid": m.udid, "attachment_id": gone["attachment_id"], **flags})
+        assert result == {"error": "This file isn't in the backup", "empty_reason": "not_in_backup"}, (flags, result)
+
+
+def _link_or_copy(src, dest):
+    """Copy a backup's file for a test that changes the copy: a hard link where the disk allows one (quick)."""
+    try:
+        os.link(src, dest)
+    except OSError:
+        shutil.copy2(src, dest)
+    return dest
 
 
 @contract("get_message_offset")
@@ -768,18 +828,49 @@ def case_export_bundle(ctx):
     assert not (path / "photos").exists()
 
 
+def _record_page(path: Path) -> str:
+    """A saved record document (record_document.py): a whole page, nothing that
+    runs or loads from elsewhere, the app's footer."""
+    page = path.read_text(encoding="utf-8")
+    assert page.startswith("<!DOCTYPE html>") and page.rstrip().endswith("</html>")
+    assert not any(tag in page.lower() for tag in ("<script", "<img", "<link", " src="))
+    assert "@media print" in page and "Made with OpenExtract" in page
+    return page
+
+
 @contract("export_calls")
 def case_export_calls(ctx):
     enc = ctx.maren_enc
+    calls = enc.expected["calls"]
     out = ctx.out("calls")
     result = enc.rpc("export_calls", output_dir=str(out))
-    assert result["success"] is True and result["count"] == len(enc.expected["calls"])
+    assert result["success"] is True and result["count"] == len(calls)
     path = Path(result["path"])
-    assert same_path(path.parent, out) and path.name == "call_history.csv"
+    assert same_path(path.parent, out) and path.name == "call_history.csv" and same_path(result["file"], path)
+    assert path.read_bytes().startswith(b"\xef\xbb\xbf")  # Excel reads it as UTF-8
     rows = read_csv(path)
     assert rows[0] == ["Date", "Contact Name", "Phone/Email", "Direction", "Status", "Duration (s)", "App/Service"]
     assert len(rows) - 1 == result["count"]
     assert {row[3] for row in rows[1:]} <= {"Incoming", "Outgoing"}
+    # Saving again keeps the first file
+    again = enc.rpc("export_calls", output_dir=str(out), format="csv")
+    assert Path(again["file"]).name == "call_history (2).csv" and path.exists()
+
+    # A web page, the page Electron prints to a PDF, and plain text: a row or line per call
+    for fmt, ext in (("html", ".html"), ("pdf_source", ".html"), ("txt", ".txt")):
+        folder = ctx.folder(f"calls-{fmt}")
+        result = enc.rpc("export_calls", output_dir=str(folder), format=fmt)
+        path = Path(result["file"])
+        assert result["success"] is True and result["count"] == len(calls), result
+        assert same_path(path.parent, folder) and path.name == f"call_history{ext}" and files_under(folder) == [path]
+        if ext == ".html":
+            page = _record_page(path)
+            assert page.count("<tr>") == len(calls) + 1  # the heading row, then one per call
+            assert f"{len(calls):,} calls" in page and "<h1>Call history</h1>" in page
+        else:
+            lines = path.read_text(encoding="utf-8-sig").splitlines()
+            assert lines[0] == "Call history" and sum(line.startswith("[") for line in lines) == len(calls)
+    assert_error_dict(enc.rpc("export_calls", output_dir=str(ctx.folder("calls-docx")), format="docx"), "Unsupported format")
 
 
 @contract("export_notes")
@@ -788,7 +879,7 @@ def case_export_notes(ctx):
     notes = m.notes
     out = ctx.out("notes-txt")
     result = m.rpc("export_notes", note_ids=[n["note_id"] for n in notes], format="txt", output_dir=str(out))
-    assert result["status"] == "ok"
+    assert result["status"] == "ok" and result["count"] == len(notes) and result["files"] == result["exported"]
     paths = [Path(p) for p in result["exported"]]
     assert len(paths) == len(notes) == len(set(paths)) == len(files_under(out))  # no two notes in one file
     titles = {n["title"] for n in notes}
@@ -801,6 +892,37 @@ def case_export_notes(ctx):
     assert all(Path(p).suffix == ".pdf" and Path(p).read_bytes().startswith(PDF_MAGIC) for p in result["exported"])
     result = m.rpc("export_notes", note_ids=[10 ** 6], format="txt", output_dir=str(ctx.out("notes-none")))
     assert result["status"] == "error" and result["message"]
+
+    # One note as a web page, or as the page Electron prints: named after it, its text in it
+    first = notes[0]
+    for fmt in ("html", "pdf_source"):
+        folder = ctx.folder(f"notes-one-{fmt}")
+        result = m.rpc("export_notes", note_ids=[first["note_id"]], format=fmt, output_dir=str(folder))
+        [path] = [Path(p) for p in result["files"]]
+        assert result["status"] == "ok" and path.suffix == ".html" and files_under(folder) == [path]
+        page = _record_page(path)
+        assert f"<h1>{html.escape(first['title'])}</h1>" in page
+        last_line = first["body"].strip().splitlines()[-1]
+        assert html.escape(last_line) in page
+
+    # Every note in one file (no note_ids: all of them), in each format
+    for fmt, ext in (("txt", ".txt"), ("html", ".html"), ("pdf_source", ".html")):
+        folder = ctx.folder(f"notes-merged-{fmt}")
+        result = m.rpc("export_notes", format=fmt, mode="merged", output_dir=str(folder))
+        path = Path(result["file"])
+        assert result["status"] == "ok" and result["count"] == len(notes) and result["exported"] == [result["file"]]
+        assert same_path(path.parent, folder) and path.name == f"Notes{ext}" and files_under(folder) == [path]
+        text = path.read_text(encoding="utf-8")
+        assert all((html.escape(n["title"]) if ext == ".html" else n["title"]) in text for n in notes)
+    # Saving them again keeps the first file
+    again = m.rpc("export_notes", format="txt", mode="merged", output_dir=str(folder.parent / "notes-merged-txt"))
+    assert Path(again["file"]).name == "Notes (2).txt"
+
+    # A format or mode it doesn't know is an error, never an empty success
+    assert_error_dict(m.rpc("export_notes", note_ids=[first["note_id"]], format="docx", output_dir=str(ctx.out("n-docx"))),
+                      "Unsupported format")
+    assert_error_dict(m.rpc("export_notes", format="txt", mode="zip", output_dir=str(ctx.out("n-zip"))), "Unsupported mode")
+    assert not ctx.out("n-docx").exists() and not ctx.out("n-zip").exists()
 
 
 @contract("has_browser_history")
@@ -834,11 +956,29 @@ def case_export_browser_history(ctx):
     assert result["success"] is True and result["count"] == len(enc.expected["browser_history"])
     path = Path(result["path"])
     assert same_path(path.parent, out) and path.suffix == ".csv"
+    assert path.read_bytes().startswith(b"\xef\xbb\xbf") and same_path(result["file"], path)
     rows = read_csv(path)
     assert rows[0] == ["Date", "Browser", "URL", "Title", "Domain", "Visit Count"]
     assert len(rows) - 1 == result["count"] and {row[1] for row in rows[1:]} == {"Safari"}
     result = ctx.maren.rpc("export_browser_history", output_dir=str(ctx.out("browser-plain")))
     assert result["success"] is False and result["error"]
+
+    visits = enc.expected["browser_history"]
+    for fmt, ext in (("html", ".html"), ("pdf_source", ".html"), ("txt", ".txt")):
+        folder = ctx.folder(f"browser-{fmt}")
+        result = enc.rpc("export_browser_history", output_dir=str(folder), format=fmt)
+        path = Path(result["file"])
+        assert result["success"] is True and result["count"] == len(visits), result
+        assert same_path(path.parent, folder) and path.suffix == ext and files_under(folder) == [path]
+        if ext == ".html":
+            page = _record_page(path)
+            assert page.count("<tr>") == len(visits) + 1 and "<h1>Web history</h1>" in page
+            assert f"{len(visits):,} page visits" in page
+        else:
+            lines = path.read_text(encoding="utf-8-sig").splitlines()
+            assert lines[0] == "Web history" and sum(line.startswith("[") for line in lines) == len(visits)
+    assert_error_dict(enc.rpc("export_browser_history", output_dir=str(ctx.folder("browser-x")), format="xlsx"),
+                      "Unsupported format")
 
 
 # ── WhatsApp ─────────────────────────────────────────────────────────────────
@@ -1092,6 +1232,122 @@ def case_export_whatsapp_chats(ctx):
     result = wa.rpc("export_whatsapp_chats", chat_ids=chat_ids, conversation_names=names, format="pdf_source",
                     output_dir=str(out), mode="merged")
     assert [Path(f).suffix for f in result["files"]] == [".html"] and result["message_count"] == total
+
+
+# ── Everything with one person (People's Save) ───────────────────────────────
+
+PERSON_CSV_HEADER = ["Date", "Kind", "Conversation", "Direction", "Sender", "Text", "Attachments",
+                     "Attachment files", "Duration", "Transcript"]
+
+
+@contract("export_person")
+def case_export_person(ctx):
+    p = ctx.person
+    plan, s = p.plan, p.plan.scenario
+    # The Messages conversation and the WhatsApp chat share an id: two different chats
+    assert plan.sms_chat_id == wb.CHAT_RILEY
+    sms_messages = [m for m in p.messages_of(plan.sms_chat_id) if not m["is_reaction"]]
+    calls = p.rpc("list_calls", offset=0, limit=1000)["calls"]
+    call_ids = [c["call_id"] for c in calls]
+    assert sorted(map(str, call_ids)) == sorted([*map(str, plan.call_ids), *(f"vm_{v}" for v in plan.voicemail_audio)])
+    assert {type(i) for i in call_ids} == {int, str}  # 1 and "vm_1", compared as text
+    voicemails = p.rpc("list_voicemails", include_deleted=True)["voicemails"]
+    params = dict(display_name=wb.RILEY_NAME, chat_ids=[plan.sms_chat_id],
+                  conversation_names={str(plan.sms_chat_id): "Riley (text messages)"},
+                  whatsapp_chat_ids=[wb.CHAT_RILEY], whatsapp_names={str(wb.CHAT_RILEY): wb.RILEY_NAME},
+                  call_ids=call_ids, voicemail_ids=[v["id"] for v in voicemails])
+    counts = {"message": len(sms_messages), "whatsapp": s.counts[wb.CHAT_RILEY], "call": len(calls),
+              "voicemail": len(voicemails)}
+    total = sum(counts.values())
+    wa_media = [a for m in p.whatsapp_messages_of(wb.CHAT_RILEY) for a in m["attachments"]]
+    sms_media = plan.sms_attachments.values()
+    media = {
+        "copied": sum(data is not None for _, data in sms_media) + sum(a["available"] for a in wa_media)
+        + sum(audio is not None for audio in plan.voicemail_audio.values()),
+        "not_in_backup": sum(data is None for _, data in sms_media) + sum(not a["available"] for a in wa_media)
+        + sum(audio is None for audio in plan.voicemail_audio.values()),
+        "failed": 0,
+    }
+    files_total = len(sms_media) + len(wa_media) + len(voicemails)
+
+    def originals_in(folder: Path):
+        # Every source's own file, though Messages' and WhatsApp's attachment ids collide
+        for att_id, (name, data) in plan.sms_attachments.items():
+            assert (folder / f"{att_id}-{name}").exists() is (data is not None), name
+            if data is not None:
+                assert (folder / f"{att_id}-{name}").read_bytes() == data
+        assert (folder / f"wa{wb.ATT_IMAGE}-abcd-image.jpg").read_bytes() == s.image_bytes
+        assert (folder / f"wa{wb.ATT_DOCUMENT}-{wb.DOCUMENT_TITLE}").read_bytes() == wb.PDF_BYTES
+        assert (folder / f"wa{wb.ATT_VOICE_NOTE}-voice.opus").read_bytes() == wb.VOICE_BYTES
+        assert [r.read_bytes() for r in folder.glob("vm*.amr")] == [plan.voicemail_audio[1]]
+
+    base = None
+    for fmt, suffix in (("html", ".html"), ("csv", ".csv"), ("txt", ".txt")):
+        out = ctx.folder(f"person-{fmt}")
+        seen = len(p.notifications)
+        result = p.rpc("export_person", format=fmt, output_dir=str(out), **params)
+        path = Path(result["file"])
+        assert same_path(path.parent, out) and path.suffix == suffix and path.name.startswith(wb.RILEY_NAME)
+        base = path.stem
+        assert result["counts"] == counts and result["message_count"] == total
+        assert result["media"] == media and result["errors"] == {}
+        folder = Path(result["media_folder"])
+        assert same_path(folder, out / f"{base}_attachments")
+        originals_in(folder)
+        progress = [n["params"] for n in p.notifications[seen:] if n["method"] == "export.progress"]
+        assert progress and {q["kind"] for q in progress} == {"person"}
+        assert {q["total"] for q in progress} == {total + files_total}
+        assert (progress[0]["done"], progress[-1]["done"], progress[-1]["failed"]) == (0, total + files_total, 0)
+        if fmt == "html":
+            page = path.read_text(encoding="utf-8")
+            assert page.startswith("<!DOCTYPE html>") and f"<title>Everything with {wb.RILEY_NAME}</title>" in page
+            assert html.escape(VOICEMAIL_TRANSCRIPT) in page and "<b>soon</b>" not in page
+            assert re.search(r'<audio controls[^>]*voice\.opus', page)
+            assert re.search(r'<video controls[^>]*clip\.mov', page)
+            assert "Image not in this backup: IMG_0009.heic" in page
+            # Merged by date: WhatsApp's chat (Mar 1, 2024), the calls (Mar 2 and 3), a voicemail (Mar 4),
+            # then the newest text message, which has the attachments (May 2024)
+            marks = [wb.HELLO_TEXT, "Outgoing call", "Missed FaceTime audio call", "Call me back", "clip.mov"]
+            assert [page.index(m) for m in marks] == sorted(page.index(m) for m in marks)
+            assert page.count('<span class="src">WhatsApp</span>') == counts["whatsapp"]
+        elif fmt == "csv":
+            rows = read_csv(path)
+            assert rows[0] == PERSON_CSV_HEADER and len(rows) - 1 == total
+            kinds = Counter(row[1] for row in rows[1:])
+            assert (kinds["WhatsApp"], kinds["Call"], kinds["Voicemail"]) == \
+                (counts["whatsapp"], counts["call"], counts["voicemail"])
+            assert kinds["SMS"] + kinds["Messages"] + kinds["RCS"] == counts["message"]
+            for row in rows[1:]:
+                for rel in filter(None, row[7].split("; ")):
+                    assert (out / rel).is_file(), rel
+        else:
+            text = path.read_text(encoding="utf-8-sig")
+            assert f"(WhatsApp) {wb.RILEY_NAME}: {wb.HELLO_TEXT}" in text
+            assert f"[Video: clip.mov -> {base}_attachments/{wb.ATT_DOCUMENT}-clip.mov]" in text
+            assert "(Voicemail) Voicemail" in text and "(Call) Outgoing call" in text
+
+    # PDF: the page goes into Electron's staging folder; every original goes beside the PDF in the
+    # chosen folder, under a name free for both the PDF and the folder
+    staging, chosen = ctx.folder("person-staging"), ctx.folder("person-chosen")
+    (chosen / f"{base}.pdf").write_bytes(b"%PDF-1.4 saved earlier")
+    result = p.rpc("export_person", format="pdf_source", output_dir=str(staging), media_dir=str(chosen), **params)
+    page_path = Path(result["file"])
+    assert same_path(page_path.parent, staging) and page_path.name == f"{base} (2).html"
+    assert result["counts"] == counts and result["media"] == media
+    assert same_path(result["media_folder"], chosen / f"{base} (2)_attachments")
+    originals_in(Path(result["media_folder"]))
+    page = page_path.read_text(encoding="utf-8")
+    images = set(re.findall(r'<img[^>]* src="(attachments/[^"]+)"', page))
+    assert {f"attachments/{wb.ATT_IMAGE}.jpg", f"attachments/wa{wb.ATT_IMAGE}.jpg"} <= images
+    for rel in images:
+        assert (staging / rel).read_bytes()[:3] == JPEG_MAGIC
+    assert f"Saved as {wb.ATT_DOCUMENT}-clip.mov" in page and "Recording saved as vm1-" in page
+    assert "<video" not in page and "<audio" not in page
+    assert (chosen / f"{base}.pdf").read_bytes() == b"%PDF-1.4 saved earlier"
+
+    assert_error_dict(p.rpc("export_person", format="docx", output_dir=str(ctx.folder("person-docx")), **params),
+                      "Unsupported format")
+    assert files_under(ctx.tmp / "person-docx") == []
 
 
 @contract("plan_pdf_parts")
@@ -1525,24 +1781,37 @@ def case_export_recovered_messages(ctx):
     rec = ctx.runtime.recovery()
     plan = rec.plan
     texts = sorted(text for _, text in plan.deleted + plan.orphaned)
-    for fmt in ("csv", "html", "pdf"):
+    exts = {"csv": ".csv", "html": ".html", "pdf_source": ".html", "txt": ".txt", "pdf": ".pdf"}
+    for fmt, ext in exts.items():
         out = ctx.folder(f"recovered-{fmt}")
         result = rec.rpc("export_recovered_messages", format=fmt, output_dir=str(out))
         path = Path(result["file"])
-        assert same_path(path.parent, out) and path.suffix == f".{fmt}"
+        assert same_path(path.parent, out) and path.name == f"recovered_messages{ext}"
         assert (result["message_count"], result["conversation_count"]) == (len(texts), 2)
         assert [p.name for p in files_under(out)] == [path.name]
         if fmt == "csv":
+            assert path.read_bytes().startswith(b"\xef\xbb\xbf")
             rows = read_csv(path)
             assert rows[0] == ["Conversation", "Source", "Date", "Sender", "Is From Me", "Text", "Deleted Date"]
             assert sorted(row[5] for row in rows[1:]) == texts
             assert {row[1] for row in rows[1:]} == {"Recently Deleted", "Orphaned"}
-        elif fmt == "html":
-            page = path.read_text(encoding="utf-8")
-            assert f"{len(texts)} message(s) across 2 conversation(s)" in page
+            # Dates in local time with the offset: the same moment as the engine's UTC
+            dates = sorted(datetime.fromisoformat(row[2]) for row in rows[1:])
+            found = rec.rpc("recover_messages")["messages_by_conversation"]
+            assert dates == sorted(datetime.fromisoformat(m["date"]) for msgs in found.values() for m in msgs)
+        elif ext == ".html":
+            page = _record_page(path)
+            assert f"{len(texts)} messages in 2 conversations" in page and "<h1>Recovered messages</h1>" in page
             assert all(html.escape(text).replace("\n", "<br>") in page for text in texts)
+            assert "Recently Deleted" in page and "Left behind" in page  # the screen's words for where they were found
+        elif fmt == "txt":
+            text = path.read_text(encoding="utf-8-sig")
+            assert text.startswith("Recovered messages\n") and all(t.splitlines()[0] in text for t in texts)
         else:
             assert path.read_bytes().startswith(PDF_MAGIC)
+    # Saving again keeps the first file
+    again = rec.rpc("export_recovered_messages", format="html", output_dir=str(ctx.tmp / "recovered-html"))
+    assert Path(again["file"]).name == "recovered_messages (2).html"
     assert_error_dict(rec.rpc("export_recovered_messages", format="docx", output_dir=str(ctx.folder("recovered-docx"))),
                       "Unsupported format")
 
@@ -1995,6 +2264,29 @@ def empty_export_whatsapp_chats(e, out):
     assert files_under(out) == []
 
 
+@empty_state("export_person")
+def empty_export_person(e, out):
+    # WhatsApp, calls and voicemail aren't in Einstein's backup: the Messages part is still saved,
+    # and the part that isn't there is named
+    conv = e.biggest_conversation
+    messages = [m for m in e.messages_of(conv["chat_id"]) if not m["is_reaction"]]
+    out.mkdir()
+    result = e.rpc("export_person", format="csv", output_dir=str(out), display_name=conv["display_name"],
+                   chat_ids=[conv["chat_id"]], whatsapp_chat_ids=[conv["chat_id"]], call_ids=["vm_1", 1],
+                   voicemail_ids=[1])
+    assert result["counts"] == {"message": len(messages), "whatsapp": 0, "call": 0, "voicemail": 0}
+    assert result["errors"] == {"whatsapp": "WhatsApp is not in this backup"}
+    assert result["media"] == {"copied": 0, "not_in_backup": 0, "failed": 0} and "media_folder" not in result
+    assert len(read_csv(Path(result["file"]))) - 1 == len(messages)
+    assert files_under(out) == [Path(result["file"])]
+    # Only what isn't there: nothing to save, and nothing written
+    nothing = out / "nothing"
+    result = e.rpc("export_person", format="html", output_dir=str(nothing), display_name="X",
+                   whatsapp_chat_ids=[1], call_ids=["vm_1"], voicemail_ids=[1])
+    assert result == {"error": "WhatsApp is not in this backup", "errors": {"whatsapp": "WhatsApp is not in this backup"}}
+    assert not nothing.exists()
+
+
 @empty_state("list_podcasts")
 def empty_list_podcasts(e, out):
     assert e.rpc("list_podcasts") == {"podcasts": [], "empty_reason": "not_in_backup"}
@@ -2122,6 +2414,7 @@ def test_unknown_method_gets_method_not_found(runtime):
     ("open_backup", {}, "udid"),
     ("get_messages", {"udid": FAKE_UDID}, "chat_id"),
     ("get_whatsapp_messages", {"udid": FAKE_UDID}, "chat_id"),
+    ("get_attachment", {"udid": FAKE_UDID}, "attachment_id"),
     ("get_whatsapp_attachment", {"udid": FAKE_UDID}, "attachment_id"),
     ("get_voice_memo_audio", {"udid": FAKE_UDID}, "memo_id"),
     ("get_voice_memo_transcript", {"udid": FAKE_UDID}, "memo_id"),
@@ -2312,6 +2605,13 @@ def test_performance_budgets(runtime, record_property, capsys):
     conversations = timed("list_conversations", "list_conversations", udid=udid)["conversations"]
     biggest = max(conversations, key=lambda c: c["message_count"])
     assert timed("get_messages", "get_messages", udid=udid, chat_id=biggest["chat_id"], offset=0, limit=50)["messages"]
+    attachment = next(
+        a for c in conversations
+        for msg in engine.call("get_messages", {"udid": udid, "chat_id": c["chat_id"], "offset": 0, "limit": 10_000})["messages"]
+        for a in msg["attachments"]
+    )
+    assert "data" in timed("get_attachment_thumb", "get_attachment", udid=udid,
+                           attachment_id=attachment["attachment_id"], thumbnail=True)
     photos = timed("list_photos", "list_photos", udid=udid, offset=0, limit=100)["photos"]
     assert "data" in timed("get_photo_thumbnail", "get_photo_thumbnail", udid=udid, file_hash=photos[0]["file_hash"], size=200)
     assert timed("search_messages", "search_messages", udid=udid, query="the")["results"]

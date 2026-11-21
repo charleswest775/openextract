@@ -1,22 +1,21 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useTimeline } from '../../hooks/useTimeline';
 import type { TimelineEntry } from '../../types/timeline';
 import { formatPhone } from '../../lib/people';
 import { matches } from '../../lib/search';
 import { formatDate } from '../../lib/dates';
-import { saveFolder } from '../../lib/ipc';
-import { formatTimeline, FORMAT_FILTERS, type ExportFormat } from '../../lib/timelineExport';
-import { plural } from '../../lib/saveData';
+import { percentDone } from '../../lib/exportProgress';
+import { personExportSpec, plural, savePerson, type RecordFormat } from '../../lib/saveData';
 import { useSaveAction } from '../../hooks/useSaveAction';
+import { useExportProgress } from '../../hooks/useExportProgress';
 import Highlight from '../shared/Highlight';
 import EmptyState from '../shared/EmptyState';
 import OrganicLoader from '../shared/OrganicLoader';
-import SaveDialog, { FORMATS, SaveButton } from '../shared/SaveDialog';
+import SaveDialog, { RECORD_FORMATS, SaveButton, SaveProgress } from '../shared/SaveDialog';
 import DateRange from '../shared/DateRange';
 import { SearchField } from '../shared/PageHeader';
 import { CallIcon, CameraIcon, ChevronRightIcon, ContactIcon, NoteIcon, PeopleIcon, LinesIcon, VoicemailIcon, WhatsAppIcon } from '../shared/Icons';
-import TimelineEntryCard from '../timeline/TimelineEntryCard';
-import { groupByDay } from '../timeline/TimelineView';
+import EventStream from '../timeline/EventStream';
 import type { ExploreContext } from '../explore/sections';
 import { gatherPeople, idKey, initials, linkCards, PERSON_KINDS, type Person } from './gather';
 import { countOf, kindChips, nothingBetween, streamTypes, type StreamKind } from './stream';
@@ -67,6 +66,7 @@ export default function PeopleView({ ctx, query, person, days }: Props) {
   const searchWithin = useDeferredValue(within);
   const [choosing, setChoosing] = useState(false);
   const { busy, run } = useSaveAction('timeline');
+  const saving = useExportProgress('person', busy);
 
   const shown = people.filter(p => p.key === asked?.key || matches(query, p.name, ...p.numbers, ...p.ids));
   const individuals = shown.filter(p => !p.isGroup);
@@ -75,7 +75,9 @@ export default function PeopleView({ ctx, query, person, days }: Props) {
     ?? individuals[0] ?? groups[0] ?? null;
   const card = selected ? cardOf.get(selected.key) : undefined;
 
-  // The Timeline does the matching: one person across phone numbers, emails and their address-book card
+  // The Timeline does the matching: one person across phone numbers, emails and their address-book card.
+  // Their identifier can change while the backup loads (a newer call from a number they also text from
+  // an email), so the filter follows it as well as who's picked: otherwise the page would wait for good.
   const { setFilters } = timeline;
   useEffect(() => {
     if (!selected) return;
@@ -84,7 +86,7 @@ export default function PeopleView({ ctx, query, person, days }: Props) {
       types: streamTypes(kinds),
       searchQuery: searchWithin, dateFrom: range.from, dateTo: range.to,
     });
-  }, [selected?.key, kinds, searchWithin, range.from, range.to, setFilters]);
+  }, [selected?.key, selected?.identifier, kinds, searchWithin, range.from, range.to, setFilters]);
   // Until the filter has caught up with who's picked, the Timeline's numbers are the whole backup's
   const ready = selected != null && timeline.filters.contactIdentifier === selected.identifier;
   const dated = !!(range.from || range.to);
@@ -101,20 +103,21 @@ export default function PeopleView({ ctx, query, person, days }: Props) {
     setWithin('');
   }
 
-  function save(format: ExportFormat) {
+  const name = selected ? formatPhone(selected.name) : '';
+
+  // What's shown is what's saved: everything, or what the chips, dates and
+  // search leave, with every photo, video, voice message, document and
+  // recording copied beside the file
+  function save(format: RecordFormat) {
     setChoosing(false);
-    if (!selected) return;
+    if (!selected || !ready) return;
     const entries = timeline.filteredEntries;
-    run(async () => {
-      const folder = await saveFolder();
-      if (!folder) return null;
-      const safe = selected.name.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'person';
-      const path = `${folder}/${safe}.${FORMAT_FILTERS[format].extensions[0]}`;
-      await window.openextract.writeFile(path, formatTimeline(entries, format));
-      return narrowed
-        ? { title: `Saved ${plural(entries.length, 'event')} with ${selected.name}`, path }
-        : { title: `Saved everything with ${selected.name}`, detail: plural(entries.length, 'event'), path };
-    });
+    const { dateFrom, dateTo, searchQuery } = timeline.filters;
+    // Whole chats unless the dates, the search or Photos picked out some of their messages
+    const onlyThese = !!(dateFrom || dateTo || searchQuery.trim()) || kinds === 'photo';
+    const spec = personExportSpec(name, entries, { onlyThese });
+    const title = narrowed ? `Saved ${plural(entries.length, 'event')} with ${name}` : `Saved everything with ${name}`;
+    run(() => savePerson(ctx.udid, spec, format, title));
   }
 
   const listRow = (p: Person) => {
@@ -139,11 +142,10 @@ export default function PeopleView({ ctx, query, person, days }: Props) {
     );
   };
 
-  const groupsOfDays = ready ? groupByDay(timeline.entries) : [];
-  const name = selected ? formatPhone(selected.name) : '';
-  // A WhatsApp message opens in its chat, at that message
-  const openWhatsApp = (entry: TimelineEntry) => ctx.openTab('whatsapp', { select: entry });
-  const totalPages = Math.ceil(timeline.totalFiltered / timeline.pageSize);
+  // A message opens in its own thread, at that message (the same functions every render, so cards don't redraw)
+  const { openTab } = ctx;
+  const openWhatsApp = useCallback((entry: TimelineEntry) => openTab('whatsapp', { select: entry }), [openTab]);
+  const openMessage = useCallback((entry: TimelineEntry) => openTab('messages', { select: entry }), [openTab]);
 
   return (
     <div className="h-full flex min-h-0">
@@ -187,51 +189,69 @@ export default function PeopleView({ ctx, query, person, days }: Props) {
           !timeline.loading && <EmptyState icon={PeopleIcon} title="Pick someone to see everything with them" />
         ) : (
           <>
-            <div className="px-7 pt-6 pb-4 border-b border-rule flex flex-col gap-4">
-              <div className="flex items-center gap-4">
-                <span
-                  aria-hidden="true"
-                  data-initials={initials(selected.name)}
-                  className="w-16 h-16 rounded-full bg-accent-wash flex items-center justify-center flex-shrink-0 text-xl font-medium text-accent before:content-[attr(data-initials)]"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="hearth-eyebrow">{selected.isGroup ? 'Everything in' : 'Everything between you and'}</div>
-                  <h2 className="text-3xl text-text-primary truncate">{name}</h2>
-                  <div className="text-sm text-text-secondary truncate">
-                    {selected.isGroup ? groupLine(selected) : formatPhone(selected.identifier)}
-                    {selected.last && ` · last in touch ${formatDate(selected.last)}`}
+            <div className="px-7 pt-5 pb-4 border-b border-rule flex flex-col gap-3">
+              {/* Who it is, with the buttons beside them when there's room and on their own row when there isn't: nothing is cut short */}
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                <div className="flex items-center gap-4 flex-[1_1_18rem] min-w-0">
+                  <span
+                    aria-hidden="true"
+                    data-initials={initials(selected.name)}
+                    className="w-14 h-14 rounded-full bg-accent-wash flex items-center justify-center flex-shrink-0 text-lg font-medium text-accent before:content-[attr(data-initials)]"
+                  />
+                  <div className="min-w-0">
+                    <div className="hearth-eyebrow">{selected.isGroup ? 'Everything in' : 'Everything between you and'}</div>
+                    <h2 className="text-2xl text-text-primary break-words">{name}</h2>
+                    <div className="text-sm text-text-secondary">
+                      <span className="whitespace-nowrap">{selected.isGroup ? groupLine(selected) : formatPhone(selected.identifier)}</span>
+                      {selected.last && <> · <span className="whitespace-nowrap">last in touch {formatDate(selected.last)}</span></>}
+                    </div>
+                    {card && (
+                      <button
+                        onClick={() => ctx.openTab('contacts', { contactId: card.id })}
+                        className="mt-1 inline-flex flex-wrap items-center gap-x-1.5 text-sm text-accent font-medium hover:underline text-left"
+                      >
+                        <ContactIcon size={16} />
+                        {card.organization ? (
+                          <>
+                            <span className="whitespace-nowrap">In your address book</span>
+                            {/* The arrow stays with the last word, never alone on a line */}
+                            <span>· {card.organization.replace(/\s*\S+$/, '')} <span className="whitespace-nowrap">{card.organization.match(/\S+$/)?.[0]}<ChevronRightIcon size={16} className="inline align-[-3px]" /></span></span>
+                          </>
+                        ) : (
+                          <span className="whitespace-nowrap">In your address book<ChevronRightIcon size={16} className="inline align-[-3px]" /></span>
+                        )}
+                      </button>
+                    )}
                   </div>
-                  {card && (
-                    <button
-                      onClick={() => ctx.openTab('contacts', { contactId: card.id })}
-                      className="mt-1 flex items-center gap-1.5 text-sm text-accent font-medium hover:underline"
-                    >
-                      <ContactIcon size={16} />
-                      In your address book{card.organization ? ` · ${card.organization}` : ''}
-                      <ChevronRightIcon size={16} />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {selected.chatId != null && selected.counts.message > 0 && (
+                    <button onClick={() => ctx.openTab('messages', { chatId: selected.chatId })} className="hearth-ghost-btn">
+                      <LinesIcon size={18} />
+                      Open conversation
                     </button>
                   )}
+                  {selected.waChatId != null && selected.counts.whatsapp > 0 && (
+                    <button onClick={() => ctx.openTab('whatsapp', { waChatId: selected.waChatId })} className="hearth-ghost-btn">
+                      <WhatsAppIcon size={18} />
+                      Open WhatsApp chat
+                    </button>
+                  )}
+                  <SaveButton
+                    primary
+                    onClick={() => setChoosing(true)}
+                    busy={busy}
+                    disabled={timeline.loading || !ready || timeline.totalFiltered === 0}
+                    label={narrowed ? 'Save these' : 'Save everything'}
+                  />
                 </div>
-                {selected.chatId != null && selected.counts.message > 0 && (
-                  <button onClick={() => ctx.openTab('messages', { chatId: selected.chatId })} className="hearth-ghost-btn">
-                    <LinesIcon size={18} />
-                    Open conversation
-                  </button>
-                )}
-                {selected.waChatId != null && selected.counts.whatsapp > 0 && (
-                  <button onClick={() => ctx.openTab('whatsapp', { waChatId: selected.waChatId })} className="hearth-ghost-btn">
-                    <WhatsAppIcon size={18} />
-                    Open WhatsApp chat
-                  </button>
-                )}
-                <SaveButton
-                  primary
-                  onClick={() => setChoosing(true)}
-                  busy={busy}
-                  disabled={timeline.loading || !ready || timeline.totalFiltered === 0}
-                  label={narrowed ? 'Save these' : 'Save everything'}
-                />
               </div>
+              {saving && (
+                <SaveProgress
+                  text={`Saving ${saving.done.toLocaleString()} of ${plural(saving.total, 'message, call or file', 'messages, calls and files')}…`}
+                  percent={percentDone(saving)}
+                />
+              )}
               <div className="flex flex-col gap-3">
                 <div role="radiogroup" aria-label="Show" className="flex flex-wrap gap-2">
                   {ready && kindChips(timeline.counts, kinds).map(({ kind, label }) => {
@@ -259,43 +279,33 @@ export default function PeopleView({ ctx, query, person, days }: Props) {
                     value={within}
                     onChange={setWithin}
                     placeholder={selected.isGroup ? 'Search this group' : 'Search everything between you'}
-                    className="w-80"
+                    className="w-80 max-w-full"
                   />
                   <DateRange from={range.from} to={range.to} onChange={setRange} />
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-7 pb-6">
-              {(!ready || timeline.loading) && groupsOfDays.length === 0 && (
-                <div className="flex justify-center py-12 text-accent"><OrganicLoader size={64} /></div>
-              )}
-              {ready && !timeline.loading && groupsOfDays.length === 0 && (
-                <EmptyState
-                  icon={PeopleIcon}
-                  title={nothingBetween(name, { kind: kinds, dates: dated, within: searchWithin })}
-                  action={<button onClick={showEverything} className="hearth-ghost-btn">Show everything</button>}
-                />
-              )}
-              {groupsOfDays.map(group => (
-                <div key={group.date}>
-                  <div className="sticky top-0 bg-base z-10 pt-4 pb-2 text-sm font-semibold text-text-primary">{group.date}</div>
-                  <div className="flex flex-col gap-1.5">
-                    {group.entries.map(entry => <TimelineEntryCard key={entry.id} entry={entry} udid={ctx.udid} onOpenWhatsApp={openWhatsApp} />)}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {totalPages > 1 && (
-              <div className="px-7 py-2.5 border-t border-rule flex items-center justify-between">
-                <span className="text-sm text-text-secondary">
-                  {plural(timeline.totalFiltered, 'event')} · page {timeline.page + 1} of {totalPages}
-                </span>
-                <div className="flex gap-2">
-                  <button className="hearth-ghost-btn" disabled={timeline.page === 0} onClick={() => timeline.setPage(timeline.page - 1)}>← Newer</button>
-                  <button className="hearth-ghost-btn" disabled={timeline.page >= totalPages - 1} onClick={() => timeline.setPage(timeline.page + 1)}>Older →</button>
-                </div>
-              </div>
+            {/* Until the filter has caught up, the list is the whole backup's: show nothing of it */}
+            {!ready || (timeline.loading && timeline.filteredEntries.length === 0) ? (
+              <div className="flex justify-center py-12 text-accent"><OrganicLoader size={64} /></div>
+            ) : timeline.filteredEntries.length === 0 ? (
+              <EmptyState
+                icon={PeopleIcon}
+                title={nothingBetween(name, { kind: kinds, dates: dated, within: searchWithin })}
+                action={<button onClick={showEverything} className="hearth-ghost-btn">Show everything</button>}
+              />
+            ) : (
+              <EventStream
+                entries={timeline.filteredEntries}
+                resetKey={`${selected.key}|${kinds}|${range.from}|${range.to}|${searchWithin}`}
+                udid={ctx.udid}
+                variant="people"
+                loading={timeline.loading}
+                className="px-7 pb-6"
+                onOpenWhatsApp={openWhatsApp}
+                onOpenMessage={openMessage}
+              />
             )}
           </>
         )}
@@ -304,10 +314,14 @@ export default function PeopleView({ ctx, query, person, days }: Props) {
       {choosing && selected && (
         <SaveDialog
           title={narrowed ? `Save ${plural(timeline.totalFiltered, 'event')} with ${name}` : `Save everything with ${name}`}
-          formats={[FORMATS.html, FORMATS.csv, { id: 'md', label: 'Markdown', detail: 'MD, for notes apps and text editors' }]}
-          onSave={id => save(id as ExportFormat)}
+          formats={RECORD_FORMATS}
+          onSave={save}
           onCancel={() => setChoosing(false)}
-        />
+        >
+          <p className="text-xs text-text-secondary">
+            Photos, videos, voice messages, documents and voicemail recordings are copied into a folder beside it.
+          </p>
+        </SaveDialog>
       )}
     </div>
   );

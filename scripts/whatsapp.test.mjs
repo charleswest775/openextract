@@ -86,6 +86,24 @@ test('attachment kinds come from the type, the name, and the message they came w
   assert.equal(wa.attachmentKind(a('application/zip', 'x.zip'), 'unknown'), 'document');
 });
 
+test("Messages' voice messages and stickers are told apart from other sounds and pictures", () => {
+  const a = (mime_type, name = '', filename = '', extra = {}) => ({ mime_type, transfer_name: name, filename, ...extra });
+  // An iMessage audio message is CAF, and comes with message type "audio"
+  assert.equal(wa.attachmentKind(a('audio/x-caf', 'Audio Message.caf'), 'audio', 'messages'), 'voice');
+  assert.equal(wa.attachmentKind(a('', '', '~/Library/SMS/Attachments/0a/10/Audio Message.caf'), 'attachment', 'messages'), 'voice');
+  assert.equal(wa.attachmentKind(a('audio/mp4', 'Audio Message.m4a'), 'audio', 'messages'), 'voice', 'a recorded message in another format');
+  assert.equal(wa.attachmentKind(a('', 'Audio Message'), 'audio', 'messages'), 'voice', 'no type and no extension: the message says');
+  assert.equal(wa.attachmentKind(a('audio/mpeg', 'Song.mp3'), 'attachment', 'messages'), 'audio', 'a song someone sent');
+  // WhatsApp gives every sound file the type "audio": only Opus is a voice note there
+  assert.equal(wa.attachmentKind(a('audio/mpeg', 'Song.mp3'), 'audio'), 'audio');
+  assert.equal(wa.attachmentKind(a('audio/mpeg', 'Song.mp3'), 'audio', 'whatsapp'), 'audio');
+  assert.equal(wa.attachmentKind(a('audio/ogg', 'PTT-1.opus'), 'audio', 'whatsapp'), 'voice');
+  // A sticker someone placed
+  assert.equal(wa.attachmentKind(a('image/heic', 'sticker.heic', '', { is_sticker: true }), 'attachment', 'messages'), 'sticker');
+  assert.equal(wa.attachmentKind(a('image/heic', 'IMG_1.heic', '', { is_sticker: false }), 'attachment', 'messages'), 'image');
+  assert.equal(wa.attachmentKind(a('video/quicktime', 'IMG_2.MOV'), 'attachment', 'messages'), 'video');
+});
+
 test('a file that isn\'t in the backup says so, in the engine\'s words when it has them', () => {
   assert.equal(wa.missingText('image'), 'Photo not in this backup');
   assert.equal(wa.missingText('voice'), 'Voice message not in this backup');

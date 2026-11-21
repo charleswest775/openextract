@@ -1,12 +1,16 @@
 /**
  * Shared pieces of "Save to this computer": writing text files the renderer builds,
  * and the file formats more than one screen produces.
+ *
+ * Every PDF is printed by Chromium (electron/pdfExport.ts): an engine save asks for its
+ * print-ready page through exportMessagesPdf, a page built here goes through exportHtmlPdf.
  */
-import { formatSavedDateTime } from './dates';
-import { exportMessagesPdf, saveFolder, sidecarCall, type PdfSplit } from './ipc';
+import { exportHtmlPdf, exportMessagesPdf, saveFolder, sidecarCall, type PdfExportMethod, type PdfSplit } from './ipc';
 import { chatName } from './whatsapp';
 import { voiceMemoSaveDetail } from './voiceMemos';
 import { calendarSaveDetail } from './calendar';
+import { CSV_BOM, formatTimeline, FORMAT_FILTERS, type ExportFormat } from './timelineExport';
+import type { TimelineEntry } from '../types/timeline';
 import type { PodcastExportResult, PodcastSaveFormat } from '../types/podcasts';
 import type { VoiceMemoExportResult, VoiceMemoSaveFormat } from '../types/voiceMemos';
 import type { CalendarExportResult, CalendarSaveFormat } from '../types/calendar';
@@ -74,6 +78,7 @@ export interface ContactRecord {
   note: string;
 }
 
+/** The address book as a spreadsheet, with a byte-order mark so Excel reads it as UTF-8 (as every CSV the app saves). */
 export function contactsToCsv(contacts: ContactRecord[]): string {
   const rows = ['"First Name","Last Name","Display Name","Organization","Phone Numbers","Email Addresses","Notes"'];
   for (const c of contacts) {
@@ -82,7 +87,7 @@ export function contactsToCsv(contacts: ContactRecord[]): string {
       (c.phones || []).join('; '), (c.emails || []).join('; '), c.note,
     ].map(v => csvEscape(v || '')).join(','));
   }
-  return rows.join('\n');
+  return CSV_BOM + rows.join('\n');
 }
 
 // vCard 3.0 text values escape backslash, comma, semicolon and newline.
@@ -108,26 +113,211 @@ export function contactsToVcard(contacts: ContactRecord[]): string {
   }).join('\r\n') + '\r\n';
 }
 
-// ── Notes ──────────────────────────────────────────────────────────────────────
+// ── Records: notes, calls, web history, recovered messages ─────────────────────
 
-export interface NoteRecord {
-  title: string;
-  body: string;
-  created: string;
-  modified: string;
+/** The core formats, in the order every Save dialog lists them (RECORD_FORMATS in SaveDialog.tsx). */
+export type RecordFormat = 'pdf' | 'html' | 'csv' | 'txt';
+/** Notes have no spreadsheet. */
+export type NotesFormat = 'pdf' | 'html' | 'txt';
+
+/**
+ * Run an engine save in `format`: a PDF through Chromium (the engine writes the
+ * print-ready page), anything else straight from the engine. Failures the engine
+ * reports in its result are thrown.
+ */
+async function exportRecords(method: PdfExportMethod, params: Record<string, unknown>, format: RecordFormat): Promise<any> {
+  return format === 'pdf'
+    ? exportMessagesPdf(method, params)
+    : checkEngineResult(await sidecarCall(method, { ...params, format }));
 }
 
-/** Every note in one text file. Dates are on the local clock, as the Notes screen's own save writes them. */
-export function notesToText(notes: NoteRecord[]): string {
-  return notes.map(n =>
-    `Title: ${n.title}\nCreated: ${formatSavedDateTime(n.created)}\nModified: ${formatSavedDateTime(n.modified)}\n`
-    + `${'='.repeat(40)}\n\n${n.body}`
-  ).join('\n\n' + '-'.repeat(60) + '\n\n');
+/** The one file a save wrote, however the engine or the PDF exporter named it. */
+function savedFile(result: any): string | undefined {
+  return result?.file ?? result?.files?.[0] ?? result?.exported?.[0];
+}
+
+/** Save one note into a folder the person picks. */
+export async function saveNote(udid: string, note: { note_id: number | string; title: string }, format: NotesFormat): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const result = await exportRecords('export_notes', { udid, note_ids: [note.note_id], output_dir: outputDir }, format);
+  return { title: `Saved "${note.title || 'Untitled'}"`, path: savedFile(result) ?? outputDir };
+}
+
+/** Save every note in one file (Notes.pdf, .html or .txt) into a folder the person picks. */
+export async function saveAllNotes(udid: string, format: NotesFormat): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const result = await exportRecords('export_notes', { udid, output_dir: outputDir, mode: 'merged' }, format);
+  return { title: `Saved ${plural(result?.count ?? 0, 'note')}`, detail: 'In one file', path: savedFile(result) ?? outputDir };
+}
+
+/** Save every call into a folder the person picks. */
+export async function saveCalls(udid: string, format: RecordFormat): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const result = await exportRecords('export_calls', { udid, output_dir: outputDir }, format);
+  return { title: `Saved ${plural(result?.count ?? 0, 'call')}`, path: savedFile(result) ?? outputDir };
+}
+
+/** Save every page visit, from every browser, into a folder the person picks. */
+export async function saveBrowserHistory(udid: string, format: RecordFormat): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const result = await exportRecords('export_browser_history', { udid, output_dir: outputDir }, format);
+  return { title: `Saved ${plural(result?.count ?? 0, 'page visit')}`, path: savedFile(result) ?? outputDir };
+}
+
+/** Save every recovered message, in one file, into a folder the person picks. */
+export async function saveRecoveredMessages(udid: string, format: RecordFormat): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const result = await exportRecords('export_recovered_messages', { udid, output_dir: outputDir }, format);
+  return { title: `Saved ${plural(result?.message_count ?? 0, 'recovered message')}`, path: savedFile(result) ?? outputDir };
+}
+
+// ── Pages built here: the Timeline ─────────────────────────────────────────────
+
+/**
+ * The most Timeline events one PDF holds. Chromium prints the whole page at once:
+ * 50,000 events printed reliably, 100,000 took ~4 GB, 200,000 crashed after minutes
+ * (electron/pdfExport.ts has the backstop). The web page and the spreadsheet have no limit.
+ */
+export const MAX_PDF_EVENTS = 25_000;
+
+/**
+ * Write Timeline entries into `folder` as `<baseName>.<ext>`, the PDF printed by
+ * Chromium. Resolves to the file written. `title` heads the page and the text.
+ * More events than a PDF holds are refused before the page is built.
+ */
+export async function writeTimeline(
+  entries: TimelineEntry[],
+  format: ExportFormat,
+  folder: string,
+  baseName: string,
+  title?: string,
+): Promise<string> {
+  if (format === 'pdf') {
+    if (entries.length > MAX_PDF_EVENTS) {
+      throw new Error(`This is too much for one PDF: ${plural(entries.length, 'event')}, and one PDF holds up to ${MAX_PDF_EVENTS.toLocaleString()}. `
+        + 'Narrow it down to a date range, a search or fewer kinds, or save it as a web page or spreadsheet, which have no limit.');
+    }
+    return (await exportHtmlPdf(formatTimeline(entries, 'pdf', { title }), folder, baseName)).file;
+  }
+  const path = `${folder}/${baseName}.${FORMAT_FILTERS[format].extensions[0]}`;
+  await window.openextract.writeFile(path, formatTimeline(entries, format, { title }));
+  return path;
+}
+
+// ── One person: everything with them, photos and files included ───────────────
+
+/**
+ * What export_person needs to save one person's history: their Messages
+ * conversations and WhatsApp chats whole (a person's messages are whole chats,
+ * as People matches them), and their calls and voicemails one by one. Messages
+ * and WhatsApp chat ids are separate lists because the two databases' ids
+ * collide. Call and voicemail ids stay text: they aren't always numbers
+ * ("ft_3", "A-…7").
+ */
+export interface PersonExportSpec {
+  display_name: string;
+  chat_ids: number[];
+  conversation_names: Record<number, string>;
+  whatsapp_chat_ids: number[];
+  whatsapp_names: Record<number, string>;
+  call_ids: string[];
+  voicemail_ids: string[];
+  /** Shared notes, as list_notes gives their ids. */
+  note_ids: string[];
+  /** Only these sms.db messages from the chats, when given; else the whole chats. */
+  message_ids?: number[];
+  /** Only these ChatStorage messages from the WhatsApp chats, when given; else the whole chats. */
+  whatsapp_message_ids?: number[];
+}
+
+/**
+ * The save request for a person's stream, from the entries People shows for
+ * them. A chat is saved whole (People may have read only its newest messages)
+ * unless `onlyThese`: then only the messages shown, for when dates, a search
+ * or Photos picked out some of them.
+ */
+export function personExportSpec(displayName: string, entries: TimelineEntry[], { onlyThese = false } = {}): PersonExportSpec {
+  const spec: PersonExportSpec = {
+    display_name: displayName, chat_ids: [], conversation_names: {},
+    whatsapp_chat_ids: [], whatsapp_names: {}, call_ids: [], voicemail_ids: [], note_ids: [],
+  };
+  const calls = new Set<string>();
+  const voicemails = new Set<string>();
+  const notes = new Set<string>();
+  const messages: number[] = [];
+  const whatsapp: number[] = [];
+  for (const e of entries) {
+    const id = e.id.slice(e.id.indexOf(':') + 1);
+    if (e.type === 'message' && e.message?.chatId != null) {
+      const chat = e.message.chatId;
+      if (!(chat in spec.conversation_names)) {
+        spec.chat_ids.push(chat);
+        spec.conversation_names[chat] = e.message.conversationName;
+      }
+      if (/^\d+$/.test(id)) messages.push(Number(id));
+    } else if (e.type === 'whatsapp' && e.whatsapp) {
+      const chat = e.whatsapp.chatId;
+      if (!(chat in spec.whatsapp_names)) {
+        spec.whatsapp_chat_ids.push(chat);
+        spec.whatsapp_names[chat] = e.whatsapp.conversationName;
+      }
+      if (/^\d+$/.test(id)) whatsapp.push(Number(id));
+    } else if (e.type === 'call' && id) {
+      calls.add(id);
+    } else if (e.type === 'voicemail' && id) {
+      voicemails.add(id);
+    } else if (e.type === 'note' && id) {
+      notes.add(id);
+    }
+  }
+  spec.call_ids = [...calls];
+  spec.voicemail_ids = [...voicemails];
+  spec.note_ids = [...notes];
+  if (onlyThese) {
+    spec.message_ids = messages;
+    spec.whatsapp_message_ids = whatsapp;
+  }
+  return spec;
+}
+
+/** "214 photos and files", plus what couldn't be saved, for the notice. */
+function personSaveDetail(result: any): string {
+  const parts = [plural(result?.message_count ?? 0, 'event')];
+  const media = result?.media;
+  if (media?.copied) parts.push(plural(media.copied, 'photo or file', 'photos and files'));
+  const notes: string[] = [];
+  if (media?.not_in_backup) notes.push(`${plural(media.not_in_backup, 'file')} ${media.not_in_backup === 1 ? "wasn't" : "weren't"} in the backup`);
+  if (media?.failed) notes.push(`${plural(media.failed, 'file')} couldn't be copied`);
+  for (const why of Object.values(result?.errors ?? {})) if (typeof why === 'string') notes.push(why);
+  return [parts.join(' and '), ...notes].join('. ');
+}
+
+/**
+ * Save everything with one person into a folder the person picks: one file
+ * (PDF, web page, spreadsheet or text) and a folder of every photo, video,
+ * voice message, document and voicemail recording beside it.
+ */
+export async function savePerson(udid: string, spec: PersonExportSpec, format: RecordFormat, title: string): Promise<SaveResult | null> {
+  const outputDir = await saveFolder();
+  if (!outputDir) return null;
+  const params = { udid, output_dir: outputDir, ...spec };
+  const result: any = format === 'pdf'
+    // The page is printed from a temporary folder; the originals go beside the PDF
+    ? await exportMessagesPdf('export_person', { ...params, media_dir: outputDir })
+    : await sidecarCall('export_person', { ...params, format });
+  // Nothing could be saved: { error, errors }
+  if (result?.error) throw new Error(result.error);
+  return { title, detail: personSaveDetail(result), path: savedFile(result) ?? outputDir };
 }
 
 // ── Conversations ──────────────────────────────────────────────────────────────
 
-export type ConversationFormat = 'html' | 'pdf' | 'csv' | 'txt';
+export type ConversationFormat = RecordFormat;
 
 interface ConversationRef {
   chat_id: number;

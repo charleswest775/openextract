@@ -135,6 +135,22 @@ class TestInline(AdapterCase):
         self.assertEqual(result["mime_type"], "image/jpeg")
         self.assertTrue(base64.b64decode(result["data"]).startswith(b"\xff\xd8\xff"))
 
+    def test_tiff_comes_as_jpeg_and_the_limit_is_the_jpegs(self):
+        """As Messages' attachments (attachment_files.inline_answer): a big photo still shows."""
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new("RGB", (64, 48), (200, 30, 30)).save(buf, format="TIFF")  # uncompressed: far bigger than its JPEG
+        tiff = self.file("t", buf.getvalue())
+        whatsapp.MAX_INLINE_BYTES, saved = len(buf.getvalue()) - 1, whatsapp.MAX_INLINE_BYTES
+        self.addCleanup(setattr, whatsapp, "MAX_INLINE_BYTES", saved)
+        self.answer({(5, False): {"path": tiff, "mime_type": "image/tiff", "filename": "scan.tiff"},
+                     (5, True): {"path": tiff, "mime_type": "image/tiff", "filename": "scan.tiff"}})
+        result = self.wa.get_attachment(self.backup, 5)
+        self.assertEqual((result["mime_type"], result["size"]), ("image/jpeg", len(buf.getvalue())))
+        self.assertTrue(base64.b64decode(result["data"]).startswith(b"\xff\xd8\xff"))
+        # A stored thumbnail is sent as it is, never converted
+        self.assertTrue(self.wa.get_attachment(self.backup, 5, thumbnail=True)["too_large"])
+
 
 class TestErrors(AdapterCase):
 

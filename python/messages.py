@@ -2,13 +2,17 @@
 Message extraction adapter.
 
 Delegates raw extraction (list_conversations, get_messages, search_messages)
-to ``ios_backup_core.extractors.messages.MessageExtractor``. Keeps two pieces
-of openextract-only behaviour:
+to ``ios_backup_core.extractors.messages.MessageExtractor``. Keeps the
+openextract-only behaviour:
 
-  * ``get_attachment(backup, attachment_id)`` — the new library embeds
-    attachments inline in get_messages output but does not expose a per-id
-    extraction RPC. openextract's frontend has its own attachment-load flow,
-    so we keep the original implementation here.
+  * ``get_attachment(backup, attachment_id, thumbnail, as_file)`` — the
+    library lists each message's attachments but doesn't hand over a file.
+    The app wants the bytes (base64; HEIC and TIFF photos as JPEG), a small
+    JPEG thumbnail of a picture, or a copy named with its real extension to
+    open or play (as_file), the way WhatsApp's media comes (whatsapp.py); the
+    shared part is attachment_files.py. get_messages adds to each attachment
+    whether its file is in the backup (``available``), its ``uti`` and
+    ``is_sticker``.
   * ``export_conversation`` / ``export_conversations`` (txt, csv, html with
     its attachments in a folder beside it, and ``pdf_source``, the print-ready
     HTML with images that Electron turns into a PDF) — file export is out of
@@ -27,7 +31,9 @@ import html
 import os
 import re
 import shutil
+import sys
 import uuid
+import unicodedata
 from datetime import datetime
 from typing import Optional
 from urllib.parse import quote
@@ -149,6 +155,21 @@ _VIDEO_EXTENSIONS = (".mov", ".mp4", ".m4v")
 # only get a link, which opens them in another app.
 _BROWSER_AUDIO_EXTENSIONS = (".mp3", ".m4a", ".aac", ".wav")
 
+# What get_attachment says when there's nothing to give. Matched by the app
+# and the contract tests, so they keep their words.
+ATTACHMENT_NOT_FOUND = "Attachment not found"  # no attachment has that id
+SMS_DB_NOT_FOUND = "sms.db not found"
+
+# How sms.db names an attachment's file: "~/Library/SMS/Attachments/ab/12/<GUID>/IMG_1234.jpeg",
+# and in some backups by its full path on the iPhone. The backup lists it
+# without either start, in MediaDomain (older ones sometimes in HomeDomain).
+_ATTACHMENT_PATH_PREFIXES = ("~/", "/private/var/mobile/", "/var/mobile/")
+_ATTACHMENT_DOMAINS = ("MediaDomain", "HomeDomain")
+
+# Ids or paths per IN (...) query: well inside SQLite's limit on parameters,
+# which is 999 in builds before 3.32.
+_IN_CHUNK = 500
+
 _heif_registered = False
 
 
@@ -185,6 +206,88 @@ def _save_as_jpeg(src_path: str, dest_path: str, max_px: int) -> bool:
         return False
 
 
+def _relative_attachment_path(sms_filename) -> str:
+    """Where the backup lists an attachment: sms.db's file name without "~/" or "/private/var/mobile/"; "" if none."""
+    if not isinstance(sms_filename, str):
+        return ""
+    for prefix in _ATTACHMENT_PATH_PREFIXES:
+        if sms_filename.startswith(prefix):
+            return sms_filename[len(prefix):]
+    return sms_filename
+
+
+def _attachment_rowid(value) -> Optional[int]:
+    """An attachment id as sms.db's ROWID: the app sends a number; None for anything that can't be one."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isascii() and value.strip().isdigit():
+        return int(value)
+    return None
+
+
+def _chunks(items: list, size: int = _IN_CHUNK):
+    for start in range(0, len(items), size):
+        yield items[start:start + size]
+
+
+def _manifest_rows(backup, paths: list) -> Optional[list]:
+    """(relativePath, domain, fileID) of each file the backup lists at one of ``paths``; None if its list can't be read.
+
+    An encrypted backup's list is read through its decrypted copy, an
+    unencrypted one's straight from Manifest.db (or what ios-backup-core
+    built from an iOS 9 Manifest.mbdb). The domain is checked by the caller:
+    the query goes by relativePath alone, which Manifest.db indexes.
+    """
+    rows: list = []
+
+    def run(execute) -> None:
+        for chunk in _chunks(paths):
+            marks = ",".join("?" * len(chunk))
+            rows.extend(execute(f"SELECT relativePath, domain, fileID FROM Files WHERE relativePath IN ({marks})",
+                                chunk))
+
+    if getattr(backup, "encrypted", False):
+        decrypted = getattr(backup, "_decrypted_backup", None)
+        if decrypted is None:
+            return None
+        with decrypted.manifest_db_cursor() as cur:
+            run(lambda sql, args: cur.execute(sql, args).fetchall())
+        return rows
+    get_conn = getattr(backup, "_get_manifest_conn", None)  # kept open while the backup is
+    conn = get_conn() if callable(get_conn) else None
+    if conn is None:
+        return None
+    run(lambda sql, args: conn.execute(sql, args).fetchall())
+    return rows
+
+
+def _files_in_backup(backup, relative_paths) -> Optional[set]:
+    """Which of these attachment paths the backup has; None when its list of files can't be read.
+
+    A file counts when the backup lists it in MediaDomain or HomeDomain and
+    its folder holds it: a backup copied only partway lists files it hasn't
+    got (OE-102). One query for the lot, so a page of messages costs one look
+    at the list however many attachments it has.
+    """
+    paths = sorted({p for p in relative_paths if p})
+    if not paths:
+        return set()
+    rows = _manifest_rows(backup, paths)
+    if rows is None:
+        return None
+    locate = getattr(backup, "locate_file", None)
+    present: set = set()
+    for rel, domain, file_id in rows:
+        if rel in present or domain not in _ATTACHMENT_DOMAINS:
+            continue
+        if callable(locate) and not (isinstance(file_id, str) and locate(file_id)):
+            continue
+        present.add(rel)
+    return present
+
+
 def _without_lone_surrogates(text):
     """A conversation name with half an emoji in it (a lone surrogate, which
     JSON.stringify sends as "\\ud83c") can't be written as UTF-8, so the export
@@ -193,6 +296,16 @@ def _without_lone_surrogates(text):
         return text
     return "".join("�" if "\ud800" <= ch <= "\udfff" else ch for ch in text)
 
+
+
+def _visible(text: str) -> str:
+    """A sent file's name without invisible format characters, for saving and showing it.
+
+    A direction mark makes "Invoice<RLO>fdp.exe" read as "Invoiceexe.pdf", a
+    program posing as a document. The same rule as app_copies.visible, which
+    imports this module, so it can't be imported from there.
+    """
+    return "".join(ch for ch in (text or "") if unicodedata.category(ch) not in ("Cf", "Zl", "Zp"))
 
 class MessageExtractor:
     """Adapter wrapping the ios-backup-core MessageExtractor.
@@ -209,6 +322,13 @@ class MessageExtractor:
 
     def __init__(self):
         self._inner = _CoreMessageExtractor()
+        # Imported here: app_copies imports this module.
+        from app_copies import AppCopies
+        from attachment_files import ThumbnailCache
+        # Copies for other apps (as_file). Made as the engine starts, which is
+        # when the copies an earlier engine left behind are removed.
+        self._copies = AppCopies("messages")
+        self._thumbnails = ThumbnailCache()
 
     # ── Delegated raw-extraction methods ─────────────────────────────────────
 
@@ -225,10 +345,12 @@ class MessageExtractor:
                      offset: int = 0, limit: int = 100,
                      date_from: Optional[str] = None,
                      date_to: Optional[str] = None) -> dict:
-        return self._inner.get_messages(
+        result = self._inner.get_messages(
             backup, chat_id, contacts, offset, limit,
             date_from=date_from, date_to=date_to,
         )
+        self._describe_attachments(backup, result.get("messages") or [])
+        return result
 
     def search_messages(self, backup, query: str, contacts: dict,
                         chat_id: Optional[int] = None,
@@ -264,89 +386,171 @@ class MessageExtractor:
         ).fetchone() is not None
         return {"offset": newer, "found": found}
 
-    # ── openextract-only: per-id attachment extraction ───────────────────────
+    # ── openextract-only: what a page's attachments are ──────────────────────
 
-    def get_attachment(self, backup, attachment_id: int) -> dict:
-        """Extract and return an attachment file as base64.
+    def _describe_attachments(self, backup, messages: list) -> None:
+        """Add ``available``, ``uti`` and ``is_sticker`` to each attachment on a page of messages.
 
-        ios-backup-core only embeds attachments in get_messages results; this
-        is the standalone per-attachment fetcher openextract's UI uses.
+        ``available``: whether the backup has the file (see _files_in_backup),
+        so the app can say a photo isn't in the backup without asking for it.
+        One look at the backup's list of files for the whole page. True for
+        every file when that list can't be read; get_attachment then says.
+        ``uti``: Apple's name for the type ("public.jpeg",
+        "com.apple.coreaudio-format"), or None. ``is_sticker``: False when
+        sms.db doesn't say. Never fails the page: anything that can't be read
+        is left at those defaults.
         """
-        # Re-use the inner extractor's read-only connection to sms.db.
+        attachments = [a for m in messages for a in (m.get("attachments") or []) if isinstance(a, dict)]
+        if not attachments:
+            return
+        try:
+            details = self._attachment_details(backup, [a.get("attachment_id") for a in attachments])
+        except Exception as e:  # noqa: BLE001  extras: the page must still come back
+            print(f"[messages] couldn't read attachment types: {e}", file=sys.stderr, flush=True)
+            details = {}
+        try:
+            present = _files_in_backup(backup, (_relative_attachment_path(a.get("filename")) for a in attachments))
+        except Exception as e:  # noqa: BLE001
+            print(f"[messages] couldn't look attachments up in the backup's list of files: {e}",
+                  file=sys.stderr, flush=True)
+            present = None
+        for att in attachments:
+            rel = _relative_attachment_path(att.get("filename"))
+            att["available"] = bool(rel) and (present is None or rel in present)
+            att["uti"], att["is_sticker"] = details.get(att.get("attachment_id"), (None, False))
+
+    def _attachment_details(self, backup, ids: list) -> dict:
+        """{attachment id: (uti, is_sticker)} from sms.db, in one query per _IN_CHUNK ids."""
+        ids = sorted({i for i in ids if isinstance(i, int) and not isinstance(i, bool)})
+        db_path = self._inner._get_sms_db(backup) if ids else None
+        if not db_path:
+            return {}
+        conn = self._inner._get_conn(db_path, backup)
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(attachment)")}
+        uti = "uti" if "uti" in columns else "NULL"
+        sticker = "is_sticker" if "is_sticker" in columns else "0"
+        details = {}
+        for chunk in _chunks(ids):
+            marks = ",".join("?" * len(chunk))
+            for row in conn.execute(f"SELECT ROWID, {uti}, {sticker} FROM attachment WHERE ROWID IN ({marks})", chunk):
+                details[row[0]] = (row[1] if isinstance(row[1], str) and row[1] else None, bool(row[2]))
+        return details
+
+    # ── openextract-only: one attachment's file ──────────────────────────────
+
+    def get_attachment(self, backup, attachment_id, thumbnail: bool = False, as_file: bool = False,
+                       on_progress=None) -> dict:
+        """One attachment for the app, the way WhatsApp's media comes (whatsapp.py).
+
+        Default: ``{data (base64), mime_type, filename, size}``. The file is
+        sent byte for byte, except a HEIC, HEIF or TIFF photo, which comes as
+        an upright JPEG. Over attachment_files.MAX_INLINE_BYTES (after that):
+        ``{too_large: True, mime_type, filename, size}`` with no data.
+
+        ``thumbnail``: a picture as a small upright JPEG, ``{data, mime_type:
+        "image/jpeg", filename, size, width, height}``, where width and height
+        are the whole picture's as it is shown. Kept in memory for the next
+        ask. Anything else, or a picture that can't be read, is
+        ``{no_thumbnail: True, mime_type, filename, size}``: not a failure.
+
+        ``as_file`` (which wins over ``thumbnail``): ``{path, mime_type,
+        filename, size, openable}``, a copy under its own name in this engine's
+        folder of copies (app_copies.py), for another app to open or the app to
+        play. Always a copy, even of an encrypted backup's decrypted file, so
+        the app finds every such file in one place. ``openable`` is True only
+        for a photo, video, audio file or document. ``on_progress(bytes copied,
+        bytes in all)`` is called while a big copy is made.
+
+        ``filename`` is the name it was sent with, ``size`` the file's bytes.
+        An id no attachment has is ``{error: "Attachment not found"}``; a file
+        the backup hasn't got (never downloaded, or left out of it) is
+        ``{error, empty_reason: "not_in_backup"}``; a backup without sms.db is
+        ``{error: "sms.db not found"}``.
+        """
+        import attachment_files as files  # here, not at the top: see attachment_files
+
+        thumbnail, as_file = bool(thumbnail), bool(as_file)
+        rowid = _attachment_rowid(attachment_id)
+        cache_key = (getattr(backup, "udid", ""), getattr(backup, "backup_dir", ""), rowid)
+        if thumbnail and not as_file and rowid is not None:
+            cached = self._thumbnails.get(cache_key)
+            if cached is not None:
+                return cached
+
         db_path = self._inner._get_sms_db(backup)
         if not db_path:
-            return {"error": "sms.db not found"}
+            return {"error": SMS_DB_NOT_FOUND}
+        row = self._attachment_row(db_path, backup, rowid) if rowid is not None else None
+        if row is None:
+            return {"error": ATTACHMENT_NOT_FOUND}
+        sms_filename = row["filename"] or ""
+        name = row["transfer_name"] or os.path.basename(sms_filename)
+        mime = (files.clean_mime(row["mime_type"]) or files.mime_for(name) or files.mime_for(sms_filename)
+                or "application/octet-stream")
 
-        conn = self._inner._get_conn(db_path, backup)
-        # Older sms.db files have no attachment.transfer_name.
-        transfer_name = "transfer_name" if self._inner._schema(db_path, conn)["has_transfer_name"] else "NULL"
+        if thumbnail and not as_file and not files.is_picture(mime, name):
+            # Nothing to draw. Said without reading the file, which an encrypted
+            # backup would first decrypt whole (a long video) only for this.
+            return {"no_thumbnail": True, "mime_type": mime, "filename": name, "size": row["total_bytes"]}
 
+        path = self._attachment_file_path(backup, sms_filename)
         try:
-            row = conn.execute(
-                f"SELECT filename, mime_type, {transfer_name} AS transfer_name FROM attachment WHERE ROWID = ?",
-                (attachment_id,)
-            ).fetchone()
+            size = os.path.getsize(path) if path else None
+        except OSError:
+            size = None
+        if size is None:
+            return files.not_in_backup()
 
-            if not row or not row["filename"]:
-                return {"error": "Attachment not found"}
+        if as_file:
+            return self._copy_for_app(backup, rowid, path, mime, name, size, on_progress)
+        if thumbnail:
+            made = files.thumbnail(path)
+            if made is None:
+                return {"no_thumbnail": True, "mime_type": mime, "filename": name, "size": size}
+            jpeg, width, height = made
+            result = {"data": base64.b64encode(jpeg).decode("ascii"), "mime_type": "image/jpeg",
+                      "filename": name, "size": size, "width": width, "height": height}
+            self._thumbnails.put(cache_key, result)
+            return result
+        return files.inline_answer(path, mime, name, size, log_label="messages")
 
-            file_path = self._attachment_file_path(backup, row["filename"])
-            if not file_path:
-                return {"error": "Attachment file not found in backup"}
+    def _attachment_row(self, db_path: str, backup, rowid: int):
+        """sms.db's row for an attachment (filename, mime_type, transfer_name, total_bytes), or None."""
+        conn = self._inner._get_conn(db_path, backup)
+        schema = self._inner._schema(db_path, conn)
+        # Older sms.db files have neither transfer_name nor total_bytes.
+        transfer_name = "transfer_name" if schema.get("has_transfer_name") else "NULL"
+        total_bytes = "total_bytes" if schema.get("has_total_bytes") else "NULL"
+        return conn.execute(
+            f"SELECT filename, mime_type, {transfer_name} AS transfer_name, {total_bytes} AS total_bytes "
+            "FROM attachment WHERE ROWID = ?",
+            (rowid,),
+        ).fetchone()
 
-            with open(file_path, "rb") as f:
-                raw_data = f.read()
+    def _copy_for_app(self, backup, rowid: int, src: str, mime: str, name: str, size: int, on_progress) -> dict:
+        import attachment_files as files
 
-            mime_type = row["mime_type"]
-            filename_lower = (row["filename"] or "").lower()
-            if mime_type in ("image/heic", "image/heif") or filename_lower.endswith(".heic") or filename_lower.endswith(".heif"):
-                try:
-                    import io
-                    import pillow_heif
-                    from PIL import Image
-                    pillow_heif.register_heif_opener()
-                    img = Image.open(io.BytesIO(raw_data))
-                    buf = io.BytesIO()
-                    img.save(buf, format="JPEG")
-                    raw_data = buf.getvalue()
-                    mime_type = "image/jpeg"
-                except Exception:
-                    pass
-
-            # Infer mime_type from extension if still missing (older backups)
-            if not mime_type:
-                _ext_map = {
-                    ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-                    ".png": "image/png", ".gif": "image/gif",
-                    ".heic": "image/heic", ".heif": "image/heif",
-                    ".webp": "image/webp", ".bmp": "image/bmp",
-                }
-                for ext, inferred in _ext_map.items():
-                    if filename_lower.endswith(ext):
-                        mime_type = inferred
-                        break
-
-            data = base64.b64encode(raw_data).decode("ascii")
-
-            return {
-                "data": data,
-                "mime_type": mime_type,
-                "filename": row["transfer_name"] or os.path.basename(row["filename"]),
-            }
-        except Exception:
-            raise
+        file_name = files.name_for_app(name, mime, "Attachment")
+        # A folder per backup and attachment: ids collide between backups.
+        copied = files.copy_for_app(self._copies, src, (getattr(backup, "udid", ""), rowid), file_name,
+                                    on_progress, log_label="messages")
+        if "error" in copied:
+            return copied
+        return {"path": copied["path"], "mime_type": mime, "filename": name, "size": size,
+                "openable": copied["openable"]}
 
     @staticmethod
     def _attachment_file_path(backup, sms_filename: str) -> Optional[str]:
         """Return the on-disk path of an attachment in the backup, or None.
 
-        The filename in sms.db starts with ~/, e.g.
-        "~/Library/SMS/Attachments/ab/12/IMG_1234.jpeg". Attachments live in
-        MediaDomain, older ones sometimes in HomeDomain.
+        sms.db names the file "~/Library/SMS/Attachments/ab/12/<GUID>/IMG_1234.jpeg"
+        (or by its full path on the iPhone; see _relative_attachment_path).
+        Attachments live in MediaDomain, older ones sometimes in HomeDomain.
+        An encrypted backup's file is decrypted to a temp file first.
         """
-        if not sms_filename:
+        relative_path = _relative_attachment_path(sms_filename)
+        if not relative_path:
             return None
-        relative_path = sms_filename[2:] if sms_filename.startswith("~/") else sms_filename
         file_path = backup.get_file(relative_path, domain="MediaDomain")
         if not file_path:
             file_path = backup.get_file(relative_path, domain="HomeDomain")
@@ -407,7 +611,7 @@ class MessageExtractor:
             return "[Attachment]"
         parts = []
         for a in attachments:
-            name = a.get("transfer_name") or a.get("filename") or ""
+            name = _visible(a.get("transfer_name") or a.get("filename") or "")
             mime = a.get("mime_type") or ""
             if mime.startswith("image/"):
                 kind = "Image"
@@ -834,7 +1038,7 @@ class _PrintAttachmentWriter:
     @staticmethod
     def _label(att: dict, missing: bool = False, href: Optional[str] = None) -> str:
         """``[Video: clip.mov]`` and the like; a link to the file if ``href`` is given."""
-        name = att.get("transfer_name") or os.path.basename(att.get("filename") or "")
+        name = _visible(att.get("transfer_name") or os.path.basename(att.get("filename") or ""))
         mime = (att.get("mime_type") or "").lower()
         if _PrintAttachmentWriter._is_image(att):
             kind = "Image"
@@ -885,7 +1089,7 @@ class _PrintAttachmentWriter:
 
         if rel is None:
             return self._label(att, missing=True)
-        alt = MessageExtractor._html_escape(att.get("transfer_name") or "Image")
+        alt = MessageExtractor._html_escape(_visible(att.get("transfer_name") or "") or "Image")
         return f'<img src="{rel}" alt="{alt}">'
 
 
@@ -925,10 +1129,16 @@ class _HtmlAttachmentWriter:
         files sent with the same name (IMG_0001.HEIC) never collide.
         """
         name = att.get("transfer_name") or os.path.basename(att.get("filename") or "") or "attachment"
+        # Nothing invisible: a direction mark makes "Invoice<RLO>fdp.exe" read as "Invoiceexe.pdf"
+        name = _visible(name)
         name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", name.replace("\\", "/").rsplit("/", 1)[-1])
         name = name.strip(" .") or "attachment"
         stem, ext = os.path.splitext(name)
-        name = stem[:80] + (ext or _HtmlAttachmentWriter._ext(att))[:16]
+        # At most 80 characters and, for file systems that count bytes (255 on Linux), 180 bytes,
+        # never cutting a character in half
+        stem = stem[:80].encode("utf-8")[:180].decode("utf-8", "ignore").rstrip(" .") or "attachment"
+        ext = (ext or _HtmlAttachmentWriter._ext(att))[:16].encode("utf-8")[:32].decode("utf-8", "ignore")
+        name = stem + ext
         att_id = att.get("attachment_id")
         prefix = str(att_id) if isinstance(att_id, int) else f"x{uuid.uuid4().hex[:12]}"
         return f"{prefix}-{name}"
@@ -975,7 +1185,7 @@ class _HtmlAttachmentWriter:
             return _PrintAttachmentWriter._label(att, missing=True)
 
         href = self._href(name)
-        title = MessageExtractor._html_escape(att.get("transfer_name") or name)
+        title = MessageExtractor._html_escape(_visible(att.get("transfer_name") or "") or name)
         mime = (att.get("mime_type") or "").lower()
         ext = self._ext(att)
 
