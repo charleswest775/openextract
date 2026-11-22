@@ -21,11 +21,11 @@ each would quietly return the wrong rows rather than fail.
 """
 
 import csv
+import hashlib
 import heapq
 import html
 import os
 import plistlib
-import shutil
 import sys
 import uuid
 from typing import Optional
@@ -35,7 +35,6 @@ import pdf_parts
 from app_copies import AppCopies, temp_prefix
 from messages import (
     EXPORT_FOOTER_HTML,
-    HTML_PREVIEW_MAX_PX,
     MessageExtractor,
     _ATTACHMENT_CSS,
     _BROWSER_IMAGE_EXTENSIONS,
@@ -43,10 +42,11 @@ from messages import (
     _IMAGE_EXTENSIONS,
     _PrintAttachmentWriter,
     _VIDEO_EXTENSIONS,
-    _save_as_jpeg,
+    _att_key,
     _visible,
     _without_lone_surrogates,
 )
+from save_files import CANT_READ, FileNotSaved, SaveStopped, log_failure, new_page
 
 try:
     from ios_backup_core.extractors.whatsapp import (
@@ -482,18 +482,19 @@ def _media_name(att) -> str:
     return name
 
 
-def _media_label(msg, att, missing: bool, unreadable: bool = False) -> str:
+def _media_label(msg, att, missing: bool, unreadable: bool = False, problem: Optional[str] = None) -> str:
     """"Photo: IMG_1.jpg", "Photo not in this backup", "Document not in this backup: notes.pdf".
 
     ``unreadable``: the backup has the file, but it couldn't be read or
     converted ("Photo couldn't be read: IMG_1.heic"). Saying "not in this
-    backup" then would be untrue.
+    backup" then would be untrue. ``problem``: the save's own words for why
+    the file isn't saved (save_files.py).
     """
     kind, name = _media_kind(msg, att), _media_name(att)
     if missing:
         kind = f"{kind} not in this backup"
-    elif unreadable:
-        kind = f"{kind} couldn't be read"
+    elif problem or unreadable:
+        kind = f"{kind} {problem or CANT_READ}"
     return f"{kind}: {name}" if name else kind
 
 
@@ -534,8 +535,29 @@ class _WhatsAppExport(MessageExtractor):
     # ── reading ──────────────────────────────────────────────────────────────
 
     def get_messages(self, backup, chat_id, contacts, offset=0, limit=100, date_from=None, date_to=None):
-        return self._source.get_messages(backup, chat_id, contacts, offset, limit,
+        page = self._source.get_messages(backup, chat_id, contacts, offset, limit,
                                          date_from=date_from, date_to=date_to)
+        self._doubt_unavailable(backup, page.get("messages") or [])
+        return page
+
+    @staticmethod
+    def _doubt_unavailable(backup, messages: list) -> None:
+        """Media the library marked as not in the backup, but which may be, is saved or said to be unreadable.
+
+        The library takes a list of files it couldn't read for an empty one, and
+        keeps it. A file's name in the backup's folder is the SHA-1 of its domain
+        and path, so the folder can be asked directly (OpenBackup.may_hold).
+        """
+        may_hold = getattr(backup, "may_hold", None)
+        if not callable(may_hold):
+            return
+        for msg in messages:
+            for att in msg.get("attachments") or []:
+                rel = att.get("filename")
+                if att.get("available", True) or not rel:
+                    continue
+                if may_hold(hashlib.sha1(f"{SHARED_DOMAIN}-{rel}".encode("utf-8", "replace")).hexdigest()):
+                    att["available"] = True
 
     def search_messages(self, backup, query, contacts, chat_id=None, date_from=None, date_to=None, limit=500):
         return self._source.search_messages(backup, query, contacts, chat_id,
@@ -554,6 +576,10 @@ class _WhatsAppExport(MessageExtractor):
         if not path or not os.path.exists(path):
             return None
         return path
+
+    @staticmethod
+    def _backup_places(filename: str) -> list:
+        return [(filename, SHARED_DOMAIN)] if filename else []
 
     def _collect_messages_for_chat(self, backup, chat_id, contacts, date_from=None, date_to=None, query=None,
                                    part=None):
@@ -663,18 +689,25 @@ class _WhatsAppExport(MessageExtractor):
         if mode == "merged":
             return self._export_merged(backup, chat_ids, names, contacts, fmt, output_dir,
                                        date_from=date_from, date_to=date_to, query=query, part=part)
-        files, total = [], 0
+        files, total, failed_files = [], 0, 0
         for chat_id in chat_ids:
-            result = self.export_conversation(backup, chat_id, contacts, fmt, output_dir,
-                                              date_from=date_from, date_to=date_to, query=query,
-                                              display_name=names.get(chat_id), part=part)
+            try:
+                result = self.export_conversation(backup, chat_id, contacts, fmt, output_dir,
+                                                  date_from=date_from, date_to=date_to, query=query,
+                                                  display_name=names.get(chat_id), part=part)
+            except SaveStopped as e:
+                if fmt != "html":
+                    raise
+                raise e.after(len(files), "chat", failed_files) from None
             if result.get("error"):
                 # An unreadable store fails every chat: say so rather than
                 # handing back fewer files than were asked for.
                 return result
             files.append(result["file"])
             total += result["message_count"]
-        return {"files": files, "message_count": total}
+            failed_files += result.get("failed_files", 0)
+        return {"files": files, "message_count": total,
+                **({"failed_files": failed_files} if fmt == "html" else {})}
 
     def _export_merged(self, backup, chat_ids, conversation_names, contacts, fmt, output_dir,
                        date_from=None, date_to=None, query=None, part=None):
@@ -703,7 +736,7 @@ class _WhatsAppExport(MessageExtractor):
         else:
             result = self._write_html(messages, output_dir, base, "",
                                       _WhatsAppPrintMedia(self, backup, output_dir), merged=True)
-        return {"files": [result["file"]], "message_count": result["message_count"]}
+        return {"files": [result.pop("file")], **result}
 
     # ── text of one message ──────────────────────────────────────────────────
 
@@ -858,7 +891,7 @@ class _WhatsAppExport(MessageExtractor):
         else:
             title = f"WhatsApp chat: {safe_name}" if safe_name else "WhatsApp chat"
             heading = safe_name
-        with open(filepath, "x", encoding="utf-8") as f:
+        with new_page(filepath, media) as f:
             f.write(f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>{title}</title>
 <style>
@@ -885,7 +918,7 @@ class _WhatsAppExport(MessageExtractor):
                 f.write(f'<div class="msg {css}">{self._bubble_html(msg, media)}</div>\n')
             f.write(EXPORT_FOOTER_HTML)
             f.write("</body></html>")
-        return {"file": filepath, "message_count": len(messages)}
+        return {"file": filepath, "message_count": len(messages), **media.outcome()}
 
 
 _WHATSAPP_CSS = """body { font-family: -apple-system, "Segoe UI", sans-serif; max-width: 640px; margin: 0 auto; padding: 20px; background: #efeae2; color: #111b21; }
@@ -931,7 +964,8 @@ class _WhatsAppHtmlMedia(_HtmlAttachmentWriter):
 
     Photos, GIFs and stickers show, videos and voice notes play (Opus voice
     notes included), documents link to their file. Media the backup doesn't
-    have gets a label saying so, over its thumbnail when the backup kept one.
+    have, or that can't be read or saved, gets a label saying which, over its
+    thumbnail when the backup kept one.
     Files are named "wa<id>-<name>", so they never collide with Messages'
     "<id>-<name>" in the same folder.
     """
@@ -940,21 +974,23 @@ class _WhatsAppHtmlMedia(_HtmlAttachmentWriter):
     def _file_name(att: dict) -> str:
         return "wa" + _HtmlAttachmentWriter._file_name(att)
 
-    def _copy_extra(self, key: str, rel: str) -> Optional[str]:
-        """Copy a thumbnail or map preview (JPEG whatever its extension) once; its file name, or None."""
+    def _copy_extra(self, key: str, rel: str, counts: bool = True) -> Optional[str]:
+        """Copy a thumbnail or map preview (JPEG whatever its extension) once; its file name, or None.
+
+        ``counts``: failing to is one of the save's failed files; not for the
+        thumbnail of a file that is counted as failed itself.
+        """
         if key in self._written:
             return self._written[key]
         name = None
-        src = self._extractor._attachment_file_path(self._backup, rel)
-        if src:
-            dest = os.path.join(self._dir, f"{key}.jpg")
-            try:
-                os.makedirs(self._dir, exist_ok=True)
-                if not (os.path.isfile(dest) and os.path.getsize(dest) == os.path.getsize(src)):
-                    shutil.copyfile(src, dest)
-                name = os.path.basename(dest)
-            except OSError:
-                pass
+        try:
+            # The library gives these paths only for files the backup lists
+            src = self._extractor._file_to_save(self._backup, rel, True)
+            if src:
+                self._put(src, f"{key}.jpg")
+                name = f"{key}.jpg"
+        except FileNotSaved as e:
+            self._failed(key, e, counts)
         self._written[key] = name
         return name
 
@@ -964,13 +1000,18 @@ class _WhatsAppHtmlMedia(_HtmlAttachmentWriter):
         name = self._copy(att) if available else None
         if name is None:
             # Not in the backup, or listed in it but it couldn't be read or copied.
-            label = esc(_media_label(msg, att, missing=not available, unreadable=available))
+            label = esc(_media_label(msg, att, missing=not available, unreadable=available,
+                                     problem=self._problems.get(_att_key(att))))
             thumb_key = f"wa{_id_part(att.get('attachment_id'))}-thumb"
-            thumb = self._copy_extra(thumb_key, _thumb_src(att)) if _thumb_src(att) else None
+            thumb = (self._copy_extra(thumb_key, _thumb_src(att), counts=not available)
+                     if _thumb_src(att) else None)
             if thumb:
                 src = self._href(thumb)
                 return f'<img src="{src}" alt="{label}"><div class="attachment-label">{label}</div>'
-            return f'<div class="attachment-label">{label}</div>'
+            html_label = f'<div class="attachment-label">{label}</div>'
+            if not available and thumb_key in self._problems:  # the small picture was all the backup had
+                html_label += f'<div class="attachment-label">{esc(f"Preview {self._problems[thumb_key]}")}</div>'
+            return html_label
 
         href = self._href(name)
         title = esc(_visible(att.get("transfer_name") or "") or name)
@@ -981,13 +1022,12 @@ class _WhatsAppHtmlMedia(_HtmlAttachmentWriter):
         if _PrintAttachmentWriter._is_image(att):
             if ext in _BROWSER_IMAGE_EXTENSIONS:
                 return f'<a href="{href}"><img{sticker} src="{href}" alt="{title}" loading="lazy"></a>'
-            preview = os.path.splitext(name)[0] + ".jpg"
-            preview_path = os.path.join(self._dir, preview)
-            if os.path.isfile(preview_path) or _save_as_jpeg(os.path.join(self._dir, name), preview_path,
-                                                             HTML_PREVIEW_MAX_PX):
+            preview = self._preview(att, name)
+            if preview:
                 src = self._href(preview)
                 return f'<a href="{src}"><img{sticker} src="{src}" alt="{title}" loading="lazy"></a>'
-            return f'<div class="attachment-label"><a href="{href}">{esc(_media_label(msg, att, False))}</a></div>'
+            return (f'<div class="attachment-label"><a href="{href}">{esc(_media_label(msg, att, False))}</a></div>'
+                    + self._preview_note(att))
 
         if mime.startswith("video/") or ext in _VIDEO_EXTENSIONS:
             return (f'<video controls preload="metadata" src="{href}#t=0.001" title="{title}"></video>'
@@ -1003,8 +1043,12 @@ class _WhatsAppHtmlMedia(_HtmlAttachmentWriter):
         rel = (location or {}).get("thumbnail_path")
         if not rel:
             return ""
-        name = self._copy_extra(f"wamap{_id_part(location.get('attachment_id'))}", rel)
+        key = f"wamap{_id_part(location.get('attachment_id'))}"
+        name = self._copy_extra(key, rel)
         if not name:
+            problem = self._problems.get(key)
+            if problem:
+                return f'<div class="attachment-label">{MessageExtractor._html_escape(f"Map {problem}")}</div>'
             return ""
         return f'<img class="map" src="{self._href(name)}" alt="Map">'
 
@@ -1026,12 +1070,14 @@ class _WhatsAppPrintMedia(_PrintAttachmentWriter):
         if os.path.exists(dest):
             out = f"{self.SUBDIR}/{name}"
         else:
-            src = self._extractor._attachment_file_path(self._backup, rel) if rel else None
-            if src:
-                os.makedirs(self._dir, exist_ok=True)
-                if self._convert(src, dest):
+            try:
+                src = self._extractor._file_to_save(self._backup, rel, True) if rel else None
+                if src and self._draw(src, dest):
                     out = f"{self.SUBDIR}/{name}"
                     self.images_written += 1
+            except FileNotSaved as e:
+                self._problems[key] = e.problem
+                log_failure(f"{key} isn't in the PDF", e)
         if out is None:
             self.images_missing += 1
         self._written[key] = out
@@ -1056,7 +1102,8 @@ class _WhatsAppPrintMedia(_PrintAttachmentWriter):
         still = None
         if (self._is_image(att) or is_video) and _thumb_src(att):
             still = self._jpeg(f"{key}-thumb", _thumb_src(att))
-        text = _media_label(msg, att, missing=not available, unreadable=unreadable)
+        text = _media_label(msg, att, missing=not available, unreadable=unreadable,
+                            problem=self._problems.get(key) if unreadable else None)
         label = f'<div class="attachment-label">{esc(text)}</div>'
         if still:
             return f'<img src="{esc(still)}" alt="">{label}'

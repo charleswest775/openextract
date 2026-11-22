@@ -669,6 +669,8 @@ def case_export_conversation(ctx):
         path = Path(result["file"])
         assert same_path(path.parent, out) and path.suffix == suffix and first_word in path.name
         assert result["message_count"] == conv["message_count"]
+        if fmt == "html":
+            assert result["failed_files"] == 0
         assert path.stat().st_size > 0
         if fmt == "txt":
             assert sample["text"] in path.read_text(encoding="utf-8-sig")
@@ -1174,6 +1176,8 @@ def case_export_whatsapp_chat(ctx):
         path = Path(result["file"])
         assert same_path(path.parent, out) and path.suffix == suffix and path.name.startswith(wb.RILEY_NAME)
         assert result["message_count"] == count
+        if fmt == "html":
+            assert result["failed_files"] == 0
         if fmt == "txt":
             text = path.read_text(encoding="utf-8-sig")
             lines = text.splitlines()

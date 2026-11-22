@@ -28,9 +28,9 @@ sidecar imports from this module:
 import base64
 import csv
 import html
+import io
 import os
 import re
-import shutil
 import sys
 import uuid
 import unicodedata
@@ -56,6 +56,19 @@ from local_dates import (
     readable_date,
 )
 import pdf_parts
+from save_files import (
+    CANT_READ,
+    NO_ROOM,
+    NO_ROOM_FOR_PDF,
+    FileNotSaved,
+    SaveStopped,
+    copy_whole,
+    log_failure,
+    new_page,
+    remove,
+    write_error,
+    write_whole,
+)
 
 __all__ = [
     "MessageExtractor",
@@ -179,7 +192,8 @@ _heif_registered = False
 def _save_as_jpeg(src_path: str, dest_path: str, max_px: int) -> bool:
     """Write an image (HEIC included) as an upright JPEG no bigger than
     ``max_px`` on its longest side. Returns False, leaving nothing behind,
-    if the image can't be read."""
+    if the image can't be read. Raises if the JPEG can't be written, as
+    save_files.write_whole does."""
     global _heif_registered
     try:
         from PIL import Image, ImageOps
@@ -201,12 +215,13 @@ def _save_as_jpeg(src_path: str, dest_path: str, max_px: int) -> bool:
                 flat = Image.new("RGB", rgba.size, (255, 255, 255))
                 flat.paste(rgba, mask=rgba.getchannel("A"))
                 img = flat
-            img.save(dest_path, "JPEG", quality=85)
-        return True
+            # In memory first: Pillow raises OSError both for a damaged picture and for a full disk
+            jpeg = io.BytesIO()
+            img.save(jpeg, "JPEG", quality=85)
     except Exception:
-        if os.path.exists(dest_path):
-            os.remove(dest_path)
         return False
+    write_whole(dest_path, jpeg.getvalue())
+    return True
 
 
 def _relative_attachment_path(sms_filename) -> str:
@@ -228,6 +243,12 @@ def _attachment_rowid(value) -> Optional[int]:
     if isinstance(value, str) and value.strip().isascii() and value.strip().isdigit():
         return int(value)
     return None
+
+
+def _att_key(att: dict):
+    """What a save's writer remembers an attachment by: its id, or the attachment itself without one."""
+    att_id = att.get("attachment_id")
+    return att_id if isinstance(att_id, int) else ("object", id(att))
 
 
 def _chunks(items: list, size: int = _IN_CHUNK):
@@ -271,7 +292,8 @@ def _files_in_backup(backup, relative_paths) -> Optional[set]:
 
     A file counts when the backup lists it in MediaDomain or HomeDomain and
     its folder holds it: a backup copied only partway lists files it hasn't
-    got (OE-102). One query for the lot, so a page of messages costs one look
+    got (OE-102). A folder that can't be looked in counts as holding it
+    (OpenBackup.may_hold). One query for the lot, so a page of messages costs one look
     at the list however many attachments it has.
     """
     paths = sorted({p for p in relative_paths if p})
@@ -281,12 +303,16 @@ def _files_in_backup(backup, relative_paths) -> Optional[set]:
     if rows is None:
         return None
     locate = getattr(backup, "locate_file", None)
+    may_hold = getattr(backup, "may_hold", None)
     present: set = set()
     for rel, domain, file_id in rows:
         if rel in present or domain not in _ATTACHMENT_DOMAINS:
             continue
-        if callable(locate) and not (isinstance(file_id, str) and locate(file_id)):
-            continue
+        if callable(locate):
+            if not (isinstance(file_id, str) and file_id):
+                continue
+            if not locate(file_id) and not (callable(may_hold) and may_hold(file_id)):
+                continue
         present.add(rel)
     return present
 
@@ -570,6 +596,35 @@ class MessageExtractor:
             return None
         return file_path
 
+    @staticmethod
+    def _backup_places(sms_filename: str) -> list:
+        """(path, domain) of each place the backup may keep an attachment's file."""
+        relative_path = _relative_attachment_path(sms_filename)
+        return [(relative_path, domain) for domain in _ATTACHMENT_DOMAINS] if relative_path else []
+
+    def _file_to_save(self, backup, filename: str, listed: bool) -> Optional[str]:
+        """The file to copy into a save; None only when the backup hasn't got it.
+
+        ``listed``: the backup has the file (an attachment's ``available``), so
+        finding nothing is a failure to read it. It's then looked for again
+        (OpenBackup.get_file_again): that's how a full temp folder is told
+        apart, and stops the save. Any other failure raises FileNotSaved.
+        """
+        if not filename:
+            return None
+        try:
+            src = self._attachment_file_path(backup, filename)
+            again = getattr(backup, "get_file_again", None)
+            if not src and listed and callable(again):
+                src = next(filter(None, (again(*place) for place in self._backup_places(filename))), None)
+        except SaveStopped:
+            raise
+        except Exception as e:  # a damaged entry must cost one file, not the save
+            raise FileNotSaved(CANT_READ) from e
+        if not src and listed:
+            raise FileNotSaved(CANT_READ)
+        return src
+
     # ── openextract-only: conversation export to disk ────────────────────────
 
     @staticmethod
@@ -803,7 +858,7 @@ class MessageExtractor:
             attachments.begin(filepath)
         safe_name = html.escape(display_name) if display_name else ""
         title = f"Conversation Export: {safe_name}" if safe_name else "Conversation Export"
-        with open(filepath, "x", encoding="utf-8") as f:
+        with new_page(filepath, attachments) as f:
             f.write(f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>{title}</title>
 <style>
@@ -830,7 +885,8 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
                 f.write(f'<div class="msg {css_class}">{text}</div>\n')
             f.write(EXPORT_FOOTER_HTML)
             f.write("</body></html>")
-        return {"file": filepath, "message_count": len(messages)}
+        return {"file": filepath, "message_count": len(messages),
+                **(attachments.outcome() if attachments is not None else {})}
 
     # ── Multi-conversation export ────────────────────────────────────────────
 
@@ -857,16 +913,24 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
 
         files = []
         total_count = 0
+        failed_files = 0
         for chat_id in chat_ids:
-            result = self.export_conversation(
-                backup, chat_id, contacts, fmt, output_dir,
-                date_from=date_from, date_to=date_to, query=query,
-                display_name=conversation_names.get(chat_id), part=part
-            )
+            try:
+                result = self.export_conversation(
+                    backup, chat_id, contacts, fmt, output_dir,
+                    date_from=date_from, date_to=date_to, query=query,
+                    display_name=conversation_names.get(chat_id), part=part
+                )
+            except SaveStopped as e:
+                if fmt != "html":  # a PDF's pages are only staged: none of them is saved yet
+                    raise
+                raise e.after(len(files), "conversation", failed_files) from None
             if "error" not in result:
                 files.append(result["file"])
                 total_count += result["message_count"]
-        return {"files": files, "message_count": total_count}
+                failed_files += result.get("failed_files", 0)
+        return {"files": files, "message_count": total_count,
+                **({"failed_files": failed_files} if fmt == "html" else {})}
 
     def _collect_messages_for_chat(self, backup, chat_id, contacts,
                                    date_from=None, date_to=None, query=None, part=None):
@@ -990,7 +1054,7 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
         filepath = os.path.join(output_dir, self._unused_name(output_dir, name, ".html"))
         if attachments is not None:
             attachments.begin(filepath)
-        with open(filepath, "x", encoding="utf-8") as f:
+        with new_page(filepath, attachments) as f:
             f.write("""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Merged Conversations Export</title>
 <style>
@@ -1018,7 +1082,8 @@ body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 0 auto;
                 f.write(f'<div class="msg {css_class}">{text}</div>\n')
             f.write(EXPORT_FOOTER_HTML)
             f.write("</body></html>")
-        return {"files": [filepath], "message_count": len(messages)}
+        return {"files": [filepath], "message_count": len(messages),
+                **(attachments.outcome() if attachments is not None else {})}
 
 
 class _PrintAttachmentWriter:
@@ -1028,22 +1093,32 @@ class _PrintAttachmentWriter:
     into a temporary folder that Electron renders to PDF and then deletes, so
     the file names here never reach the user. Images are converted to JPEG
     (HEIC included), turned upright and scaled down to ``PDF_IMAGE_MAX_PX``.
-    Videos, audio and other files, and images missing from the backup, get a
-    short text label instead, so one bad attachment never fails the export.
+    Videos, audio and other files, and images missing from the backup or that
+    can't be read, get a short text label instead, so one bad attachment never
+    fails the export. No room to write them stops it (save_files.py).
     """
 
     SUBDIR = "attachments"
+    no_room = NO_ROOM_FOR_PDF
 
     def __init__(self, extractor: "MessageExtractor", backup, output_dir: str):
         self._extractor = extractor
         self._backup = backup
         self._dir = os.path.join(output_dir, self.SUBDIR)
         self._written: dict = {}
+        self._problems: dict = {}
         self.images_written = 0
         self.images_missing = 0
 
     def begin(self, html_path: str) -> None:
         """Nothing to set up: images go into ``attachments/`` beside the page."""
+
+    def take_back(self) -> None:
+        """Nothing to take back: Electron deletes the temporary folder."""
+
+    def outcome(self) -> dict:
+        """Nothing to add to the save's result."""
+        return {}
 
     @staticmethod
     def _is_image(att: dict) -> bool:
@@ -1054,7 +1129,7 @@ class _PrintAttachmentWriter:
         return name.endswith(_IMAGE_EXTENSIONS)
 
     @staticmethod
-    def _label(att: dict, missing: bool = False, href: Optional[str] = None) -> str:
+    def _label(att: dict, missing: bool = False, href: Optional[str] = None, problem: Optional[str] = None) -> str:
         """``[Video: clip.mov]`` and the like; a link to the file if ``href`` is given."""
         name = _visible(att.get("transfer_name") or os.path.basename(att.get("filename") or ""))
         mime = (att.get("mime_type") or "").lower()
@@ -1066,7 +1141,9 @@ class _PrintAttachmentWriter:
             kind = "Audio"
         else:
             kind = "File"
-        if missing:
+        if problem:
+            kind = f"{kind} {problem}"
+        elif missing:
             kind = f"{kind} not in this backup"
         label = MessageExtractor._html_escape(f"[{kind}: {name}]" if name else f"[{kind}]")
         if href:
@@ -1075,6 +1152,15 @@ class _PrintAttachmentWriter:
 
     def _convert(self, src_path: str, dest_path: str) -> bool:
         return _save_as_jpeg(src_path, dest_path, PDF_IMAGE_MAX_PX)
+
+    def _draw(self, src_path: str, dest_path: str) -> bool:
+        """_convert into the staging folder. No room there is this computer's, wherever the PDF is going."""
+        try:
+            os.makedirs(self._dir, exist_ok=True)
+            return self._convert(src_path, dest_path)
+        except OSError as e:
+            log_failure("a PDF stopped", e)
+            raise SaveStopped(write_error(e, self.no_room)) from None
 
     def render(self, att: dict) -> str:
         """Return the HTML for one attachment inside a message bubble."""
@@ -1094,19 +1180,24 @@ class _PrintAttachmentWriter:
             if os.path.exists(dest):
                 rel = f"{self.SUBDIR}/{name}"
             else:
-                src = self._extractor._attachment_file_path(self._backup, att.get("filename") or "")
-                if src:
-                    os.makedirs(self._dir, exist_ok=True)
-                    if self._convert(src, dest):
+                try:
+                    src = self._extractor._file_to_save(self._backup, att.get("filename") or "",
+                                                        att.get("available") is True)
+                    if src:
+                        if not self._draw(src, dest):
+                            raise FileNotSaved(CANT_READ)
                         rel = f"{self.SUBDIR}/{name}"
                         self.images_written += 1
+                except FileNotSaved as e:
+                    self._problems[_att_key(att)] = e.problem
+                    log_failure(f"attachment {att_id} isn't in the PDF", e)
             if rel is None:
                 self.images_missing += 1
             if isinstance(att_id, int):
                 self._written[att_id] = rel
 
         if rel is None:
-            return self._label(att, missing=True)
+            return self._label(att, missing=True, problem=self._problems.get(_att_key(att)))
         alt = MessageExtractor._html_escape(_visible(att.get("transfer_name") or "") or "Image")
         return f'<img src="{rel}" alt="{alt}">'
 
@@ -1120,9 +1211,12 @@ class _HtmlAttachmentWriter:
     audio get a player, and everything links to its file, so a format the
     browser can't play (HEVC video on some PCs, voice messages) still opens
     in another app. Photos browsers can't show (HEIC, TIFF) also get a JPEG
-    copy for the page. An attachment missing from the backup gets a label,
-    so one bad file never fails the export.
+    copy for the page. An attachment missing from the backup gets a label, as
+    does one that can't be read or saved (counted in ``failed_files``), so one
+    bad file never fails the export. No room to write stops it (save_files.py).
     """
+
+    no_room = NO_ROOM
 
     def __init__(self, extractor: "MessageExtractor", backup):
         self._extractor = extractor
@@ -1130,8 +1224,13 @@ class _HtmlAttachmentWriter:
         self._dir = ""
         self._rel = ""
         self._written: dict = {}
+        self._problems: dict = {}
+        # What this save made, to take back if it stops
+        self._made: list = []
+        self._made_dir = False
         self.files_written = 0
         self.files_missing = 0
+        self.files_failed = 0
 
     def begin(self, html_path: str) -> None:
         """Use the folder beside ``html_path``. Called before any render()."""
@@ -1172,35 +1271,96 @@ class _HtmlAttachmentWriter:
     def _href(self, name: str) -> str:
         return MessageExtractor._html_escape(quote(f"{self._rel}/{name}"))
 
+    def outcome(self) -> dict:
+        """What the save's result says about its files."""
+        return {"failed_files": self.files_failed}
+
+    def take_back(self) -> None:
+        """Remove what this save made, and nothing that was there before it."""
+        for path in self._made:
+            remove(path)
+        if self._made_dir:
+            try:
+                os.rmdir(self._dir)
+            except OSError:
+                pass  # something else is in it, or the drive is gone
+
+    def _put(self, src: str, name: str) -> None:
+        """Copy ``src`` into the folder as ``name``. FileNotSaved is that file's problem, an OSError the save's."""
+        dest = os.path.join(self._dir, name)
+        there = os.path.lexists(dest)
+        if there:
+            try:
+                # The same conversation saved again into the same folder.
+                if os.path.isfile(dest) and os.path.getsize(dest) == os.path.getsize(src):
+                    return
+            except OSError as e:
+                raise FileNotSaved(CANT_READ) from e
+        if not os.path.isdir(self._dir):
+            os.makedirs(self._dir, exist_ok=True)
+            self._made_dir = True
+        copy_whole(src, dest)
+        if not there:
+            self._made.append(dest)
+
+    def _failed(self, key, error: FileNotSaved, counts: bool = True) -> None:
+        self._problems[key] = error.problem
+        if counts:
+            self.files_failed += 1
+        log_failure(f"file {key} {error.problem}", error)
+
     def _copy(self, att: dict) -> Optional[str]:
         """Copy the attachment into the folder once; its file name, or None."""
         att_id = att.get("attachment_id")
         if isinstance(att_id, int) and att_id in self._written:
             return self._written[att_id]
         name = None
-        src = self._extractor._attachment_file_path(self._backup, att.get("filename") or "")
-        if src:
-            dest = os.path.join(self._dir, self._file_name(att))
-            try:
-                os.makedirs(self._dir, exist_ok=True)
-                # The same conversation saved again into the same folder.
-                if not (os.path.isfile(dest) and os.path.getsize(dest) == os.path.getsize(src)):
-                    shutil.copyfile(src, dest)
-                name = os.path.basename(dest)
+        try:
+            src = self._extractor._file_to_save(self._backup, att.get("filename") or "",
+                                                att.get("available") is True)
+            if src:
+                file_name = self._file_name(att)
+                self._put(src, file_name)
+                name = file_name
                 self.files_written += 1
-            except OSError:
-                pass
-        if name is None:
-            self.files_missing += 1
+            else:
+                self.files_missing += 1
+        except FileNotSaved as e:
+            self._failed(_att_key(att), e)
         if isinstance(att_id, int):
             self._written[att_id] = name
         return name
+
+    def _preview(self, att: dict, name: str) -> Optional[str]:
+        """The JPEG copy of a saved photo browsers can't show; its file name, or None."""
+        preview = os.path.splitext(name)[0] + ".jpg"
+        path = os.path.join(self._dir, preview)
+        if os.path.isfile(path):
+            return preview
+        key = ("preview", _att_key(att))
+        if key in self._problems:
+            return None
+        try:
+            if not _save_as_jpeg(os.path.join(self._dir, name), path, HTML_PREVIEW_MAX_PX):
+                return None
+        except FileNotSaved as e:
+            self._failed(key, e)
+            return None
+        self._made.append(path)
+        return preview
+
+    def _preview_note(self, att: dict) -> str:
+        """What the page says under a photo whose JPEG copy couldn't be saved."""
+        problem = self._problems.get(("preview", _att_key(att)))
+        if not problem:
+            return ""
+        return f'<div class="attachment-label">{MessageExtractor._html_escape(f"Preview {problem}")}</div>'
 
     def render(self, att: dict) -> str:
         """Return the HTML for one attachment inside a message bubble."""
         name = self._copy(att)
         if name is None:
-            return _PrintAttachmentWriter._label(att, missing=True)
+            return _PrintAttachmentWriter._label(att, missing=True, problem=self._problems.get(_att_key(att)))
 
         href = self._href(name)
         title = MessageExtractor._html_escape(_visible(att.get("transfer_name") or "") or name)
@@ -1210,14 +1370,11 @@ class _HtmlAttachmentWriter:
         if _PrintAttachmentWriter._is_image(att):
             if ext in _BROWSER_IMAGE_EXTENSIONS:
                 return f'<a href="{href}"><img src="{href}" alt="{title}" loading="lazy"></a>'
-            preview = os.path.splitext(name)[0] + ".jpg"
-            preview_path = os.path.join(self._dir, preview)
-            if os.path.isfile(preview_path) or _save_as_jpeg(
-                os.path.join(self._dir, name), preview_path, HTML_PREVIEW_MAX_PX
-            ):
+            preview = self._preview(att, name)
+            if preview:
                 src = self._href(preview)
                 return f'<a href="{src}"><img src="{src}" alt="{title}" loading="lazy"></a>'
-            return _PrintAttachmentWriter._label(att, href=href)
+            return _PrintAttachmentWriter._label(att, href=href) + self._preview_note(att)
 
         if mime.startswith("video/") or ext in _VIDEO_EXTENSIONS:
             # #t=0.001 makes Safari show the first frame instead of a black box.

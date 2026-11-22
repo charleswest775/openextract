@@ -64,6 +64,7 @@ from messages import (
     _visible,
     _without_lone_surrogates,
 )
+from save_files import SaveStopped, write_error as _write_error
 from whatsapp import (
     _StoreProblem,
     _WhatsAppHtmlMedia,
@@ -640,6 +641,9 @@ class PersonExporter:
             self._remove(page, folder)
             _log(f"couldn't write the save: {e}")
             return {"error": _write_error(e), "errors": errors}
+        except SaveStopped as e:  # from the shared writers: no room to decrypt
+            self._remove(page, folder)
+            return {"error": str(e), "errors": errors}
         except BaseException:
             self._remove(page, folder)
             raise
@@ -1151,16 +1155,6 @@ class PersonExporter:
                 step(it)
             f.write(EXPORT_FOOTER_HTML)
             f.write("</body></html>\n")
-
-
-def _write_error(error: OSError) -> str:
-    """Why the save couldn't be written, in words for people."""
-    code = getattr(error, "errno", None)
-    if code in (errno.ENOSPC, getattr(errno, "EDQUOT", -1)):
-        return "There isn't enough space to save here. Free up some space or choose another folder."
-    if code in (errno.EACCES, errno.EPERM, errno.EROFS):
-        return "OpenExtract can't save in that folder. Choose another folder."
-    return f"Couldn't save: {error.strerror or error}"
 
 
 # Each source's bubbles keep their own look, scoped by the item's class
