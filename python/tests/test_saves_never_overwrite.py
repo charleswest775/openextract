@@ -18,6 +18,7 @@ from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.dirname(__file__))
 import photos  # noqa: E402
+import save_names  # noqa: E402
 import voice_memos  # noqa: E402
 import whatsapp  # noqa: E402
 from messages import MessageExtractor  # noqa: E402
@@ -153,6 +154,28 @@ save_names.copy_new(sys.argv[2], sys.argv[3])
         self.assertFalse(os.path.exists(dest))
         self.save(self.backup({FIRST: b"the whole photo"}, name="again"))
         self.assertEqual(_files(self.out)["IMG_0001.JPG"], b"the whole photo")
+
+    def test_saving_again_after_the_first_name_was_freed_makes_no_copy(self):
+        # Two saved, the one at the plain name then moved or deleted: the other is still there as (2)
+        _write(os.path.join(self.out, "IMG_0001 (2).JPG"), b"kept")
+        self.save(self.backup({FIRST: b"kept"}))
+        self.assertEqual(_files(self.out), {"IMG_0001 (2).JPG": b"kept"})
+
+    def test_a_file_windows_is_holding_for_a_moment_is_still_saved(self):
+        # A virus scan or OneDrive opens each new file, and Windows won't rename it meanwhile
+        partial = _write(os.path.join(self.out, "x.partial"), b"photo")
+        dest = os.path.join(self.out, "IMG_0001.JPG")
+        rename, calls = os.rename, []
+
+        def held_once(src, dst):
+            calls.append(src)
+            if len(calls) == 1:
+                raise PermissionError(13, "being used by another process")
+            rename(src, dst)
+
+        with mock.patch("os.rename", side_effect=held_once), mock.patch("time.sleep"):
+            save_names._rename_on_windows(partial, dest)
+        self.assertEqual(_files(self.out), {"IMG_0001.JPG": b"photo"})
 
     def test_an_identical_file_already_there_keeps_its_own_date(self):
         theirs = _write(os.path.join(self.out, "IMG_0001.JPG"), b"first")

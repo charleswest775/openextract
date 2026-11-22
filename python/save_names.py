@@ -8,10 +8,17 @@ its name only once it's whole.
 
 import filecmp
 import os
+import re
 import shutil
+import time
 import unicodedata
 import uuid
 from typing import Callable
+
+_NUMBER = re.compile(r" \(\d+\)$")
+# Windows can hold a file just written (a virus scan, OneDrive) for a moment
+_RENAME_TRIES = 6
+_RENAME_WAIT_S = 0.2
 
 
 class SaveNames:
@@ -20,51 +27,62 @@ class SaveNames:
     iPhones reuse names (IMG_0001 again in a later DCIM folder), and macOS and Windows
     folders don't tell IMG_0001.JPG from img_0001.jpg. The second gets "IMG_0001 (2).JPG",
     as in Finder and File Explorer, on Linux too, so the folder can be copied to either.
-    A file already in the folder, however its name is capitalized, is this file only if
-    it holds the same bytes, so saving again into a folder makes no copies of what's there.
+    A file already in the folder, however it's capitalized or numbered, is this file only
+    if it holds the same bytes, so saving again into a folder makes no copies of what's there.
     """
 
     def __init__(self):
         # The files this save has claimed, by their real names
         self._taken: set = set()
-        # folder → name as Macs and Windows compare them → the names really there
+        # folder → (names in use, as Macs and Windows compare them;
+        #           name without its number → the files of that name there before this save)
         self._folders: dict = {}
 
     def place(self, folder: str, name: str, is_this_file: Callable[[str], bool]) -> tuple:
         """(the path for the file, whether that path already holds it)."""
-        names = self._names_in(folder)
+        used, before = self._names_in(folder)
+        # Any number, not just up to the first free name: "(2)" stays it when the first is deleted
+        for real in before.get(_unnumbered(name), ()):
+            path = os.path.join(folder, real)
+            if path not in self._taken and os.path.isfile(path) and is_this_file(path):
+                self._taken.add(path)
+                return path, True
         base, ext = os.path.splitext(name)
         n = 1
         while True:
             candidate = name if n == 1 else f"{base} ({n}){ext}"
             key = _name_key(candidate)
-            for real in names.get(key, ()):
-                path = os.path.join(folder, real)
-                if path not in self._taken and os.path.isfile(path) and is_this_file(path):
-                    self._taken.add(path)
-                    return path, True
             path = os.path.join(folder, candidate)
             # lexists too, for a name the listing didn't show or the folder treats as the same
-            if key not in names and not os.path.lexists(path):
-                names[key] = [candidate]
+            if key not in used and not os.path.lexists(path):
+                used.add(key)
                 self._taken.add(path)
                 return path, False
             n += 1
 
-    def _names_in(self, folder: str) -> dict:
+    def _names_in(self, folder: str) -> tuple:
         if folder not in self._folders:
-            found: dict = {}
+            used: set = set()
+            before: dict = {}
             try:
-                for real in os.listdir(folder):
-                    found.setdefault(_name_key(real), []).append(real)
+                # "IMG.JPG", "IMG (2).JPG", "IMG (10).JPG": two of the same bytes keep their order
+                for real in sorted(os.listdir(folder), key=lambda n: (len(n), n)):
+                    used.add(_name_key(real))
+                    before.setdefault(_unnumbered(real), []).append(real)
             except OSError:
                 pass  # can't be listed: then every name that's there just counts as taken
-            self._folders[folder] = found
+            self._folders[folder] = (used, before)
         return self._folders[folder]
 
 
 def _name_key(name: str) -> str:
     return unicodedata.normalize("NFC", name).casefold()
+
+
+def _unnumbered(name: str) -> str:
+    """What "IMG_0001.JPG" and "img_0001 (3).jpg" have in common."""
+    stem, ext = os.path.splitext(_name_key(name))
+    return _NUMBER.sub("", stem) + ext
 
 
 def same_file(path: str, source: str) -> bool:
@@ -125,7 +143,7 @@ def _make_new(path: str, fill: Callable[[str], object]) -> None:
 def _move_new(partial: str, path: str) -> None:
     """Rename ``partial`` to ``path``, never replacing a file."""
     if os.name == "nt":
-        os.rename(partial, path)  # on Windows this refuses to replace
+        _rename_on_windows(partial, path)
         return
     # Elsewhere a rename replaces, so claim the name first and replace only that empty file.
     # (Hard links would do it in one step, but exFAT drives have none.)
@@ -135,6 +153,17 @@ def _move_new(partial: str, path: str) -> None:
     except BaseException:
         _remove(path)
         raise
+
+
+def _rename_on_windows(partial: str, path: str) -> None:
+    for tries_left in reversed(range(_RENAME_TRIES)):
+        try:
+            os.rename(partial, path)  # on Windows this refuses to replace
+            return
+        except PermissionError:
+            if not tries_left:
+                raise
+            time.sleep(_RENAME_WAIT_S)
 
 
 def _remove(path: str) -> None:
