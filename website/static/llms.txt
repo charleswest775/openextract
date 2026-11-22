@@ -57,6 +57,11 @@ OpenExtract is made by Charles West, an independent developer, with help from co
 - [iMazing alternatives compared](https://www.openextract.app/imazing-alternatives): free and paid apps for reading backups or managing an iPhone, with prices and what each one's free version does.
 - [iMazing's free version and trial limits](https://www.openextract.app/imazing-trial-limits): every cap in iMazing's trial, what it costs, and how to open a backup iMazing made in OpenExtract.
 - [Kostenlose iMazing-Alternative (Deutsch)](https://www.openextract.app/de/imazing-alternative): the free iMazing alternative page in German. The app itself is in English.
+- [Alternativa gratuita a iMazing (Español)](https://www.openextract.app/es/alternativa-a-imazing): the free iMazing alternative page in Spanish. The app itself is in English.
+- [Alternative gratuite à iMazing (Français)](https://www.openextract.app/fr/alternative-a-imazing): the free iMazing alternative page in French. The app itself is in English.
+- [Alternativa gratuita ao iMazing (Português)](https://www.openextract.app/pt/alternativa-ao-imazing): the free iMazing alternative page in Brazilian Portuguese. The app itself is in English.
+- [Alternativa gratuita a iMazing (Italiano)](https://www.openextract.app/it/alternativa-a-imazing): the free iMazing alternative page in Italian. The app itself is in English.
+- [iMazingの無料代替ソフト (日本語)](https://www.openextract.app/ja/imazing-alternative): the free iMazing alternative page in Japanese. The app itself is in English.
 - [Export WhatsApp chats from an iPhone backup](https://www.openextract.app/use-cases/export-whatsapp-chats-from-iphone-backup): reading WhatsApp chats in a backup and saving them as a web page, PDF, CSV or text, with what is and isn't in the backup.
 - [WhatsApp-Chats exportieren (Deutsch)](https://www.openextract.app/de/whatsapp-chats-exportieren): the WhatsApp guide in German. The app itself is in English.
 - [Export podcasts from an iPhone backup](https://www.openextract.app/use-cases/export-podcasts-from-iphone-backup): reading the Apple Podcasts library in a backup, saving the shows you follow as OPML for another podcast app and everything as CSV, and why episode audio isn't in backups.
