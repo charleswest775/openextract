@@ -3,7 +3,7 @@ Finding a file in an encrypted backup uses its path (OE-132).
 
 iphone-backup-decrypt's query for one file names relativePath and flags, both
 indexed, and SQLite picked flags: nearly every row. Each photo in a save then
-read the whole list of files, 154 ms with 400,000 of them.
+read the whole list of files: with 400,000 of them, 468 ms on Windows and 154 ms on a Mac.
 """
 
 import os

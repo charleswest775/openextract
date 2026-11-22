@@ -100,10 +100,10 @@ def _speed_up_file_lookups(decrypted_backup) -> None:
     iphone-backup-decrypt looks each file up with "relativePath = ? AND domain LIKE ?
     AND flags = 1 ORDER BY domain". Manifest.db indexes both relativePath and flags,
     and with no statistics to go on SQLite picks flags, which nearly every row
-    matches: 154 ms a file in a backup of 400,000 files, so a save of some 20,000
-    photos spent most of an hour only looking them up. Without that index it picks
-    relativePath (0.01 ms). Nothing that searches by flags alone is slower without
-    it, as that reads nearly every row either way.
+    matches. In a backup of 400,000 files that was 468 ms a file on a Windows PC
+    (154 ms on a Mac), so a save with 8,000 photos spent an hour only looking them
+    up. Without that index it picks relativePath (0.02 ms). Nothing that searches by
+    flags alone is slower without it, as that reads nearly every row either way.
 
     This changes only the decrypted temporary copy of Manifest.db, never the backup.
     """
