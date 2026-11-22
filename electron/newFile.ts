@@ -8,7 +8,7 @@ const fs = require('fs');
 // What can't be in a file name: folders, characters Windows refuses, control characters
 // and the marks that reverse the direction of text (python/record_document.py's rule).
 // eslint-disable-next-line no-control-regex
-const FILE_NAME_UNSAFE = /[<>:"/\\|?*\u0000-\u001f\u007f‪-‮⁦-⁩]/g;
+const FILE_NAME_UNSAFE = /[<>:"/\\|?*\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g;
 
 /** A file's name from what the window sent: one file name, never a path, never empty. */
 export function safeBaseName(name: unknown): string {

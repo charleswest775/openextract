@@ -804,7 +804,8 @@ class PhotoExtractor:
 
         on_progress(done, total, failed) is told how far the save has got, a few
         times a second at most (see export_progress.py).
-        Every file it writes gets the photo's date taken as its modified time.
+        Every file it writes gets the photo's date taken as its modified time;
+        one that was already there is left entirely as it was.
         No photo or .json is written over another file: see save_names.py.
         """
         if options is None:
@@ -880,7 +881,8 @@ class PhotoExtractor:
                     dest_path, there = names.place(dest_dir, filename, lambda p: same_file(p, source))
                     if not there:
                         copy_new(source, dest_path)
-                _set_file_date(dest_path, taken)
+                if not there:
+                    _set_file_date(dest_path, taken)
 
                 exported += 1
 
@@ -892,7 +894,7 @@ class PhotoExtractor:
                         dest_dir, os.path.basename(dest_path) + ".json", lambda p: holds(p, sidecar))
                     if not there:
                         write_new(sidecar_path, sidecar)
-                    _set_file_date(sidecar_path, taken)
+                        _set_file_date(sidecar_path, taken)
 
             except Exception:
                 errors += 1

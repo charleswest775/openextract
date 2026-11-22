@@ -8,6 +8,7 @@ backup, or the person's own file. test_photo_save_names.py covers the photos' na
 
 import io
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -123,6 +124,33 @@ class TestPhotos(_InATempFolder):
         self.save(backup)
         self.assertEqual(sorted(_files(self.out).values()), [b"FIRST", b"first"])
 
+    def test_a_save_cut_short_leaves_no_part_of_a_photo_under_its_name(self):
+        # Closing the window stops the engine mid-copy. A part left as IMG_0001.JPG would
+        # look like someone's file to the next save, and stay there for good.
+        source = _write(os.path.join(self.tmp, "backup", "source"), b"the whole photo")
+        dest = os.path.join(self.out, "IMG_0001.JPG")
+        killed = subprocess.run([sys.executable, "-c", """
+import os, shutil, sys
+sys.path.insert(0, sys.argv[1])
+import save_names
+def cut_short(src, dst):
+    with open(dst, "wb") as f:
+        f.write(b"the wh")
+    os._exit(9)
+shutil.copyfile = cut_short
+save_names.copy_new(sys.argv[2], sys.argv[3])
+""", os.path.join(os.path.dirname(__file__), ".."), source, dest])
+        self.assertEqual(killed.returncode, 9)
+        self.assertFalse(os.path.exists(dest))
+        self.save(self.backup({FIRST: b"the whole photo"}, name="again"))
+        self.assertEqual(_files(self.out)["IMG_0001.JPG"], b"the whole photo")
+
+    def test_an_identical_file_already_there_keeps_its_own_date(self):
+        theirs = _write(os.path.join(self.out, "IMG_0001.JPG"), b"first")
+        os.utime(theirs, (1_500_000_000, 1_500_000_000))
+        self.save(self.backup({FIRST: b"first"}))
+        self.assertEqual(int(os.stat(theirs).st_mtime), 1_500_000_000)
+
 
 def _message(text: str, attachments=()) -> dict:
     return {"message_id": 1, "date": "2026-01-01T09:00:00+00:00", "text": text, "sender": "Alice",
@@ -236,6 +264,16 @@ class TestVoicemail(_InATempFolder):
         self.save(b"amr")
         self.save(b"amr")
         self.assertEqual([p for p in _files(self.out) if p.endswith(".amr")], ["audio/Mum_2024-07-05_1.amr"])
+
+    def test_a_save_that_fails_leaves_no_part_of_a_list_and_keeps_the_earlier_one(self):
+        with mock.patch("shutil.copyfile", side_effect=OSError(28, "No space left on device")):
+            self.assertIn("error", self.save(b"amr"))
+        self.assertEqual(_files(self.out), {})
+        self.save(b"amr", transcript="the first save")
+        saved = _files(self.out)
+        with mock.patch("shutil.copyfile", side_effect=OSError(28, "No space left on device")):
+            self.assertIn("error", self.save(b"another phone's"))
+        self.assertEqual(_files(self.out), saved)
 
 
 class TestVoiceMemos(_InATempFolder):

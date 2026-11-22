@@ -86,10 +86,12 @@ class VoicemailExtractor:
         csv_path = unused_path(output_dir, "voicemails", ".csv")
         names = SaveNames()
         exported_count = 0
+        list_made = False
 
         try:
             # A byte-order mark, so Excel reads names and transcripts in any alphabet right
             with open(csv_path, 'x', newline='', encoding='utf-8-sig') as f:
+                list_made = True
                 writer = csv.writer(f)
                 writer.writerow(CSV_HEADER)
 
@@ -122,6 +124,12 @@ class VoicemailExtractor:
 
             return {"status": "success", "exported": exported_count, "path": output_dir}
         except Exception as e:
+            # Part of a list would keep the name from the whole one saved next. Only the one made here.
+            if list_made:
+                try:
+                    os.remove(csv_path)
+                except OSError:
+                    pass
             return {"error": f"Export failed: {e}"}
 
     # ── Dates in saves ───────────────────────────────────────────────────────

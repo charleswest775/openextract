@@ -1,14 +1,16 @@
 """
 Files put into a folder the person chose, never over one that's there.
 
-SaveNames picks a path for each file, and copy_new and write_new make only new
-files, so even a file that turned up after the path was picked is safe.
+SaveNames picks a path for each file. copy_new and write_new make only new files,
+so even a file that turned up after the path was picked is safe, and give a file
+its name only once it's whole.
 """
 
 import filecmp
 import os
 import shutil
 import unicodedata
+import uuid
 from typing import Callable
 
 
@@ -63,7 +65,7 @@ def holds(path: str, data: bytes) -> bool:
 
 def copy_new(source: str, path: str) -> None:
     """Copy ``source`` to the new file ``path``, with its dates where the drive takes them."""
-    _make_new(path, lambda: shutil.copyfile(source, path))
+    _make_new(path, lambda partial: shutil.copyfile(source, partial))
     try:
         shutil.copystat(source, path)
     except OSError:
@@ -72,21 +74,45 @@ def copy_new(source: str, path: str) -> None:
 
 def write_new(path: str, data: bytes) -> None:
     """Write ``data`` to the new file ``path``."""
-    def write() -> None:
-        with open(path, "wb") as f:
+    def write(partial: str) -> None:
+        with open(partial, "wb") as f:
             f.write(data)
 
     _make_new(path, write)
 
 
-def _make_new(path: str, fill: Callable[[], object]) -> None:
-    # "x" raises FileExistsError instead of replacing, and is outside the try: that file isn't ours to remove
+def _make_new(path: str, fill: Callable[[str], object]) -> None:
+    """Fill a file of another name, then give it ``path``; FileExistsError if that's taken.
+
+    A save cut short (closing the window stops the engine) then never leaves part of a
+    photo under the photo's name, which the next save would leave alone as someone's file.
+    """
+    partial = os.path.join(os.path.dirname(path), f"OpenExtract-{uuid.uuid4().hex[:8]}.partial")
+    try:
+        fill(partial)
+        _move_new(partial, path)
+    except BaseException:
+        _remove(partial)
+        raise
+
+
+def _move_new(partial: str, path: str) -> None:
+    """Rename ``partial`` to ``path``, never replacing a file."""
+    if os.name == "nt":
+        os.rename(partial, path)  # on Windows this refuses to replace
+        return
+    # Elsewhere a rename replaces, so claim the name first and replace only that empty file.
+    # (Hard links would do it in one step, but exFAT drives have none.)
     open(path, "xb").close()
     try:
-        fill()
+        os.replace(partial, path)
     except BaseException:
-        try:
-            os.remove(path)
-        except OSError:
-            pass
+        _remove(path)
         raise
+
+
+def _remove(path: str) -> None:
+    try:
+        os.remove(path)
+    except OSError:
+        pass
