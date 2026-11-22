@@ -23,6 +23,7 @@ Kept openextract-local because the library intentionally omits them as
 
 import base64
 import datetime
+import filecmp
 import hashlib
 import io
 import json
@@ -30,9 +31,10 @@ import os
 import shutil
 import sqlite3
 import sys
+import unicodedata
 import uuid
 import weakref
-from typing import Optional
+from typing import Callable, Optional
 
 import backup_files
 from app_copies import AppCopies, NotEnoughSpace, is_openable, join_name, split_name
@@ -227,6 +229,69 @@ def _jpeg_exif(img, taken: Optional[datetime.datetime]) -> bytes:
     except Exception:
         return b""
     return data if len(data) <= _JPEG_MAX_EXIF else b""
+
+
+class _SaveNames:
+    """Where one save puts each photo, so that none is written over another file.
+
+    iPhones reuse names (IMG_0001 again in a later DCIM folder), and macOS and Windows
+    folders don't tell IMG_0001.JPG from img_0001.jpg. The second gets "IMG_0001 (2).JPG",
+    as in Finder and File Explorer. A file already in the folder is this photo only if it
+    holds the same bytes, so saving again into a folder makes no copies of what's there.
+    """
+
+    def __init__(self):
+        self._taken: set = set()
+
+    def place(self, folder: str, name: str, is_this_photo: Callable[[str], bool]) -> tuple:
+        """(the path for the photo, whether that path already holds it)."""
+        base, ext = os.path.splitext(name)
+        n = 1
+        while True:
+            path = os.path.join(folder, name if n == 1 else f"{base} ({n}){ext}")
+            key = unicodedata.normalize("NFC", path).casefold()
+            if key not in self._taken:
+                there = os.path.lexists(path)
+                if not there or (os.path.isfile(path) and is_this_photo(path)):
+                    self._taken.add(key)
+                    return path, there
+            n += 1
+
+
+def _holds(path: str, data: bytes) -> bool:
+    """Whether the file at ``path`` holds exactly ``data``."""
+    try:
+        if os.path.getsize(path) != len(data):
+            return False
+        with open(path, "rb") as f:
+            return f.read() == data
+    except OSError:
+        return False
+
+
+def _same_file(path: str, source: str) -> bool:
+    """Whether the file at ``path`` holds exactly what ``source`` does."""
+    try:
+        return filecmp.cmp(path, source, shallow=False)
+    except OSError:
+        return False
+
+
+def _write_new(path: str, write: Callable[[str], object]) -> None:
+    """Make the new file ``path`` with ``write``; if that fails, leave no part of it behind."""
+    try:
+        write(path)
+    except Exception:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        raise
+
+
+def _write_bytes(path: str, data: bytes) -> None:
+    with open(path, "wb") as f:
+        f.write(data)
 
 
 class PhotoExtractor:
@@ -805,6 +870,7 @@ class PhotoExtractor:
         on_progress(done, total, failed) is told how far the save has got, a few
         times a second at most (see export_progress.py).
         Every file it writes gets the photo's date taken as its modified time.
+        No photo is written over another file: see _SaveNames.
         """
         if options is None:
             options = {}
@@ -832,6 +898,7 @@ class PhotoExtractor:
 
         exported = 0
         errors = 0
+        names = _SaveNames()
         progress = ExportProgress(on_progress, sum(
             1 for p in all_photos
             if (include_videos or p.get("kind") != "video") and (include_live or p.get("kind") != "live_photo")
@@ -865,16 +932,23 @@ class PhotoExtractor:
                 taken = _date_taken(photo)
 
                 if fmt == "jpeg" and ext.lower() in (".heic", ".heif") and HAS_PIL:
-                    dest_filename = base + ".jpg"
-                    dest_path = os.path.join(dest_dir, dest_filename)
-                    img = Image.open(source)
-                    exif = _jpeg_exif(img, taken)
-                    if img.mode in ("RGBA", "P", "LA"):
-                        img = img.convert("RGB")
-                    img.save(dest_path, format="JPEG", quality=jpeg_quality, exif=exif)
+                    with Image.open(source) as img:
+                        exif = _jpeg_exif(img, taken)
+                        rgb = img.convert("RGB") if img.mode in ("RGBA", "P", "LA") else img
+                        buf = io.BytesIO()
+                        rgb.save(buf, format="JPEG", quality=jpeg_quality, exif=exif)
+                    jpeg = buf.getvalue()
+                    dest_path, there = names.place(dest_dir, base + ".jpg", lambda p: _holds(p, jpeg))
+                    if not there:
+                        _write_new(dest_path, lambda p: _write_bytes(p, jpeg))
                 else:
-                    dest_path = os.path.join(dest_dir, filename)
-                    shutil.copy2(source, dest_path)
+                    dest_path, there = names.place(dest_dir, filename, lambda p: _same_file(p, source))
+                    if not there:
+                        _write_new(dest_path, lambda p: shutil.copyfile(source, p))
+                        try:
+                            shutil.copystat(source, dest_path)
+                        except OSError:
+                            pass  # the photo is saved; only the drive won't take its dates
                 _set_file_date(dest_path, taken)
 
                 exported += 1
