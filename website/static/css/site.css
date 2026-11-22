@@ -192,7 +192,7 @@ img { max-width: 100%; display: block; }
   font-size: 0.9em;
 }
 /* Windows paths are one long word; let them break on a phone instead of widening the page. */
-.prose__inner code, .page-head__lede code, .uc-step p code, .uc-reason__v code { overflow-wrap: anywhere; }
+.prose__inner code, .page-head__lede code, .uc-step p code, .uc-reason__v code, .post-body p code { overflow-wrap: anywhere; }
 
 /* Fixes for common problems (fixes.html): one block per problem, linked to from the app. */
 .fixes .fix { padding: 20px 0 4px; border-top: 1px solid var(--line); scroll-margin-top: 96px; }
