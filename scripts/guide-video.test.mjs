@@ -89,6 +89,7 @@ test('times are written the way WebVTT, schema.org and YouTube each want them', 
   assert.equal(clockTime(65.9), '1:05');
   const cues = [{ start: 0, end: 4.25, text: 'One' }, { start: 4.25, end: 9, text: 'Two' }];
   assert.deepEqual(parseVtt(webvtt(cues)), cues);
+  assert.deepEqual(parseVtt(webvtt(cues).replace(/\n/g, '\r\n')), cues, 'a CRLF checkout reads the same');
 });
 
 test('chapters start where their step starts, the first at 0', () => {

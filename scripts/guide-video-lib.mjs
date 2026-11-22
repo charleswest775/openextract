@@ -138,7 +138,8 @@ export function webvtt(cues) {
 /** The cues back out of a WebVTT file, for checks. */
 export function parseVtt(text) {
   const toSeconds = t => t.split(':').reduce((sum, part) => sum * 60 + Number(part), 0);
-  return [...text.matchAll(/(\d\d:\d\d:\d\d\.\d{3}) --> (\d\d:\d\d:\d\d\.\d{3})\n([^\n]+(?:\n[^\n]+)*)/g)]
+  // A Windows checkout with core.autocrlf turns the file's line endings into CRLF.
+  return [...text.replace(/\r\n?/g, '\n').matchAll(/(\d\d:\d\d:\d\d\.\d{3}) --> (\d\d:\d\d:\d\d\.\d{3})\n([^\n]+(?:\n[^\n]+)*)/g)]
     .map(m => ({ start: toSeconds(m[1]), end: toSeconds(m[2]), text: m[3] }));
 }
 
