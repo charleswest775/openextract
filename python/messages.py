@@ -66,6 +66,7 @@ from save_files import (
     log_failure,
     new_page,
     remove,
+    write_error,
     write_whole,
 )
 
@@ -191,7 +192,8 @@ _heif_registered = False
 def _save_as_jpeg(src_path: str, dest_path: str, max_px: int) -> bool:
     """Write an image (HEIC included) as an upright JPEG no bigger than
     ``max_px`` on its longest side. Returns False, leaving nothing behind,
-    if the image can't be read. Raises OSError if the JPEG can't be written."""
+    if the image can't be read. Raises if the JPEG can't be written, as
+    save_files.write_whole does."""
     global _heif_registered
     try:
         from PIL import Image, ImageOps
@@ -218,11 +220,7 @@ def _save_as_jpeg(src_path: str, dest_path: str, max_px: int) -> bool:
             img.save(jpeg, "JPEG", quality=85)
     except Exception:
         return False
-    try:
-        write_whole(dest_path, jpeg.getvalue())
-    except FileNotSaved as e:
-        log_failure("couldn't save a JPEG copy", e)
-        return False
+    write_whole(dest_path, jpeg.getvalue())
     return True
 
 
@@ -294,7 +292,8 @@ def _files_in_backup(backup, relative_paths) -> Optional[set]:
 
     A file counts when the backup lists it in MediaDomain or HomeDomain and
     its folder holds it: a backup copied only partway lists files it hasn't
-    got (OE-102). One query for the lot, so a page of messages costs one look
+    got (OE-102). A folder that can't be looked in counts as holding it
+    (OpenBackup.may_hold). One query for the lot, so a page of messages costs one look
     at the list however many attachments it has.
     """
     paths = sorted({p for p in relative_paths if p})
@@ -304,12 +303,16 @@ def _files_in_backup(backup, relative_paths) -> Optional[set]:
     if rows is None:
         return None
     locate = getattr(backup, "locate_file", None)
+    may_hold = getattr(backup, "may_hold", None)
     present: set = set()
     for rel, domain, file_id in rows:
         if rel in present or domain not in _ATTACHMENT_DOMAINS:
             continue
-        if callable(locate) and not (isinstance(file_id, str) and locate(file_id)):
-            continue
+        if callable(locate):
+            if not (isinstance(file_id, str) and file_id):
+                continue
+            if not locate(file_id) and not (callable(may_hold) and may_hold(file_id)):
+                continue
         present.add(rel)
     return present
 
@@ -603,15 +606,15 @@ class MessageExtractor:
         """The file to copy into a save; None only when the backup hasn't got it.
 
         ``listed``: the backup has the file (an attachment's ``available``), so
-        finding nothing is a failure to read it. An encrypted backup's file is
-        then decrypted again (OpenBackup.decrypt_again): that's how a full temp
-        folder is told apart, and stops the save. Any other failure raises FileNotSaved.
+        finding nothing is a failure to read it. It's then looked for again
+        (OpenBackup.get_file_again): that's how a full temp folder is told
+        apart, and stops the save. Any other failure raises FileNotSaved.
         """
         if not filename:
             return None
         try:
             src = self._attachment_file_path(backup, filename)
-            again = getattr(backup, "decrypt_again", None)
+            again = getattr(backup, "get_file_again", None)
             if not src and listed and callable(again):
                 src = next(filter(None, (again(*place) for place in self._backup_places(filename))), None)
         except SaveStopped:
@@ -921,7 +924,7 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
             except SaveStopped as e:
                 if fmt != "html":  # a PDF's pages are only staged: none of them is saved yet
                     raise
-                raise e.after(len(files), "conversation") from None
+                raise e.after(len(files), "conversation", failed_files) from None
             if "error" not in result:
                 files.append(result["file"])
                 total_count += result["message_count"]
@@ -1150,6 +1153,15 @@ class _PrintAttachmentWriter:
     def _convert(self, src_path: str, dest_path: str) -> bool:
         return _save_as_jpeg(src_path, dest_path, PDF_IMAGE_MAX_PX)
 
+    def _draw(self, src_path: str, dest_path: str) -> bool:
+        """_convert into the staging folder. No room there is this computer's, wherever the PDF is going."""
+        try:
+            os.makedirs(self._dir, exist_ok=True)
+            return self._convert(src_path, dest_path)
+        except OSError as e:
+            log_failure("a PDF stopped", e)
+            raise SaveStopped(write_error(e, self.no_room)) from None
+
     def render(self, att: dict) -> str:
         """Return the HTML for one attachment inside a message bubble."""
         if not self._is_image(att):
@@ -1172,8 +1184,7 @@ class _PrintAttachmentWriter:
                     src = self._extractor._file_to_save(self._backup, att.get("filename") or "",
                                                         att.get("available") is True)
                     if src:
-                        os.makedirs(self._dir, exist_ok=True)
-                        if not self._convert(src, dest):
+                        if not self._draw(src, dest):
                             raise FileNotSaved(CANT_READ)
                         rel = f"{self.SUBDIR}/{name}"
                         self.images_written += 1
@@ -1320,16 +1331,30 @@ class _HtmlAttachmentWriter:
             self._written[att_id] = name
         return name
 
-    def _preview(self, name: str) -> Optional[str]:
+    def _preview(self, att: dict, name: str) -> Optional[str]:
         """The JPEG copy of a saved photo browsers can't show; its file name, or None."""
         preview = os.path.splitext(name)[0] + ".jpg"
         path = os.path.join(self._dir, preview)
         if os.path.isfile(path):
             return preview
-        if not _save_as_jpeg(os.path.join(self._dir, name), path, HTML_PREVIEW_MAX_PX):
+        key = ("preview", _att_key(att))
+        if key in self._problems:
+            return None
+        try:
+            if not _save_as_jpeg(os.path.join(self._dir, name), path, HTML_PREVIEW_MAX_PX):
+                return None
+        except FileNotSaved as e:
+            self._failed(key, e)
             return None
         self._made.append(path)
         return preview
+
+    def _preview_note(self, att: dict) -> str:
+        """What the page says under a photo whose JPEG copy couldn't be saved."""
+        problem = self._problems.get(("preview", _att_key(att)))
+        if not problem:
+            return ""
+        return f'<div class="attachment-label">{MessageExtractor._html_escape(f"Preview {problem}")}</div>'
 
     def render(self, att: dict) -> str:
         """Return the HTML for one attachment inside a message bubble."""
@@ -1345,11 +1370,11 @@ class _HtmlAttachmentWriter:
         if _PrintAttachmentWriter._is_image(att):
             if ext in _BROWSER_IMAGE_EXTENSIONS:
                 return f'<a href="{href}"><img src="{href}" alt="{title}" loading="lazy"></a>'
-            preview = self._preview(name)
+            preview = self._preview(att, name)
             if preview:
                 src = self._href(preview)
                 return f'<a href="{src}"><img src="{src}" alt="{title}" loading="lazy"></a>'
-            return _PrintAttachmentWriter._label(att, href=href)
+            return _PrintAttachmentWriter._label(att, href=href) + self._preview_note(att)
 
         if mime.startswith("video/") or ext in _VIDEO_EXTENSIONS:
             # #t=0.001 makes Safari show the first frame instead of a black box.

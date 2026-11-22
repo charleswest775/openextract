@@ -9,14 +9,18 @@ could get a backup deleted. What must hold:
     decrypted into) stops the save in plain words, taking back what it wrote;
   * one file's own problem (it can't be read, or named there) is counted and
     labelled, and the save goes on;
-  * "not in this backup" is said only of a file the backup hasn't got, and a
-    file's name is never given to part of it.
+  * "not in this backup" is said only of a file the backup hasn't got (not of
+    one whose drive or folder can't be read), and a file's name, or a page's,
+    is never given to part of it.
 """
 
 import builtins
 import errno
+import hashlib
 import io
 import os
+import shutil
+import sqlite3
 import sys
 import threading
 
@@ -219,6 +223,75 @@ class Saver:
 @pytest.fixture(params=["messages", "whatsapp"])
 def saver(request, tmp_path):
     return Saver(request.param, tmp_path)
+
+
+def on_rename(monkeypatch, before):
+    """Have ``before(src, dest)`` run ahead of every rename, whichever call makes it."""
+    for name in ("replace", "rename"):
+        real = getattr(os, name)
+
+        def renamed(src, dest, real=real):
+            before(str(src), str(dest))
+            return real(src, dest)
+
+        monkeypatch.setattr(os, name, renamed)
+
+
+def real_backup(saver, root, list_fails=False):
+    """Put the saver's files in an unencrypted backup folder, read by the real OpenBackup.
+
+    Each message's ``available`` then comes the way the engine works it out.
+    ``list_fails``: WhatsApp's list of media files couldn't be read, which the library takes for none.
+    """
+    root.mkdir()
+    (root / "Manifest.plist").write_bytes(b"")
+    db = sqlite3.connect(root / "Manifest.db")
+    db.execute("CREATE TABLE Files (fileID TEXT, domain TEXT, relativePath TEXT, flags INTEGER, file BLOB)")
+    for (domain, rel), src in saver.backup.files.items():
+        file_id = hashlib.sha1(f"{domain}-{rel}".encode()).hexdigest()
+        (root / file_id[:2]).mkdir(exist_ok=True)
+        shutil.copyfile(src, root / file_id[:2] / file_id)
+        db.execute("INSERT INTO Files VALUES (?, ?, ?, 1, NULL)", (file_id, domain, rel))
+    db.commit()
+    db.close()
+    backup = saver.backup = OpenBackup(str(root), "UDID", {}, False)
+    read = saver.get_messages
+
+    def get_messages(*args, **kwargs):
+        page = read(*args, **kwargs)
+        if saver.whatsapp:
+            for msg in page["messages"]:
+                for att in msg["attachments"]:
+                    att["available"] = not list_fails
+        else:
+            saver.extractor._describe_attachments(backup, page["messages"])
+        return page
+
+    if saver.whatsapp:
+        saver.get_messages = get_messages
+    else:
+        saver.extractor.get_messages = get_messages
+    return backup
+
+
+def cant_look_in(monkeypatch, root, error=errno.EIO):
+    """The backup's folders of files can't be looked in, as when its drive has a fault."""
+    real_stat, real_isfile = os.stat, os.path.isfile
+    root = os.path.normcase(str(root))
+
+    def hidden(path):
+        if isinstance(path, int):
+            return False
+        path = os.path.normcase(os.fsdecode(path))
+        return path.startswith(root + os.sep) and "manifest" not in os.path.basename(path).lower()
+
+    def stat(path, *args, **kwargs):
+        if hidden(path):
+            raise OSError(error, os.strerror(error), path)
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "stat", stat)
+    monkeypatch.setattr(os.path, "isfile", lambda path: not hidden(path) and real_isfile(path))
 
 
 def stops(words, do):
@@ -458,14 +531,11 @@ def test_a_file_the_backup_hasnt_got_is_still_called_that(saver):
 def test_a_file_that_cant_have_its_name_there_is_counted_and_the_save_goes_on(saver, monkeypatch, code):
     saver.add("odd.jpg")
     saver.add("good.jpg")
-    real = os.replace
-
-    def replace(src, dest):
-        if str(dest).endswith("odd.jpg"):
+    def fail(src, dest):
+        if dest.endswith("odd.jpg"):
             raise OSError(code, os.strerror(code), src, None, dest)
-        return real(src, dest)
 
-    monkeypatch.setattr(os, "replace", replace)
+    on_rename(monkeypatch, fail)
     assert saver.save()["failed_files"] == 1
     saved = saver.saved()
     assert [n for n in saved if not n.endswith(".html")] == [f"{saver.prefix}2-good.jpg"]
@@ -499,16 +569,14 @@ def test_a_path_too_long_for_windows_costs_that_file_at_most(saver, tmp_path):
 @pytest.mark.skipif(os.name != "nt", reason="Windows' sharing rules")
 def test_a_file_held_open_for_a_moment_still_gets_its_name(saver, monkeypatch):
     saver.add("IMG_1.jpg", b"the photo")
-    real = os.replace
     held = []
 
-    def replace(src, dest):
+    def hold(src, dest):
         if not held:  # as a virus scanner or OneDrive does with a file just written
             held.append(open(src, "rb"))
             threading.Timer(0.15, held[0].close).start()
-        return real(src, dest)
 
-    monkeypatch.setattr(os, "replace", replace)
+    on_rename(monkeypatch, hold)
     assert saver.save()["failed_files"] == 0
     assert saver.saved()[f"{saver.prefix}1-IMG_1.jpg"] == b"the photo"
 
@@ -525,3 +593,172 @@ def test_a_picture_the_pdf_cant_draw_is_not_called_missing(saver):
     saver.save("pdf_source")
     assert f"{saver.image_word} couldn&#x27;t be read: broken.jpg" in saver.pages()
     assert NOT_HERE not in saver.pages()
+
+
+def test_a_file_the_drive_was_busy_with_still_gets_its_name(saver, monkeypatch):
+    saver.add("IMG_1.jpg", b"the photo")
+    tried = []
+
+    def busy(src, dest):
+        tried.append(dest)
+        if len(tried) == 1:
+            raise OSError(errno.EBUSY, os.strerror(errno.EBUSY), src)
+
+    on_rename(monkeypatch, busy)
+    assert saver.save()["failed_files"] == 0
+    assert saver.saved()[f"{saver.prefix}1-IMG_1.jpg"] == b"the photo"
+
+
+def test_a_file_that_turns_up_while_copying_is_left_alone(saver, monkeypatch):
+    saver.add("IMG_1.jpg", b"the photo")
+    real = builtins.open
+
+    def open_(file, mode="r", *args, **kwargs):
+        if str(file).endswith(".partial") and "b" in mode:
+            with real(os.path.join(os.path.dirname(file), f"{saver.prefix}1-IMG_1.jpg"), "wb") as f:
+                f.write(b"someone's")
+        return real(file, mode, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", open_)
+    assert saver.save()["failed_files"] == 1
+    assert saver.saved()[f"{saver.prefix}1-IMG_1.jpg"] == b"someone's"
+
+
+@pytest.mark.parametrize("free, failed", [(10 * MB, True), (0, False)])
+def test_a_video_over_4_gb_on_fat32_costs_that_file_whatever_the_error(saver, monkeypatch, free, failed):
+    # Windows can call it "no space" when there's plenty: FAT32 takes no file of 4 GB
+    saver.add("small.jpg", b"small")
+    saver.add("huge.jpg", os.urandom(5000))
+    monkeypatch.setattr("save_files.FAT32_LARGEST", 4000)
+    monkeypatch.setattr(shutil, "disk_usage", lambda path: type("Usage", (), {"free": free}))
+    SmallDisk(monkeypatch, saver.out, 1000)
+    if not failed:
+        stops(NO_ROOM, saver.save)
+        return
+    assert saver.save()["failed_files"] == 1
+    assert f"{saver.image_word} couldn&#x27;t be saved: huge.jpg" in saver.pages()
+
+
+def test_a_preview_that_cant_be_saved_is_counted_and_shown(saver, monkeypatch):
+    saver.add("scan.tiff", image="TIFF")
+
+    def fail(src, dest):
+        if dest.endswith("scan.jpg"):
+            raise OSError(errno.EINVAL, os.strerror(errno.EINVAL), src)
+
+    on_rename(monkeypatch, fail)
+    assert saver.save()["failed_files"] == 1
+    assert "Preview couldn&#x27;t be saved" in saver.pages()
+    assert f"{saver.prefix}1-scan.tiff" in saver.saved()
+
+
+# ── The folder, and the page ──────────────────────────────────────────────────
+
+def test_a_folder_where_nothing_can_be_renamed_stops_the_save(saver, monkeypatch):
+    saver.add("IMG_1.jpg")
+
+    def refuse(src, dest):
+        raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), src)
+
+    on_rename(monkeypatch, refuse)
+    stops("OpenExtract can't save in that folder", saver.save)
+    assert list(saver.out.iterdir()) == []
+
+
+def test_an_error_with_no_plain_meaning_is_still_said_plainly(saver, monkeypatch):
+    saver.add("IMG_1.jpg")
+    SmallDisk(monkeypatch, saver.out, 0, text=True, error=errno.EIO)
+    said = stops("The save couldn't finish", saver.save)
+    assert os.strerror(errno.EIO) not in said
+    assert list(saver.out.iterdir()) == []
+
+
+@pytest.mark.parametrize("room", [0, 600])
+def test_a_failed_save_leaves_the_last_one_whole(saver, monkeypatch, room):
+    saver.add("IMG_1.jpg", b"the photo")
+    saver.save_all("merged")
+    before = saver.saved()
+    saver.add("IMG_2.jpg", os.urandom(5000))
+    SmallDisk(monkeypatch, saver.out, room, text=True)
+    stops(NO_ROOM, lambda: saver.save_all("merged"))
+    assert saver.saved() == before
+
+
+def test_a_page_has_no_name_until_its_whole(saver, monkeypatch):
+    saver.add("IMG_1.jpg")
+    seen = []
+    on_rename(monkeypatch, lambda src, dest: seen.append((dest, bool(list(saver.out.glob("*.html"))))))
+    saver.save()
+    assert [page_there for _, page_there in seen] == [False, False]
+
+
+def test_save_all_never_calls_saves_with_failed_files_complete(saver, monkeypatch):
+    saver.add("listed.jpg", chat=1, in_backup=False, available=True)
+    saver.add("IMG_2.jpg", os.urandom(MB), chat=2)
+    SmallDisk(monkeypatch, saver.out, 1000)
+    said = stops(NO_ROOM, saver.save_all)
+    assert "complete" not in said
+    assert "1 file in it couldn't be copied, so keep the backup" in said
+
+
+# ── A backup that can't be looked in ──────────────────────────────────────────
+
+@pytest.mark.parametrize("code", [errno.EIO, errno.EACCES])
+def test_a_backup_folder_that_cant_be_read_is_never_not_in_this_backup(saver, monkeypatch, tmp_path, code):
+    saver.add("IMG_1.jpg")
+    backup = real_backup(saver, tmp_path / "real")
+    try:
+        cant_look_in(monkeypatch, tmp_path / "real", code)
+        assert saver.save()["failed_files"] == 1
+        assert f"{saver.image_word} couldn&#x27;t be read: IMG_1.jpg" in saver.pages()
+        assert NOT_HERE not in saver.pages()
+    finally:
+        backup.close()
+
+
+def test_once_the_backup_can_be_read_again_the_same_session_saves_the_file(saver, monkeypatch, tmp_path):
+    saver.add("IMG_1.jpg", b"the photo")
+    backup = real_backup(saver, tmp_path / "real")
+    try:
+        with monkeypatch.context() as patch:
+            cant_look_in(patch, tmp_path / "real")
+            assert saver.save()["failed_files"] == 1
+        assert saver.save()["failed_files"] == 0
+        assert b"the photo" in saver.saved().values()
+    finally:
+        backup.close()
+
+
+def test_a_file_missing_from_the_backups_folder_is_still_not_in_this_backup(tmp_path):
+    saver = Saver("messages", tmp_path)
+    saver.add("gone.jpg")
+    backup = real_backup(saver, tmp_path / "real")
+    try:
+        next(p for p in (tmp_path / "real").rglob("*") if p.is_file() and len(p.name) == 40).unlink()
+        assert saver.save()["failed_files"] == 0
+        assert NOT_HERE in saver.pages()
+    finally:
+        backup.close()
+
+
+def test_a_backup_whose_drive_has_gone_may_hold_anything(tmp_path):
+    backup = OpenBackup(str(tmp_path / "unplugged"), "UDID", {}, False)
+    try:
+        assert backup.may_hold("ab" * 20)
+    finally:
+        backup.close()
+
+
+@pytest.mark.parametrize("fmt", ["html", "pdf_source", "txt"])
+def test_whatsapp_media_is_found_when_the_list_of_media_couldnt_be_read(tmp_path, fmt):
+    saver = Saver("whatsapp", tmp_path)
+    saver.add("IMG_1.jpg", image="JPEG")
+    backup = real_backup(saver, tmp_path / "real", list_fails=True)
+    try:
+        page = saver.save(fmt)["file"]
+        with open(page, encoding="utf-8-sig") as f:
+            assert NOT_HERE not in f.read()
+        if fmt == "html":
+            assert "wa1-IMG_1.jpg" in saver.saved()
+    finally:
+        backup.close()

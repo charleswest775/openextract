@@ -21,6 +21,7 @@ each would quietly return the wrong rows rather than fail.
 """
 
 import csv
+import hashlib
 import heapq
 import html
 import os
@@ -534,8 +535,29 @@ class _WhatsAppExport(MessageExtractor):
     # ── reading ──────────────────────────────────────────────────────────────
 
     def get_messages(self, backup, chat_id, contacts, offset=0, limit=100, date_from=None, date_to=None):
-        return self._source.get_messages(backup, chat_id, contacts, offset, limit,
+        page = self._source.get_messages(backup, chat_id, contacts, offset, limit,
                                          date_from=date_from, date_to=date_to)
+        self._doubt_unavailable(backup, page.get("messages") or [])
+        return page
+
+    @staticmethod
+    def _doubt_unavailable(backup, messages: list) -> None:
+        """Media the library marked as not in the backup, but which may be, is saved or said to be unreadable.
+
+        The library takes a list of files it couldn't read for an empty one, and
+        keeps it. A file's name in the backup's folder is the SHA-1 of its domain
+        and path, so the folder can be asked directly (OpenBackup.may_hold).
+        """
+        may_hold = getattr(backup, "may_hold", None)
+        if not callable(may_hold):
+            return
+        for msg in messages:
+            for att in msg.get("attachments") or []:
+                rel = att.get("filename")
+                if att.get("available", True) or not rel:
+                    continue
+                if may_hold(hashlib.sha1(f"{SHARED_DOMAIN}-{rel}".encode("utf-8", "replace")).hexdigest()):
+                    att["available"] = True
 
     def search_messages(self, backup, query, contacts, chat_id=None, date_from=None, date_to=None, limit=500):
         return self._source.search_messages(backup, query, contacts, chat_id,
@@ -676,7 +698,7 @@ class _WhatsAppExport(MessageExtractor):
             except SaveStopped as e:
                 if fmt != "html":
                     raise
-                raise e.after(len(files), "chat") from None
+                raise e.after(len(files), "chat", failed_files) from None
             if result.get("error"):
                 # An unreadable store fails every chat: say so rather than
                 # handing back fewer files than were asked for.
@@ -1000,11 +1022,12 @@ class _WhatsAppHtmlMedia(_HtmlAttachmentWriter):
         if _PrintAttachmentWriter._is_image(att):
             if ext in _BROWSER_IMAGE_EXTENSIONS:
                 return f'<a href="{href}"><img{sticker} src="{href}" alt="{title}" loading="lazy"></a>'
-            preview = self._preview(name)
+            preview = self._preview(att, name)
             if preview:
                 src = self._href(preview)
                 return f'<a href="{src}"><img{sticker} src="{src}" alt="{title}" loading="lazy"></a>'
-            return f'<div class="attachment-label"><a href="{href}">{esc(_media_label(msg, att, False))}</a></div>'
+            return (f'<div class="attachment-label"><a href="{href}">{esc(_media_label(msg, att, False))}</a></div>'
+                    + self._preview_note(att))
 
         if mime.startswith("video/") or ext in _VIDEO_EXTENSIONS:
             return (f'<video controls preload="metadata" src="{href}#t=0.001" title="{title}"></video>'
@@ -1049,12 +1072,11 @@ class _WhatsAppPrintMedia(_PrintAttachmentWriter):
         else:
             try:
                 src = self._extractor._file_to_save(self._backup, rel, True) if rel else None
-                if src:
-                    os.makedirs(self._dir, exist_ok=True)
-                    if self._convert(src, dest):
-                        out = f"{self.SUBDIR}/{name}"
-                        self.images_written += 1
+                if src and self._draw(src, dest):
+                    out = f"{self.SUBDIR}/{name}"
+                    self.images_written += 1
             except FileNotSaved as e:
+                self._problems[key] = e.problem
                 log_failure(f"{key} isn't in the PDF", e)
         if out is None:
             self.images_missing += 1
@@ -1080,7 +1102,8 @@ class _WhatsAppPrintMedia(_PrintAttachmentWriter):
         still = None
         if (self._is_image(att) or is_video) and _thumb_src(att):
             still = self._jpeg(f"{key}-thumb", _thumb_src(att))
-        text = _media_label(msg, att, missing=not available, unreadable=unreadable)
+        text = _media_label(msg, att, missing=not available, unreadable=unreadable,
+                            problem=self._problems.get(key) if unreadable else None)
         label = f'<div class="attachment-label">{esc(text)}</div>'
         if still:
             return f'<img src="{esc(still)}" alt="">{label}'

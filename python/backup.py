@@ -35,7 +35,7 @@ from ios_backup_core.backup import (
 import backup_beside
 import backup_status
 import older_backups
-from save_files import NO_ROOM_TO_DECRYPT, SaveStopped, out_of_space
+from save_files import NO_ROOM_TO_DECRYPT, SaveStopped, out_of_space, remove
 
 # Re-export for any code paths still importing EncryptedBackup directly via
 # this module (none in main.py, but kept to avoid surprises).
@@ -134,16 +134,36 @@ class OpenBackup(LocalBackupAccessor):
         """
         return self._get_manifest_db()
 
-    def decrypt_again(self, relative_path: str, domain: str) -> Optional[str]:
-        """Decrypt a file get_file found nothing for, saying so if there was no room to.
+    def may_hold(self, file_id: str) -> bool:
+        """False only when the backup's folder surely has no file stored as ``file_id``.
+
+        A folder that can't be looked in (a drive with a fault or unplugged, no
+        permission) isn't proof: locate_file says None for that too.
+        """
+        for path in (os.path.join(self.backup_dir, file_id[:2], file_id), os.path.join(self.backup_dir, file_id)):
+            try:
+                os.stat(path)
+                return True
+            except (FileNotFoundError, NotADirectoryError):
+                continue
+            except OSError:
+                return True
+        # Nothing there: believe it only while the backup itself is
+        return not any(os.path.exists(os.path.join(self.backup_dir, name))
+                       for name in ("Manifest.plist", "Manifest.db", "Manifest.mbdb", "Info.plist"))
+
+    def get_file_again(self, relative_path: str, domain: str) -> Optional[str]:
+        """Look again for a file get_file found nothing for, saying so if there was no room to decrypt it.
 
         get_file says None both for a file that can't be had and for a full temp
         folder, and goes on saying it until the backup is opened again, however
-        much space has been freed since. Raises SaveStopped when there's no
-        room; None for any other failure, and for a backup that isn't encrypted.
+        much space has been freed or whatever drive has been plugged back in.
+        Raises SaveStopped when there's no room; None for any other failure.
         """
+        cache_key = f"{domain}:{relative_path}"
         if not (self._encrypted and self._decrypted_backup):
-            return None
+            self._file_cache.pop(cache_key, None)
+            return self.get_file(relative_path, domain)
         ext = os.path.splitext(relative_path)[1]
         ext = ext if ext[1:].isalnum() and ext.isascii() else ""
         out = os.path.join(self._temp_dir, f"{uuid.uuid4().hex}{ext}")
@@ -151,12 +171,13 @@ class OpenBackup(LocalBackupAccessor):
             self._ensure_temp_dir()
             self._decrypted_backup.extract_file(relative_path=relative_path, domain_like=domain, output_filename=out)
         except Exception as e:
+            remove(out)  # the iOS 9 decryptor leaves what it had written
             if out_of_space(e):
                 raise SaveStopped(NO_ROOM_TO_DECRYPT) from None
             return None
         if not os.path.exists(out):
             return None
-        self._file_cache[f"{domain}:{relative_path}"] = out
+        self._file_cache[cache_key] = out
         return out
 
     def close(self) -> None:

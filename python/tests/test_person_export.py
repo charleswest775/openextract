@@ -41,7 +41,7 @@ sys.path.insert(0, HERE)
 import person_export  # noqa: E402
 from messages import MessageExtractor  # noqa: E402
 from person_export import CSV_HEADER, NOTHING_TO_SAVE, PersonExporter  # noqa: E402
-from save_files import NO_ROOM_TO_DECRYPT, SaveStopped  # noqa: E402
+from save_files import NO_ROOM_FOR_PDF, NO_ROOM_TO_DECRYPT, SaveStopped  # noqa: E402
 from whatsapp import SHARED_DOMAIN, WhatsAppExtractor  # noqa: E402
 
 UNREADABLE = "WhatsApp is in this backup but could not be read. The backup may be incomplete or damaged."
@@ -789,7 +789,7 @@ class TestFiles(PersonExportCase):
         def full(relative_path, domain):
             raise SaveStopped(NO_ROOM_TO_DECRYPT)
 
-        self.backup.decrypt_again = full
+        self.backup.get_file_again = full
         result = self.export("pdf_source")
         self.assertEqual(result["error"], NO_ROOM_TO_DECRYPT)
         self.assertEqual(os.listdir(self.out), [])
@@ -803,7 +803,16 @@ class TestFiles(PersonExportCase):
         not_a_folder = os.path.join(self.root, "a file")
         open(not_a_folder, "w").close()
         result = self.export("txt", output_dir=os.path.join(not_a_folder, "inside"))
-        self.assertTrue(result["error"].startswith(("Couldn't save: ", "OpenExtract can't save")), result)
+        self.assertTrue(result["error"].startswith(("The save couldn't finish", "OpenExtract can't save")), result)
+
+    def test_no_room_to_make_the_pdf_doesnt_say_choose_another_folder(self):
+        # The pages are staged on this computer's disk, wherever the PDF goes
+        att = sms_att(1, "a.jpg", "image/jpeg")
+        self.sms_file(att, image="JPEG")
+        self.sms_chats[1] = [sms(1, D(0), "", attachments=[att])]
+        with mock.patch("messages.write_whole", side_effect=OSError(errno.ENOSPC, "No space left on device")):
+            result = self.export("pdf_source")
+        self.assertEqual(result["error"], NO_ROOM_FOR_PDF)
 
 
 # ── The page ─────────────────────────────────────────────────────────────────
