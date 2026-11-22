@@ -245,9 +245,9 @@ test('every web-page save of conversations and chats says when files could not b
     failed = 0;
     assert.equal('note' in (await run()), false);
     failed = 1;
-    assert.equal((await run()).note, "1 file couldn't be copied from the backup. The page says which. It may still be in the backup, so keep the backup.");
+    assert.equal((await run()).note, "1 file couldn't be copied from the backup and is marked where it appears. It may still be in the backup, so keep the backup.");
     failed = 3;
-    assert.equal((await run()).note, "3 files couldn't be copied from the backup. The page says which. They may still be in the backup, so keep the backup.");
+    assert.equal((await run()).note, "3 files couldn't be copied from the backup and are marked where they appear. They may still be in the backup, so keep the backup.");
   }
 });
 

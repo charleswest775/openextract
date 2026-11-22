@@ -414,8 +414,8 @@ function noted(note: string | undefined): { note?: string } {
 function failedFilesNote(failed: number | undefined): string | undefined {
   if (!failed) return undefined;
   return failed === 1
-    ? "1 file couldn't be copied from the backup. The page says which. It may still be in the backup, so keep the backup."
-    : `${plural(failed, 'file')} couldn't be copied from the backup. The page says which. They may still be in the backup, so keep the backup.`;
+    ? "1 file couldn't be copied from the backup and is marked where it appears. It may still be in the backup, so keep the backup."
+    : `${plural(failed, 'file')} couldn't be copied from the backup and are marked where they appear. They may still be in the backup, so keep the backup.`;
 }
 
 /** A one-conversation save's notice already says whose it is. */
