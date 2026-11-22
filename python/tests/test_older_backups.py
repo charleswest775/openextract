@@ -267,6 +267,15 @@ def test_not_a_link_to_a_backup(manager, tmp_path, out, old, new):
     refused(manager, opened(manager, new), alias)
 
 
+def test_not_a_link_named_as_a_backup_would_be(manager, tmp_path, out, old, new):
+    real = make(tmp_path, tmp_path.resolve() / "Other drive" / UDID, MADE, seed=4)
+    alias = out / f"{UDID}-20240401-120000"
+    link(real, alias, directory=True)
+    kept = opened(manager, new)
+    assert alias not in offered(manager, kept)
+    refused(manager, kept, alias)
+
+
 def test_not_another_name_for_the_open_one(manager, out, old, new):
     alias = out / "another name"
     link(new, alias, directory=True)
@@ -378,7 +387,8 @@ def file_among_the_stored(folder):
 
 
 def folder_among_the_stored(folder):
-    (stored(folder)[0].parent / ("ab" * 20)).mkdir()
+    within = stored(folder)[0].parent
+    (within / (within.name + "0" * 38)).mkdir()
 
 
 def folder_named_like_clutter(folder):
@@ -846,11 +856,14 @@ def test_a_drive_mounted_inside_stays(manager, old, new, monkeypatch):
 
 @pytest.mark.parametrize("where, name", [
     ("", "._Wedding video.mov"), ("xx", "._Wedding video.mov"), ("", "ab" * 20),
-    ("xx", "zz" * 20), ("wrong", "ab" * 20), ("", "._"), ("xx", "._Info.plist"), ("", "Manifest.db.zip"),
-], ids=["resource-fork-like", "that inside", "loose stored name", "not hex", "another folder's", "bare ._",
+    ("xx", "zz" * 20), ("wrong", "ab" * 20), ("same xx", "z" * 38), ("", "._"), ("xx", "._Info.plist"), ("", "Manifest.db.zip"),
+], ids=["resource-fork-like", "that inside", "loose stored name", "not hex", "another folder's", "not hex after its folder's", "bare ._",
         "Info's inside", "almost a name"])
 def test_names_only_like_a_backups_stay(manager, old, new, where, name):
-    folder = {"": old, "xx": stored(old)[0].parent, "wrong": old / "00"}[where]
+    first = stored(old)[0].parent
+    if where == "same xx":
+        name = first.name + name
+    folder = {"": old, "xx": first, "same xx": first, "wrong": old / "00"}[where]
     folder.mkdir(exist_ok=True)
     (folder / name).write_bytes(b"x")
     refused(manager, opened(manager, new), old, older_backups.OTHER_THINGS)
@@ -1096,3 +1109,31 @@ def test_a_mac_that_cant_tell_if_its_local_says_no(monkeypatch, tmp_path):
 
     monkeypatch.setattr(ctypes, "CDLL", cant)
     assert trash_room._is_local(str(tmp_path)) is False
+
+
+def test_not_from_one_whose_marker_is_for_another_list_of_files(manager, old, new):
+    earlier = (LATER - timedelta(days=1)).timestamp()
+    os.utime(new / "Manifest.db", (earlier, earlier))  # before it's opened
+    kept = opened(manager, new)
+    assert offered(manager, kept) == []
+    refused(manager, kept, old)
+
+
+def test_a_backup_starting_in_it_during_the_check_is_seen(manager, old, new, monkeypatch):
+    kept = opened(manager, new)
+
+    def meanwhile(backup_):
+        files_waiting(old)
+        return REAL_STORED_WHOLE(backup_)
+
+    monkeypatch.setattr(backup_files, "stored_whole", meanwhile)
+    refused(manager, kept, old, older_backups.OTHER_THINGS)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="test_junctions has real ones")
+def test_a_folder_that_is_really_a_link_stays(manager, old, new, monkeypatch):
+    kept = opened(manager, new)
+    inside = stored(old)[0].parent.lstat().st_ino
+    real = backup_files.is_link
+    monkeypatch.setattr(backup_files, "is_link", lambda st: st.st_ino == inside or real(st))
+    refused(manager, kept, old, older_backups.OTHER_THINGS)
