@@ -6,11 +6,15 @@
 // and in SKILL.md.
 //
 // Env: DRIVER_PORT (7311), SHOT_DIR (<tmp>/openextract-shots).
+//
+// scripts/record-guide-video.mjs imports COMMANDS and session() instead, to drive the same
+// app while it records; the HTTP server only starts when this file is run directly.
 import { createRequire } from 'node:module';
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const APP_DIR = path.resolve(import.meta.dirname, '../../..');
 const require = createRequire(path.join(APP_DIR, 'package.json'));
@@ -34,7 +38,12 @@ async function mainWindow(fn, arg) {
   }, [fn, arg]);
 }
 
-const COMMANDS = {
+/** The running app and its main window, for scripts that import this driver. */
+export function session() {
+  return { app, page };
+}
+
+export const COMMANDS = {
   // Launch with a throwaway profile, so the user's own "Recent" backups (real paths) never
   // show up in screenshots and nothing is written to their settings.
   async launch(profile) {
@@ -144,17 +153,21 @@ const COMMANDS = {
   },
 };
 
-http.createServer((req, res) => {
-  let body = '';
-  req.on('data', chunk => (body += chunk));
-  req.on('end', async () => {
-    const [command, ...args] = body.trim().split(/\s+/);
-    try {
-      if (command !== 'launch' && command !== 'quit' && !app) throw new Error('launch first');
-      const fn = COMMANDS[command];
-      res.end((fn ? await fn(...args) : `unknown command ${command}; try: ${Object.keys(COMMANDS).join(', ')}`) + '\n');
-    } catch (e) {
-      res.end('ERROR: ' + (e?.message || e) + '\n');
-    }
-  });
-}).listen(PORT, '127.0.0.1', () => console.log(`driver listening on 127.0.0.1:${PORT}; screenshots go to ${SHOT_DIR}`));
+function serve() {
+  http.createServer((req, res) => {
+    let body = '';
+    req.on('data', chunk => (body += chunk));
+    req.on('end', async () => {
+      const [command, ...args] = body.trim().split(/\s+/);
+      try {
+        if (command !== 'launch' && command !== 'quit' && !app) throw new Error('launch first');
+        const fn = COMMANDS[command];
+        res.end((fn ? await fn(...args) : `unknown command ${command}; try: ${Object.keys(COMMANDS).join(', ')}`) + '\n');
+      } catch (e) {
+        res.end('ERROR: ' + (e?.message || e) + '\n');
+      }
+    });
+  }).listen(PORT, '127.0.0.1', () => console.log(`driver listening on 127.0.0.1:${PORT}; screenshots go to ${SHOT_DIR}`));
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) serve();

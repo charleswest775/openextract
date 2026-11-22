@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- One <url> per page, using the page's <link rel="canonical"> href. Add new pages here,
-     and set <lastmod> to the date a page's content last changed. -->
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+     and set <lastmod> to the date a page's content last changed. A video watch page also
+     lists its video (Google's video sitemap tags). -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
   <url><loc>https://www.openextract.app/</loc><lastmod>2026-11-15</lastmod></url>
   <url><loc>https://www.openextract.app/how-it-works</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://www.openextract.app/bundle</loc><lastmod>2026-11-17</lastmod></url>
@@ -20,12 +22,25 @@
   <url><loc>https://www.openextract.app/support</loc><lastmod>2026-11-15</lastmod></url>
   <url><loc>https://www.openextract.app/privacy</loc><lastmod>2026-11-15</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/free-imazing-alternative</loc><lastmod>2026-11-11</lastmod></url>
-  <url><loc>https://www.openextract.app/use-cases/export-iphone-messages</loc><lastmod>2026-11-11</lastmod></url>
+  <url><loc>https://www.openextract.app/use-cases/export-iphone-messages</loc><lastmod>2026-11-22</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/export-iphone-data</loc><lastmod>2026-11-16</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/free-iphone-backup-viewer</loc><lastmod>2026-11-16</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/iphone-backup-extractor-linux</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/print-text-messages-for-court</loc><lastmod>2026-11-17</lastmod></url>
-  <url><loc>https://www.openextract.app/use-cases/export-imessage-to-pdf</loc><lastmod>2026-11-17</lastmod></url>
+  <url><loc>https://www.openextract.app/use-cases/export-imessage-to-pdf</loc><lastmod>2026-11-22</lastmod></url>
+  <url>
+    <loc>https://www.openextract.app/videos/save-iphone-texts-as-pdf</loc>
+    <lastmod>2026-11-22</lastmod>
+    <video:video>
+      <video:thumbnail_loc>https://www.openextract.app/videos/media/save-iphone-texts-as-pdf.jpg</video:thumbnail_loc>
+      <video:title>Save iPhone text messages as a PDF</video:title>
+      <video:description>A one-minute screen recording of OpenExtract saving a text conversation from an iPhone backup as a PDF: open the backup, click Messages and the conversation, choose Save conversation and Readable document, then the PDF itself, with photos, dates and times. Free on Windows, Mac and Linux.</video:description>
+      <video:content_loc>https://www.openextract.app/videos/media/save-iphone-texts-as-pdf.mp4</video:content_loc>
+      <video:duration>65</video:duration>
+      <video:publication_date>2026-11-22</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+    </video:video>
+  </url>
   <url><loc>https://www.openextract.app/use-cases/save-iphone-texts-to-windows-pc</loc><lastmod>2026-11-11</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/where-are-iphone-backups-stored</loc><lastmod>2026-11-19</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/view-iphone-backup-on-windows</loc><lastmod>2026-11-16</lastmod></url>
@@ -39,7 +54,7 @@
   <url><loc>https://www.openextract.app/use-cases/export-podcasts-from-iphone-backup</loc><lastmod>2026-11-12</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/export-notes-from-iphone-backup</loc><lastmod>2026-11-13</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/export-safari-history-from-iphone-backup</loc><lastmod>2026-11-16</lastmod></url>
-  <url><loc>https://www.openextract.app/guides</loc><lastmod>2026-11-19</lastmod></url>
+  <url><loc>https://www.openextract.app/guides</loc><lastmod>2026-11-22</lastmod></url>
   <url><loc>https://www.openextract.app/fixes</loc><lastmod>2026-11-15</lastmod></url>
   <url><loc>https://www.openextract.app/backup-files</loc><lastmod>2026-11-19</lastmod></url>
   <url><loc>https://www.openextract.app/backup-files/sms-db</loc><lastmod>2026-11-19</lastmod></url>
