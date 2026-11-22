@@ -99,7 +99,8 @@ export function chatSaveStatus(
 
   const { phase, done, total, chat, chats } = progress;
   const which = pdf || (chats > 1 ? `${noun} ${chat.toLocaleString()} of ${chats.toLocaleString()}` : '');
-  if (phase === 'reading' && pdf) return { text: `Saving ${pdf}…`, percent };
+  // Past planning, reading a chat again is over in a moment: it's part of saving it
+  if (phase === 'reading' && step) return { text: which ? `Saving ${which}…` : 'Saving…', percent };
   // The message it's on while saving, as Photos counts the photo it's on
   const n = phase === 'saving' ? Math.min(done + 1, total) : done;
   const messages = `${n.toLocaleString()} of ${total.toLocaleString()} ${total === 1 ? 'message' : 'messages'}`;

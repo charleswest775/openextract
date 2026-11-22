@@ -157,6 +157,7 @@ test('a PDF save split by year says which PDF, and when it is printing', () => {
   assert.equal(status(second).text, 'Saving PDF 2 of 5…');
   assert.equal(status(second, reading()).text, 'Saving PDF 2 of 5…');
   assert.equal(status(second, saving()).text, `Saving PDF 2 of 5: ${n(1201)} of ${n(2000)} messages…`);
+  assert.equal(status(step({ part: 1, parts: 1 }), reading({ chat: 3, chats: 17 })).text, 'Saving chat 3 of 17…');
   assert.equal(status(step({ part: 2, parts: 5, printing: { file: 2, files: 5 } })).text, 'Making PDF 2 of 5…');
   assert.equal(status(step({ part: 1, parts: 1, printing: { file: 1, files: 1 } })).text, 'Making the PDF…');
 });
