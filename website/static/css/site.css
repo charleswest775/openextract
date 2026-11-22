@@ -928,7 +928,7 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .step-body p 
 .post-body ul, .post-body ol { font-size: 17px; line-height: 1.8; color: var(--ink-soft); margin-top: 12px; max-width: 720px; }
 .post-body li strong { color: var(--ink); }
 .post-body code { font-family: var(--mono); background: var(--line-soft); padding: 2px 8px; border-radius: 4px; font-size: 0.9em; }
-.post-body pre.code-block, .prose__inner pre.code-block {
+.post-body pre.code-block, .prose__inner pre.code-block, .uc-step pre.code-block {
   background: var(--ink); color: var(--bg);
   border-radius: 10px;
   padding: 20px;
@@ -939,7 +939,7 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .step-body p 
   overflow: auto;
   max-width: 720px;
 }
-.post-body pre.code-block code, .prose__inner pre.code-block code { background: transparent; padding: 0; color: inherit; }
+.post-body pre.code-block code, .prose__inner pre.code-block code, .uc-step pre.code-block code { background: transparent; padding: 0; color: inherit; }
 .post-body .code-dim { color: rgba(250,246,241,0.5); }
 .post-body .code-kw { color: var(--butter); }
 .post-body .code-str { color: var(--sage); }
@@ -985,6 +985,9 @@ details.qa p a:hover, .uc-reason__v a:hover, .step-note p a:hover, .step-body p 
 .uc-step p { font-size: 16px; color: var(--ink-soft); line-height: 1.65; }
 .uc-step p + p { margin-top: 16px; }
 .uc-step a { color: var(--coral); font-weight: 600; }
+/* A step's text column may shrink below its longest command, so a code block scrolls instead of widening the page. */
+.uc-step > div { min-width: 0; }
+.uc-step pre.code-block { margin: 16px 0; }
 
 .uc-related { padding: 32px 56px 16px; }
 .uc-related__inner {
