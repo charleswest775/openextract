@@ -1,6 +1,6 @@
 """
 An engine to kill partway through a backup: no except or finally block runs, as in a crash or a
-power cut. test_backup_replace.py starts this, waits for it to say it's at `stage`, and kills it.
+power cut. test_backup_beside.py starts this, waits for it to say it's at `stage`, and kills it.
 
     python killed_engine.py <folder to back up into> <stage> <udid>
 """
@@ -16,11 +16,10 @@ sys.path[:0] = [str(HERE), str(HERE.parent)]
 from fake_iphone import FakeIPhone, run_backup  # noqa: E402
 from fake_iphone import plan as plans  # noqa: E402
 
-import backup_replace  # noqa: E402
+import backup_beside  # noqa: E402
 import device_backup  # noqa: E402
 
-STAGES = ("passcode", "transfer", "moving", "finishing", "before the swap", "between the renames",
-          "after the swap", "deleting")
+STAGES = ("passcode", "transfer", "moving", "finishing", "before the rename", "after the rename")
 
 
 def main() -> None:
@@ -43,29 +42,17 @@ def main() -> None:
     if stage in before_op:
         phone.before(before_op[stage], wait_to_be_killed)
 
-    rename = backup_replace._rename
-    renames = [0]
+    rename = backup_beside.Destination._rename
 
-    def rename_until(src, dst, *args, **kwargs):
-        renames[0] += 1
-        if (stage, renames[0]) in (("before the swap", 1), ("between the renames", 2), ("after the swap", 3)):
+    def rename_or_die(self, src, dst):
+        if stage == "before the rename":
             wait_to_be_killed()
-        return rename(src, dst, *args, **kwargs)
+        renamed = rename(self, src, dst)
+        if stage == "after the rename":
+            wait_to_be_killed()
+        return renamed
 
-    backup_replace._rename = rename_until
-    if stage == "deleting":
-        remove = os.remove
-        removed = [0]
-
-        def remove_some(path, *args, **kwargs):
-            if f"{udid}{backup_replace._OLD}" in str(path):
-                removed[0] += 1
-                if removed[0] == 3:
-                    wait_to_be_killed()
-            return remove(path, *args, **kwargs)
-
-        os.remove = remove_some
-
+    backup_beside.Destination._rename = rename_or_die
     run_backup(phone, Path(out), hang_timeout=150)
     print("FINISHED", flush=True)
 

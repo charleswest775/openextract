@@ -454,8 +454,8 @@ def _a_week_later():
 
 def test_a_second_backup_into_the_same_folder(out):
     # Backing up the same iPhone again into the same folder (or Retry after a backup that got as
-    # far as moving files). It goes beside the last backup and then takes its place
-    # (backup_replace.py), so to the iPhone it's a first backup, the kind that has been traced.
+    # far as moving files). It goes beside the last backup, which stays
+    # (backup_beside.py), so to the iPhone it's a first backup, the kind that has been traced.
     first = run_backup(FakeIPhone(), out)
     assert first.error is None
     run = run_backup(FakeIPhone(_a_week_later()), out)
@@ -467,7 +467,7 @@ def test_a_second_backup_into_the_same_folder(out):
 def test_a_second_backup_moves_files_without_copying_them(out, monkeypatch):
     # DeviceLink.move_items() uses shutil.move(), which on Windows copies rather than renames onto
     # an existing file. A second backup used to copy every file again at ~99% there. In a folder
-    # of its own there's nothing to land on (backup_replace.py).
+    # of its own there's nothing to land on (backup_beside.py).
     run_backup(FakeIPhone(), out)
     failed_renames = []
     rename = os.rename
@@ -585,7 +585,7 @@ def test_unencrypted_backup_of_an_iphone_with_a_backup_password(out):
 def test_a_failed_try_keeps_the_last_backups_manifest(out):
     # pymobiledevice3 Mobilebackup2Service.backup(full=True) deletes the folder's Manifest.plist
     # and rewrites Status.plist and Info.plist before the iPhone sends anything. So it's never
-    # given a folder with a backup in it (backup_replace.py; test_backup_replace.py has the rest).
+    # given a folder with a backup in it (backup_beside.py; test_backup_beside.py has the rest).
     first = run_backup(FakeIPhone(), out)
     assert first.error is None
     manifest = (first.backup_dir / "Manifest.plist").read_bytes()

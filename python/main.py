@@ -972,7 +972,7 @@ class SidecarServer:
         (if it asks for its passcode to allow the backup) → "backing_up" → "finalizing"
 
         Returns on completion: { "success": true, "backup_path": "...",
-                                 "earlier_backup": "..." (only if one was kept as well) }
+                                 "earlier_backup": "..." (if the folder already held one; it's kept) }
         """
         udid = params["udid"]
         output_dir = params["output_dir"]
@@ -994,7 +994,6 @@ class SidecarServer:
             encrypted=encrypted,
             password=password,
             notify=_notify,
-            release=self.backup_manager.close_backups_in,
         )
 
     def handle_request(self, request):

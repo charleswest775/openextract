@@ -10,7 +10,7 @@ How an iPhone backup is written (a trace of a real first backup, an iPhone 17 on
   1. The computer writes <udid>/Info.plist. pymobiledevice3 also writes a Status.plist that says
      SnapshotState "finished" and replaces Manifest.plist with an empty file, all before the
      iPhone sends anything. (Finder, iTunes and libimobiledevice don't touch either file.)
-     So the engine never points it at a folder that holds a backup (backup_replace.py).
+     So the engine never points it at a folder that holds a backup (backup_beside.py).
      OpenExtract 0.18.0 and earlier did.
   2. The iPhone creates <udid>/Snapshot and writes its own Status.plist, which it writes four
      times in all.

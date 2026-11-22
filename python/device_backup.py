@@ -19,7 +19,7 @@ import time
 import warnings
 from typing import Any, Callable, Optional
 
-import backup_replace
+import backup_beside
 import backup_status
 
 _LOG_PATH = os.environ.get('OPENEXTRACT_LOG_PATH') or os.path.join(tempfile.gettempdir(), 'python_log.txt')
@@ -89,15 +89,25 @@ _SYNC_IN_PROGRESS = (
 )
 
 
-# Added to the error when a try that had an earlier backup beside it fails (backup_replace.py).
+# Added to the error when a try beside a backup that was already there fails (backup_beside.py).
+# That one may itself be unfinished, so it isn't called finished or good, only unchanged.
 # electron/main.ts keeps EARLIER_UNCHANGED when it swaps the message for "your computer went to sleep".
-EARLIER_UNCHANGED = "Your earlier backup in that folder hasn't been changed."
-_ROOM_FOR_BOTH = "It's kept until the new one has finished, so the drive needs room for both."
+EARLIER_UNCHANGED = "The backup that was already in that folder hasn't been changed."
+_ROOM_FOR_BOTH = (
+    "It's kept, so the drive needs room for both. Don't delete it to make room unless you have "
+    "another copy."
+)
+# In place of _UNFINISHED_BACKUP then, which would point at the backup that's fine.
+_NEW_CANT_CONTINUE = (
+    "The iPhone couldn't continue the new backup. Choose a new, empty folder, then try again."
+)
 _NO_SPACE = "Not enough free space for this backup."
 
 
 def _saying_earlier_is_unchanged(message: str) -> str:
     message = message.rstrip() or "The backup didn't finish."
+    if message == _UNFINISHED_BACKUP:
+        message = _NEW_CANT_CONTINUE
     if message[-1] not in ".!?":
         message += "."
     room = f" {_ROOM_FOR_BOTH}" if message.startswith(_NO_SPACE) else ""
@@ -932,13 +942,12 @@ class DeviceBackupManager:
         encrypted: bool,
         password: Optional[str],
         notify: Callable[..., None],
-        release: Optional[Callable[[str], None]] = None,
     ) -> dict:
         """
         Initiate a full backup of the device identified by *udid*.
 
-        A backup of this iPhone already in *output_dir* isn't written to until the new one has
-        finished (backup_replace.py).
+        A backup of this iPhone already in *output_dir* is never written to, renamed or deleted:
+        the new one gets a folder of its own beside it (backup_beside.py).
 
         :param udid:        Device UDID (from list_devices).
         :param output_dir:  Destination directory; created if it does not exist.
@@ -948,16 +957,14 @@ class DeviceBackupManager:
                             bytes_done=<bytes received so far>).
                             Called repeatedly during the backup.  Safe to call from
                             the same thread — this method is synchronous.
-        :param release:     Called with the earlier backup's folder just before it's replaced,
-                            to close whatever the engine has open in it.
         :returns:           { "success": True, "backup_path": <resolved dir>,
                               "existing_password": <bool> }. existing_password is True when
                             the iPhone already had a backup password, so the backup is
                             encrypted with that one, not with *password* (OE-68).
-                            "earlier_backup": <dir> is added when the backup that was
-                            already there was kept as well.
+                            "earlier_backup": <dir> is added when there was already a
+                            backup there, which is kept.
         """
-        destination = backup_replace.Destination(output_dir, log=_dev_log, release=release)
+        destination = backup_beside.Destination(output_dir, log=_dev_log)
         try:
             return self._back_up(udid, output_dir, encrypted, password, notify, destination)
         except Exception as e:
@@ -974,7 +981,7 @@ class DeviceBackupManager:
         encrypted: bool,
         password: Optional[str],
         notify: Callable[..., None],
-        destination: backup_replace.Destination,
+        destination: backup_beside.Destination,
     ) -> dict:
         try:
             from pymobiledevice3.lockdown import create_using_usbmux
@@ -1172,10 +1179,8 @@ class DeviceBackupManager:
                 asyncio.run(_run_backup())
 
         started_at = time.time()
-        confirmed = False  # the iPhone itself reported success
         try:
             _run_with_lock_retry()
-            confirmed = True
         except PasswordRequiredError as e:
             # Raised by lockdown StartService when the device is locked.
             raise RuntimeError(
@@ -1255,16 +1260,13 @@ class DeviceBackupManager:
                 raise
             _dev_log(f"backup failed: {e!r}")
             raise RuntimeError(message) from e
-        # Replacing an earlier backup can take minutes, to delete it. Each report restarts the
-        # app's time limit.
-        placed = destination.finish(confirmed, report=lambda: _tracked_notify("finalizing", 100, 0, 0))
-        actual_backup_path = placed.path or self._resolve_backup_path(output_dir, udid)
-        _dev_log(f"backup complete. output_dir={output_dir!r} resolved={actual_backup_path!r} "
-                 f"earlier kept={placed.earlier!r}")
+        actual_backup_path = (destination.finish() if destination.beside
+                              else self._resolve_backup_path(output_dir, udid))
+        _dev_log(f"backup complete. output_dir={output_dir!r} resolved={actual_backup_path!r}")
         result = {"success": True, "backup_path": actual_backup_path,
                   "existing_password": bool(existing_password[0])}
-        if placed.earlier:
-            result["earlier_backup"] = placed.earlier
+        if destination.beside:
+            result["earlier_backup"] = destination.earlier
         return result
 
     # ── Internal helpers ──────────────────────────────────────────────────────
@@ -1281,19 +1283,20 @@ class DeviceBackupManager:
         """
         _dev_log(f"[_resolve_backup_path] output_dir={output_dir!r} udid={udid!r}")
 
-        # Case 1: files written directly into output_dir
-        if os.path.exists(os.path.join(output_dir, "Manifest.db")):
-            _dev_log(f"[_resolve_backup_path] case 1 match (direct): {output_dir!r}")
-            return output_dir
-
-        # Case 2: well-known UDID subfolder variants (with/without dashes)
+        # Case 1: well-known UDID subfolder variants (with/without dashes). Looked for first:
+        # when the folder chosen is itself an older backup, this is the one just made.
         for candidate_name in [udid, udid.replace("-", "")]:
             candidate = os.path.join(output_dir, candidate_name)
             if os.path.isdir(candidate) and os.path.exists(
                 os.path.join(candidate, "Manifest.db")
             ):
-                _dev_log(f"[_resolve_backup_path] case 2 match (UDID subdir): {candidate!r}")
+                _dev_log(f"[_resolve_backup_path] case 1 match (UDID subdir): {candidate!r}")
                 return candidate
+
+        # Case 2: files written directly into output_dir
+        if os.path.exists(os.path.join(output_dir, "Manifest.db")):
+            _dev_log(f"[_resolve_backup_path] case 2 match (direct): {output_dir!r}")
+            return output_dir
 
         # Case 3: scan one level deep; prefer the most recently modified Manifest.db
         # so that a freshly-created backup is chosen over stale ones.

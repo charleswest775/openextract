@@ -371,7 +371,7 @@ const COMPUTER_SLEPT =
   'Keep the computer plugged in with its lid open until the backup finishes, then click Retry.';
 // The engine adds this when the folder had an earlier backup, which a failed try doesn't touch
 // (EARLIER_UNCHANGED in python/device_backup.py). It's as true when the computer slept.
-const EARLIER_UNCHANGED = "Your earlier backup in that folder hasn't been changed.";
+const EARLIER_UNCHANGED = "The backup that was already in that folder hasn't been changed.";
 // How long the app waits for a search for iPhones (backup.list_devices; see the sidecar:call
 // handler). python/tests/test_fake_iphone_search.py checks the engine's own limits fit inside it.
 const LIST_DEVICES_TIMEOUT_MS = 90_000;

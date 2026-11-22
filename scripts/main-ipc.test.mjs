@@ -1076,7 +1076,7 @@ describe('backups keep the computer awake', () => {
     const b = pendingBackup(m);
     await waitFor(() => b.finish(), { what: 'the backup to reach the engine' });
     m.env.powerMonitor.emit('suspend');
-    const unchanged = "Your earlier backup in that folder hasn't been changed.";
+    const unchanged = "The backup that was already in that folder hasn't been changed.";
     b.finish().reject(new Error(`DEVICE_DISCONNECTED: Your iPhone was disconnected before the backup finished. ${unchanged}`));
     assert.equal((await b.result).error, `${SLEPT} ${unchanged}`);
     // The engine's words, which main.ts looks for.

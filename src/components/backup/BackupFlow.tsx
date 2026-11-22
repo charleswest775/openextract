@@ -148,10 +148,12 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
   const [progress, setProgress] = useState<BackupProgress | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
   const [backupPath, setBackupPath] = useState<string | null>(null);
-  // Set when the backup that was already in the folder was kept as well (python/backup_replace.py).
+  // Set when the folder already held a backup, which is always kept (python/backup_beside.py).
   const [earlierBackup, setEarlierBackup] = useState<string | null>(null);
 
   const [existingPasswordUsed, setExistingPasswordUsed] = useState(false);
+  // The iPhone that was backed up. It can be unplugged, so no longer selected, before Open is clicked.
+  const [backedUpUdid, setBackedUpUdid] = useState('');
 
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
@@ -275,8 +277,9 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
       });
 
       setExistingPasswordUsed(!!result.existing_password);
-      // Opening leaves this screen. With an earlier backup kept as well, the user needs to read
-      // where it is first, and opens the new one with the button.
+      setBackedUpUdid(selectedDevice.udid);
+      // Opening leaves this screen. With two backups there now, the user needs to read where
+      // each one is first, and opens the new one with the button.
       if (!result.earlier_backup) {
         await onBackupComplete?.(selectedDevice.udid, result.backup_path, !!result.existing_password);
       }
@@ -501,7 +504,9 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                   <p className="text-xs text-gray-500 mt-0.5 break-all">{backupPath}</p>
                   {earlierBackup && (
                     <p className="text-xs text-gray-500 mt-1.5 break-all" data-earlier-backup>
-                      Your earlier backup was kept too, in {earlierBackup}
+                      The backup that was already there was kept too, in {earlierBackup}. OpenExtract
+                      never deletes it. If you need the space, check that the new one has everything
+                      you want before you delete the old one yourself.
                     </p>
                   )}
                 </div>
@@ -546,9 +551,9 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                 Backing up...
               </button>
             )}
-            {status === 'success' && earlierBackup && backupPath && selectedDevice && (
+            {status === 'success' && earlierBackup && backupPath && (
               <button
-                onClick={() => onBackupComplete?.(selectedDevice.udid, backupPath, existingPasswordUsed)}
+                onClick={() => onBackupComplete?.(backedUpUdid, backupPath, existingPasswordUsed)}
                 className="px-5 py-2.5 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors"
               >
                 Open the new backup

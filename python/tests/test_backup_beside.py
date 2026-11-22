@@ -1,12 +1,14 @@
 """
-Backing up into the folder that holds that iPhone's last backup (python/backup_replace.py).
+Backing up into the folder that holds that iPhone's last backup (python/backup_beside.py).
 
 Up to 0.18.0 such a try emptied the last backup's Manifest.plist before the iPhone had asked for
 its passcode, so one that failed left an encrypted backup locked for good. Here the last backup
-is really encrypted, and after each way a try can end it must still unlock and read the same.
+is really encrypted, and after every way a try can end, success included, it must be the same
+files, untouched, and still unlock and read the same.
 """
 
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -31,7 +33,7 @@ from fake_iphone.wire import Dropped  # noqa: E402
 from killed_engine import STAGES  # noqa: E402
 
 import backup  # noqa: E402
-import backup_replace  # noqa: E402
+import backup_beside  # noqa: E402
 import backup_status  # noqa: E402
 import device_backup  # noqa: E402
 
@@ -46,8 +48,8 @@ UNCHANGED = device_backup.EARLIER_UNCHANGED
 def quick_engine(monkeypatch):
     monkeypatch.setattr(device_backup, "_BYTES_REPORT_INTERVAL_S", 0.05)
     monkeypatch.setattr(device_backup, "_BACKUP_LOCK_RETRY_DELAY_S", 0.05)
-    monkeypatch.setattr(backup_replace, "RENAME_WAIT_S", 0.2)
-    monkeypatch.setattr(backup_replace, "_RENAME_RETRY_S", 0.05)
+    monkeypatch.setattr(backup_beside, "RENAME_WAIT_S", 0.2)
+    monkeypatch.setattr(backup_beside, "_RENAME_RETRY_S", 0.05)
 
 
 @pytest.fixture
@@ -66,9 +68,15 @@ def later(tmp_path):
 
 
 def everything_in(folder: Path) -> dict:
-    """Every path under folder with its bytes: nothing added, removed or changed."""
-    return {p.relative_to(folder).as_posix(): (p.read_bytes() if p.is_file() else None)
-            for p in folder.rglob("*")}
+    """
+    Every path under folder, the folder too, with which file it is, when it was last written and
+    its bytes: equal means nothing was written, replaced, added, removed, or put back afterwards.
+    """
+    found = {}
+    for p in [folder, *folder.rglob("*")]:
+        st = p.stat()
+        found[p.relative_to(folder).as_posix()] = (st.st_ino, st.st_mtime_ns, p.read_bytes() if p.is_file() else None)
+    return found
 
 
 def messages_in(folder: Path) -> bytes:
@@ -88,8 +96,13 @@ def listed(out: Path) -> list:
     return backup.BackupManager().list_backups(custom_path=str(out))["backups"]
 
 
-def work(out: Path) -> Path:
-    return out / backup_replace.WORK_DIR
+def work(out: Path, n: int = 1) -> Path:
+    return out / (backup_beside.WORK_DIR if n == 1 else f"{backup_beside.WORK_DIR}-{n}")
+
+
+def new_backup(run) -> Path:
+    assert run.error is None, run.error
+    return Path(run.result["backup_path"])
 
 
 def small_backup() -> list:
@@ -203,25 +216,63 @@ def test_turning_encryption_on_never_shows_the_iphone_the_earlier_keys(out, earl
     assert (earlier / "Manifest.plist").read_bytes() == keys
 
 
-def test_tries_one_after_another_leave_one_partial_at_most(out, earlier, later):
+def test_tries_that_stop_early_are_written_over_by_the_next(out, earlier, later):
     before = everything_in(earlier)
     for how in ("disconnected mid-transfer", "passcode not entered", "disconnected mid-transfer"):
         assert run_backup(FAILED_TRIES[how](), out).error is not None
         assert everything_in(earlier) == before
-        assert sorted(p.name for p in out.iterdir()) == sorted([UDID, backup_replace.WORK_DIR])
+        assert sorted(p.name for p in out.iterdir()) == sorted([UDID, backup_beside.WORK_DIR])
 
-    run = run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out)
-    assert run.error is None, run.error
-    assert [p.name for p in out.iterdir()] == [UDID]
-    assert messages_in(earlier) == A_WEEK_LATER
+    new = new_backup(run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out))
+    assert sorted(p.name for p in out.iterdir()) == sorted([UDID, new.name])  # no work folder left
+    assert everything_in(earlier) == before
+    assert messages_in(new) == A_WEEK_LATER
+
+
+@pytest.mark.parametrize("stopped_before", ["MoveItems", "RemoveItems"])
+def test_a_try_that_got_every_file_is_not_written_over(out, earlier, later, stopped_before):
+    # Everything arrived, keys and list of files too. On a dying iPhone that's the newest copy.
+    ops = plan_sending(later)
+    ops.insert(next(i for i, op in enumerate(ops) if op["op"] == stopped_before), DROP)
+    assert run_backup(FakeIPhone(ops, will_encrypt=True), out).error is not None
+    stopped = everything_in(work(out) / UDID)
+
+    assert run_backup(FAILED_TRIES["passcode not entered"](), out).error is not None
+    assert everything_in(work(out) / UDID) == stopped
+    assert (work(out, 2) / UDID).is_dir()
+    if stopped_before == "RemoveItems":  # every file had been moved into place
+        assert messages_in(work(out) / UDID) == A_WEEK_LATER
 
 
 def test_a_first_backup_is_still_written_straight_into_the_folder(out):
     failed = run_backup(FakeIPhone(drop_after_bytes=4 * plans.MiB), out)
     assert failed.error is not None and UNCHANGED not in failed.error
     assert not work(out).exists()
-    assert run_backup(FakeIPhone(), out).error is None
+    run = run_backup(FakeIPhone(), out)
+    assert run.error is None and "earlier_backup" not in run.result
     assert [p.name for p in out.iterdir()] == [UDID]
+
+
+def test_a_first_backup_that_got_every_file_is_not_written_over(out, later):
+    ops = plan_sending(later)
+    ops.insert(next(i for i, op in enumerate(ops) if op["op"] == "RemoveItems"), DROP)
+    first = run_backup(FakeIPhone(ops, will_encrypt=True), out)
+    assert first.error is not None
+    stopped = everything_in(first.backup_dir)
+
+    retry = run_backup(FAILED_TRIES["passcode not entered"](), out)
+    assert UNCHANGED in retry.error
+    assert everything_in(first.backup_dir) == stopped
+    assert messages_in(first.backup_dir) == A_WEEK_LATER
+
+
+def test_a_folder_the_iphone_cant_go_on_with_doesnt_point_at_the_old_backup(out, earlier):
+    # _UNFINISHED_BACKUP's known fix says the unfinished backup in that folder can be deleted.
+    ops = small_backup()
+    folder = next(f for f in plans.uploaded_files(ops) if f.get("relative_path"))["path"].rsplit("/", 1)[0]
+    ops.remove({"op": "CreateDirectory", "path": folder})
+    run = run_backup(FakeIPhone(ops, will_encrypt=True), out)
+    assert run.error == f"{device_backup._NEW_CANT_CONTINUE} {UNCHANGED}"
 
 
 # ── The engine is killed, or the power goes ──────────────────────────────────
@@ -247,221 +298,177 @@ def kill_the_engine_at(out: Path, stage: str) -> None:
         child.stdout.close()
 
 
-@pytest.mark.parametrize("stage", ["passcode", "transfer", "moving", "finishing", "before the swap"])
-def test_killed_before_the_swap_has_changed_nothing(out, earlier, stage):
-    assert stage in STAGES
+@pytest.mark.parametrize("stage", STAGES)
+def test_killed_at_any_stage_has_changed_nothing(out, earlier, stage):
     before = everything_in(earlier)
     kill_the_engine_at(out, stage)
 
     # As a kill leaves it, before anything has had a chance to put things right.
     assert everything_in(earlier) == before
     # The next launch.
-    assert str(earlier) in [b["backup_dir"] for b in listed(out)]
+    found = [b["backup_dir"] for b in listed(out)]
+    assert str(earlier) in found
     assert messages_in(earlier) == THE_ONLY_COPY
-
-
-@pytest.mark.parametrize("next_launch", ["lists the folder", "opens the recent backup", "browses to the backup"])
-def test_killed_between_the_renames_puts_the_earlier_backup_back(out, earlier, next_launch):
-    before = everything_in(earlier)
-    kill_the_engine_at(out, "between the renames")
-    assert not earlier.exists()
-
-    if next_launch == "lists the folder":
-        found = listed(out)
-        # The finished new one couldn't be moved into place, and is offered too.
-        assert {Path(b["backup_dir"]).resolve() for b in found} == {earlier.resolve(), (work(out) / UDID).resolve()}
-    elif next_launch == "browses to the backup":
-        assert [b["backup_dir"] for b in listed(earlier)] == [str(earlier)]
-    assert messages_in(earlier) == THE_ONLY_COPY
+    if stage in ("before the rename", "after the rename"):  # the new one had finished: offered too, first
+        assert len(found) == 2 and found[0] != str(earlier)
+    # And the next try.
+    assert UNCHANGED in run_backup(FAILED_TRIES["passcode not entered"](), out).error
     assert everything_in(earlier) == before
-
-
-def test_killed_between_the_renames_then_backing_up_again_keeps_every_backup(out, earlier):
-    before = everything_in(earlier)
-    kill_the_engine_at(out, "between the renames")
-
-    # Straight into another try, which fails: the next launch never listed the folder.
-    run = run_backup(FAILED_TRIES["passcode not entered"](), out)
-    assert UNCHANGED in run.error
-    assert everything_in(earlier) == before
-    assert backup_status.check(str(out / f"{UDID} (new backup)")).finished
-
-
-def test_killed_after_the_swap_keeps_both_until_told_otherwise(out, earlier, later):
-    before = everything_in(earlier)
-    kill_the_engine_at(out, "after the swap")
-
-    assert backup_status.check(str(earlier)).confirmed  # the new one
-    assert len(listed(out)) == 2
-    assert run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out).error is None
-    kept = out / f"{UDID} (earlier backup)"
-    assert everything_in(kept) == before
-    assert messages_in(kept) == THE_ONLY_COPY
-
-
-def test_killed_while_deleting_what_was_replaced(out, earlier, later):
-    kill_the_engine_at(out, "deleting")
-
-    assert backup_status.check(str(earlier)).confirmed
-    assert [b["backup_dir"] for b in listed(out)] == [str(earlier)]  # not the half-deleted one
-    assert run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out).error is None
-    assert [p.name for p in out.iterdir()] == [UDID]
 
 
 # ── A backup that works ──────────────────────────────────────────────────────
 
-def test_a_successful_backup_replaces_the_earlier_one(out, earlier, later):
+def test_a_successful_backup_gets_its_own_folder_and_the_earlier_one_stays(out, earlier, later):
     before = everything_in(earlier)
-    phone = FakeIPhone(plan_sending(later), will_encrypt=True)
-    at_the_end = {}
-    phone.before("ProcessMessage", lambda _op: at_the_end.update(everything_in(earlier)))
-    run = run_backup(phone, out)
+    run = run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out)
 
-    assert run.error is None, run.error
-    assert at_the_end == before  # untouched, keys and all, until the iPhone said it had finished
-    assert run.result == {"success": True, "backup_path": str(earlier), "existing_password": True}
-    assert messages_in(earlier) == A_WEEK_LATER
-    assert backup_status.check(str(earlier)).confirmed
-    assert [p.name for p in out.iterdir()] == [UDID]  # no second copy, no work folder
+    new = new_backup(run)
+    assert new.parent == out and re.fullmatch(rf"{UDID}-\d{{8}}-\d{{6}}", new.name)
+    assert run.result == {"success": True, "backup_path": str(new), "existing_password": True,
+                          "earlier_backup": str(earlier)}
+    assert everything_in(earlier) == before
+    assert messages_in(earlier) == THE_ONLY_COPY
+    assert messages_in(new) == A_WEEK_LATER
+    assert backup_status.check(str(new)).confirmed
+    assert not work(out).exists()
     run.assert_progress_never_goes_back()
 
 
-def test_the_lock_error_retry_still_replaces(out, earlier, later):
+def test_the_newest_backup_is_listed_and_opened_first(out, earlier):
+    # pymobiledevice3's Info.plist has no date, so the one just made used to sort last.
+    new = new_backup(run_backup(FakeIPhone(small_backup()), out))
+
+    found = listed(out)
+    assert [b["backup_dir"] for b in found] == [str(new), str(earlier)]
+    assert found[0]["last_backup"] > found[1]["last_backup"]
+    manager = backup.BackupManager()
+    opened = manager.open_backup(UDID, backup_dir=str(out))  # given the folder they're both in
+    manager.close_backup(UDID)
+    assert opened["info"]["backup_dir"] == str(new)
+
+
+def test_backing_up_again_and_again_keeps_each_one(out, earlier, later):
+    before = everything_in(earlier)
+    second = new_backup(run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out))
+    second_before = everything_in(second)
+    third = new_backup(run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out))
+
+    assert third != second  # even in the same second
+    assert everything_in(earlier) == before and everything_in(second) == second_before
+    assert len(listed(out)) == 3
+
+
+def test_the_lock_error_retry_still_works(out, earlier, later):
+    before = everything_in(earlier)
     phone = FakeIPhone(plan_sending(later), will_encrypt=True,
                        refuse_attempts={0: {"ErrorCode": 208, "ErrorDescription": "Device locked (MBErrorDomain/208)"}})
-    assert run_backup(phone, out).error is None
+    assert messages_in(new_backup(run_backup(phone, out))) == A_WEEK_LATER
     assert phone.attempts == 2
-    assert messages_in(earlier) == A_WEEK_LATER
+    assert everything_in(earlier) == before
 
 
-def test_hanging_up_at_the_end_is_success_but_keeps_the_earlier_one(out, earlier, later):
-    # Only inferred to have finished, so nothing is deleted on the strength of it.
+def test_hanging_up_at_the_end_is_still_a_success(out, earlier, later):
     before = everything_in(earlier)
     run = run_backup(FakeIPhone(plan_sending(later)[:-1] + [DROP], will_encrypt=True), out)
 
-    assert run.error is None, run.error
-    kept = Path(run.result["earlier_backup"])
-    assert everything_in(kept) == before and messages_in(kept) == THE_ONLY_COPY
-    assert messages_in(Path(run.result["backup_path"])) == A_WEEK_LATER
+    assert messages_in(new_backup(run)) == A_WEEK_LATER
+    assert everything_in(earlier) == before
 
 
-def test_success_without_a_whole_backup_doesnt_replace_anything(out, earlier):
+def test_success_without_a_whole_backup_is_an_error(out, earlier):
     before = everything_in(earlier)
     run = run_backup(FakeIPhone([{"op": "ProcessMessage", "content": {"ErrorCode": 0}}], will_encrypt=True), out)
 
-    assert run.error is None
-    assert run.result["earlier_backup"] == str(earlier)
+    assert run.error == f"{backup_beside.NOT_WHOLE} {UNCHANGED}"
     assert everything_in(earlier) == before
 
 
-@pytest.mark.parametrize("odd", ["a file of the user's", "a file of the user's, inside", "a folder of the user's",
-                                 "it never finished", "its keys were lost", "its keys are damaged"])
-def test_an_earlier_backup_thats_more_or_less_than_a_backup_is_kept(out, earlier, later, odd):
-    if odd == "a file of the user's":
-        (earlier / "Read me - Mum's phone.txt").write_text("keep", encoding="utf-8")
-    elif odd == "a file of the user's, inside":
-        (next(earlier.glob("??")) / "notes.txt").write_text("keep", encoding="utf-8")
-    elif odd == "a folder of the user's":
-        (earlier / "saved photos").mkdir()
-    elif odd == "it never finished":
+@pytest.mark.parametrize("broken", ["Manifest.plist", "Manifest.db"])
+def test_a_new_backup_that_cant_be_read_costs_nothing(out, earlier, later, broken):
+    # Nothing here can tell that a new encrypted backup will unlock, so nothing may depend on it.
+    before = everything_in(earlier)
+    (later / broken).write_bytes(b"garbage the iPhone called a success")
+    run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out)
+
+    assert everything_in(earlier) == before
+    assert messages_in(earlier) == THE_ONLY_COPY
+
+
+def test_what_another_program_writes_to_the_earlier_backup_meanwhile_stays(out, earlier, later):
+    # Finder, iTunes or another computer, during a try that takes hours.
+    phone = FakeIPhone(plan_sending(later), will_encrypt=True)
+    phone.before("MoveItems", lambda _op: (earlier / "written meanwhile").write_bytes(b"keep"))
+    new_backup(run_backup(phone, out))
+    assert (earlier / "written meanwhile").read_bytes() == b"keep"
+    assert messages_in(earlier) == THE_ONLY_COPY
+
+
+@pytest.mark.parametrize("odd", ["it never finished", "its keys were lost", "its keys are damaged",
+                                 "only its stored files are left", "only its keys are left"])
+def test_whats_left_of_a_backup_is_left_alone_too(out, earlier, later, odd):
+    if odd == "it never finished":
         (earlier / "Snapshot" / "ab").mkdir(parents=True)
     elif odd == "its keys were lost":
         (earlier / "Manifest.plist").write_bytes(b"")
-    else:
+    elif odd == "its keys are damaged":
         (earlier / "Manifest.plist").write_bytes(b"not a plist")
+    elif odd == "only its stored files are left":
+        (earlier / "Manifest.plist").unlink()
+        (earlier / "Manifest.db").unlink()
+    else:
+        for stored in [earlier / "Manifest.db", *earlier.glob("??/*")]:
+            stored.unlink()
     before = everything_in(earlier)
     run = run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out)
 
-    assert run.error is None, run.error
-    kept = out / f"{UDID} (earlier backup)"
-    assert Path(run.result["earlier_backup"]).resolve() == kept.resolve()
-    assert everything_in(kept) == before
-    assert messages_in(earlier) == A_WEEK_LATER
-
-
-def test_a_second_kept_backup_gets_its_own_name(out, earlier, later):
-    (out / f"{UDID} (earlier backup)").mkdir()
-    (earlier / "mine.txt").write_text("keep", encoding="utf-8")
-    run = run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out)
-    assert Path(run.result["earlier_backup"]).name == f"{UDID} (earlier backup 2)"
-
-
-@pytest.mark.parametrize("stuck", [1, 2], ids=["the earlier one is in use", "the new one is in use"])
-def test_a_rename_that_wont_work_keeps_both(out, earlier, later, monkeypatch, stuck):
-    before = everything_in(earlier)
-    rename = backup_replace._rename
-    calls = [0]
-
-    def wont(src, dst, *args, **kwargs):
-        calls[0] += 1
-        return False if calls[0] == stuck else rename(src, dst, *args, **kwargs)
-
-    monkeypatch.setattr(backup_replace, "_rename", wont)
-    run = run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out)
-
-    assert run.error is None
-    assert everything_in(earlier) == before
+    assert messages_in(new_backup(run)) == A_WEEK_LATER
     assert run.result["earlier_backup"] == str(earlier)
-    assert messages_in(Path(run.result["backup_path"])) == A_WEEK_LATER
-
-
-def test_a_new_backup_that_cant_move_at_all_is_still_found(out, earlier, later, monkeypatch):
-    monkeypatch.setattr(backup_replace, "_rename", lambda *a, **k: False)
-    run = run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out)
-
-    assert run.error is None
-    assert Path(run.result["backup_path"]).resolve() == (work(out) / UDID).resolve()
-    assert len(listed(out)) == 2
-    assert messages_in(work(out) / UDID) == A_WEEK_LATER
+    assert everything_in(earlier) == before
 
 
 def test_the_earlier_backup_open_in_another_program(out, earlier, later):
-    # The real thing, not a stubbed rename: Windows won't rename a folder with a file open in it.
-    # Elsewhere the folder it's in is made read-only, which stops the rename the same way.
-    if is_root():
-        pytest.skip("root can write to a read-only folder")
-    before = everything_in(earlier)
-    phone = FakeIPhone(plan_sending(later), will_encrypt=True)
-    other_program = InUse()
-    phone.before("ProcessMessage", lambda _op: other_program.lock(earlier))
-    try:
-        run = run_backup(phone, out)
-        assert run.error is None, run.error
-        assert run.result["earlier_backup"] == str(earlier)
-        assert everything_in(earlier) == before
-        assert messages_in(Path(run.result["backup_path"])) == A_WEEK_LATER
-    finally:
-        other_program.release()
-
-
-def test_not_flushed_means_not_deleted(out, earlier, later, monkeypatch):
-    before = everything_in(earlier)
-    monkeypatch.setattr(backup_replace, "_flush", lambda *a, **k: False)
-    run = run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out)
-    assert everything_in(Path(run.result["earlier_backup"])) == before
-
-
-def test_the_backup_open_in_the_app_is_closed_before_its_replaced(out, earlier, later):
-    # It would go on using the old keys on the new files, and on Windows stop the rename.
+    # It isn't moved, so it doesn't matter who has it open, the app included.
     manager = backup.BackupManager()
     manager.open_backup(UDID, password=PASSWORD, backup_dir=str(earlier))
+    try:
+        before = everything_in(earlier)
+        assert messages_in(new_backup(run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out))) == A_WEEK_LATER
+        assert everything_in(earlier) == before
+        assert Path(manager.get_open_backup(UDID).get_file(SMS[1], SMS[0])).read_bytes() == THE_ONLY_COPY
+    finally:
+        manager.close_backup(UDID)
+
+
+def test_a_new_backup_in_use_stays_where_it_is_and_is_never_reused(out, earlier, later):
+    # The real thing: Windows won't rename a folder with a file open in it. Elsewhere the folder
+    # it's in is made read-only, which stops the rename the same way.
+    if is_root():
+        pytest.skip("root can write to a read-only folder")
     phone = FakeIPhone(plan_sending(later), will_encrypt=True)
-    with phone.plugged_in():
-        result = device_backup.DeviceBackupManager().start_backup(
-            UDID, str(out), False, None, lambda *a, **k: None, release=manager.close_backups_in)
+    other_program = InUse()
+    phone.before("ProcessMessage", lambda _op: other_program.lock(work(out) / UDID / "Manifest.db"
+                                                                  if sys.platform == "win32" else work(out) / UDID))
+    try:
+        run = run_backup(phone, out)
+    finally:
+        other_program.release()
+    new = new_backup(run)
+    assert new == work(out) / UDID
+    assert messages_in(new) == A_WEEK_LATER
+    assert {b["backup_dir"] for b in listed(out)} == {str(earlier), str(new)}
 
-    assert "earlier_backup" not in result
-    with pytest.raises(ValueError, match="Backup not open"):
-        manager.get_open_backup(UDID)
+    # The app saved that path, so the next try mustn't write there or move it.
+    before = everything_in(new)
+    assert run_backup(FAILED_TRIES["passcode not entered"](), out).error is not None
+    assert everything_in(new) == before
 
 
-# ── Never outside the backup ─────────────────────────────────────────────────
+# ── Odd folders ──────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("udid", ["..", ".", "", "../elsewhere", "a/b", "a\\b", "C:"])
 def test_a_name_from_the_device_cant_point_outside_the_folder(out, udid):
-    destination = backup_replace.Destination(str(out))
     with pytest.raises(RuntimeError):
-        destination.prepare(udid)
+        backup_beside.Destination(str(out)).prepare(udid)
     assert not out.exists()
 
 
@@ -474,19 +481,6 @@ def _link_folder(link: Path, to: Path) -> None:
         link.symlink_to(to, target_is_directory=True)
 
 
-@pytest.mark.parametrize("where", ["ab", "Snapshot"])
-def test_deleting_never_follows_a_link(tmp_path, where):
-    elsewhere = tmp_path / "elsewhere"
-    elsewhere.mkdir()
-    (elsewhere / ("ab" + "0" * 38)).write_bytes(b"someone's file")
-    folder = tmp_path / "backup"
-    folder.mkdir()
-    _link_folder(folder / where, elsewhere)
-
-    assert backup_replace._remove_backup(str(folder)) is False
-    assert (elsewhere / ("ab" + "0" * 38)).read_bytes() == b"someone's file"
-
-
 def test_a_backup_folder_thats_a_link_to_another_place(out, tmp_path, later):
     real = make_encrypted_backup(tmp_path / "other drive", UDID, text=THE_ONLY_COPY)
     out.mkdir()
@@ -495,38 +489,34 @@ def test_a_backup_folder_thats_a_link_to_another_place(out, tmp_path, later):
 
     assert run_backup(FAILED_TRIES["passcode not entered"](), out).error is not None
     assert everything_in(real) == before
-    assert run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out).error is None
-    assert messages_in(out / UDID) == A_WEEK_LATER
-    assert messages_in(real) == A_WEEK_LATER
+    assert messages_in(new_backup(run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), out))) == A_WEEK_LATER
+    assert everything_in(real) == before
 
 
-def test_two_windows_cant_back_up_into_the_same_folder(out, earlier):
-    first = backup_replace.Destination(str(out))
-    first.prepare(UDID)
-    try:
-        with pytest.raises(RuntimeError, match="Another OpenExtract window"):
-            backup_replace.Destination(str(out)).prepare(UDID)
-        assert (work(out) / UDID).is_dir()
-    finally:
-        first.close()
-    again = backup_replace.Destination(str(out))
-    again.prepare(UDID)
-    again.close()
-    assert not work(out).exists()
+def test_a_backup_folder_on_a_drive_that_isnt_plugged_in(out, tmp_path):
+    out.mkdir()
+    away = tmp_path / "unplugged drive"
+    away.mkdir()
+    _link_folder(out / UDID, away)
+    away.rmdir()
+    assert backup_beside.holds_a_backup(str(out / UDID))
 
 
-def test_recovering_doesnt_get_between_another_engines_renames(out, earlier):
-    swapping = backup_replace.Destination(str(out))
-    swapping.prepare(UDID)
-    try:
-        aside = work(out) / f"{UDID}.previous"
-        os.rename(earlier, aside)
-        backup_replace.recover(str(out))
-        assert aside.is_dir() and not earlier.exists()
-    finally:
-        swapping.close()
-    backup_replace.recover(str(out))
-    assert earlier.is_dir()
+def test_a_folder_that_cant_be_read_counts_as_a_backup(out, earlier, monkeypatch):
+    def refuse(_path):
+        raise PermissionError(13, "Access is denied")
+
+    monkeypatch.setattr(backup_beside.os, "scandir", refuse)
+    assert backup_beside.holds_a_backup(str(earlier))
+
+
+def test_choosing_the_old_backups_own_folder_reports_the_new_one(out, earlier, later):
+    # It used to say "Backup complete" and open the old one. Someone could erase the iPhone on that.
+    run = run_backup(FakeIPhone(plan_sending(later), will_encrypt=True), earlier)
+
+    assert new_backup(run) == earlier / UDID
+    assert messages_in(earlier / UDID) == A_WEEK_LATER
+    assert messages_in(earlier) == THE_ONLY_COPY
 
 
 # ── A folder an older OpenExtract already damaged ────────────────────────────

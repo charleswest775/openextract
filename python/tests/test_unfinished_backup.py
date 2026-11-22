@@ -22,7 +22,7 @@ from fake_iphone import FakeIPhone, run_backup  # noqa: E402
 from fake_iphone import plan as plans  # noqa: E402
 
 import backup  # noqa: E402
-import backup_replace  # noqa: E402
+import backup_beside  # noqa: E402
 import backup_status  # noqa: E402
 import device_backup  # noqa: E402
 
@@ -43,7 +43,7 @@ def quick_engine(monkeypatch):
 def writes_in_place(monkeypatch):
     """As OpenExtract 0.18.0 and earlier backed up: straight over the backup already in the folder.
     People still have the folders that left, and the app has to tell what they are."""
-    monkeypatch.setattr(backup_replace, "holds_a_backup", lambda folder: False)
+    monkeypatch.setattr(backup_beside, "holds_a_backup", lambda folder: False)
 
 
 @pytest.fixture
