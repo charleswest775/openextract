@@ -148,9 +148,9 @@ describe('PythonSidecar with a running engine', () => {
 
   test('a call that runs past its timeout rejects, and its late answer is ignored', async () => {
     const started = Date.now();
-    await assert.rejects(sidecar.call('hold', { late: true }, 100), { message: 'Sidecar call timed out: hold' });
-    assert.ok(Date.now() - started >= 95, 'timed out early');
-    assert.equal(sidecar.pending.size, 0);
+    await assert.rejects(sidecar.call('hold', { late: true }, 400), { message: 'Sidecar call timed out: hold' });
+    assert.ok(Date.now() - started >= 395, 'timed out early');
+    assert.equal(sidecar.pending.size, 1, 'the engine is still on it, so it stays first in line');
 
     // `release` answers the timed-out call (late) and this one; only this one may resolve.
     const waiting = sidecar.call('hold', { mine: true });
@@ -168,19 +168,72 @@ describe('PythonSidecar with a running engine', () => {
     assert.equal(sidecar.pending.size, 0);
   });
 
-  test('a call behind one that timed out gets its own time limit from then on', async () => {
-    const started = Date.now();
-    const stuck = sidecar.call('busy', { ms: 600 }, 100);
-    const queued = sidecar.call('echo', { queued: true }, 150);
-    await assert.rejects(stuck, { message: 'Sidecar call timed out: busy' });
-    await assert.rejects(queued, { message: 'Sidecar call timed out: echo' });
-    // Its clock started when the first call gave up (100 ms), not when it was sent.
-    const elapsed = Date.now() - started;
-    assert.ok(elapsed >= 240, `timed out after ${elapsed} ms`);
-    assert.ok(elapsed < 550, `waited for the engine (${elapsed} ms) instead of timing out`);
+  test('a call behind one that timed out doesn\'t time out before the engine gets to it', async () => {
+    // OE-132: a screen opened after a save timed out used to time out too, one limit later.
+    const save = sidecar.call('busy', { ms: 700 }, 450);
+    const next = sidecar.call('echo', { next: true }, 120);
+    await assert.rejects(save, { message: 'Sidecar call timed out: busy' });
+    // Up at 570 ms if its clock had started when the save gave up; the engine is free at 700.
+    assert.equal((await next).params.next, true);
     assert.equal(sidecar.pending.size, 0);
+  });
+
+  test('a call behind one that timed out gets its own time limit once the engine gets to it', async () => {
+    const started = Date.now();
+    const save = sidecar.call('busy', { ms: 600 }, 400);
+    const slow = sidecar.call('busy', { ms: 300 }, 100);
+    await assert.rejects(save, { message: 'Sidecar call timed out: busy' });
+    await assert.rejects(slow, { message: 'Sidecar call timed out: busy' });
+    const elapsed = Date.now() - started;
+    assert.ok(elapsed >= 680, `timed out after ${elapsed} ms, before the engine had it for its whole limit`);
+    await waitFor(() => sidecar.pending.size === 0, { what: 'the engine to finish both' });
+  });
+
+  test('behind a call the engine never lets go of, calls are told why instead of timing out', async () => {
+    const { seq } = await sidecar.call('echo');
+    const started = Date.now();
+    const save = sidecar.call('busy', { ms: 900 }, 150);
+    const next = sidecar.call('echo', { sent: true }, 5000);
+    await assert.rejects(save, { message: 'Sidecar call timed out: busy' });
+    await assert.rejects(next, err => {
+      assert.match(err.message, /^OpenExtract is still busy with something that took too long/);
+      assert.match(err.message, /quit and reopen OpenExtract/);
+      assert.doesNotMatch(err.message, /sidecar|engine|timed out/i);
+      return true;
+    });
+    // As long again as the call's own limit (150 ms), then no more waiting.
+    const waited = Date.now() - started;
+    assert.ok(waited >= 290, `told after ${waited} ms`);
+    assert.ok(waited < 850, `waited for the engine (${waited} ms)`);
+
+    // A new call is told straight away, and never sent.
+    const asked = Date.now();
+    await assert.rejects(sidecar.call('echo', { refused: true }), /still busy/);
+    assert.ok(Date.now() - asked < 100);
+
     // Once the engine is free again, calls work.
-    assert.equal((await sidecar.call('echo', { after: true })).params.after, true);
+    await waitFor(() => sidecar.pending.size === 0, { what: 'the engine to be free' });
+    assert.equal((await sidecar.call('echo')).seq, seq + 2, 'the refused call reached the engine');
+  });
+
+  test('progress from a call that timed out isn\'t shown and doesn\'t lengthen the wait', async () => {
+    const seen = [];
+    sidecar.notificationHandler = n => seen.push(n);
+    try {
+      // Gives up at 150 ms, stops waiting at 300; reports from 230 ms until about 730.
+      const save = sidecar.call('progress', { quiet: 200, count: 18, every: 28 }, 150);
+      const next = sidecar.call('hold', { next: true });
+      await assert.rejects(save, { message: 'Sidecar call timed out: progress' });
+      await assert.rejects(next, /still busy/);
+      assert.equal(sidecar.pending.size, 2, 'the save had already finished, so it proves nothing');
+      assert.deepEqual(seen, []);
+      await waitFor(() => sidecar.pending.size === 1, { what: 'the save to finish' });
+      assert.deepEqual(await sidecar.call('release'), { released: 1 });
+      assert.equal(sidecar.pending.size, 0);
+      assert.deepEqual(seen, []);
+    } finally {
+      sidecar.notificationHandler = null;
+    }
   });
 
   test('a call that keeps reporting progress runs past its time limit', async () => {
@@ -203,13 +256,12 @@ describe('PythonSidecar with a running engine', () => {
   test('a call that stops reporting progress times out a whole limit after its last report', async () => {
     const started = Date.now();
     await assert.rejects(
-      sidecar.call('progress', { count: 3, every: 50, stall: true }, 150),
+      sidecar.call('progress', { count: 3, every: 50, stall: true }, 250),
       { message: 'Sidecar call timed out: progress' },
     );
-    // The last report came at about 150 ms, so the limit ran out at about 300.
+    // The last report came at about 150 ms, so the limit ran out at about 400.
     const elapsed = Date.now() - started;
-    assert.ok(elapsed >= 280, `timed out after ${elapsed} ms, counting from the start instead of the last report`);
-    assert.equal(sidecar.pending.size, 0);
+    assert.ok(elapsed >= 380, `timed out after ${elapsed} ms, counting from the start instead of the last report`);
     // Answer the stalled call (late, ignored) so later tests start with nothing held.
     assert.deepEqual(await sidecar.call('release'), { released: 1 });
     assert.equal(sidecar.pending.size, 0);
@@ -270,6 +322,41 @@ describe('PythonSidecar engine lifecycle', { concurrency: true }, () => {
     assert.ok(Date.now() - started < 1000);
     assert.match(readLog(logPath), /\[EXIT\] code 3/);
     sidecar.stop(); // no-op once it's gone
+  });
+
+  test('after a save times out, calls wait 5 minutes at most, not the save\'s whole limit again', async () => {
+    const { sidecar } = fakeSidecar();
+    assert.equal(sidecar.MAX_WAIT_AFTER_TIMEOUT_MS, 5 * 60 * 1000);
+    sidecar.MAX_WAIT_AFTER_TIMEOUT_MS = 60;
+    await sidecar.start();
+    try {
+      const save = sidecar.call('hold', {}, 2000);
+      const next = sidecar.call('hold', {});
+      await assert.rejects(save, /timed out/);
+      const gaveUp = Date.now();
+      await assert.rejects(next, /still busy/);
+      assert.ok(Date.now() - gaveUp < 1500, 'waited the save\'s whole limit again');
+    } finally {
+      sidecar.stop();
+    }
+  });
+
+  test('stopping and starting the engine clears a call it was stuck on', async () => {
+    const { sidecar } = fakeSidecar();
+    await sidecar.start();
+    const oldPid = await sidecar.call('pid');
+    const save = sidecar.call('hold', {}, 60);
+    const next = sidecar.call('hold', {});
+    await assert.rejects(save, /timed out/);
+    await assert.rejects(next, /still busy/);
+    sidecar.stop();
+    await sidecar.start();
+    try {
+      assert.notEqual(await sidecar.call('pid'), oldPid);
+      await waitFor(() => sidecar.pending.size === 0, { what: 'the old engine\'s calls to be forgotten' });
+    } finally {
+      sidecar.stop();
+    }
   });
 
   test('an engine that can\'t be launched fails start() and is logged', async () => {

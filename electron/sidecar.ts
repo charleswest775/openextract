@@ -3,6 +3,8 @@ const { spawn } = require('child_process');
 const { StringDecoder } = require('string_decoder');
 const { randomUUID } = require('crypto');
 
+// A call stays here until the engine answers it, also after the app has given up on it
+// (gaveUp): the engine is still working on it, and nothing after it can start till then.
 interface PendingRequest {
   method: string;
   resolve: (value: any) => void;
@@ -12,9 +14,21 @@ interface PendingRequest {
   // (see startClock) and starts over at each progress report (see restartClock).
   timeoutMs: number;
   timeout: NodeJS.Timeout | null;
+  // The app stopped waiting and rejected the call; any answer is ignored (giveUp).
+  gaveUp: boolean;
+  // The engine has been on this given-up call too long for others to wait for it (engineStuck).
+  stuck: boolean;
   // The engine process the request went to. After a restart, the old engine's
   // exit must only reject the calls it was given, not the new engine's.
   proc: any;
+}
+
+/** What a call is told when the engine is stuck on an earlier one the app gave up on. */
+function stillBusyMessage(method: string): string {
+  const saving = method.startsWith('export_') || method === 'plan_pdf_parts';
+  const what = saving ? 'a save' : 'something';
+  return `OpenExtract is still busy with ${what} that took too long, so it can't do this yet. `
+    + 'Try again in a few minutes, or quit and reopen OpenExtract to stop it.';
 }
 
 /** Shape of a JSON-RPC notification (no id field). */
@@ -31,6 +45,8 @@ export class PythonSidecar {
   private pending: Map<string, PendingRequest> = new Map();
   private buffer: string = '';
   private readonly TIMEOUT_MS = 300000; // 5 min — backups can take a while
+  // The most that calls behind a given-up one wait for the engine to finish it (startClock).
+  private readonly MAX_WAIT_AFTER_TIMEOUT_MS = 300000;
   private logPath: string;
 
   /**
@@ -126,21 +142,53 @@ export class PythonSidecar {
 
   /**
    * The engine works on one call at a time, in the order they were sent, so a
-   * call's time limit starts only when every call sent to `proc` before it is done.
-   * Otherwise thumbnails asked for during a long export would time out while they
-   * wait their turn. A call that times out stops holding up the ones behind it, so
-   * a stuck engine can't keep them waiting forever.
+   * call's time limit starts only when the engine has answered every call sent to
+   * `proc` before it. Otherwise thumbnails asked for during a long export would time
+   * out while they wait their turn.
+   *
+   * That holds for a call the app gave up on, too. The engine doesn't know, and is
+   * still working on it: a screen opened after a save timed out used to time out
+   * itself, 5 minutes later, without the engine ever having seen it. The ones behind
+   * wait for that answer as long again as the call's own limit, and 5 minutes at
+   * most, so a stuck engine can't keep them waiting forever (engineStuck).
    */
   private startClock(proc: any): void {
-    for (const [id, req] of this.pending) {
-      if (req.proc !== proc) continue;
-      if (!req.timeout) {
-        req.timeout = setTimeout(() => {
-          this.finish(id);
-          req.reject(new Error(`Sidecar call timed out: ${req.method}`));
-        }, req.timeoutMs);
-      }
-      return;
+    const req = this.working(proc);
+    if (!req || req.timeout || req.stuck) return;
+    req.timeout = req.gaveUp
+      ? setTimeout(() => this.engineStuck(req), Math.min(req.timeoutMs, this.MAX_WAIT_AFTER_TIMEOUT_MS))
+      : setTimeout(() => this.giveUp(req), req.timeoutMs);
+  }
+
+  /** The call `proc` is working on: the earliest it hasn't answered. */
+  private working(proc: any): PendingRequest | undefined {
+    for (const [, req] of this.pending) {
+      if (req.proc === proc) return req;
+    }
+    return undefined;
+  }
+
+  /** A call's time is up: tell whoever asked, but remember the engine is still on it. */
+  private giveUp(req: PendingRequest): void {
+    req.timeout = null;
+    req.gaveUp = true;
+    req.reject(new Error(`Sidecar call timed out: ${req.method}`));
+    this.startClock(req.proc);
+  }
+
+  /**
+   * The wait for a given-up call is over too. The calls behind it are told why they
+   * can't run, and so is any new one (call) until the engine answers; then calls work
+   * again. The engine isn't restarted: that would close the open backup (and need its
+   * password again) and leave the decrypted copies it would have cleaned up.
+   */
+  private engineStuck(req: PendingRequest): void {
+    req.timeout = null;
+    req.stuck = true;
+    for (const [, waiting] of this.pending) {
+      if (waiting.proc !== req.proc || waiting.gaveUp) continue;
+      waiting.gaveUp = true; // already sent, so the engine will still get to it
+      waiting.reject(new Error(stillBusyMessage(req.method)));
     }
   }
 
@@ -149,25 +197,24 @@ export class PythonSidecar {
    * that call's time limit starts over. A backup or save can then run for as long as
    * it keeps reporting progress, and times out only after a whole limit with none.
    * (A big backup over a slow connection can take longer than its 2-hour limit.)
+   * Not for a call the app gave up on: the ones behind it wait only so long.
    */
   private restartClock(proc: any): void {
-    for (const [, req] of this.pending) {
-      if (req.proc !== proc) continue;
-      if (req.timeout) clearTimeout(req.timeout);
-      req.timeout = null;
-      this.startClock(proc);
-      return;
-    }
+    const req = this.working(proc);
+    if (!req || req.gaveUp) return;
+    if (req.timeout) clearTimeout(req.timeout);
+    req.timeout = null;
+    this.startClock(proc);
   }
 
-  /** Stop waiting for call `id` and start the clock of the next one in line. */
+  /** The engine is done with call `id`: start the clock of the next one in line. */
   private finish(id: string): PendingRequest | undefined {
     const req = this.pending.get(id);
     if (!req) return undefined;
     if (req.timeout) clearTimeout(req.timeout);
     this.pending.delete(id);
     this.startClock(req.proc);
-    return req;
+    return req.gaveUp ? undefined : req;
   }
 
   private processBuffer(): void {
@@ -186,7 +233,8 @@ export class PythonSidecar {
         // trying to resolve a pending request.
         if (message.method !== undefined && message.id === undefined) {
           this.restartClock(this.process);
-          if (this.notificationHandler) {
+          // Progress of a call nobody waits for any more would show as the next save's.
+          if (this.notificationHandler && !this.working(this.process)?.gaveUp) {
             this.notificationHandler(message as SidecarNotification);
           }
           continue;
@@ -213,6 +261,8 @@ export class PythonSidecar {
     }
 
     const proc = this.process;
+    const busy = this.working(proc);
+    if (busy?.stuck) throw new Error(stillBusyMessage(busy.method));
     // Unguessable. The window can make the engine write lines on this pipe (write_file to
     // /dev/stdout), and with ids it could count it could answer its own calls in the engine's
     // place, backup.check_older's "allowed" included (olderBackups.ts).
@@ -220,7 +270,7 @@ export class PythonSidecar {
     const request = JSON.stringify({ id, method, params }) + '\n';
 
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { method, resolve, reject, timeoutMs: timeoutMs ?? this.TIMEOUT_MS, timeout: null, proc });
+      this.pending.set(id, { method, resolve, reject, timeoutMs: timeoutMs ?? this.TIMEOUT_MS, timeout: null, gaveUp: false, stuck: false, proc });
       this.startClock(proc);
       proc.stdin.write(request, (err: Error | null | undefined) => {
         if (!err || !this.finish(id)) return;

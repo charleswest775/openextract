@@ -18,7 +18,7 @@ import type { VoiceMemoSaveFormat } from '../../types/voiceMemos';
 import type { CalendarSaveFormat } from '../../types/calendar';
 import type { BackupStatsOverview } from '../../hooks/useBackupStats';
 import { useSaveAction } from '../../hooks/useSaveAction';
-import { useExportProgress } from '../../hooks/useExportProgress';
+import { useChatSaveProgress, useExportProgress } from '../../hooks/useExportProgress';
 import PageHeader from '../shared/PageHeader';
 import SaveDialog, { ConversationModeChoice, FORMATS, SaveButton, SaveProgress, type SaveFormat } from '../shared/SaveDialog';
 import {
@@ -141,6 +141,10 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
     browser_history: useSaveAction('browser_history'),
   };
   const photoProgress = useExportProgress('photos', running === 'photos');
+  const chatProgress = {
+    messages: useChatSaveProgress('messages', running === 'messages'),
+    whatsapp: useChatSaveProgress('whatsapp', running === 'whatsapp'),
+  };
   // The data bundle: everything in one documented folder, for other tools (docs/BUNDLE.md)
   const bundleAction = useSaveAction('export');
   const [bundleRunning, setBundleRunning] = useState(false);
@@ -280,6 +284,7 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
           {kinds.map(kind => {
             const Icon = kind.icon;
             const n = kind.count && overview ? kind.count(overview) : null;
+            const chatSave = kind.id === 'messages' || kind.id === 'whatsapp' ? chatProgress[kind.id] : null;
             return (
               <li key={kind.id} className="hearth-card flex items-center gap-4 p-4">
                 <span className="w-12 h-12 rounded-xl bg-accent-wash flex items-center justify-center flex-shrink-0">
@@ -295,6 +300,8 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
                       failures={photoSaveFailures(photoProgress.failed)}
                       percent={percentDone(photoProgress)}
                     />
+                  ) : chatSave ? (
+                    <SaveProgress className="mt-1.5" text={chatSave.text} percent={chatSave.percent} />
                   ) : (
                     <div className="text-xs text-text-tertiary mt-0.5">{formatChoices(kind.formats)}</div>
                   )}

@@ -94,6 +94,26 @@ _PREWARM_FILES = [
 ]
 
 
+def _speed_up_file_lookups(decrypted_backup) -> None:
+    """Have finding a file in an encrypted backup use its path, not read the whole list of files.
+
+    iphone-backup-decrypt looks each file up with "relativePath = ? AND domain LIKE ?
+    AND flags = 1 ORDER BY domain". Manifest.db indexes both relativePath and flags,
+    and with no statistics to go on SQLite picks flags, which nearly every row
+    matches: 154 ms a file in a backup of 400,000 files, so a save of some 20,000
+    photos spent most of an hour only looking them up. Without that index it picks
+    relativePath (0.01 ms). Nothing that searches by flags alone is slower without
+    it, as that reads nearly every row either way.
+
+    This changes only the decrypted temporary copy of Manifest.db, never the backup.
+    """
+    try:
+        with decrypted_backup.manifest_db_cursor() as cur:
+            cur.execute("DROP INDEX IF EXISTS FilesFlagsIdx")
+    except Exception as e:  # the backup still opens and works, only slower
+        _tlog(f"couldn't speed up file lookups: {type(e).__name__}: {e}")
+
+
 class OpenBackup(LocalBackupAccessor):
     """An opened backup, satisfying ios-backup-core's BackupAccessor protocol.
 
@@ -573,6 +593,7 @@ class BackupManager:
         decrypted_backup = None
         if encrypted:
             decrypted_backup = open_local_backup(backup_dir, password=password)._decrypted_backup
+            _speed_up_file_lookups(decrypted_backup)
 
         # OpenBackup keeps get_manifest_db() and the overridden plain-attribute
         # properties for backward compatibility.

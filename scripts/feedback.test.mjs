@@ -1025,6 +1025,18 @@ test('reports about something else get no known fix', async () => {
   for (const version of ['0.17.1', '0.18.0', '1.0.0']) {
     assert.deepEqual(await knownFixesFor({ ...search, version }), [], version);
   }
+  // 0.11.0 and later give saving far longer, so a save that times out there (OE-132) has another
+  // cause, and "update" is no answer. Nor is it for a report that doesn't say its version.
+  const saveTimedOut = { os: WINDOWS, area: 'whatsapp', errors: [['pdf:export_whatsapp_chats', 'Sidecar call timed out: export_whatsapp_chats']] };
+  for (const version of ['0.9.1', '0.10.0', '0.10.2']) {
+    assert.deepEqual(await knownFixesFor({ ...saveTimedOut, version }), ['saving-timed-out'], version);
+  }
+  for (const version of ['0.11.0', '0.17.0', '0.18.0', '1.0.0']) {
+    assert.deepEqual(await knownFixesFor({ ...saveTimedOut, version }), [], version);
+  }
+  const { matchKnownFixes } = require(path.join(root, 'website/static/api/_lib/feedback.js'));
+  const typed = { kind: 'broken', details: 'Sidecar call timed out: export_photos', diagnostics: '' };
+  assert.deepEqual(matchKnownFixes(typed).map(f => f.id), []);
   // Only 0.15.0's engine was built without pyimg4's metadata. Another version saying pymobiledevice3
   // is missing is a source checkout without it, where pip install is the right answer.
   const notInstalled = REAL_ERRORS.find(c => c.fix === 'backups-fail-in-0-15-0');

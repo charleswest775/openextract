@@ -1241,9 +1241,12 @@ def case_export_whatsapp_chats(ctx):
     text = Path(result["files"][0]).read_text(encoding="utf-8-sig")
     assert f"(from {wb.GROUP_NAME}) Casey: Hi all" in text and f"(in {wb.RILEY_NAME})" in text
     out = ctx.folder("whatsapp-merged-pdf")
+    seen = len(wa.notifications)
     result = wa.rpc("export_whatsapp_chats", chat_ids=chat_ids, conversation_names=names, format="pdf_source",
                     output_dir=str(out), mode="merged")
     assert [Path(f).suffix for f in result["files"]] == [".html"] and result["message_count"] == total
+    # Each starts the app's time limit for the save over (electron/sidecar.ts)
+    assert wa.notifications[seen:] and {n["params"]["kind"] for n in wa.notifications[seen:]} == {"whatsapp"}
 
 
 # ── Everything with one person (People's Save) ───────────────────────────────
@@ -1383,7 +1386,9 @@ def case_plan_pdf_parts(ctx):
     merged = m.rpc("plan_pdf_parts", source="messages", chat_ids=ids, mode="merged")["groups"]
     assert [g["chat_ids"] for g in merged] == [ids] and merged[0]["messages"] == sum(c["message_count"] for c in two)
     wa = ctx.whatsapp
+    seen = len(wa.notifications)
     plan = wa.rpc("plan_pdf_parts", source="whatsapp", chat_ids=[wb.CHAT_RILEY])
+    assert {(n["params"]["kind"], n["params"]["phase"]) for n in wa.notifications[seen:]} == {("whatsapp", "reading")}
     assert plan["groups"][0]["messages"] == wa.plan.scenario.counts[wb.CHAT_RILEY]
     assert_error_dict(m.rpc("plan_pdf_parts", source="notes", chat_ids=[conv["chat_id"]]), "Unknown source")
 
@@ -2673,5 +2678,10 @@ def test_stdout_stayed_pure_json(runtime):
             assert note.get("jsonrpc") == "2.0" and note.get("method") in ("backup.progress", "export.progress"), note
             if note["method"] == "export.progress":
                 params = note["params"]
-                assert set(params) == {"kind", "done", "total", "failed"}, note
+                shape = {"kind", "done", "total", "failed"}
+                if params.get("kind") in ("messages", "whatsapp"):
+                    shape |= {"phase", "chat", "chats", "percent"}
+                    assert params["phase"] in ("reading", "saving") and 0 <= params["percent"] <= 100, note
+                    assert 1 <= params["chat"] <= params["chats"], note
+                assert set(params) == shape, note
                 assert 0 <= params["failed"] <= params["done"] <= params["total"], note

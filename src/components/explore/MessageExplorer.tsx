@@ -10,7 +10,8 @@ import PageHeader from '../shared/PageHeader';
 import EmptyState from '../shared/EmptyState';
 import Highlight from '../shared/Highlight';
 import { ReportProblemButton } from '../shared/Feedback';
-import SaveDialog, { ConversationModeChoice, RECORD_FORMATS, SaveButton } from '../shared/SaveDialog';
+import SaveDialog, { ConversationModeChoice, RECORD_FORMATS, SaveButton, SaveProgress } from '../shared/SaveDialog';
+import { useChatSaveProgress } from '../../hooks/useExportProgress';
 import { useSaveAction } from '../../hooks/useSaveAction';
 import type { BackupIndex } from '../../hooks/useTimeline';
 import type { TimelineEntry, TimelineEntryType } from '../../types/timeline';
@@ -264,6 +265,7 @@ export default function MessageExplorer({ udid, index, query, openChatId, openMe
   // The chat opened from elsewhere (a search result, People): kept in the list until the search changes
   const [keptChat, setKeptChat] = useState<number | null>(openChatId ?? null);
   const { busy: exporting, run } = useSaveAction(source.area);
+  const saving = useChatSaveProgress(source.area === 'whatsapp' ? 'whatsapp' : 'messages', exporting);
 
   // Offsets count from the newest message: [newest, oldest) is what's loaded
   const offsetRef = useRef(0);
@@ -572,6 +574,9 @@ export default function MessageExplorer({ udid, index, query, openChatId, openMe
           )
         }
       />
+      {saving && (
+        <SaveProgress className="px-6 py-2.5 border-b border-rule" text={saving.text} percent={saving.percent} />
+      )}
       <div className="flex-1 flex min-h-0">
       {/* Conversation list */}
       <div className="w-[300px] flex-shrink-0 border-r border-rule flex flex-col">

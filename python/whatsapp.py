@@ -33,6 +33,7 @@ from typing import Optional
 import attachment_files
 import pdf_parts
 from app_copies import AppCopies, temp_prefix
+from export_progress import ChatSaveProgress
 from messages import (
     EXPORT_FOOTER_HTML,
     MessageExtractor,
@@ -356,28 +357,29 @@ class WhatsAppExtractor:
     def export_conversation(self, backup, chat_id, contacts: dict, fmt: str, output_dir: str,
                             date_from: Optional[str] = None, date_to: Optional[str] = None,
                             query: Optional[str] = None, display_name: Optional[str] = None,
-                            part: Optional[dict] = None) -> dict:
+                            part: Optional[dict] = None, progress: Optional[ChatSaveProgress] = None) -> dict:
         """Save one chat: ``{file, message_count}``, or ``{error}`` (with ``empty_reason`` when WhatsApp isn't readable).
         ``part`` is one file of a PDF save split by year (pdf_parts.py)."""
         return self._export.export_conversation(backup, chat_id, contacts, fmt, output_dir,
                                                 date_from=date_from, date_to=date_to, query=query,
-                                                display_name=display_name, part=part)
+                                                display_name=display_name, part=part, progress=progress)
 
     def export_conversations(self, backup, chat_ids: list, conversation_names: dict, contacts: dict,
                              fmt: str, output_dir: str, mode: str = "separate",
                              date_from: Optional[str] = None, date_to: Optional[str] = None,
-                             query: Optional[str] = None, part: Optional[dict] = None) -> dict:
+                             query: Optional[str] = None, part: Optional[dict] = None,
+                             progress: Optional[ChatSaveProgress] = None) -> dict:
         """Save several chats, one file each ("separate") or all in one ("merged"): ``{files, message_count}``."""
         return self._export.export_conversations(backup, chat_ids, conversation_names, contacts, fmt, output_dir,
                                                  mode=mode, date_from=date_from, date_to=date_to, query=query,
-                                                 part=part)
+                                                 part=part, progress=progress)
 
     def plan_pdf_parts(self, backup, chat_ids: list, contacts: dict, merged: bool = False,
                        date_from: Optional[str] = None, date_to: Optional[str] = None,
-                       query: Optional[str] = None) -> dict:
+                       query: Optional[str] = None, progress: Optional[ChatSaveProgress] = None) -> dict:
         """How a PDF save of these chats should be split: see MessageExtractor.plan_pdf_parts."""
         return self._export.plan_pdf_parts(backup, chat_ids, contacts, merged=merged,
-                                           date_from=date_from, date_to=date_to, query=query)
+                                           date_from=date_from, date_to=date_to, query=query, progress=progress)
 
 
 def _app_in_backup(backup) -> bool:
@@ -582,11 +584,12 @@ class _WhatsAppExport(MessageExtractor):
         return [(filename, SHARED_DOMAIN)] if filename else []
 
     def _collect_messages_for_chat(self, backup, chat_id, contacts, date_from=None, date_to=None, query=None,
-                                   part=None):
+                                   part=None, progress=None):
         """Every message in a chat, in arrival order. Raises _StoreProblem when the store can't be read.
         ``part`` keeps one file's months of a PDF save split by year (pdf_parts.py)."""
         if part and not date_from and not date_to:
             date_from, date_to = pdf_parts.query_window(part, self.local_tz)
+        progress = progress or ChatSaveProgress()
         pages, offset = [], 0
         while True:
             batch = self.get_messages(backup, chat_id, contacts, offset, _EXPORT_PAGE,
@@ -597,6 +600,7 @@ class _WhatsAppExport(MessageExtractor):
             messages = batch.get("messages") or []
             pages.append(messages)
             next_offset = batch.get("next_offset", offset + len(messages))
+            progress.read(next_offset, batch.get("total", 0))
             if not messages or next_offset >= batch.get("total", 0) or next_offset <= offset:
                 break
             offset = next_offset
@@ -633,10 +637,11 @@ class _WhatsAppExport(MessageExtractor):
             n += 1
         return n
 
-    def plan_pdf_parts(self, backup, chat_ids, contacts, merged=False, date_from=None, date_to=None, query=None):
+    def plan_pdf_parts(self, backup, chat_ids, contacts, merged=False, date_from=None, date_to=None, query=None,
+                       progress=None):
         try:
             return super().plan_pdf_parts(backup, chat_ids, contacts, merged=merged,
-                                          date_from=date_from, date_to=date_to, query=query)
+                                          date_from=date_from, date_to=date_to, query=query, progress=progress)
         except _StoreProblem as e:
             return e.result
 
@@ -645,13 +650,13 @@ class _WhatsAppExport(MessageExtractor):
     _FORMATS = ("txt", "csv", "html", "pdf_source")
 
     def export_conversation(self, backup, chat_id, contacts, fmt, output_dir,
-                            date_from=None, date_to=None, query=None, display_name=None, part=None):
+                            date_from=None, date_to=None, query=None, display_name=None, part=None, progress=None):
         if fmt not in self._FORMATS:
             return {"error": f"Unsupported format: {fmt}"}
         display_name = _without_lone_surrogates(display_name)
         try:
             messages = self._collect_messages_for_chat(backup, chat_id, contacts, date_from, date_to, query,
-                                                       part=part)
+                                                       part=part, progress=progress)
         except _StoreProblem as e:
             return e.result
         os.makedirs(output_dir, exist_ok=True)
@@ -663,9 +668,9 @@ class _WhatsAppExport(MessageExtractor):
             return self._write_csv(messages, output_dir, base)
         if fmt == "html":
             return self._write_html(messages, output_dir, base, display_name,
-                                    _WhatsAppHtmlMedia(self, backup))
+                                    _WhatsAppHtmlMedia(self, backup), progress=progress)
         return self._write_html(messages, output_dir, base, display_name,
-                                _WhatsAppPrintMedia(self, backup, output_dir))
+                                _WhatsAppPrintMedia(self, backup, output_dir), progress=progress)
 
     def _first_and_last_dated(self, messages) -> list:
         """The earliest- and latest-dated messages, for the days in a file name.
@@ -682,19 +687,22 @@ class _WhatsAppExport(MessageExtractor):
     # ── several chats ────────────────────────────────────────────────────────
 
     def export_conversations(self, backup, chat_ids, conversation_names, contacts, fmt, output_dir,
-                             mode="separate", date_from=None, date_to=None, query=None, part=None):
+                             mode="separate", date_from=None, date_to=None, query=None, part=None, progress=None):
         if fmt not in self._FORMATS:
             return {"error": f"Unsupported format: {fmt}"}
+        progress = progress or ChatSaveProgress()
         names = {k: _without_lone_surrogates(v) for k, v in (conversation_names or {}).items()}
         if mode == "merged":
             return self._export_merged(backup, chat_ids, names, contacts, fmt, output_dir,
-                                       date_from=date_from, date_to=date_to, query=query, part=part)
+                                       date_from=date_from, date_to=date_to, query=query, part=part,
+                                       progress=progress)
         files, total, failed_files = [], 0, 0
-        for chat_id in chat_ids:
+        for index, chat_id in enumerate(chat_ids):
+            progress.start_chat(index)
             try:
                 result = self.export_conversation(backup, chat_id, contacts, fmt, output_dir,
                                                   date_from=date_from, date_to=date_to, query=query,
-                                                  display_name=names.get(chat_id), part=part)
+                                                  display_name=names.get(chat_id), part=part, progress=progress)
             except SaveStopped as e:
                 if fmt != "html":
                     raise
@@ -710,12 +718,14 @@ class _WhatsAppExport(MessageExtractor):
                 **({"failed_files": failed_files} if fmt == "html" else {})}
 
     def _export_merged(self, backup, chat_ids, conversation_names, contacts, fmt, output_dir,
-                       date_from=None, date_to=None, query=None, part=None):
+                       date_from=None, date_to=None, query=None, part=None, progress=None):
+        progress = progress or ChatSaveProgress()
         chats = []
         try:
-            for chat_id in chat_ids:
+            for index, chat_id in enumerate(chat_ids):
+                progress.start_chat(index)
                 msgs = self._collect_messages_for_chat(backup, chat_id, contacts, date_from, date_to, query,
-                                                       part=part)
+                                                       part=part, progress=progress)
                 name = conversation_names.get(chat_id) or f"WhatsApp chat {chat_id}"
                 chats.append([{**m, "_conversation": name} for m in msgs])
         except _StoreProblem as e:
@@ -723,6 +733,7 @@ class _WhatsAppExport(MessageExtractor):
         # Interleave the chats by date, but never reorder one chat: a merge
         # keeps each chat's arrival order even where its dates disagree.
         messages = list(heapq.merge(*chats, key=lambda m: m.get("date") or ""))
+        progress.one_file()
         os.makedirs(output_dir, exist_ok=True)
         # One part of a PDF save split by year: "all_whatsapp_chats 2019-2021"
         label = pdf_parts.file_label(part)
@@ -732,10 +743,11 @@ class _WhatsAppExport(MessageExtractor):
         elif fmt == "csv":
             result = self._write_csv(messages, output_dir, base, merged=True)
         elif fmt == "html":
-            result = self._write_html(messages, output_dir, base, "", _WhatsAppHtmlMedia(self, backup), merged=True)
+            result = self._write_html(messages, output_dir, base, "",
+                                      _WhatsAppHtmlMedia(self, backup), merged=True, progress=progress)
         else:
             result = self._write_html(messages, output_dir, base, "",
-                                      _WhatsAppPrintMedia(self, backup, output_dir), merged=True)
+                                      _WhatsAppPrintMedia(self, backup, output_dir), merged=True, progress=progress)
         return {"files": [result.pop("file")], **result}
 
     # ── text of one message ──────────────────────────────────────────────────
@@ -881,7 +893,8 @@ class _WhatsAppExport(MessageExtractor):
             parts.append(f'<div class="reactions">{esc(reactions)}</div>')
         return "".join(p for p in parts if p)
 
-    def _write_html(self, messages, output_dir, base, display_name, media, merged=False):
+    def _write_html(self, messages, output_dir, base, display_name, media, merged=False, progress=None):
+        progress = progress or ChatSaveProgress()
         filepath = os.path.join(output_dir, self._unused_name(output_dir, base, ".html"))
         media.begin(filepath)
         esc = self._html_escape
@@ -899,7 +912,7 @@ class _WhatsAppExport(MessageExtractor):
 """)
             if heading:
                 f.write(f'<h1 class="conv-title">{heading}</h1>\n')
-            for msg, day, when in self._days_and_times(messages):
+            for msg, day, when in self._days_and_times(progress.saving(messages)):
                 if day:
                     f.write(f'<div class="day">{esc(day)}</div>\n')
                 meta = esc(when)
