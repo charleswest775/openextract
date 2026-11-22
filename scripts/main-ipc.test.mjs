@@ -1280,11 +1280,17 @@ describe('backup:trashOlder', () => {
   test("the app steps out of the folder first, as Windows won't move the one it's working in", async () => {
     const { m, older, run } = await setUp();
     const before = process.cwd();
+    let workingIn;
+    // Looked at as the move is asked for: afterwards a Mac's working folder has followed it.
+    m.env.hooks.trashItem = async p => {
+      workingIn = process.cwd();
+      fs.renameSync(p, `${p}.trashed`);
+    };
     try {
       process.chdir(older);
       assert.deepEqual(await run(), { status: 'moved' });
-      const inside = path.relative(older, process.cwd());
-      assert.ok(inside.startsWith('..') || path.isAbsolute(inside), `still working in it: ${process.cwd()}`);
+      const inside = path.relative(fs.realpathSync(path.dirname(older)), workingIn);
+      assert.ok(!inside.startsWith(path.basename(older)), `still working in it: ${workingIn}`);
       assert.deepEqual(m.env.callsTo('shell.trashItem'), [[older]]);
     } finally {
       process.chdir(before);

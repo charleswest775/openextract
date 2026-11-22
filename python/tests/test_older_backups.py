@@ -510,6 +510,26 @@ def test_back_up_remove_the_older_and_back_up_again(manager, out, old):
     assert snapshot(second) == before
 
 
+@pytest.mark.fake_iphone
+@pytest.mark.parametrize("readable", [True, False])
+def test_an_unencrypted_ones_messages_have_to_be_readable(manager, out, old, readable):
+    messages = messages_db(out.parent)
+    if not readable:
+        messages = messages[:4096]  # a database's first page and nothing after it
+    ops = plans.synthetic_backup(file_count=20, large_files=())
+    for op in ops:
+        for file in op["files"] if op["op"] == "UploadFiles" else []:
+            if file["path"].endswith("3d0d7e5fb2ce288813306e4d4636395e047a3d28"):
+                file.update(data=messages, size=len(messages))
+    run = run_backup(FakeIPhone(ops), out)
+    assert run.error is None, run.error
+    kept = opened(manager, Path(run.result["backup_path"]), password=None)
+    found = ask(manager, kept, old)
+    assert found["allowed"] is readable
+    if not readable:
+        assert found["reason"] == older_backups.KEPT_UNREADABLE
+
+
 def test_the_newest_dated_one_counts_as_the_one_already_there(tmp_path, out):
     for name in (f"{UDID}-20240101-000000", f"{UDID}-20240615-120000"):
         (out / name).mkdir(parents=True)
