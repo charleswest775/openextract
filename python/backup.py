@@ -31,6 +31,7 @@ from ios_backup_core.backup import (
     open_local_backup,
 )
 
+import backup_replace
 import backup_status
 
 # Re-export for any code paths still importing EncryptedBackup directly via
@@ -241,6 +242,9 @@ class BackupManager:
 
     def list_backups(self, custom_path: Optional[str] = None) -> dict:
         """Discover all iPhone backups on the system."""
+        if custom_path and not os.path.isdir(custom_path):
+            # The backup folder itself, if a backup stopped while replacing it.
+            backup_replace.recover(os.path.dirname(os.path.abspath(custom_path)), log=_tlog)
         if custom_path and os.path.isdir(custom_path):
             self._ensure_readable(custom_path)
         backups = []
@@ -259,6 +263,7 @@ class BackupManager:
 
         searched = []
         for search_dir in search_dirs:
+            backup_replace.recover(search_dir, log=_tlog)
             try:
                 entries = os.listdir(search_dir)
             except (FileNotFoundError, NotADirectoryError):
@@ -274,6 +279,10 @@ class BackupManager:
 
                 info = self._read_backup_info(backup_dir)
                 if info:
+                    backups.append(info)
+            for backup_dir in backup_replace.waiting(search_dir):
+                info = self._read_backup_info(backup_dir)
+                if info and info["openable"]:  # a try with nothing to open isn't a backup to offer
                     backups.append(info)
 
         # Newest first. last_backup is an ISO date in UTC, or "" when unknown.
@@ -416,6 +425,9 @@ class BackupManager:
         # creating a backup), trust it unconditionally — do NOT reject on a
         # UDID mismatch because pymobiledevice3 may format UDIDs differently
         # from what iTunes writes into Info.plist.
+        if backup_dir and not os.path.isdir(backup_dir):
+            # A backup that stopped while replacing it left it one rename away.
+            backup_replace.recover(os.path.dirname(os.path.abspath(backup_dir)), log=_tlog)
         if backup_dir and os.path.isdir(backup_dir):
             self._ensure_readable(backup_dir)
             _tlog("open_backup fast-path: dir exists, reading backup info")
@@ -634,3 +646,12 @@ class BackupManager:
         backup = self._open_backups.pop(self._norm_udid(udid), None)
         if backup is not None:
             backup.close()
+
+    def close_backups_in(self, backup_dir: str) -> None:
+        """Close the open backups that live in backup_dir, which is about to be replaced: their
+        keys and handles would be the old backup's, under the new one's path."""
+        folder = os.path.normcase(os.path.realpath(backup_dir))
+        for key, backup in list(self._open_backups.items()):
+            if os.path.normcase(os.path.realpath(backup.backup_dir)) == folder:
+                del self._open_backups[key]
+                backup.close()

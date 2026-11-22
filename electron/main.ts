@@ -369,6 +369,9 @@ const LOST_CONNECTION = /^(DEVICE_DISCONNECTED|PASSCODE_REQUIRED):|connection to
 const COMPUTER_SLEPT =
   'DEVICE_DISCONNECTED: Your computer went to sleep during the backup, which disconnects the iPhone. ' +
   'Keep the computer plugged in with its lid open until the backup finishes, then click Retry.';
+// The engine adds this when the folder had an earlier backup, which a failed try doesn't touch
+// (EARLIER_UNCHANGED in python/device_backup.py). It's as true when the computer slept.
+const EARLIER_UNCHANGED = "Your earlier backup in that folder hasn't been changed.";
 // How long the app waits for a search for iPhones (backup.list_devices; see the sidecar:call
 // handler). python/tests/test_fake_iphone_search.py checks the engine's own limits fit inside it.
 const LIST_DEVICES_TIMEOUT_MS = 90_000;
@@ -453,7 +456,7 @@ app.whenReady().then(async () => {
       let message = String(error?.message ?? error);
       if (awake?.slept() && LOST_CONNECTION.test(message)) {
         appendLog(logPath, `[Electron] backup.start failed after the computer slept: ${message.split('\n')[0]}`);
-        message = COMPUTER_SLEPT;
+        message = message.includes(EARLIER_UNCHANGED) ? `${COMPUTER_SLEPT} ${EARLIER_UNCHANGED}` : COMPUTER_SLEPT;
       }
       feedback.recordCall(method, params, { ok: false, error: message });
       if (method === 'open_backup') {

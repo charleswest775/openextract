@@ -148,6 +148,10 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
   const [progress, setProgress] = useState<BackupProgress | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
   const [backupPath, setBackupPath] = useState<string | null>(null);
+  // Set when the backup that was already in the folder was kept as well (python/backup_replace.py).
+  const [earlierBackup, setEarlierBackup] = useState<string | null>(null);
+
+  const [existingPasswordUsed, setExistingPasswordUsed] = useState(false);
 
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
@@ -231,6 +235,7 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
     setProgress({ phase: 'negotiating', percent: 0, files_done: 0, files_total: 0 });
     setBackupError(null);
     setBackupPath(null);
+    setEarlierBackup(null);
 
     if (window.openextract?.onNotification) {
       const cleanup = window.openextract.onNotification((notification: any) => {
@@ -242,7 +247,7 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
     }
 
     try {
-      const result = await sidecarCall<{ success: boolean; backup_path: string; existing_password?: boolean }>(
+      const result = await sidecarCall<{ success: boolean; backup_path: string; existing_password?: boolean; earlier_backup?: string }>(
         'backup.start',
         {
           udid: selectedDevice.udid,
@@ -252,6 +257,7 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
         },
       );
       setBackupPath(result.backup_path);
+      setEarlierBackup(result.earlier_backup ?? null);
       setStatus('success');
 
       // Add session
@@ -268,7 +274,12 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
         unfinished: false,
       });
 
-      await onBackupComplete?.(selectedDevice.udid, result.backup_path, !!result.existing_password);
+      setExistingPasswordUsed(!!result.existing_password);
+      // Opening leaves this screen. With an earlier backup kept as well, the user needs to read
+      // where it is first, and opens the new one with the button.
+      if (!result.earlier_backup) {
+        await onBackupComplete?.(selectedDevice.udid, result.backup_path, !!result.existing_password);
+      }
     } catch (err: any) {
       setBackupError(err.message || 'Backup failed');
       setStatus('error');
@@ -488,6 +499,11 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                 <div>
                   <p className="text-sm font-medium text-gray-900">Backup complete!</p>
                   <p className="text-xs text-gray-500 mt-0.5 break-all">{backupPath}</p>
+                  {earlierBackup && (
+                    <p className="text-xs text-gray-500 mt-1.5 break-all" data-earlier-backup>
+                      Your earlier backup was kept too, in {earlierBackup}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -530,7 +546,15 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                 Backing up...
               </button>
             )}
-            {(status === 'success' || status === 'error') && (
+            {status === 'success' && earlierBackup && backupPath && selectedDevice && (
+              <button
+                onClick={() => onBackupComplete?.(selectedDevice.udid, backupPath, existingPasswordUsed)}
+                className="px-5 py-2.5 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors"
+              >
+                Open the new backup
+              </button>
+            )}
+            {(status === 'error' || (status === 'success' && !earlierBackup)) && (
               <button onClick={handleReset} className="px-5 py-2.5 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors">
                 {status === 'error' ? 'Retry' : 'Back Up Again'}
               </button>

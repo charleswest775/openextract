@@ -61,7 +61,8 @@ class FakeIPhone:
     pair_device calls, as the user would. Every request is kept in `phone.pair_requests`.
 
     Hooks: phone.before("MoveItems", fn) calls fn(op) in the iPhone's thread just before the
-    first MoveItems is sent, e.g. to lock a folder at the moment it matters.
+    first MoveItems is sent, e.g. to lock a folder at the moment it matters. "ChangePassword"
+    is when the computer asks it to turn encryption on.
     """
 
     def __init__(

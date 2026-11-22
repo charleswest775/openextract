@@ -454,8 +454,8 @@ def _a_week_later():
 
 def test_a_second_backup_into_the_same_folder(out):
     # Backing up the same iPhone again into the same folder (or Retry after a backup that got as
-    # far as moving files). The iPhone moves each file onto the last backup's copy, which is
-    # replaced. (Not traced from a real iPhone yet: it might move differently the second time.)
+    # far as moving files). It goes beside the last backup and then takes its place
+    # (backup_replace.py), so to the iPhone it's a first backup, the kind that has been traced.
     first = run_backup(FakeIPhone(), out)
     assert first.error is None
     run = run_backup(FakeIPhone(_a_week_later()), out)
@@ -464,12 +464,10 @@ def test_a_second_backup_into_the_same_folder(out):
     assert _unreadable_files(run) == []
 
 
-@pytest.mark.xfail(sys.platform == "win32", strict=True, reason=(
-    "pymobiledevice3 DeviceLink.move_items() uses shutil.move(). On Windows, os.rename() onto an "
-    "existing file fails and shutil.move() copies the file, then deletes the original, so a second "
-    "backup into the same folder copies every file again at ~99%. libimobiledevice deletes the "
-    "destination, then renames (draft upstream issue in the PR that added this test)."))
 def test_a_second_backup_moves_files_without_copying_them(out, monkeypatch):
+    # DeviceLink.move_items() uses shutil.move(), which on Windows copies rather than renames onto
+    # an existing file. A second backup used to copy every file again at ~99% there. In a folder
+    # of its own there's nothing to land on (backup_replace.py).
     run_backup(FakeIPhone(), out)
     failed_renames = []
     rename = os.rename
@@ -584,13 +582,10 @@ def test_unencrypted_backup_of_an_iphone_with_a_backup_password(out):
     assert run.result["existing_password"] is True
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "pymobiledevice3 Mobilebackup2Service.backup(full=True) deletes the folder's Manifest.plist "
-    "and rewrites Status.plist and Info.plist before the iPhone sends anything. A try that fails "
-    "leaves the backup already in that folder without its Manifest.plist, which holds an encrypted "
-    "backup's keys, so that backup can't be opened again (draft upstream issue in the PR that "
-    "added this test)."))
 def test_a_failed_try_keeps_the_last_backups_manifest(out):
+    # pymobiledevice3 Mobilebackup2Service.backup(full=True) deletes the folder's Manifest.plist
+    # and rewrites Status.plist and Info.plist before the iPhone sends anything. So it's never
+    # given a folder with a backup in it (backup_replace.py; test_backup_replace.py has the rest).
     first = run_backup(FakeIPhone(), out)
     assert first.error is None
     manifest = (first.backup_dir / "Manifest.plist").read_bytes()

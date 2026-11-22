@@ -1071,6 +1071,19 @@ describe('backups keep the computer awake', () => {
     assert.ok(log.includes(`[Electron] backup.start failed after the computer slept: ${engineSaid}`));
   });
 
+  test('a sleep still says the earlier backup is unchanged', async () => {
+    const m = await loadMain();
+    const b = pendingBackup(m);
+    await waitFor(() => b.finish(), { what: 'the backup to reach the engine' });
+    m.env.powerMonitor.emit('suspend');
+    const unchanged = "Your earlier backup in that folder hasn't been changed.";
+    b.finish().reject(new Error(`DEVICE_DISCONNECTED: Your iPhone was disconnected before the backup finished. ${unchanged}`));
+    assert.equal((await b.result).error, `${SLEPT} ${unchanged}`);
+    // The engine's words, which main.ts looks for.
+    const engine = fs.readFileSync(new URL('../python/device_backup.py', import.meta.url), 'utf-8');
+    assert.ok(engine.includes(`EARLIER_UNCHANGED = "${unchanged}"`));
+  });
+
   test('a sleep doesn\'t replace an error it didn\'t cause, and only counts while the backup runs', async () => {
     const m = await loadMain();
     m.env.powerMonitor.emit('suspend'); // before any backup: nobody is listening
