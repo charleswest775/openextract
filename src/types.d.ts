@@ -23,6 +23,8 @@ declare global {
       saveFolder: () => Promise<string | null>;
       saveFile: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<string | null>;
       writeFile: (filePath: string, content: string) => Promise<void>;
+      /** Never replaces a file: resolves to the path written, "<baseName> (2).<extension>" if the name was taken. */
+      writeNewFile: (folder: string, baseName: string, extension: string, content: string) => Promise<string>;
       openExternal: (url: string) => void;
       openPath: (filePath: string) => Promise<string>;
       /** Reveal a file or folder in Finder / Explorer. */

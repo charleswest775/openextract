@@ -27,7 +27,7 @@ const EXPECTED_CHANNELS = [
   'add-session', 'app:get-version', 'app:relaunch', 'clipboard:writeText', 'dialog:saveFile',
   'dialog:saveFolder', 'dialog:selectFolder', 'export:pdf', 'export:pdf-html', 'feedback:export-check-opt-out',
   'feedback:fixed-reports', 'feedback:get-diagnostics', 'feedback:mark-announced', 'feedback:saved-email',
-  'feedback:send', 'fs:writeFile', 'get-app-state', 'get-recent-sessions', 'increment-export-count',
+  'feedback:send', 'fs:writeFile', 'fs:writeNewFile', 'get-app-state', 'get-recent-sessions', 'increment-export-count',
   'remove-session', 'set-first-launch-completed', 'shell:openExternal', 'shell:openPath',
   'shell:showItemInFolder', 'sidecar:call', 'support:paid', 'support:snooze', 'support:status', 'text-size:get', 'text-size:set', 'updates:check',
   'updates:download', 'updates:get-state', 'updates:install', 'updates:set-auto-check',
@@ -534,7 +534,8 @@ describe('small handlers', () => {
     assert.deepEqual(opens[0][1].properties, ['openDirectory']);
     assert.deepEqual(opens[1][1].properties, ['openDirectory', 'createDirectory']);
     const saves = m.env.callsTo('dialog.showSaveDialog');
-    assert.deepEqual(saves[1][1], { title: 'Save contacts', defaultPath: 'contacts.vcf', filters });
+    // Without showOverwriteConfirmation, Linux replaces a file of that name without asking
+    assert.deepEqual(saves[1][1], { title: 'Save contacts', defaultPath: 'contacts.vcf', filters, properties: ['showOverwriteConfirmation'] });
     assert.equal(saves[2][1].title, 'Save File');
   });
 
@@ -546,6 +547,30 @@ describe('small handlers', () => {
     assert.deepEqual(fs.readFileSync(file), Buffer.from(content, 'utf-8'));
     await m.invoke('fs:writeFile', file, 'shorter');
     assert.equal(fs.readFileSync(file, 'utf-8'), 'shorter');
+  });
+
+  test('fs:writeNewFile never replaces a file, and says which one it wrote', async () => {
+    const m = await loadMain();
+    const dir = freshDir('main-write-new');
+    const content = '<p>Zoë 🙂 — café</p>\r\nline two';
+    const first = await m.invoke('fs:writeNewFile', dir, 'timeline-export', 'html', content);
+    assert.equal(first, path.join(dir, 'timeline-export.html'));
+    const second = await m.invoke('fs:writeNewFile', dir, 'timeline-export', 'html', 'another selection');
+    assert.equal(second, path.join(dir, 'timeline-export (2).html'));
+    assert.deepEqual(fs.readFileSync(first), Buffer.from(content, 'utf-8'));
+    assert.equal(fs.readFileSync(second, 'utf-8'), 'another selection');
+    // A folder with that name is in the way too
+    fs.mkdirSync(path.join(dir, 'timeline-export (3).html'));
+    assert.equal(await m.invoke('fs:writeNewFile', dir, 'timeline-export', 'html', 'third'), path.join(dir, 'timeline-export (4).html'));
+  });
+
+  test('fs:writeNewFile writes only a plainly named file, directly in a folder that exists', async () => {
+    const m = await loadMain();
+    const dir = freshDir('main-write-name');
+    assert.equal(path.dirname(await m.invoke('fs:writeNewFile', dir, '../../escape', 'csv', 'x')), dir);
+    await assert.rejects(m.invoke('fs:writeNewFile', dir, 'timeline', 'csv/../../x', 'x'));
+    await assert.rejects(m.invoke('fs:writeNewFile', '', 'timeline', 'csv', 'x'));
+    await assert.rejects(m.invoke('fs:writeNewFile', path.join(dir, 'gone'), 'timeline', 'csv', 'x'));
   });
 });
 
@@ -656,8 +681,9 @@ describe('saving inside the program folder', () => {
 
     const saves = m.env.callsTo('dialog.showSaveDialog');
     assert.equal(saves.length, 2);
-    assert.deepEqual(saves[0][1], { title: 'Save contacts', defaultPath: 'contacts.vcf', filters });
-    assert.deepEqual(saves[1][1], { title: 'Save contacts', defaultPath: path.join(documents, 'Mom.vcf'), filters });
+    const properties = ['showOverwriteConfirmation'];
+    assert.deepEqual(saves[0][1], { title: 'Save contacts', defaultPath: 'contacts.vcf', filters, properties });
+    assert.deepEqual(saves[1][1], { title: 'Save contacts', defaultPath: path.join(documents, 'Mom.vcf'), filters, properties });
     assert.equal(m.env.callsTo('dialog.showMessageBox').length, 1);
   });
 

@@ -5,6 +5,7 @@ const fs = require('fs');
 import { PythonSidecar } from './sidecar';
 import { initUpdater } from './updater';
 import { exportHtmlToPdf, exportMessagesPdf, PdfExportMethod, removeStaleStagingDirs } from './pdfExport';
+import { safeBaseName, writeNewFile } from './newFile';
 import { FeedbackRecorder } from './feedback';
 import { FeedbackReports } from './feedbackReports';
 import { installFolderFor, installFolderWarning, isInsideFolder, resolveReal } from './installFolder';
@@ -632,6 +633,8 @@ app.whenReady().then(async () => {
           title: options.title || 'Save File',
           defaultPath: retryIn ?? options.defaultPath,
           filters: options.filters,
+          // macOS and Windows always ask before replacing a file; Linux only with this
+          properties: ['showOverwriteConfirmation'],
         });
         return result.canceled ? null : result.filePath;
       },
@@ -643,8 +646,15 @@ app.whenReady().then(async () => {
     );
   });
 
+  // fs:writeFile replaces, so it's only for a file chosen in the Save dialog, which asks first.
+  // A save into a chosen folder uses fs:writeNewFile, and shows the path that returns.
   ipcMain.handle('fs:writeFile', async (_event: any, filePath: string, content: string) => {
     fs.writeFileSync(filePath, content, 'utf-8');
+  });
+  ipcMain.handle('fs:writeNewFile', async (_event: any, folder: string, baseName: string, extension: string, content: string) => {
+    if (typeof folder !== 'string' || !folder) throw new Error('Choose a folder to save in.');
+    if (!/^[a-z0-9]{1,8}$/i.test(extension)) throw new Error(`Can't save a .${extension} file.`);
+    return writeNewFile(path.join(folder, `${safeBaseName(baseName)}.${extension}`), content);
   });
 
   // ── App state persistence ───────────────────────────────────────────────

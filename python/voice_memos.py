@@ -197,20 +197,21 @@ def _copy_new(src: str, dest: str) -> None:
     Only the bytes: not the permissions, which on a backup from an exFAT or
     NTFS drive mark every file executable (app_copies.py).
     """
-    try:
-        with open(src, "rb") as fin, open(dest, "xb") as fout:
-            while True:
-                chunk = fin.read(_COPY_CHUNK)
-                if not chunk:
-                    break
-                fout.write(chunk)
-    except BaseException:
-        if os.path.exists(dest):
+    with open(src, "rb") as fin:
+        fout = open(dest, "xb")  # outside the try: a file that was already there isn't ours to remove
+        try:
+            with fout:
+                while True:
+                    chunk = fin.read(_COPY_CHUNK)
+                    if not chunk:
+                        break
+                    fout.write(chunk)
+        except BaseException:
             try:
                 os.remove(dest)
             except OSError:
                 pass
-        raise
+            raise
 
 
 def _problem(result: dict) -> dict:

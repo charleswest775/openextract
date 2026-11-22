@@ -737,6 +737,14 @@ def case_export_conversations(ctx):
     assert result["message_count"] == total and len(result["files"]) == 1
     text = Path(result["files"][0]).read_text(encoding="utf-8-sig")
     assert all(name in text for name in names.values())
+    # One selection, then another, as one file into the same folder: both saves are kept
+    for fmt in ("txt", "csv", "html"):
+        out = ctx.folder(f"merged-twice-{fmt}")
+        first, second = [m.rpc("export_conversations", chat_ids=[c["chat_id"]],
+                               conversation_names={str(c["chat_id"]): c["display_name"]},
+                               format=fmt, output_dir=str(out), mode="merged")["files"][0] for c in two]
+        assert Path(first).name == f"all_conversations.{fmt}" and Path(second).name == f"all_conversations (2).{fmt}"
+        assert two[0]["display_name"] in Path(first).read_text(encoding="utf-8-sig")
 
 
 @contract("export_photos")

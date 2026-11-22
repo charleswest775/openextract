@@ -27,7 +27,6 @@ import hashlib
 import io
 import json
 import os
-import shutil
 import sqlite3
 import sys
 import uuid
@@ -38,6 +37,7 @@ import backup_files
 from app_copies import AppCopies, NotEnoughSpace, is_openable, join_name, split_name
 from app_copies import ProgressCallback as CopyProgress
 from export_progress import ExportProgress, ProgressCallback
+from save_names import SaveNames, copy_new, holds, same_file, write_new
 from ios_backup_core.db import connect_readonly
 from ios_backup_core.extractors.photos import (
     PhotoExtractor as _CorePhotoExtractor,
@@ -804,7 +804,9 @@ class PhotoExtractor:
 
         on_progress(done, total, failed) is told how far the save has got, a few
         times a second at most (see export_progress.py).
-        Every file it writes gets the photo's date taken as its modified time.
+        Every file it writes gets the photo's date taken as its modified time;
+        one that was already there is left entirely as it was.
+        No photo or .json is written over another file: see save_names.py.
         """
         if options is None:
             options = {}
@@ -832,6 +834,7 @@ class PhotoExtractor:
 
         exported = 0
         errors = 0
+        names = SaveNames()
         progress = ExportProgress(on_progress, sum(
             1 for p in all_photos
             if (include_videos or p.get("kind") != "video") and (include_live or p.get("kind") != "live_photo")
@@ -865,25 +868,33 @@ class PhotoExtractor:
                 taken = _date_taken(photo)
 
                 if fmt == "jpeg" and ext.lower() in (".heic", ".heif") and HAS_PIL:
-                    dest_filename = base + ".jpg"
-                    dest_path = os.path.join(dest_dir, dest_filename)
-                    img = Image.open(source)
-                    exif = _jpeg_exif(img, taken)
-                    if img.mode in ("RGBA", "P", "LA"):
-                        img = img.convert("RGB")
-                    img.save(dest_path, format="JPEG", quality=jpeg_quality, exif=exif)
+                    with Image.open(source) as img:
+                        exif = _jpeg_exif(img, taken)
+                        rgb = img.convert("RGB") if img.mode in ("RGBA", "P", "LA") else img
+                        buf = io.BytesIO()
+                        rgb.save(buf, format="JPEG", quality=jpeg_quality, exif=exif)
+                    jpeg = buf.getvalue()
+                    dest_path, there = names.place(dest_dir, base + ".jpg", lambda p: holds(p, jpeg))
+                    if not there:
+                        write_new(dest_path, jpeg)
                 else:
-                    dest_path = os.path.join(dest_dir, filename)
-                    shutil.copy2(source, dest_path)
-                _set_file_date(dest_path, taken)
+                    dest_path, there = names.place(dest_dir, filename, lambda p: same_file(p, source))
+                    if not there:
+                        copy_new(source, dest_path)
+                if not there:
+                    _set_file_date(dest_path, taken)
 
                 exported += 1
 
                 if include_sidecar:
                     meta = {k: v for k, v in photo.items() if k != "file_hash"}
-                    with open(dest_path + ".json", "w", encoding="utf-8") as f:
-                        json.dump(meta, f, indent=2, default=str)
-                    _set_file_date(dest_path + ".json", taken)
+                    # os.linesep, as earlier saves wrote it, so saving again finds those the same
+                    sidecar = json.dumps(meta, indent=2, default=str).replace("\n", os.linesep).encode("utf-8")
+                    sidecar_path, there = names.place(
+                        dest_dir, os.path.basename(dest_path) + ".json", lambda p: holds(p, sidecar))
+                    if not there:
+                        write_new(sidecar_path, sidecar)
+                        _set_file_date(sidecar_path, taken)
 
             except Exception:
                 errors += 1

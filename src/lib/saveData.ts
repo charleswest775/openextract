@@ -187,7 +187,8 @@ export const MAX_PDF_EVENTS = 25_000;
 
 /**
  * Write Timeline entries into `folder` as `<baseName>.<ext>`, the PDF printed by
- * Chromium. Resolves to the file written. `title` heads the page and the text.
+ * Chromium. Never replaces a file ("<baseName> (2).<ext>"): the main process picks
+ * the name, and this resolves to the file written. `title` heads the page and the text.
  * More events than a PDF holds are refused before the page is built.
  */
 export async function writeTimeline(
@@ -204,9 +205,9 @@ export async function writeTimeline(
     }
     return (await exportHtmlPdf(formatTimeline(entries, 'pdf', { title }), folder, baseName)).file;
   }
-  const path = `${folder}/${baseName}.${FORMAT_FILTERS[format].extensions[0]}`;
-  await window.openextract.writeFile(path, formatTimeline(entries, format, { title }));
-  return path;
+  return window.openextract.writeNewFile(
+    folder, baseName, FORMAT_FILTERS[format].extensions[0], formatTimeline(entries, format, { title }),
+  );
 }
 
 // ── One person: everything with them, photos and files included ───────────────

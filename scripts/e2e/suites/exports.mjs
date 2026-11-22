@@ -55,6 +55,16 @@ export default {
         { notice: res.notice?.text?.split('\n')[0], files: res.files.length, bad: bad.slice(0, 5), ms: Math.round(res.ms ?? 0), ...extra.detail });
     };
     const run = async (dir, button, format, opts) => ({ dir, ...(await app.exportTo(dir, button, format, opts)) });
+    // Save again into a folder where `changed` (files of the first save) now hold something of the
+    // person's own: those are left alone, and the save adds `adds` files.
+    const keeps = async (name, first, changed, button, format, adds, opts = {}) => {
+      if (!changed.length || changed.some(f => !f)) return check(name, false, { files: first.files.slice(0, 5) });
+      for (const f of changed) fs.writeFileSync(path.join(first.dir, f), "the person's own");
+      const again = await run(first.dir, button, format, { ...opts, keep: true });
+      const lost = changed.filter(f => fs.readFileSync(path.join(first.dir, f), 'utf-8') !== "the person's own");
+      return check(name, again.notice?.kind === 'status' && lost.length === 0 && again.files.length === first.files.length + adds,
+        { lost, files: [first.files.length, again.files.length], added: again.files.filter(f => !first.files.includes(f)).slice(0, 5) });
+    };
     try {
       const r = await app.openBackup(b.dir, b.password);
       if (!check('backup opens', r.opened, r)) return;
@@ -320,6 +330,28 @@ export default {
         await prompts();
       }
 
+      // ── All in one file, saved again into the same folder ──
+      for (const format of RECORD) {
+        await app.open('Messages', /\d+ conversations/);
+        await app.click('Select');
+        await sleep(300);
+        // No attachments in the count: just the page each save writes
+        for (const n of ['Karin Lindqvist', 'Theo Navarro']) await app.click(n);
+        await sleep(300);
+        const button = () => app.eval(() => {
+          const el = [...document.querySelectorAll('button')].find(b => /^Save \d+ conversation/.test(b.textContent.trim()));
+          el?.click();
+          return !!el;
+        });
+        const first = await run(path.join(root, `merged-again-${format}`), button, format, { mode: 'merged' });
+        await prompts();
+        // A web page's second save brings its own folder of the same files
+        const beside = first.files.filter(f => f.includes('/')).length;
+        await keeps(`saving all in one ${format} again keeps the first`, first, first.files.filter(f => !f.includes('/')), button, format, 1 + beside, { mode: 'merged' });
+        await app.click('Done');
+        await prompts();
+      }
+
       // ── Each screen's own Save button ──
       // formats: what its dialog offers, in order ([null]: it saves straight away, no dialog)
       const screens = [
@@ -362,6 +394,12 @@ export default {
           const pdfOk = format !== 'pdf' || inFormat.every(f => pdfStats(path.join(dir, f)).pages > 0);
           ok(`${s.name} screen: Save${format ? ` as ${format}` : ''}`, res, { pass: inFormat.length >= 1 && pdfOk, detail: { files: res.files.slice(0, 5) } });
           await prompts();
+          if (s.name === 'Timeline' || s.name === 'Voicemail') {
+            const changed = s.name === 'Timeline' ? res.files
+              : [res.files.find(f => f.endsWith('voicemails.csv')), res.files.find(f => f.endsWith('.amr'))];
+            await keeps(`${s.name} screen: saving${format ? ` ${format}` : ''} again keeps what's in the folder`, res, changed, () => clickSave(s.button), format ?? undefined, changed.length);
+            await prompts();
+          }
         }
       }
 
@@ -384,6 +422,9 @@ export default {
         const res = await run(dir, 'Save all', 'only', { timeoutMs: 600_000 });
         const media = res.files.filter(f => /\.(jpe?g|heic|png|mov|mp4|gif)$/i.test(f));
         ok('Photos: Save all', res, { pass: media.length === key.photos.length, detail: { media: media.length } });
+        await prompts();
+        // Only the changed one is saved again, beside it; the rest are there already
+        await keeps("Photos: saving again keeps what's in the folder and copies only what's missing", res, [media[0]], 'Save all', 'only', 1, { timeoutMs: 600_000 });
       }
 
       // Recovered messages, when the scan finds any.
