@@ -200,7 +200,7 @@ export default function ExploreLayout({ udid, session, onBack, unfinished = fals
       case 'home':
         return <BackupHome ctx={ctx} onSearch={() => inputRef.current?.focus()} />;
       case 'dashboard':
-        return <BackupDashboard {...backupStats} onNavigate={t => openTab(t as Tab)} hasBrowserHistory={hasBrowserHistory} />;
+        return <BackupDashboard udid={udid} {...backupStats} onNavigate={t => openTab(t as Tab)} hasBrowserHistory={hasBrowserHistory} />;
       case 'people':
         return (
           <PeopleView

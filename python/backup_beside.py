@@ -10,7 +10,7 @@ Saving those files and putting them back wouldn't be enough: near the end the iP
 backup's files one at a time, each with a new key, and the old keys can't read those. Swapping the
 new backup in and deleting the old isn't safe either: nothing here can prove the new one can be
 unlocked, or that the old one had nothing the iPhone has since lost (it may have been erased, or
-handed down). So a backup that's already there is never written to, renamed or deleted:
+handed down). So a backup never writes to, renames or deletes one that's already there:
 
     <folder>/<udid>/                      the backup already there
     <folder>/OpenExtract-new/<udid>/      the try
@@ -23,6 +23,9 @@ has touched nothing else, so there's nothing to put back on the next launch. If 
 A try with nothing of a backup in it yet is written over by the next, as a first backup's is. One
 that has something (its list of files, keys or stored files) is a backup like any other: the next
 try goes into OpenExtract-new-2, and so on.
+
+Once there are dated backups the next gets a dated name too, even if <folder>/<udid> has gone to
+the Trash (older_backups.py): putting that back would otherwise merge it into a newer backup.
 
 While files arrive this takes no more room than before: in a full backup every file lands in
 Snapshot before any old one is replaced. It's afterwards that both backups stay on the drive.
@@ -91,12 +94,27 @@ def holds_a_backup(folder: str) -> bool:
     return False
 
 
+def is_work_dir(name: str) -> bool:
+    return _WORK_DIR_RE.fullmatch(name) is not None
+
+
+def _newest_dated(folder: str, udid: str) -> str:
+    """The newest <udid>-<date>-<time> backup in folder, or "" if there isn't one."""
+    dated = re.compile(re.escape(udid) + r"-\d{8}-\d{6}(?:-\d+)?")
+    try:
+        with os.scandir(folder) as entries:
+            found = [e.path for e in entries if dated.fullmatch(e.name) and holds_a_backup(e.path)]
+    except OSError:
+        return ""
+    return max(found, default="")
+
+
 def unplaced(folder: str) -> list[str]:
     """Folders that could be backups in folder's work folders: tries that weren't renamed."""
     found: list[str] = []
     try:
         with os.scandir(folder) as entries:
-            works = [e.path for e in entries if _WORK_DIR_RE.fullmatch(e.name) and e.is_dir()]
+            works = [e.path for e in entries if is_work_dir(e.name) and e.is_dir()]
     except OSError:
         return found
     for work in works:
@@ -126,6 +144,7 @@ class Destination:
         self._output_dir = output_dir
         self._log = log
         self._new = ""
+        self._named = ""  # <folder>/<udid>, which the new one's dated name starts with
         self.root = output_dir
         self.earlier = ""
         self.beside = False
@@ -135,9 +154,13 @@ class Destination:
         # The name comes from the device, and becomes part of a path.
         if not _UDID_RE.fullmatch(udid or ""):
             raise RuntimeError(INVALID_ID)
-        self.earlier = os.path.join(self._output_dir, udid)
-        self.beside = holds_a_backup(self.earlier)
-        self.root, self._new = self._output_dir, self.earlier
+        self._named = self.earlier = os.path.join(self._output_dir, udid)
+        self.beside = holds_a_backup(self._named)
+        if not self.beside:
+            dated = _newest_dated(self._output_dir, udid)
+            if dated:
+                self.earlier, self.beside = dated, True
+        self.root, self._new = self._output_dir, self._named
         if not self.beside:
             return self.root
         n = 1
@@ -162,7 +185,7 @@ class Destination:
         if not status.finished or not status.openable:
             self._log(f"the iPhone reported success but the new backup isn't whole: {status.signs}")
             raise RuntimeError(NOT_WHOLE)
-        name = dest = f"{self.earlier}-{time.strftime('%Y%m%d-%H%M%S')}"
+        name = dest = f"{self._named}-{time.strftime('%Y%m%d-%H%M%S')}"
         n = 1
         while os.path.lexists(dest):
             n += 1

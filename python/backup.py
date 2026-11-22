@@ -286,6 +286,10 @@ class BackupManager:
         return {"backups": backups, "search_dirs": searched,
                 "permission_denied": permission_denied}
 
+    def read_info(self, backup_dir: str) -> Optional[dict]:
+        """What's known about the backup in this folder now, or None if it isn't one."""
+        return self._read_backup_info(backup_dir)
+
     def _read_backup_info(self, backup_dir: str) -> Optional[dict]:
         """Read metadata from a backup directory.
 

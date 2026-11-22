@@ -946,7 +946,7 @@ class DeviceBackupManager:
         """
         Initiate a full backup of the device identified by *udid*.
 
-        A backup of this iPhone already in *output_dir* is never written to, renamed or deleted:
+        A backup of this iPhone already in *output_dir* is never written to, renamed or deleted here:
         the new one gets a folder of its own beside it (backup_beside.py).
 
         :param udid:        Device UDID (from list_devices).

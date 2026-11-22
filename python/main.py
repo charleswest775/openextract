@@ -150,6 +150,7 @@ from year_counts import YearCounter  # noqa: E402
 from bundle import BundleExporter  # noqa: E402
 from person_export import PersonExporter  # noqa: E402
 import backup_files  # noqa: E402
+import older_backups  # noqa: E402
 import build_info  # noqa: E402
 
 
@@ -262,6 +263,9 @@ class SidecarServer:
             "backup.install_device_support": self.backup_install_device_support,
             "backup.pair_device": self.backup_pair_device,
             "backup.start": self.backup_start,
+            # Older backups beside the open one: these only look (older_backups.py)
+            "backup.list_older": self.backup_list_older,
+            "backup.check_older": self.backup_check_older,
         }
 
     # ── Notification helpers ──────────────────────────────────────────────────
@@ -956,6 +960,23 @@ class SidecarServer:
         seconds until "trusted", "denied" or "not_answering".
         """
         return self.device_backup_manager.pair_device(params["udid"])
+
+    def backup_list_older(self, params):
+        """
+        Older backups of the same iPhone beside the open backup, which may go to the Trash.
+        Returns { backups: [{ backup_dir, device_name, product_version, last_backup, encrypted }] }.
+        """
+        kept = self.backup_manager.get_open_backup(params["udid"])
+        return older_backups.list_older(kept, self.backup_manager.read_info)
+
+    def backup_check_older(self, params):
+        """
+        Whether params["backup_dir"], one of backup.list_older's, may go to the Trash now.
+        Only looks: the app's main process does the moving, after asking
+        (electron/olderBackups.ts). Returns what older_backups.check says.
+        """
+        kept = self.backup_manager.get_open_backup(params["udid"])
+        return older_backups.check(kept, params["backup_dir"], self.backup_manager.read_info)
 
     def backup_start(self, params):
         """

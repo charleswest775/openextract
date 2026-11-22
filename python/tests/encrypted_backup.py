@@ -20,7 +20,11 @@ PASSWORD = "synthetic backup password"
 SMS = ("HomeDomain", "Library/SMS/sms.db")
 
 
-def make_encrypted_backup(out: Path, udid: str, *, seed: int = 1, text: bytes = b"the only copy") -> Path:
+MADE = datetime(2024, 5, 6, 12, tzinfo=timezone.utc)
+
+
+def make_encrypted_backup(out: Path, udid: str, *, seed: int = 1, text: bytes = b"the only copy",
+                          when: datetime = MADE) -> Path:
     """<out>/<udid>: a finished, encrypted backup whose sms.db holds `text`."""
     root = backupgen_root()
     if root is None:
@@ -31,7 +35,7 @@ def make_encrypted_backup(out: Path, udid: str, *, seed: int = 1, text: bytes = 
     device = container.Device(name="Test iPhone", product_type="iPhone15,2", product_name="iPhone 14 Pro",
                               ios="17.3", build="21D50", phone_number="+1 555 0100", udid=udid)
     writer = container.BackupWriter(out_dir=out, device=device, seed=seed, password=PASSWORD,
-                                    backup_date=datetime(2024, 5, 6, 12, tzinfo=timezone.utc),
+                                    backup_date=when,
                                     container_version="17.3")
     writer.add_file(*SMS, text)
     for i in range(12):

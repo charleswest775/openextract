@@ -142,3 +142,19 @@ def missing_files(backup) -> dict:
     result = {"listed": listed, "missing": missing, "missing_by_area": by_area}
     _missing[backup] = result
     return result
+
+
+def has_every_file(backup) -> bool:
+    """
+    Every file the backup lists is in its folder now: read afresh, and False if it can't tell,
+    which is what's wanted before an older backup may go (older_backups.py).
+    """
+    names = _read_folder(backup.backup_dir)
+    if names is None:
+        return False
+    try:
+        files = _listed_files(backup)
+    except Exception as e:
+        print(f"[files] couldn't read the backup's list of files: {e}", file=sys.stderr, flush=True)
+        return False
+    return bool(files) and all(file_id in names for file_id, _domain, _path in files)

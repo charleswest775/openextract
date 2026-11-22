@@ -2041,6 +2041,22 @@ def case_backup_install_device_support(ctx):
     assert time.perf_counter() - started < 10
 
 
+@contract("backup.list_older")
+def case_backup_list_older(ctx):
+    # A generated backup has no OpenExtract marker, so nothing may go because of it.
+    for engine in (ctx.maren, ctx.maren_enc):
+        assert engine.rpc("backup.list_older") == {"backups": []}
+
+
+@contract("backup.check_older")
+def case_backup_check_older(ctx):
+    for engine in (ctx.maren, ctx.maren_enc):
+        before = files_under(engine.backup_dir)
+        result = engine.rpc("backup.check_older", backup_dir=str(engine.backup_dir))
+        assert result["allowed"] is False and "only moves a finished backup" in result["reason"], result
+        assert files_under(engine.backup_dir) == before
+
+
 def test_every_engine_method_has_a_contract_case():
     served = set(engine_methods())
     missing = sorted(served - set(CONTRACT))

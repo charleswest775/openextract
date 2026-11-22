@@ -8,6 +8,7 @@ import { exportHtmlToPdf, exportMessagesPdf, PdfExportMethod, removeStaleStaging
 import { FeedbackRecorder } from './feedback';
 import { FeedbackReports } from './feedbackReports';
 import { installFolderFor, installFolderWarning, isInsideFolder, resolveReal } from './installFolder';
+import { CHECK_OLDER_TIMEOUT_MS, trashOlderBackup } from './olderBackups';
 // ── Media in the window (videos, posters): only from the engine's copy folders ──
 const os = require('os');
 const { nativeImage } = require('electron');
@@ -467,6 +468,40 @@ app.whenReady().then(async () => {
       return { success: false, error: message };
     } finally {
       awake?.stop();
+    }
+  });
+
+  // ── An older backup to the Trash ────────────────────────────────────────
+  // The only thing in the app that removes a backup, and only to the Trash (olderBackups.ts).
+  // The window says which; it can't skip the checks or the question.
+  ipcMain.handle('backup:trashOlder', async (_event: any, udid: unknown, backupDir: unknown) => {
+    const params = { udid, backup_dir: backupDir };
+    try {
+      return await trashOlderBackup({
+        platform: process.platform,
+        check: async (id, dir) => {
+          const found = await sidecar.call('backup.check_older', { udid: id, backup_dir: dir }, CHECK_OLDER_TIMEOUT_MS);
+          feedback.recordCall('backup.check_older', params, { ok: true, result: found });
+          return found;
+        },
+        // No window to ask in means no.
+        confirm: async options =>
+          mainWindow && !mainWindow.isDestroyed() ? dialog.showMessageBox(mainWindow, options) : { response: 0 },
+        trashItem: target => shell.trashItem(target),
+        exists: target => {
+          try {
+            fs.lstatSync(target);
+            return true;
+          } catch (err: any) {
+            return err?.code !== 'ENOENT'; // can't tell: don't say it has gone
+          }
+        },
+      }, udid, backupDir);
+    } catch (error: any) {
+      const message = String(error?.message ?? error);
+      console.error('Checking an older backup failed', error);
+      feedback.recordCall('backup.check_older', params, { ok: false, error: message });
+      return { status: 'failed', message: "OpenExtract couldn't check that backup, so it didn't move it." };
     }
   });
 

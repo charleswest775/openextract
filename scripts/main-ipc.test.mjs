@@ -33,6 +33,8 @@ const EXPECTED_CHANNELS = [
   'updates:download', 'updates:get-state', 'updates:install', 'updates:set-auto-check',
   // Media in the window (electron/localMedia.ts)
   'media:thumbnail',
+  // An older backup to the Trash (electron/olderBackups.ts)
+  'backup:trashOlder',
 ];
 
 // Development-only switches in main.ts that a developer's shell might have set.
@@ -41,6 +43,7 @@ for (const name of ['OPENEXTRACT_E2E', 'OPENEXTRACT_PYTHON', 'OPENEXTRACT_FEEDBA
 const quiet = quietConsole([
   'Python sidecar started', 'Failed to start Python sidecar', '[shell:openExternal]', 'Sidecar call failed',
   'PDF export failed', 'Failed to write app state', '[local-media]', '[pdf-export]',
+  'Checking an older backup failed', 'Moving a backup to the Trash failed',
 ]);
 process.on('exit', () => quiet.restore());
 
@@ -1194,5 +1197,80 @@ describe('feedback handlers', () => {
     await none.timers.find(t => t.ms === 15_000).cb();
     await flush();
     assert.deepEqual(none.window.webContents.sent, []);
+  });
+});
+
+describe('backup:trashOlder', () => {
+  /** A main process whose engine allows one real (empty) folder, and whose person says `response`. */
+  async function setUp({ response = 1, allowed = true } = {}) {
+    const m = await loadMain();
+    const older = freshDir('older-backup');
+    const facts = dir => ({ backup_dir: dir, device_name: 'iPhone', phone_number: '', last_backup: '2024-05-06T12:00:00+00:00', encrypted: true, bytes: 5e9 });
+    m.sidecar.answer = async () => allowed
+      ? { allowed: true, stamp: 's', older: facts(older), newer: facts(`${older}-newer`) }
+      : { allowed: false, reason: 'Not that one.' };
+    m.env.dialogResults.messageBox = { response };
+    m.env.hooks.trashItem = async p => fs.renameSync(p, `${p}.trashed`);
+    return { m, older, run: () => m.invoke('backup:trashOlder', 'udid', older) };
+  }
+
+  test('checks, asks in a native dialog, checks again, then moves what the engine named', async () => {
+    const { m, older, run } = await setUp();
+    assert.deepEqual(await run(), { status: 'moved' });
+    const checks = m.sidecar.calls.filter(c => c.method === 'backup.check_older');
+    assert.equal(checks.length, 2);
+    for (const c of checks) {
+      assert.deepEqual(c.params, { udid: 'udid', backup_dir: older });
+      assert.equal(c.timeoutMs, 3_600_000, 'a big backup on a slow drive takes a while to read through');
+    }
+    const order = m.env.calls.map(c => c[0]).filter(n => n === 'dialog.showMessageBox' || n === 'shell.trashItem');
+    assert.deepEqual(order, ['dialog.showMessageBox', 'shell.trashItem']);
+    assert.deepEqual(m.env.callsTo('shell.trashItem'), [[older]]);
+    const [[win, options]] = m.env.callsTo('dialog.showMessageBox');
+    assert.equal(win, m.window);
+    assert.equal(options.defaultId, 0);
+    assert.equal(options.cancelId, 0);
+    assert.equal(options.buttons[0], 'Keep it');
+  });
+
+  for (const response of [0, -1, null]) {
+    test(`nothing moves when the answer is ${response}`, async () => {
+      const { m, older, run } = await setUp({ response });
+      assert.deepEqual(await run(), { status: 'cancelled' });
+      assert.equal(m.env.callsTo('shell.trashItem').length, 0);
+      assert.ok(fs.existsSync(older));
+    });
+  }
+
+  test("what the engine refuses isn't asked about or moved", async () => {
+    const { m, run } = await setUp({ allowed: false });
+    assert.deepEqual(await run(), { status: 'refused', message: 'Not that one.' });
+    assert.equal(m.env.callsTo('dialog.showMessageBox').length, 0);
+    assert.equal(m.env.callsTo('shell.trashItem').length, 0);
+  });
+
+  test('no window to ask in means no', async () => {
+    const { m, run } = await setUp();
+    m.window.destroy();
+    assert.deepEqual(await run(), { status: 'cancelled' });
+    assert.equal(m.env.callsTo('shell.trashItem').length, 0);
+  });
+
+  test("an engine that can't check moves nothing", async () => {
+    const { m, run } = await setUp();
+    m.sidecar.answer = async () => { throw new Error('Sidecar exited with code 1'); };
+    assert.equal((await run()).status, 'failed');
+    assert.equal(m.env.callsTo('dialog.showMessageBox').length, 0);
+    assert.equal(m.env.callsTo('shell.trashItem').length, 0);
+    assert.equal(m.recorder.recorded.at(-1).outcome.ok, false);
+  });
+
+  test("a Trash that won't take it is reported, not worked around", async () => {
+    const { m, older, run } = await setUp();
+    m.env.hooks.trashItem = async () => { throw new Error('Operation was aborted'); };
+    const result = await run();
+    assert.equal(result.status, 'failed');
+    assert.match(result.message, /still where it was/);
+    assert.ok(fs.existsSync(older));
   });
 });

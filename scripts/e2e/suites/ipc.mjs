@@ -19,6 +19,8 @@ export const BRIDGE = [
   'feedback.onExportCheck', 'copyText',
   // Media in the window (MediaAttachment.tsx, electron/localMedia.ts)
   'mediaThumbnail',
+  // Older backups to the Trash (electron/olderBackups.ts)
+  'trashOlderBackup',
 ];
 
 export default {
@@ -34,6 +36,7 @@ export default {
       shell.openExternal = async url => { globalThis.__opened.push(['external', url]); };
       shell.openPath = async p => { globalThis.__opened.push(['path', p]); return ''; };
       shell.showItemInFolder = p => { globalThis.__opened.push(['folder', p]); };
+      shell.trashItem = async p => { globalThis.__opened.push(['trash', p]); };
     });
     const opened = () => app.app.evaluate(() => globalThis.__opened.splice(0));
     try {
@@ -205,6 +208,11 @@ export default {
       const served = await app.app.evaluate(async ({ net }, url) => (await net.fetch(url, { headers: { Range: 'bytes=0-9' } })).status,
         'local-media://media/' + elsewhere.split(path.sep).filter(Boolean).map(encodeURIComponent).join('/'));
       check('local-media:// serves nothing outside the engine\'s copy folders', served === 404, served);
+
+      // Asking for a folder the engine doesn't offer: refused before any dialog, and nothing moves.
+      const trashed = await app.api('trashOlderBackup', path.basename(b.dir), b.dir);
+      check("trashOlderBackup moves nothing the engine doesn't offer",
+        trashed.value?.status === 'refused' && !(await opened()).some(c => c[0] === 'trash') && fs.existsSync(b.dir), trashed);
 
       // relaunch and updates.check/download/install restart or reach the network, so they are
       // only checked for existence above. The updater's logic is unit tested in scripts/updater.test.mjs.

@@ -28,6 +28,13 @@ declare global {
       /** Reveal a file or folder in Finder / Explorer. */
       showInFolder: (filePath: string) => Promise<void>;
       /**
+       * Move one of backup.list_older's backups to the Trash (Recycle Bin on Windows), after the
+       * engine's checks and the main process's own question. Never deletes.
+       */
+      trashOlderBackup: (udid: string, backupDir: string) => Promise<
+        { status: 'moved' } | { status: 'cancelled' } | { status: 'refused' | 'failed'; message: string }
+      >;
+      /**
        * A poster frame (JPEG data: URL, at most `size` px on its longer side) for a video the
        * engine copied out with as_file. Null on Linux, for any other path, or when it can't be drawn.
        */
