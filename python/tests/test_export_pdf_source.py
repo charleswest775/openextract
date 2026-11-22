@@ -136,7 +136,8 @@ class TestPdfSourceExport(unittest.TestCase):
             f.write(b"not an image")
         backup = FakeBackup({"Library/SMS/Attachments/broken.jpg": bad})
         _, content, _ = self._export([_msg(1, "", [_att(5, "~/Library/SMS/Attachments/broken.jpg", "image/jpeg")])], backup)
-        self.assertIn("[Image not in this backup: broken.jpg]", content)
+        # It's in the backup, so never "not in this backup"
+        self.assertIn("[Image couldn&#x27;t be read: broken.jpg]", content)
         self.assertFalse(os.path.exists(os.path.join(self.out_dir.name, "attachments", "5.jpg")))
 
     def test_video_audio_and_files_get_labels_without_lookups(self):

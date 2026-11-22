@@ -41,6 +41,7 @@ sys.path.insert(0, HERE)
 import person_export  # noqa: E402
 from messages import MessageExtractor  # noqa: E402
 from person_export import CSV_HEADER, NOTHING_TO_SAVE, PersonExporter  # noqa: E402
+from save_files import NO_ROOM_TO_DECRYPT, SaveStopped  # noqa: E402
 from whatsapp import SHARED_DOMAIN, WhatsAppExtractor  # noqa: E402
 
 UNREADABLE = "WhatsApp is in this backup but could not be read. The backup may be incomplete or damaged."
@@ -770,6 +771,27 @@ class TestFiles(PersonExportCase):
             result = self.export("html")
         self.assertEqual(result["error"],
                          "There isn't enough space to save here. Free up some space or choose another folder.")
+        self.assertEqual(os.listdir(self.out), [])
+
+    def test_no_room_for_a_preview_stops_the_save_too(self):
+        att = sms_att(1, "scan.tiff", "image/tiff")
+        self.sms_file(att, image="TIFF")
+        self.sms_chats[1] = [sms(1, D(0), "", attachments=[att])]
+        with mock.patch("messages.write_whole", side_effect=OSError(errno.ENOSPC, "No space left on device")):
+            result = self.export("html")
+        self.assertIn("There isn't enough space to save here", result["error"])
+        self.assertEqual(os.listdir(self.out), [])
+
+    def test_no_room_to_decrypt_stops_the_save_too(self):
+        att = sms_att(1, "a.jpg", "image/jpeg", available=True)
+        self.sms_chats[1] = [sms(1, D(0), "", attachments=[att])]
+
+        def full(relative_path, domain):
+            raise SaveStopped(NO_ROOM_TO_DECRYPT)
+
+        self.backup.decrypt_again = full
+        result = self.export("pdf_source")
+        self.assertEqual(result["error"], NO_ROOM_TO_DECRYPT)
         self.assertEqual(os.listdir(self.out), [])
 
     def test_a_folder_that_cant_be_written_to(self):

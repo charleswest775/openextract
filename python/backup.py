@@ -21,6 +21,7 @@ import json
 import plistlib
 import tempfile
 import time
+import uuid
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
@@ -34,6 +35,7 @@ from ios_backup_core.backup import (
 import backup_beside
 import backup_status
 import older_backups
+from save_files import NO_ROOM_TO_DECRYPT, SaveStopped, out_of_space
 
 # Re-export for any code paths still importing EncryptedBackup directly via
 # this module (none in main.py, but kept to avoid surprises).
@@ -131,6 +133,31 @@ class OpenBackup(LocalBackupAccessor):
         hash. Kept public to avoid reaching into private API there.
         """
         return self._get_manifest_db()
+
+    def decrypt_again(self, relative_path: str, domain: str) -> Optional[str]:
+        """Decrypt a file get_file found nothing for, saying so if there was no room to.
+
+        get_file says None both for a file that can't be had and for a full temp
+        folder, and goes on saying it until the backup is opened again, however
+        much space has been freed since. Raises SaveStopped when there's no
+        room; None for any other failure, and for a backup that isn't encrypted.
+        """
+        if not (self._encrypted and self._decrypted_backup):
+            return None
+        ext = os.path.splitext(relative_path)[1]
+        ext = ext if ext[1:].isalnum() and ext.isascii() else ""
+        out = os.path.join(self._temp_dir, f"{uuid.uuid4().hex}{ext}")
+        try:
+            self._ensure_temp_dir()
+            self._decrypted_backup.extract_file(relative_path=relative_path, domain_like=domain, output_filename=out)
+        except Exception as e:
+            if out_of_space(e):
+                raise SaveStopped(NO_ROOM_TO_DECRYPT) from None
+            return None
+        if not os.path.exists(out):
+            return None
+        self._file_cache[f"{domain}:{relative_path}"] = out
+        return out
 
     def close(self) -> None:
         """Close the cached Manifest.db connection and delete the temp files.

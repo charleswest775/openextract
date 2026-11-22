@@ -222,6 +222,41 @@ test('saveConversation exports into the chosen folder and says what it saved', a
   }]);
 });
 
+// Files the engine couldn't copy for a web page (python/save_files.py): the notice says so, and stays up.
+test('every web-page save of conversations and chats says when files could not be copied', async t => {
+  let failed = 0;
+  const { lib: save } = loadWith(t, {
+    saveFolder: async () => '/tmp/out',
+    call: async method => ({
+      success: true,
+      data: method.endsWith('s')
+        ? { files: ['/tmp/out/all.html'], message_count: 2, failed_files: failed }
+        : { file: '/tmp/out/one.html', message_count: 2, failed_files: failed },
+    }),
+  });
+  const riley = { chat_id: 42, display_name: 'Riley Chen', handle: '+15035550101' };
+  const saves = [
+    () => save.saveConversation('u', MOM, 'html'),
+    () => save.saveConversations('u', [MOM], 'html', 'merged'),
+    () => save.saveWhatsAppChat('u', riley, 'html'),
+    () => save.saveWhatsAppChats('u', [riley], 'html', 'separate'),
+  ];
+  for (const run of saves) {
+    failed = 0;
+    assert.equal('note' in (await run()), false);
+    failed = 1;
+    assert.equal((await run()).note, "1 file couldn't be copied from the backup. The page says which. It may still be in the backup, so keep the backup.");
+    failed = 3;
+    assert.equal((await run()).note, "3 files couldn't be copied from the backup. The page says which. They may still be in the backup, so keep the backup.");
+  }
+});
+
+test('saveConversation reports a save stopped by a full disk', async t => {
+  const message = "There isn't enough space to save here. Free up some space or choose another folder.";
+  const { lib: save } = loadWith(t, { saveFolder: async () => '/tmp/out', call: async () => ({ success: false, error: message }) });
+  await assert.rejects(save.saveConversation('u', MOM, 'html'), { message });
+});
+
 test('saveConversation names an unnamed conversation by its number', async t => {
   const { lib: save } = loadWith(t, {
     saveFolder: async () => 'D:\\Exports',

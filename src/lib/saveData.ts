@@ -347,13 +347,13 @@ async function exportOne(methods: ExportMethods, params: Record<string, unknown>
     : checkEngineResult(await sidecarCall(methods.one, { ...params, format }));
 }
 
-async function exportMany(methods: ExportMethods, params: Record<string, unknown>, format: ConversationFormat): Promise<{ files: string[]; message_count: number; splits?: PdfSplit[] }> {
+async function exportMany(methods: ExportMethods, params: Record<string, unknown>, format: ConversationFormat): Promise<{ files: string[]; message_count: number; splits?: PdfSplit[]; failed_files?: number }> {
   const result: any = format === 'pdf'
     ? await exportMessagesPdf(methods.many, params)
     : checkEngineResult(await sidecarCall<{ files: string[]; message_count: number }>(methods.many, { ...params, format }));
   // Every file written, however the engine named them
   const files: string[] = Array.isArray(result?.files) ? result.files : result?.file ? [result.file] : [];
-  return { files, message_count: result?.message_count ?? 0, splits: result?.splits };
+  return { files, message_count: result?.message_count ?? 0, splits: result?.splits, failed_files: result?.failed_files };
 }
 
 // ── Why a PDF save is several files ───────────────────────────────────────────
@@ -407,6 +407,17 @@ function noted(note: string | undefined): { note?: string } {
   return note ? { note } : {};
 }
 
+/**
+ * What a web-page save says when some of its files couldn't be copied, so nobody takes
+ * them for gone and deletes the backup. Undefined when every file was.
+ */
+function failedFilesNote(failed: number | undefined): string | undefined {
+  if (!failed) return undefined;
+  return failed === 1
+    ? "1 file couldn't be copied from the backup. The page says which. It may still be in the backup, so keep the backup."
+    : `${plural(failed, 'file')} couldn't be copied from the backup. The page says which. They may still be in the backup, so keep the backup.`;
+}
+
 /** A one-conversation save's notice already says whose it is. */
 function unnamed(splits: PdfSplit[] | undefined): PdfSplit[] | undefined {
   return splits?.map(s => ({ ...s, name: null }));
@@ -428,7 +439,7 @@ export async function saveConversation(udid: string, convo: ConversationRef, for
     title: `Saved your conversation with ${convo.display_name || convo.chat_identifier}`,
     detail: result?.message_count != null ? messagesIn(result.message_count, files) : undefined,
     path: files.length === 1 ? files[0] : outputDir,
-    ...noted(pdfSplitNote(unnamed(result?.splits), 'conversation')),
+    ...noted(failedFilesNote(result?.failed_files) ?? pdfSplitNote(unnamed(result?.splits), 'conversation')),
   };
 }
 
@@ -452,7 +463,7 @@ export async function saveConversations(
     title: `Saved ${plural(result.message_count, 'message')}`,
     detail: `${plural(convos.length, 'conversation')} in ${plural(result.files.length, 'file')}`,
     path: result.files.length === 1 ? result.files[0] : outputDir,
-    ...noted(pdfSplitNote(result.splits, 'conversation')),
+    ...noted(failedFilesNote(result.failed_files) ?? pdfSplitNote(result.splits, 'conversation')),
   };
 }
 
@@ -471,7 +482,7 @@ export async function saveWhatsAppChat(udid: string, chat: WhatsAppChatRef, form
     title: `Saved your WhatsApp chat with ${chatName(chat)}`,
     detail: result?.message_count != null ? messagesIn(result.message_count, files) : undefined,
     path: files.length === 1 ? files[0] : outputDir,
-    ...noted(pdfSplitNote(unnamed(result?.splits), 'chat')),
+    ...noted(failedFilesNote(result?.failed_files) ?? pdfSplitNote(unnamed(result?.splits), 'chat')),
   };
 }
 
@@ -495,7 +506,7 @@ export async function saveWhatsAppChats(
     title: `Saved ${plural(result.message_count, 'WhatsApp message')}`,
     detail: `${plural(chats.length, 'chat')} in ${plural(result.files.length, 'file')}`,
     path: result.files.length === 1 ? result.files[0] : outputDir,
-    ...noted(pdfSplitNote(result.splits, 'chat')),
+    ...noted(failedFilesNote(result.failed_files) ?? pdfSplitNote(result.splits, 'chat')),
   };
 }
 
