@@ -97,6 +97,11 @@ on a Retina screen (the window is 1440×900). **Look at them.**
 | `click <selector>`, `fill <selector> <text>`, `press <key>`, `wait <ms>` | As named |
 | `stub-folder <folder>`, `size <w> <h>`, `eval <js>`, `quit` | As named |
 
+## Videos
+
+`scripts/record-guide-video.mjs` imports this driver (`COMMANDS`, `session()`) to record a guide
+video from a step list; see `scripts/guide-videos/README.md`.
+
 ## Test
 
 ```bash

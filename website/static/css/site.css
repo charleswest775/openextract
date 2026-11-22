@@ -1302,3 +1302,44 @@ a.pay-tier:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(31,
   .ref-lookup tr:first-child { border-top: 0; }
   .prose__inner .ref-lookup td { border-top: 0; padding: 3px 16px; }
 }
+
+/* ── Video watch pages (/videos/…) and the link to one from a guide ── */
+.watch-head { padding-bottom: 32px; }
+.watch { padding: 0 56px 48px; max-width: 1100px; margin: 0 auto; }
+.watch__video {
+  display: block; width: 100%; height: auto; aspect-ratio: 16 / 9;
+  background: #26211d; border-radius: 14px;
+  box-shadow: 0 28px 56px -32px rgba(31,29,26,0.45);
+}
+.watch__video:focus { outline: none; }
+.watch__video:focus-visible { outline: 2px solid var(--coral); outline-offset: 3px; }
+.watch__chapters { list-style: none; padding: 0; margin: 18px 0 0; display: flex; flex-wrap: wrap; gap: 8px 10px; }
+.watch__chapters a {
+  display: inline-flex; align-items: baseline; gap: 8px;
+  padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px;
+  font-size: 14px; color: var(--ink); background: white;
+}
+.watch__chapters a:hover { border-color: var(--coral-44); color: var(--coral); }
+.watch__chapters span { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); }
+.watch__steps li { margin-bottom: 10px; }
+.prose__inner a.video-link {
+  display: flex; align-items: center; gap: 18px; margin: 4px 0 20px;
+  padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: white; color: var(--ink);
+}
+.prose__inner a.video-link:hover { text-decoration: none; border-color: var(--coral-44); }
+.video-link__thumb { position: relative; flex: 0 0 200px; }
+.video-link__thumb img { width: 100%; height: auto; border-radius: 8px; }
+/* A play button over the thumbnail */
+.video-link__thumb::after {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px;
+  border-radius: 50%; background: var(--coral) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 6.5v11l9-5.5z' fill='white'/%3E%3C/svg%3E") center / 24px no-repeat;
+  box-shadow: 0 6px 16px rgba(31,29,26,0.3);
+}
+.video-link__text { font-size: 15px; line-height: 1.5; color: var(--ink-soft); }
+.video-link__text strong { display: block; font-size: 17px; color: var(--ink); margin-bottom: 2px; }
+@media (max-width: 720px) {
+  .watch { padding-left: 24px; padding-right: 24px; }
+  .watch__video { border-radius: 10px; }
+  .video-link__thumb { flex-basis: 120px; }
+  .video-link__thumb::after { width: 34px; height: 34px; margin: -17px 0 0 -17px; background-size: 18px; }
+}
