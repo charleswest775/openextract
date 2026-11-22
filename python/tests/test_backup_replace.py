@@ -22,9 +22,10 @@ for _path in (HERE, HERE.parent, HERE.parent.parent):
         sys.path.insert(0, str(_path))
 
 from encrypted_backup import PASSWORD, SMS, make_encrypted_backup, plan_sending  # noqa: E402
-from fake_iphone import FakeIPhone, failing_disk, run_backup  # noqa: E402
+from fake_iphone import FakeIPhone, InUse, failing_disk, run_backup  # noqa: E402
 from fake_iphone import plan as plans  # noqa: E402
 from fake_iphone.device import DEFAULT_UDID as UDID  # noqa: E402
+from fake_iphone.harness import is_root  # noqa: E402
 from fake_iphone.real_modules import real_pymobiledevice3  # noqa: E402
 from fake_iphone.wire import Dropped  # noqa: E402
 from killed_engine import STAGES  # noqa: E402
@@ -412,6 +413,25 @@ def test_a_new_backup_that_cant_move_at_all_is_still_found(out, earlier, later, 
     assert Path(run.result["backup_path"]).resolve() == (work(out) / UDID).resolve()
     assert len(listed(out)) == 2
     assert messages_in(work(out) / UDID) == A_WEEK_LATER
+
+
+def test_the_earlier_backup_open_in_another_program(out, earlier, later):
+    # The real thing, not a stubbed rename: Windows won't rename a folder with a file open in it.
+    # Elsewhere the folder it's in is made read-only, which stops the rename the same way.
+    if is_root():
+        pytest.skip("root can write to a read-only folder")
+    before = everything_in(earlier)
+    phone = FakeIPhone(plan_sending(later), will_encrypt=True)
+    other_program = InUse()
+    phone.before("ProcessMessage", lambda _op: other_program.lock(earlier))
+    try:
+        run = run_backup(phone, out)
+        assert run.error is None, run.error
+        assert run.result["earlier_backup"] == str(earlier)
+        assert everything_in(earlier) == before
+        assert messages_in(Path(run.result["backup_path"])) == A_WEEK_LATER
+    finally:
+        other_program.release()
 
 
 def test_not_flushed_means_not_deleted(out, earlier, later, monkeypatch):
