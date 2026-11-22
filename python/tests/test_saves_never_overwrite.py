@@ -21,7 +21,7 @@ import photos  # noqa: E402
 import voice_memos  # noqa: E402
 import whatsapp  # noqa: E402
 from messages import MessageExtractor  # noqa: E402
-from test_photo_save_names import FIRST, SECOND, _FakeBackup  # noqa: E402
+from test_photo_save_names import FIRST, OTHER_CASE, SECOND, _FakeBackup  # noqa: E402
 from voicemail import VoicemailExtractor  # noqa: E402
 
 
@@ -108,7 +108,7 @@ class TestPhotos(_InATempFolder):
         _write(os.path.join(self.out, "IMG_0001.JPG"), b"theirs")
         backup = self.backup({FIRST: b"first"})
         # The folder didn't show it when the name was chosen (it arrived since, or a drive didn't say)
-        with mock.patch("os.path.lexists", return_value=False):
+        with mock.patch("os.path.lexists", return_value=False), mock.patch("os.listdir", return_value=[]):
             result = self.save(backup)
         self.assertEqual(_files(self.out), {"IMG_0001.JPG": b"theirs"})
         self.assertEqual((result["exported"], result["errors"]), (0, 1))
@@ -123,6 +123,15 @@ class TestPhotos(_InATempFolder):
         os.utime(saved, ns=(before.st_atime_ns, before.st_mtime_ns))
         self.save(backup)
         self.assertEqual(sorted(_files(self.out).values()), [b"FIRST", b"first"])
+
+    def test_saving_again_into_a_linux_folder_with_both_spellings_makes_no_copies(self):
+        # 0.18.0 on Linux saved IMG_0001.JPG and img_0001.jpg side by side
+        _write(os.path.join(self.out, "IMG_0001.JPG"), b"upper")
+        if os.path.exists(os.path.join(self.out, "img_0001.jpg")):
+            self.skipTest("this drive doesn't tell capitals apart")
+        _write(os.path.join(self.out, "img_0001.jpg"), b"lower")
+        self.save(self.backup({FIRST: b"upper", OTHER_CASE: b"lower"}))
+        self.assertEqual(_files(self.out), {"IMG_0001.JPG": b"upper", "img_0001.jpg": b"lower"})
 
     def test_a_save_cut_short_leaves_no_part_of_a_photo_under_its_name(self):
         # Closing the window stops the engine mid-copy. A part left as IMG_0001.JPG would

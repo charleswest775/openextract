@@ -19,26 +19,52 @@ class SaveNames:
 
     iPhones reuse names (IMG_0001 again in a later DCIM folder), and macOS and Windows
     folders don't tell IMG_0001.JPG from img_0001.jpg. The second gets "IMG_0001 (2).JPG",
-    as in Finder and File Explorer. A file already in the folder is this file only if it
-    holds the same bytes, so saving again into a folder makes no copies of what's there.
+    as in Finder and File Explorer, on Linux too, so the folder can be copied to either.
+    A file already in the folder, however its name is capitalized, is this file only if
+    it holds the same bytes, so saving again into a folder makes no copies of what's there.
     """
 
     def __init__(self):
+        # The files this save has claimed, by their real names
         self._taken: set = set()
+        # folder → name as Macs and Windows compare them → the names really there
+        self._folders: dict = {}
 
     def place(self, folder: str, name: str, is_this_file: Callable[[str], bool]) -> tuple:
         """(the path for the file, whether that path already holds it)."""
+        names = self._names_in(folder)
         base, ext = os.path.splitext(name)
         n = 1
         while True:
-            path = os.path.join(folder, name if n == 1 else f"{base} ({n}){ext}")
-            key = unicodedata.normalize("NFC", path).casefold()
-            if key not in self._taken:
-                there = os.path.lexists(path)
-                if not there or (os.path.isfile(path) and is_this_file(path)):
-                    self._taken.add(key)
-                    return path, there
+            candidate = name if n == 1 else f"{base} ({n}){ext}"
+            key = _name_key(candidate)
+            for real in names.get(key, ()):
+                path = os.path.join(folder, real)
+                if path not in self._taken and os.path.isfile(path) and is_this_file(path):
+                    self._taken.add(path)
+                    return path, True
+            path = os.path.join(folder, candidate)
+            # lexists too, for a name the listing didn't show or the folder treats as the same
+            if key not in names and not os.path.lexists(path):
+                names[key] = [candidate]
+                self._taken.add(path)
+                return path, False
             n += 1
+
+    def _names_in(self, folder: str) -> dict:
+        if folder not in self._folders:
+            found: dict = {}
+            try:
+                for real in os.listdir(folder):
+                    found.setdefault(_name_key(real), []).append(real)
+            except OSError:
+                pass  # can't be listed: then every name that's there just counts as taken
+            self._folders[folder] = found
+        return self._folders[folder]
+
+
+def _name_key(name: str) -> str:
+    return unicodedata.normalize("NFC", name).casefold()
 
 
 def same_file(path: str, source: str) -> bool:
