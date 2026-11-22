@@ -33,6 +33,7 @@ from ios_backup_core.backup import (
 
 import backup_beside
 import backup_status
+import older_backups
 
 # Re-export for any code paths still importing EncryptedBackup directly via
 # this module (none in main.py, but kept to avoid surprises).
@@ -519,6 +520,8 @@ class BackupManager:
         # decrypt backup: ...") and RuntimeError if the optional
         # iphone-backup-decrypt extra is missing. An unencrypted backup needs
         # neither.
+        # Before the keys and list of files are read, so a change from then on is noticed.
+        opened_as = older_backups.identity(backup_dir)
         decrypted_backup = None
         if encrypted:
             decrypted_backup = open_local_backup(backup_dir, password=password)._decrypted_backup
@@ -532,6 +535,7 @@ class BackupManager:
             encrypted=encrypted,
             decrypted_backup=decrypted_backup,
         )
+        backup.opened_as = opened_as
         if legacy and not encrypted:
             # Turn Manifest.mbdb into a database now, so a damaged one fails here
             # with a clear message instead of every screen coming up empty.

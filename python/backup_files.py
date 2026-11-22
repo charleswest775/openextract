@@ -18,6 +18,8 @@ user when files are missing (check_backup_files in main.py).
 from __future__ import annotations
 
 import os
+import plistlib
+import stat
 import sys
 import weakref
 from typing import Optional
@@ -144,17 +146,109 @@ def missing_files(backup) -> dict:
     return result
 
 
-def has_every_file(backup) -> bool:
-    """
-    Every file the backup lists is in its folder now: read afresh, and False if it can't tell,
-    which is what's wanted before an older backup may go (older_backups.py).
-    """
-    names = _read_folder(backup.backup_dir)
-    if names is None:
-        return False
+# The checks before an older backup may go (older_backups.py). Stricter than missing_files,
+# which only tells the person what to expect, and never cached.
+
+_JUNCTION = 0xA0000003  # IO_REPARSE_TAG_MOUNT_POINT, which lstat calls a folder
+# FILE_ATTRIBUTE_OFFLINE, RECALL_ON_OPEN and RECALL_ON_DATA_ACCESS; macOS's SF_DATALESS
+_WINDOWS_ONLINE_ONLY = 0x1000 | 0x40000 | 0x400000
+_MAC_DATALESS = 0x40000000
+# These can shrink to nothing while the iPhone is backing them up, whatever the list says.
+_LIVE_COMPANIONS = ("-wal", "-shm", "-journal")
+
+
+def is_link(st: os.stat_result) -> bool:
+    return stat.S_ISLNK(st.st_mode) or getattr(st, "st_reparse_tag", 0) == _JUNCTION
+
+
+def is_online_only(st: os.stat_result) -> bool:
+    """A placeholder for a file that's only in OneDrive, iCloud Drive or the like."""
+    if getattr(st, "st_file_attributes", 0) & _WINDOWS_ONLINE_ONLY:
+        return True
+    return sys.platform == "darwin" and bool(getattr(st, "st_flags", 0) & _MAC_DATALESS)
+
+
+def _claimed_size(value) -> Optional[int]:
+    """A listed file's size, from its Files.size or the MBFile record in Files.file."""
+    if isinstance(value, int):
+        return value
     try:
-        files = _listed_files(backup)
+        record = plistlib.loads(bytes(value))
+        return int(record["$objects"][record["$top"]["root"].data]["Size"])
+    except Exception:  # plistlib raises many kinds; any of them means unknown
+        return None
+
+
+def _read_listed(cursor) -> list:
+    columns = {row[1] for row in cursor.execute("PRAGMA table_info(Files)").fetchall()}
+    size = "size" if "size" in columns else "file" if "file" in columns else "NULL"
+    where = "flags = 1" + (" AND (size IS NULL OR size > 0)" if size == "size" else "")
+    return cursor.execute(f"SELECT fileID, relativePath, {size} FROM Files WHERE {where}").fetchall()
+
+
+def _listed_with_sizes(backup) -> list:
+    """(fileID, relativePath, what says its size) of each file the backup lists."""
+    if getattr(backup, "encrypted", False):
+        with backup._decrypted_backup.manifest_db_cursor() as cursor:
+            return _read_listed(cursor)
+    manifest = backup.get_manifest_db()
+    if not manifest:
+        return []
+    conn = connect_readonly(manifest, backup)
+    try:
+        return _read_listed(conn.cursor())
+    finally:
+        conn.close()
+
+
+def stored_whole(backup) -> Optional[dict]:
+    """
+    {"bytes": the listed files' size, "ids": their fileIDs} if each is in its own place in the
+    folder now, as a file of its own with something in it. None if not, or if that can't be
+    told. A link doesn't count anywhere in it: what it points at could be the older backup.
+    """
+    folder = backup.backup_dir
+    stored: dict = {}
+
+    def ours(entry) -> Optional[os.stat_result]:
+        st = entry.stat(follow_symlinks=False)
+        return None if is_link(st) or is_online_only(st) else st
+
+    try:
+        flat = not os.path.lexists(os.path.join(folder, "Manifest.db"))  # iOS 9 and earlier
+        with os.scandir(folder) as entries:
+            for entry in entries:
+                st = ours(entry)
+                if st is None:
+                    return None
+                if stat.S_ISREG(st.st_mode) and flat and len(entry.name) == _FILE_ID_LEN:
+                    stored[entry.name] = st.st_size
+                elif stat.S_ISDIR(st.st_mode) and len(entry.name) == 2:
+                    with os.scandir(entry.path) as inner:
+                        for item in inner:
+                            item_st = ours(item)
+                            if item_st is None:
+                                return None
+                            if stat.S_ISREG(item_st.st_mode) and item.name[:2] == entry.name:
+                                stored[item.name] = item_st.st_size
+        listed = _listed_with_sizes(backup)
+        total = 0
+        for file_id, path, size in listed:
+            if file_id not in stored:
+                return None
+            # Sizes often differ a little for files that were in use, so only empty ones count.
+            if not stored[file_id] and _claimed_size(size) != 0 and not (path or "").endswith(_LIVE_COMPANIONS):
+                return None
+            total += stored[file_id]
     except Exception as e:
-        print(f"[files] couldn't read the backup's list of files: {e}", file=sys.stderr, flush=True)
-        return False
-    return bool(files) and all(file_id in names for file_id, _domain, _path in files)
+        print(f"[files] couldn't check the backup's files: {type(e).__name__}", file=sys.stderr, flush=True)
+        return None
+    if not listed:
+        return None
+    return {"bytes": total, "ids": frozenset(row[0] for row in listed)}
+
+
+def names_still_there(backup, ids: frozenset) -> bool:
+    """Quick, for just before acting on stored_whole(): one directory read per folder."""
+    names = _read_folder(backup.backup_dir)
+    return names is not None and ids <= names

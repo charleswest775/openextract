@@ -4,7 +4,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadElectronModule, quietConsole } from './test-helpers/electron-env.mjs';
 
-const { trashOlderBackup, confirmation } = loadElectronModule('olderBackups').module;
+const { trashOlderBackup, confirmation, takeMoveLock } = loadElectronModule('olderBackups').module;
 const quiet = quietConsole(['Moving a backup to the Trash failed']);
 process.on('exit', () => quiet.restore());
 
@@ -15,12 +15,13 @@ const OLDER = {
 const NEWER = { ...OLDER, backup_dir: '/Backups/udid-20240615-120000', last_backup: '2024-06-15T12:00:00+00:00' };
 const yes = (stamp = 's', extra = {}) => ({ allowed: true, older: OLDER, newer: NEWER, stamp, ...extra });
 
-function deps({ checks = [yes(), yes()], response = 1, trash, gone } = {}) {
+function deps({ checks = [yes(), yes()], response = 1, trash, gone, locked = false } = {}) {
   const log = [];
   let exists = true;
   return {
     log,
     platform: 'darwin',
+    lock: async () => (locked ? null : () => log.push(['unlock'])),
     check: async (udid, dir) => { log.push(['check', udid, dir]); return checks.shift(); },
     confirm: async options => { log.push(['confirm', options]); return { response }; },
     trashItem: async target => {
@@ -28,11 +29,11 @@ function deps({ checks = [yes(), yes()], response = 1, trash, gone } = {}) {
       if (trash) await trash();
       exists = false;
     },
-    exists: () => (gone === undefined ? exists : !gone),
+    exists: () => (gone === null ? null : gone === undefined ? exists : !gone),
   };
 }
 const run = (d, udid = 'udid', dir = OLDER.backup_dir) => trashOlderBackup(d, udid, dir);
-const steps = d => d.log.map(l => l[0]);
+const steps = d => d.log.map(l => l[0]).filter(s => s !== 'unlock');
 
 describe('trashOlderBackup', () => {
   test('check, ask, check, move', async () => {
@@ -44,13 +45,18 @@ describe('trashOlderBackup', () => {
   test("the folder moved is the engine's, not the window's", async () => {
     const d = deps();
     await run(d, 'udid', '/Backups/../Backups/udid');
-    assert.deepEqual(d.log.at(-1), ['trash', OLDER.backup_dir]);
+    assert.deepEqual(d.log.find(l => l[0] === 'trash'), ['trash', OLDER.backup_dir]);
   });
 
   for (const [what, second] of [
     ['it changed', yes('another')],
     ['it became another folder', yes('s', { older: { ...OLDER, backup_dir: '/Backups/other' } })],
     ['the one staying changed', yes('s', { newer: { ...NEWER, backup_dir: '/Backups/other' } })],
+    ['its name changed', yes('s', { older: { ...OLDER, device_name: "Sam's iPhone" } })],
+    ['its number changed', yes('s', { older: { ...OLDER, phone_number: '+1 555 0199' } })],
+    ['the newer lost its encryption', yes('s', { newer: { ...NEWER, encrypted: false } })],
+    ['the newer shrank', yes('s', { newer: { ...NEWER, bytes: 1e6 } })],
+    ['the second answer is only truthy', { ...yes(), allowed: 'true', reason: 'No.' }],
     ["the engine won't allow it now", { allowed: false, reason: 'The Recycle Bin filled up.' }],
   ]) {
     test(`nothing moves if, while the dialog was up, ${what}`, async () => {
@@ -103,10 +109,30 @@ describe('trashOlderBackup', () => {
     assert.match(result.message, /still where it was/);
   });
 
+  test("not being able to tell is neither moved nor still there", async () => {
+    const result = await run(deps({ gone: null }));
+    assert.equal(result.status, 'failed');
+    assert.match(result.message, /couldn't tell/);
+  });
+
+  test('refused while another OpenExtract is moving one', async () => {
+    const d = deps({ locked: true });
+    assert.equal((await run(d)).status, 'refused');
+    assert.deepEqual(steps(d), []);
+  });
+
+  for (const response of [0, 1]) {
+    test(`lets go of the lock afterwards (answer ${response})`, async () => {
+      const d = deps({ response });
+      await run(d);
+      assert.deepEqual(d.log.at(-1), ['unlock']);
+    });
+  }
+
   test("an error with the folder gone doesn't claim it moved", async () => {
     const result = await run(deps({ gone: true, trash: async () => { throw new Error('x'); } }));
     assert.equal(result.status, 'failed');
-    assert.match(result.message, /Look for it in the Trash/);
+    assert.match(result.message, /may be in the Trash/);
   });
 });
 
@@ -122,6 +148,7 @@ describe('the question', () => {
     const { detail } = confirmation(OLDER, NEWER, 'darwin');
     assert.ok(detail.includes(`${OLDER.backup_dir}\n`) && detail.includes(NEWER.backup_dir));
     assert.match(detail, /only in the older one/);
+    assert.match(detail, /moved to iCloud/);
     assert.doesNotMatch(detail, /encrypted|bigger|handed on/);
   });
 
@@ -149,9 +176,39 @@ describe('the question', () => {
     assert.equal(detail.split('\n').length, plain);
   });
 
+  test('warnings come before everything else', () => {
+    const { detail } = confirmation(OLDER, { ...NEWER, encrypted: false, bytes: 8e9 }, 'darwin');
+    assert.match(detail, /^The older backup is encrypted/);
+    assert.ok(detail.indexOf('bigger') < detail.indexOf('Older backup:'));
+  });
+
+  test('a very long folder keeps both ends', () => {
+    const dir = `/Volumes/Photos/${'x'.repeat(4000)}/udid`;
+    const { detail } = confirmation({ ...OLDER, backup_dir: dir }, NEWER, 'darwin');
+    assert.ok(detail.length < 1500 && detail.includes('/Volumes/Photos/') && detail.includes('/udid'));
+  });
+
   test("uses Windows' name for the Trash", () => {
     const q = confirmation(OLDER, NEWER, 'win32');
     assert.equal(q.buttons[1], 'Move to Recycle Bin');
     assert.doesNotMatch(q.message + q.detail, /\bTrash\b/);
+  });
+});
+
+describe('the lock', () => {
+  test('on Windows only one OpenExtract holds it, and it can be taken again after', { skip: process.platform !== 'win32' }, async () => {
+    const first = await takeMoveLock('win32');
+    assert.ok(first);
+    assert.equal(await takeMoveLock('win32'), null);
+    first();
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const again = await takeMoveLock('win32');
+    assert.ok(again);
+    again();
+  });
+
+  test("a Mac doesn't need one", async () => {
+    assert.ok(await takeMoveLock('darwin'));
+    assert.ok(await takeMoveLock('darwin'));
   });
 });

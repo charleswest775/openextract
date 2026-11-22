@@ -1211,16 +1211,19 @@ describe('backup:trashOlder', () => {
       : { allowed: false, reason: 'Not that one.' };
     m.env.dialogResults.messageBox = { response };
     m.env.hooks.trashItem = async p => fs.renameSync(p, `${p}.trashed`);
-    return { m, older, run: () => m.invoke('backup:trashOlder', 'udid', older) };
+    // What the window asks for and what the engine names differ, so a mix-up would show.
+    const asked = path.join(older, '..', path.basename(older), '.') + path.sep + '.';
+    return { m, older, asked, run: () => m.invoke('backup:trashOlder', 'udid', asked) };
   }
 
   test('checks, asks in a native dialog, checks again, then moves what the engine named', async () => {
-    const { m, older, run } = await setUp();
+    const { m, older, asked, run } = await setUp();
+    assert.notEqual(asked, older);
     assert.deepEqual(await run(), { status: 'moved' });
     const checks = m.sidecar.calls.filter(c => c.method === 'backup.check_older');
     assert.equal(checks.length, 2);
     for (const c of checks) {
-      assert.deepEqual(c.params, { udid: 'udid', backup_dir: older });
+      assert.deepEqual(c.params, { udid: 'udid', backup_dir: asked });
       assert.equal(c.timeoutMs, 3_600_000, 'a big backup on a slow drive takes a while to read through');
     }
     const order = m.env.calls.map(c => c[0]).filter(n => n === 'dialog.showMessageBox' || n === 'shell.trashItem');

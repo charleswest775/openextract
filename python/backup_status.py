@@ -139,7 +139,7 @@ def _snapshot_state(backup_dir: str) -> Optional[str]:
     return state if isinstance(state, str) else None
 
 
-def _is_plain_sqlite(path: str) -> bool:
+def is_plain_sqlite(path: str) -> bool:
     try:
         with open(path, "rb") as f:
             return f.read(len(_SQLITE_HEADER)) == _SQLITE_HEADER
@@ -204,7 +204,7 @@ def check(backup_dir: str) -> Completion:
     # then removed the empty file if the next try turned encryption on, so in a folder with its
     # marker a missing one means the same.
     no_keys = empty_manifest_plist or (manifest_plist is None and marker is not None)
-    keys_lost = db is not None and no_keys and not _is_plain_sqlite(manifest_db)
+    keys_lost = db is not None and no_keys and not is_plain_sqlite(manifest_db)
     confirmed = not signs and marked_finished
     return Completion(
         finished=not signs,

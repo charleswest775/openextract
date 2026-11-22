@@ -14,6 +14,9 @@ but that isn't enough on Windows. Measured on Windows 11 with a drive whose Recy
 So on Windows a folder goes only if it fits beside everything already in that drive's Recycle
 Bin. Anything that can't be read counts as no room.
 
+Windows counts the files' own sizes against that limit, not the room they take on the drive
+(measured with 12,000 small files), so rounding a folder up to clusters errs toward refusing.
+
 On a Mac the Trash has no limit and the move is one rename (APFS, HFS+ and exFAT were tried).
 Network drives may have no Trash, so only the computer's own drives and drives plugged into it.
 Linux's Trash differs by desktop and inside Flatpak, and hasn't been tried, so never there.
@@ -36,18 +39,18 @@ _BIT_BUCKET = r"Software\Microsoft\Windows\CurrentVersion\Explorer\BitBucket"
 _POLICIES = (r"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer",
              r"Software\Policies\Microsoft\Windows\Explorer")
 
-NOT_HERE = "OpenExtract can't move backups to the Trash on Linux. You can do that in your file manager."
+NOT_HERE = "OpenExtract doesn't move backups to the Trash on Linux. Check what's in one before you remove it yourself."
 NOT_LOCAL = (
     "That backup is on a network drive, which may not have a Trash, so OpenExtract won't move it. "
-    "You can remove it in Finder."
+    "Removing it yourself in Finder may delete it at once, for good, so check what's in it first."
 )
 NO_BIN = (
     "OpenExtract couldn't confirm that the Recycle Bin on this drive would keep that backup, so "
-    "it won't move it. You can delete it in File Explorer, but Windows may delete it for good."
+    "it won't move it. Deleting it yourself may delete it for good, so check what's in it first."
 )
 TOO_BIG = (
     "That backup is bigger than the Recycle Bin on this drive allows, so OpenExtract won't move "
-    "it. You can delete it in File Explorer, but that deletes it for good."
+    "it. Deleting it yourself deletes it for good, so open it and check what's in it first."
 )
 BIN_TOO_FULL = (
     "There isn't room for that backup in the Recycle Bin beside what's already there. Windows "

@@ -115,7 +115,7 @@ export default function OlderBackups({ udid }: { udid: string }) {
       </ul>
       {moved && (
         <p role="status" className="mt-2 text-sm text-text-secondary">
-          Moved to the {trash}. You get the space back when the {trash} is emptied.
+          Moved to the {trash}. It takes up the same space until the {trash} is emptied.
         </p>
       )}
     </section>

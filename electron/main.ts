@@ -8,7 +8,7 @@ import { exportHtmlToPdf, exportMessagesPdf, PdfExportMethod, removeStaleStaging
 import { FeedbackRecorder } from './feedback';
 import { FeedbackReports } from './feedbackReports';
 import { installFolderFor, installFolderWarning, isInsideFolder, resolveReal } from './installFolder';
-import { CHECK_OLDER_TIMEOUT_MS, trashOlderBackup } from './olderBackups';
+import { CHECK_OLDER_TIMEOUT_MS, takeMoveLock, trashOlderBackup } from './olderBackups';
 // ── Media in the window (videos, posters): only from the engine's copy folders ──
 const os = require('os');
 const { nativeImage } = require('electron');
@@ -479,6 +479,7 @@ app.whenReady().then(async () => {
     try {
       return await trashOlderBackup({
         platform: process.platform,
+        lock: () => takeMoveLock(process.platform),
         check: async (id, dir) => {
           const found = await sidecar.call('backup.check_older', { udid: id, backup_dir: dir }, CHECK_OLDER_TIMEOUT_MS);
           feedback.recordCall('backup.check_older', params, { ok: true, result: found });
@@ -493,7 +494,7 @@ app.whenReady().then(async () => {
             fs.lstatSync(target);
             return true;
           } catch (err: any) {
-            return err?.code !== 'ENOENT'; // can't tell: don't say it has gone
+            return err?.code === 'ENOENT' ? false : null;
           }
         },
       }, udid, backupDir);

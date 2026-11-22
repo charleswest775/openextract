@@ -24,8 +24,9 @@ A try with nothing of a backup in it yet is written over by the next, as a first
 that has something (its list of files, keys or stored files) is a backup like any other: the next
 try goes into OpenExtract-new-2, and so on.
 
-Once there are dated backups the next gets a dated name too, even if <folder>/<udid> has gone to
-the Trash (older_backups.py): putting that back would otherwise merge it into a newer backup.
+While there's a backup under either of the other names the next gets a dated name too, even if
+<folder>/<udid> has gone to the Trash (older_backups.py): putting that back would otherwise merge
+it into a newer backup.
 
 While files arrive this takes no more room than before: in a full backup every file lands in
 Snapshot before any old one is replaced. It's afterwards that both backups stay on the drive.
@@ -98,15 +99,21 @@ def is_work_dir(name: str) -> bool:
     return _WORK_DIR_RE.fullmatch(name) is not None
 
 
-def _newest_dated(folder: str, udid: str) -> str:
-    """The newest <udid>-<date>-<time> backup in folder, or "" if there isn't one."""
+def _other_backup_here(folder: str, udid: str) -> str:
+    """
+    A backup of this iPhone in folder under the other names backups here get: the newest
+    <udid>-<date>-<time>, else one still in a work folder. "" if there's neither.
+    """
     dated = re.compile(re.escape(udid) + r"-\d{8}-\d{6}(?:-\d+)?")
     try:
         with os.scandir(folder) as entries:
             found = [e.path for e in entries if dated.fullmatch(e.name) and holds_a_backup(e.path)]
     except OSError:
         return ""
-    return max(found, default="")
+    if found:
+        return max(found)
+    waiting = [p for p in unplaced(folder) if os.path.basename(p) == udid and holds_a_backup(p)]
+    return max(waiting, default="")
 
 
 def unplaced(folder: str) -> list[str]:
@@ -157,9 +164,9 @@ class Destination:
         self._named = self.earlier = os.path.join(self._output_dir, udid)
         self.beside = holds_a_backup(self._named)
         if not self.beside:
-            dated = _newest_dated(self._output_dir, udid)
-            if dated:
-                self.earlier, self.beside = dated, True
+            other = _other_backup_here(self._output_dir, udid)
+            if other:
+                self.earlier, self.beside = other, True
         self.root, self._new = self._output_dir, self._named
         if not self.beside:
             return self.root
