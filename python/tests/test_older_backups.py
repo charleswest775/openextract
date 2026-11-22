@@ -123,7 +123,12 @@ def refused(manager, kept, target, reason=older_backups.NOT_OFFERED):
 
 
 def stored(folder):
-    return sorted(p for p in folder.glob("??/*") if p.is_file())
+    # On exFAT a Mac puts a ._<name> file beside each: not part of the backup.
+    return sorted(p for p in folder.glob("??/*") if p.is_file() and not p.name.startswith("._"))
+
+
+def own_files(folder):
+    return [p for p in folder.rglob("*") if p.is_file() and not p.name.startswith("._")]
 
 
 def link(target, at, directory=False):
@@ -144,7 +149,7 @@ def test_the_older_backup_is_offered_and_asking_changes_nothing(manager, out, ol
     assert found["older"]["backup_dir"] == str(old) and found["newer"]["backup_dir"] == str(new)
     assert found["older"]["encrypted"] and found["newer"]["encrypted"]
     assert found["older"]["device_name"] == "Test iPhone"
-    assert found["older"]["bytes"] == sum(p.stat().st_size for p in old.rglob("*") if p.is_file())
+    assert found["older"]["bytes"] == sum(p.stat().st_size for p in own_files(old))
     assert found["older"]["last_backup"] < found["newer"]["last_backup"]
     assert snapshot(out) == before
 
@@ -1096,9 +1101,10 @@ def test_windows_cluster(monkeypatch):
 def test_files_and_folders_are_rounded_up_to_clusters(old):
     plain, rounded = older_backups._measure(str(old), 1), older_backups._measure(str(old), 4096)
     files = [p for p in old.rglob("*") if p.is_file()]
+    own = own_files(old)
     folders = [p for p in old.iterdir() if p.is_dir()]
     assert rounded["room"] == 4096 * len(folders) + sum(-(-p.stat().st_size // 4096) * 4096 for p in files)
-    assert rounded["bytes"] == plain["bytes"] == sum(p.stat().st_size for p in files)
+    assert rounded["bytes"] == plain["bytes"] == sum(p.stat().st_size for p in own)
 
 
 def test_a_mac_that_cant_tell_if_its_local_says_no(monkeypatch, tmp_path):
