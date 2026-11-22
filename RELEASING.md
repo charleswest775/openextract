@@ -156,3 +156,9 @@ moves the pin by itself. To move it, in its own PR and not in the days just befo
       backup (`python/backup_beside.py`); any new call that takes a backup folder must not either.
 - [ ] Back up a real iPhone with the dev app, on a Mac and on Windows, once with encryption on.
 - [ ] Run **Pre-release check** by hand on the PR's branch for the packaged engine.
+
+## Bumping Electron
+
+- [ ] Check that `shell.trashItem` still fails when it can't use the Trash, rather than deleting
+      (`shell/common/platform_util_*` in Electron's source at that version). Move to Trash for
+      older backups depends on it (`python/trash_room.py` says what was measured).
