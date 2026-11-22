@@ -17,12 +17,16 @@ user when files are missing (check_backup_files in main.py).
 
 from __future__ import annotations
 
+import hashlib
 import os
 import plistlib
+import shutil
+import sqlite3
 import stat
 import sys
+import tempfile
 import weakref
-from typing import Optional
+from typing import Iterator, Optional
 
 from ios_backup_core.db import connect_readonly
 
@@ -179,24 +183,26 @@ def _claimed_size(value) -> Optional[int]:
         return None
 
 
-def _read_listed(cursor) -> list:
+def _read_listed(cursor) -> Iterator[tuple]:
     columns = {row[1] for row in cursor.execute("PRAGMA table_info(Files)").fetchall()}
     size = "size" if "size" in columns else "file" if "file" in columns else "NULL"
     where = "flags = 1" + (" AND (size IS NULL OR size > 0)" if size == "size" else "")
-    return cursor.execute(f"SELECT fileID, relativePath, {size} FROM Files WHERE {where}").fetchall()
+    # One at a time: with each file's record, 400,000 of them together were over 400 MB.
+    yield from cursor.execute(f"SELECT fileID, relativePath, {size} FROM Files WHERE {where}")
 
 
-def _listed_with_sizes(backup) -> list:
+def _listed_with_sizes(backup) -> Iterator[tuple]:
     """(fileID, relativePath, what says its size) of each file the backup lists."""
     if getattr(backup, "encrypted", False):
         with backup._decrypted_backup.manifest_db_cursor() as cursor:
-            return _read_listed(cursor)
+            yield from _read_listed(cursor)
+        return
     manifest = backup.get_manifest_db()
     if not manifest:
-        return []
+        return
     conn = connect_readonly(manifest, backup)
     try:
-        return _read_listed(conn.cursor())
+        yield from _read_listed(conn.cursor())
     finally:
         conn.close()
 
@@ -231,24 +237,69 @@ def stored_whole(backup) -> Optional[dict]:
                                 return None
                             if stat.S_ISREG(item_st.st_mode) and item.name[:2] == entry.name:
                                 stored[item.name] = item_st.st_size
-        listed = _listed_with_sizes(backup)
+        ids: set = set()
         total = 0
-        for file_id, path, size in listed:
+        for file_id, path, size in _listed_with_sizes(backup):
             if file_id not in stored:
                 return None
             # Sizes often differ a little for files that were in use, so only empty ones count.
             if not stored[file_id] and _claimed_size(size) != 0 and not (path or "").endswith(_LIVE_COMPANIONS):
                 return None
-            total += stored[file_id]
+            if file_id not in ids:  # a crafted list can name one file many times over
+                ids.add(file_id)
+                total += stored[file_id]
     except Exception as e:
         print(f"[files] couldn't check the backup's files: {type(e).__name__}", file=sys.stderr, flush=True)
         return None
-    if not listed:
+    if not ids:
         return None
-    return {"bytes": total, "ids": frozenset(row[0] for row in listed)}
+    return {"bytes": total, "ids": frozenset(ids)}
 
 
 def names_still_there(backup, ids: frozenset) -> bool:
     """Quick, for just before acting on stored_whole(): one directory read per folder."""
     names = _read_folder(backup.backup_dir)
     return names is not None and ids <= names
+
+
+def messages_readable(backup, ids: frozenset) -> bool:
+    """
+    Whether the backup's Messages can be read from its folder now: copied (decrypted) afresh to a
+    temp folder and every message's row read. Having a file there doesn't mean it can be read,
+    and these are what people least want to lose. True when it lists no Messages.
+    """
+    domain, path = "HomeDomain", "Library/SMS/sms.db"
+
+    def file_id(suffix: str) -> str:
+        return hashlib.sha1(f"{domain}-{path}{suffix}".encode()).hexdigest()
+
+    if file_id("") not in ids:
+        return True
+    work = None
+    try:
+        work = tempfile.mkdtemp(prefix="openextract-check-")
+        copy = os.path.join(work, "sms.db")
+        for suffix in ("", "-wal"):
+            stored_as = file_id(suffix)
+            if stored_as not in ids:
+                continue
+            if getattr(backup, "encrypted", False):
+                backup._decrypted_backup.extract_file(
+                    relative_path=path + suffix, domain_like=domain, output_filename=copy + suffix)
+            else:
+                source = os.path.join(backup.backup_dir, stored_as[:2], stored_as)
+                if not os.path.isfile(source):  # iOS 9 and earlier
+                    source = os.path.join(backup.backup_dir, stored_as)
+                shutil.copyfile(source, copy + suffix)
+        conn = sqlite3.connect(copy)
+        try:
+            conn.execute("SELECT count(*) FROM message NOT INDEXED").fetchone()
+        finally:
+            conn.close()
+        return True
+    except Exception as e:  # the decryption library raises many kinds
+        print(f"[files] couldn't read the backup's Messages: {type(e).__name__}", file=sys.stderr, flush=True)
+        return False
+    finally:
+        if work:
+            shutil.rmtree(work, ignore_errors=True)

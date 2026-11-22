@@ -113,9 +113,15 @@ export default function OlderBackups({ udid }: { udid: string }) {
           </li>
         ))}
       </ul>
+      {working && (
+        <p className="text-sm text-text-secondary">
+          Checking reads every file in both backups, which can take several minutes on a big backup or a slow drive.
+        </p>
+      )}
       {moved && (
         <p role="status" className="mt-2 text-sm text-text-secondary">
           Moved to the {trash}. It takes up the same space until the {trash} is emptied.
+          {windows && " If things you delete later don't fit in the Recycle Bin, Windows erases it for good, without asking."}
         </p>
       )}
     </section>

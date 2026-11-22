@@ -351,6 +351,9 @@ class SidecarServer:
         # WhatsApp's names and file list too (a reopened backup is a new
         # accessor anyway; this keeps a backup made again in place honest)
         self.whatsapp_extractor.clear_cache()
+        # An older backup that was looked at first mustn't stay open: it may be moved to the
+        # Trash from inside this one (older_backups.py).
+        self.message_extractor.close_databases()
         return self.backup_manager.open_backup(udid, password=password, backup_dir=backup_dir)
 
     def validate_password(self, params):

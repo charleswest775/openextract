@@ -10,6 +10,7 @@ import json
 import os
 import plistlib
 import shutil
+import sqlite3
 import sys
 import types
 from datetime import timedelta
@@ -51,8 +52,21 @@ def out(tmp_path):
     return tmp_path.resolve() / "Backups"
 
 
+def messages_db(tmp_path) -> bytes:
+    """An sms.db with enough messages to be several pages long."""
+    path = tmp_path / "messages-source.db"
+    if not path.exists():
+        conn = sqlite3.connect(path)
+        conn.execute("CREATE TABLE message (ROWID INTEGER PRIMARY KEY, text TEXT)")
+        conn.executemany("INSERT INTO message (text) VALUES (?)", [("synthetic " * 20,)] * 60)
+        conn.commit()
+        conn.close()
+    return path.read_bytes()
+
+
 def make(tmp_path, dest, when, *, udid=UDID, by_openextract=False, seed=1):
-    made = make_encrypted_backup(tmp_path / f"made-{dest.name}-{seed}", udid, seed=seed, when=when)
+    made = make_encrypted_backup(tmp_path / f"made-{dest.name}-{seed}", udid, seed=seed, when=when,
+                                 text=messages_db(tmp_path))
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(made), str(dest))
     # Written when it was made, by this computer's clock too.
@@ -447,9 +461,15 @@ def test_a_drives_own_folder_stays(manager, old, new, monkeypatch):
 def test_no_room_in_the_trash_is_passed_on(manager, old, new, monkeypatch):
     kept = opened(manager, new)
     asked = []
-    monkeypatch.setattr(trash_room, "problem", lambda *a: asked.append(a) or trash_room.BIN_TOO_FULL)
+
+    def problem(*a):
+        asked.append(a)
+        return trash_room.BIN_TOO_FULL if a[1] else None
+
+    monkeypatch.setattr(trash_room, "problem", problem)
     refused(manager, kept, old, trash_room.BIN_TOO_FULL)
-    ((path, room, longest),) = asked
+    assert asked[0][:2] == (str(old), 0)
+    path, room, longest = asked[1]
     assert path == str(old) and longest == max(len(str(p)) for p in old.rglob("*") if p.is_file())
     assert room >= sum(p.stat().st_size for p in old.rglob("*") if p.is_file())
 
@@ -458,7 +478,15 @@ def test_no_room_in_the_trash_is_passed_on(manager, old, new, monkeypatch):
 
 @pytest.mark.fake_iphone
 def test_back_up_remove_the_older_and_back_up_again(manager, out, old):
-    sending = lambda: FakeIPhone(plans.synthetic_backup(file_count=20, large_files=()))  # noqa: E731
+    messages = messages_db(out.parent)
+
+    def sending():
+        ops = plans.synthetic_backup(file_count=20, large_files=())
+        for op in ops:
+            for file in op.get("files", []) if op["op"] == "UploadFiles" else []:
+                if file["path"].endswith(SMS_ID):
+                    file.update(data=messages, size=len(messages))  # ones that can be read
+        return FakeIPhone(ops)
     run = run_backup(sending(), out)
     assert run.error is None, run.error
     second = Path(run.result["backup_path"])
@@ -647,19 +675,26 @@ def test_one_never_unlocked_allows_nothing(manager, old, new):
     refused(manager, never, old, older_backups.KEPT_CHANGED)
 
 
+def while_measuring(monkeypatch, happens):
+    real = older_backups._measure
+
+    def measure(*args):
+        measured = real(*args)
+        happens()
+        return measured
+
+    monkeypatch.setattr(older_backups, "_measure", measure)
+
+
 def test_one_that_changes_while_the_older_is_measured(manager, old, new, monkeypatch):
     kept = opened(manager, new)
-
-    def while_measuring(*_):
-        (new / "Manifest.plist").write_bytes(b"")
-
-    monkeypatch.setattr(trash_room, "problem", while_measuring)
+    while_measuring(monkeypatch, lambda: (new / "Manifest.plist").write_bytes(b""))
     refused(manager, kept, old, older_backups.KEPT_CHANGED)
 
 
 def test_one_that_loses_a_file_while_the_older_is_measured(manager, old, new, monkeypatch):
     kept = opened(manager, new)
-    monkeypatch.setattr(trash_room, "problem", lambda *_: stored(new)[0].unlink())
+    while_measuring(monkeypatch, lambda: stored(new)[0].unlink())
     refused(manager, kept, old, older_backups.KEPT_NOT_WHOLE)
 
 
@@ -1143,3 +1178,95 @@ def test_a_folder_that_is_really_a_link_stays(manager, old, new, monkeypatch):
     real = backup_files.is_link
     monkeypatch.setattr(backup_files, "is_link", lambda st: st.st_ino == inside or real(st))
     refused(manager, kept, old, older_backups.OTHER_THINGS)
+
+
+# ── Readable, not just there ─────────────────────────────────────────────────
+
+SMS_ID = "3d0d7e5fb2ce288813306e4d4636395e047a3d28"
+
+
+def cut_short(p):
+    p.write_bytes(p.read_bytes()[:4096])
+
+
+@pytest.mark.parametrize("damage", [cut_short, zero_filled])
+def test_not_from_one_whose_messages_cant_be_read(manager, old, new, damage):
+    kept = opened(manager, new)  # with its own copy of them from before
+    damage(new / SMS_ID[:2] / SMS_ID)
+    refused(manager, kept, old, older_backups.KEPT_UNREADABLE)
+
+
+def test_a_file_listed_over_and_over_counts_once(manager, old, new, monkeypatch):
+    kept = opened(manager, new)
+    real = backup_files._listed_with_sizes
+    monkeypatch.setattr(backup_files, "_listed_with_sizes", lambda backup_: list(real(backup_)) * 50)
+    assert ask(manager, kept, old)["newer"]["bytes"] == sum(p.stat().st_size for p in stored(new))
+
+
+def test_a_network_drive_is_refused_before_the_long_read(manager, old, new, monkeypatch):
+    kept = opened(manager, new)
+    monkeypatch.setattr(trash_room, "problem", lambda *_: trash_room.NOT_LOCAL)
+    monkeypatch.setattr(backup_files, "stored_whole", lambda _: pytest.fail("read it all first"))
+    refused(manager, kept, old, trash_room.NOT_LOCAL)
+
+
+def test_room_in_the_trash_is_the_last_thing_asked(manager, old, new, monkeypatch):
+    kept = opened(manager, new)
+    order = []
+    still_there = backup_files.names_still_there
+    monkeypatch.setattr(backup_files, "names_still_there", lambda *a: order.append("files") or still_there(*a))
+    monkeypatch.setattr(trash_room, "problem", lambda *a: order.append("room") and None)
+    assert ask(manager, kept, old)["allowed"]
+    assert order == ["room", "files", "room"]
+
+
+def test_opening_the_newer_lets_go_of_everything_in_the_older(tmp_path, monkeypatch):
+    from rpc_contract_support import MAREN, generated_backup, load_engine_module
+
+    _, source = generated_backup(MAREN)
+    udid = source.name
+    out = tmp_path.resolve() / "Backups"
+    older, newer = out / udid, out / f"{udid}-20240615-120000"
+    for folder in (older, newer):
+        shutil.copytree(source, folder)
+    connections = []
+    real_connect = sqlite3.connect
+
+    def connect(*args, **kwargs):
+        conn = real_connect(*args, **kwargs)
+        try:
+            connections.append((conn, tuple(conn.execute("PRAGMA database_list").fetchone())[2]))
+        except sqlite3.Error:  # one that isn't a database
+            pass
+        return conn
+
+    monkeypatch.setattr(sqlite3, "connect", connect)
+    server = load_engine_module().SidecarServer()
+
+    def call(method, **params):
+        return server.handle_request({"id": "x", "method": method, "params": {"udid": udid, **params}})
+
+    def still_open():
+        held = []
+        for conn, path in connections:
+            if path and Path(path).resolve().is_relative_to(older):
+                try:
+                    conn.execute("SELECT 1")
+                except sqlite3.ProgrammingError:  # closed
+                    continue
+                held.append(path)
+        return held
+
+    try:
+        assert call("open_backup", backup_dir=str(older))["result"]["status"] == "open"
+        for method in ("list_conversations", "get_backup_stats", "list_photos", "list_albums", "list_contacts",
+                       "list_calls", "list_notes", "list_voicemails", "list_browser_history", "list_whatsapp_chats",
+                       "list_podcasts", "list_voice_memos", "list_calendars", "recover_messages", "check_backup_files"):
+            call(method)
+        assert still_open(), "nothing was opened, so this would show nothing"
+        assert call("open_backup", backup_dir=str(newer))["result"]["status"] == "open"
+        assert still_open() == []
+        os.rename(older, tmp_path.resolve() / "moved")  # which Windows refuses with any file in it open
+    finally:
+        server.backup_manager.close_backup(udid)
+        server.message_extractor.close_databases()

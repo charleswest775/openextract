@@ -176,6 +176,15 @@ describe('the question', () => {
     assert.equal(detail.split('\n').length, plain);
   });
 
+  test('on Windows it says things deleted later can erase it for good', () => {
+    assert.match(confirmation(OLDER, NEWER, 'win32').detail, /runs out of room.*for good, without asking/);
+    assert.doesNotMatch(confirmation(OLDER, NEWER, 'darwin').detail, /runs out of room/);
+  });
+
+  test('says not to merge or replace when putting it back', () => {
+    assert.match(confirmation(OLDER, NEWER, 'darwin').detail, /don't merge or replace/);
+  });
+
   test('warnings come before everything else', () => {
     const { detail } = confirmation(OLDER, { ...NEWER, encrypted: false, bytes: 8e9 }, 'darwin');
     assert.match(detail, /^The older backup is encrypted/);

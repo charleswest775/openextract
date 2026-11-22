@@ -488,7 +488,15 @@ app.whenReady().then(async () => {
         // No window to ask in means no.
         confirm: async options =>
           mainWindow && !mainWindow.isDestroyed() ? dialog.showMessageBox(mainWindow, options) : { response: 0 },
-        trashItem: target => shell.trashItem(target),
+        trashItem: target => {
+          // Windows won't move the folder this process is working in, as a file dialog can leave it.
+          try {
+            if (isInsideFolder(resolveReal(process.cwd()), resolveReal(target))) process.chdir(os.homedir());
+          } catch {
+            // The working folder has gone, so it's in nobody's way.
+          }
+          return shell.trashItem(target);
+        },
         exists: target => {
           try {
             fs.lstatSync(target);

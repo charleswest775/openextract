@@ -10,7 +10,8 @@ A backup may go only if all of these hold:
   - The one that stays is open, so it unlocked, and is still exactly what was opened (identity):
     the keys and list of files an open backup reads with are copies from then. OpenExtract saw
     the iPhone finish it (backup_status: confirmed), and every file it lists is there, as a file
-    of its own, not a link (backup_files.stored_whole).
+    of its own, not a link (backup_files.stored_whole), and its Messages can be read. That is
+    not proof that every other file in it can be.
   - The one to go is in the same folder, named as that iPhone's backups are, says it's that
     iPhone's, finished, can still be unlocked, and is older by the iPhone's dates and by this
     computer's. So the newest can never go. One that didn't finish or has lost its keys is never
@@ -71,6 +72,10 @@ KEPT_CHANGED = (
 KEPT_NOT_WHOLE = (
     "OpenExtract couldn't confirm that the backup you have open has all its files, so it won't "
     "move an older one. The older one may be the only whole copy."
+)
+KEPT_UNREADABLE = (
+    "OpenExtract couldn't read the Messages in the backup you have open, so it won't move an "
+    "older one. The older one may be the only good copy."
 )
 OTHER_THINGS = (
     "That backup's folder has other files or folders in it, which would go with it, so "
@@ -311,7 +316,8 @@ def check(kept, wanted: str, read_info: ReadInfo) -> dict:
         {"allowed": True, "older": {...}, "newer": {...}, "stamp": <changes if the folder does>}
 
     older and newer hold what the confirmation needs to say. The one that stays is read first
-    and again last, and the one to go as late as can be, as either read can take minutes.
+    and again after the one to go, as either read can take minutes. The Trash's room is asked
+    before all that, to refuse quickly, and again last of all, as what's in it can change.
     """
     try:
         if not _as_opened(kept):
@@ -320,13 +326,15 @@ def check(kept, wanted: str, read_info: ReadInfo) -> dict:
         target = next((info for info in found if info["backup_dir"] == wanted), None)
         if target is None or os.path.ismount(wanted):
             raise _Refused(NOT_OFFERED)
+        problem = trash_room.problem(wanted, 0, len(wanted))
+        if problem:
+            raise _Refused(problem)
         whole = backup_files.stored_whole(kept)
         if whole is None:
             raise _Refused(KEPT_NOT_WHOLE)
+        if not backup_files.messages_readable(kept, whole["ids"]):
+            raise _Refused(KEPT_UNREADABLE)
         size = _measure(wanted, trash_room.cluster_size(wanted))
-        problem = trash_room.problem(wanted, size["room"], size["longest"])
-        if problem:
-            raise _Refused(problem)
         st = os.lstat(wanted)
         index = [os.stat(os.path.join(wanted, name)).st_mtime_ns
                  for name in ("Manifest.db", "Manifest.mbdb", "Manifest.plist", "Status.plist")
@@ -335,6 +343,9 @@ def check(kept, wanted: str, read_info: ReadInfo) -> dict:
             raise _Refused(KEPT_NOT_WHOLE)
         if not _as_opened(kept):
             raise _Refused(KEPT_CHANGED)
+        problem = trash_room.problem(wanted, size["room"], size["longest"])
+        if problem:
+            raise _Refused(problem)
     except _Refused as e:
         return {"allowed": False, "reason": str(e)}
     except OSError:

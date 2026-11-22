@@ -506,7 +506,7 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                     <p className="text-xs text-gray-500 mt-1.5 break-all" data-earlier-backup>
                       The backup that was already there was kept too, in {earlierBackup}. OpenExtract
                       never removes it by itself. If you need the space, open the new one and check it
-                      has everything you want. Its Backup details lists older backups that finished.
+                      has everything you want. Its Backup details lists older backups it can move to the Trash.
                     </p>
                   )}
                 </div>

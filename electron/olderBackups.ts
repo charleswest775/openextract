@@ -109,13 +109,17 @@ export function confirmation(older: BackupFacts, newer: BackupFacts, platform: s
       "The iPhone's name or number was different then. If it was erased or handed on, the older backup may be the only copy of what was on it.",
     );
   }
+  const putBack = platform === 'win32'
+    ? "You can take it back out until the Recycle Bin is emptied or runs out of room. When things deleted later don't fit, Windows erases the oldest for good, without asking."
+    : 'You can take it back out until the Trash is emptied, which some computers do by themselves.';
   const detail = [
     ...warnings,
     'Anything that left the iPhone between the two, such as messages and photos that were deleted or moved to iCloud, may be only in the older one.',
     `Older backup: ${shortName(older.device_name)}, ${when(older.last_backup)}, ${size(older.bytes)}\n${shortPath(older.backup_dir)}`,
     `Newer backup, which stays: ${shortName(newer.device_name)}, ${when(newer.last_backup)}, ${size(newer.bytes)}\n${shortPath(newer.backup_dir)}`,
     "Don't move it while it's being restored or copied.",
-    `You can take it back out until the ${trash} is emptied, which some computers do by themselves. It takes up the same space until then.`,
+    `${putBack} It takes up the same space until then.`,
+    "If you put it back and there's a folder with the same name, don't merge or replace: that could ruin a newer backup.",
   ].join('\n\n');
   return {
     type: 'warning',
