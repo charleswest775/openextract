@@ -115,7 +115,7 @@ export default function OlderBackups({ udid }: { udid: string }) {
       </ul>
       {working && (
         <p className="text-sm text-text-secondary">
-          Checking reads every file in both backups, which can take several minutes on a big backup or a slow drive.
+          Checking looks at every file in both backups and reads the newer one's Messages, which can take several minutes on a big backup or a slow drive.
         </p>
       )}
       {moved && (

@@ -6,6 +6,8 @@ must be refused. The engine itself never moves or deletes: every test that asks 
 everything exactly as it was.
 """
 
+import errno
+import hashlib
 import json
 import os
 import plistlib
@@ -1290,3 +1292,109 @@ def test_opening_the_newer_lets_go_of_everything_in_the_older(tmp_path, monkeypa
     finally:
         server.backup_manager.close_backup(udid)
         server.message_extractor.close_databases()
+
+
+# ── The Messages check never blames a good backup ───────────────────────────
+
+SMS_WAL_ID = hashlib.sha1(b"HomeDomain-Library/SMS/sms.db-wal").hexdigest()
+
+
+def test_an_empty_wal_with_no_key_is_fine(manager, old, new, monkeypatch):
+    # An empty file can be listed with no key to decrypt it, and nothing in it to read.
+    kept = opened(manager, new)
+    (new / SMS_WAL_ID[:2]).mkdir(exist_ok=True)
+    (new / SMS_WAL_ID[:2] / SMS_WAL_ID).write_bytes(b"")
+    real = backup_files._listed_with_sizes
+    monkeypatch.setattr(backup_files, "_listed_with_sizes",
+                        lambda backup_: [*real(backup_), (SMS_WAL_ID, "Library/SMS/sms.db-wal", 0)])
+    assert ask(manager, kept, old)["allowed"]
+
+
+def test_messages_never_used_are_fine(manager, old, new, monkeypatch):
+    kept = opened(manager, new)
+    (new / SMS_ID[:2] / SMS_ID).write_bytes(b"")
+    real = backup_files._listed_with_sizes
+    monkeypatch.setattr(backup_files, "_listed_with_sizes", lambda backup_: [
+        (file_id, path, 0 if file_id == SMS_ID else size) for file_id, path, size in real(backup_)])
+    assert ask(manager, kept, old)["allowed"]
+
+
+def test_no_room_to_check_doesnt_blame_the_backup(manager, old, new, monkeypatch):
+    kept = opened(manager, new)
+    monkeypatch.setattr(backup_files.shutil, "disk_usage", lambda _: types.SimpleNamespace(free=0))
+    refused(manager, kept, old, older_backups.NO_ROOM_TO_CHECK)
+
+
+@pytest.mark.parametrize("full", [OSError(errno.ENOSPC, "No space left on device"),
+                                  sqlite3.OperationalError("database or disk is full")])
+def test_running_out_partway_doesnt_blame_it_either(manager, old, new, monkeypatch, full):
+    kept = opened(manager, new)
+
+    def extract_file(**_):
+        raise full
+
+    monkeypatch.setattr(kept._decrypted_backup, "extract_file", extract_file)
+    refused(manager, kept, old, older_backups.NO_ROOM_TO_CHECK)
+
+
+def plain_backup(folder, wal_bytes):
+    """Just enough of an unencrypted backup for messages_problem: sms.db, and a -wal if given."""
+    from contextlib import closing
+
+    work = folder / "work"
+    work.mkdir(parents=True)
+    with closing(sqlite3.connect(work / "sms.db")) as conn:
+        conn.execute("CREATE TABLE message (ROWID INTEGER PRIMARY KEY, text TEXT)")
+        conn.commit()
+    kept = folder / "backup"
+    ids = [(SMS_ID, (work / "sms.db").read_bytes())]
+    if wal_bytes is not None:
+        ids.append((SMS_WAL_ID, wal_bytes))
+    for file_id, data in ids:
+        (kept / file_id[:2]).mkdir(parents=True, exist_ok=True)
+        (kept / file_id[:2] / file_id).write_bytes(data)
+    return types.SimpleNamespace(backup_dir=str(kept), encrypted=False), frozenset(i for i, _ in ids)
+
+
+@pytest.mark.parametrize("wal", [None, b""], ids=["no wal", "empty wal"])
+def test_unencrypted_messages_are_read_in_place_and_need_no_room(tmp_path, monkeypatch, wal):
+    kept, ids = plain_backup(tmp_path, wal)
+    monkeypatch.setattr(backup_files.shutil, "disk_usage", lambda _: types.SimpleNamespace(free=0))
+    monkeypatch.setattr(backup_files.tempfile, "mkdtemp", lambda *a, **k: pytest.fail("made a copy"))
+    before = snapshot(kept.backup_dir)
+    assert backup_files.messages_problem(kept, ids) is None
+    assert snapshot(kept.backup_dir) == before
+
+
+def test_a_wal_is_read_from_a_copy_never_beside_the_backups(tmp_path):
+    kept, ids = plain_backup(tmp_path, b"not empty" * 100)
+    before = snapshot(kept.backup_dir)
+    backup_files.messages_problem(kept, ids)
+    assert snapshot(kept.backup_dir) == before
+
+
+def test_its_copy_is_one_the_next_engine_clears_away(manager, old, new, monkeypatch, tmp_path):
+    import app_copies
+
+    kept = opened(manager, new)
+    made = []
+    real = backup_files.tempfile.mkdtemp
+
+    def mkdtemp(*args, **kwargs):
+        made.append(real(*args, **kwargs))
+        return made[-1]
+
+    monkeypatch.setattr(backup_files.tempfile, "mkdtemp", mkdtemp)
+    assert ask(manager, kept, old)["allowed"]
+    (folder,) = made
+    assert os.path.basename(folder).startswith(f"{app_copies.temp_prefix('messages')}{os.getpid()}-")
+    assert not os.path.exists(folder)
+
+
+def test_messages_damaged_past_the_first_page_are_caught(tmp_path):
+    kept, ids = plain_backup(tmp_path, None)
+    db = Path(kept.backup_dir) / SMS_ID[:2] / SMS_ID
+    data = messages_db(tmp_path)
+    assert len(data) > 8192
+    db.write_bytes(data[:4096] + b"\xff" * (len(data) - 4096))  # it still opens as a database
+    assert backup_files.messages_problem(kept, ids) == backup_files.UNREADABLE

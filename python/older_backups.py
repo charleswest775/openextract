@@ -77,6 +77,11 @@ KEPT_UNREADABLE = (
     "OpenExtract couldn't read the Messages in the backup you have open, so it won't move an "
     "older one. The older one may be the only good copy."
 )
+NO_ROOM_TO_CHECK = (
+    "There isn't enough free space on this computer to check the Messages in the backup you have "
+    "open, so OpenExtract didn't move the older one. That doesn't mean anything is wrong with "
+    "either backup. Free up some space on the computer's own drive, then try again."
+)
 OTHER_THINGS = (
     "That backup's folder has other files or folders in it, which would go with it, so "
     "OpenExtract won't move it. Look inside it first."
@@ -332,8 +337,9 @@ def check(kept, wanted: str, read_info: ReadInfo) -> dict:
         whole = backup_files.stored_whole(kept)
         if whole is None:
             raise _Refused(KEPT_NOT_WHOLE)
-        if not backup_files.messages_readable(kept, whole["ids"]):
-            raise _Refused(KEPT_UNREADABLE)
+        unread = backup_files.messages_problem(kept, whole["ids"])
+        if unread:
+            raise _Refused(NO_ROOM_TO_CHECK if unread == backup_files.NO_ROOM else KEPT_UNREADABLE)
         size = _measure(wanted, trash_room.cluster_size(wanted))
         st = os.lstat(wanted)
         index = [os.stat(os.path.join(wanted, name)).st_mtime_ns

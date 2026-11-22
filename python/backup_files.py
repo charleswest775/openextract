@@ -17,6 +17,7 @@ user when files are missing (check_backup_files in main.py).
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import os
 import plistlib
@@ -262,44 +263,74 @@ def names_still_there(backup, ids: frozenset) -> bool:
     return names is not None and ids <= names
 
 
-def messages_readable(backup, ids: frozenset) -> bool:
+NO_ROOM, UNREADABLE = "no room", "unreadable"
+# Left free on the temp folder's drive by the copy below.
+_SPARE_ROOM = 16 * 1024 * 1024
+
+
+def _count_messages(conn: sqlite3.Connection) -> None:
+    try:
+        conn.execute("SELECT count(*) FROM message NOT INDEXED").fetchone()
+    finally:
+        conn.close()
+
+
+def messages_problem(backup, ids: frozenset) -> Optional[str]:
     """
-    Whether the backup's Messages can be read from its folder now: copied (decrypted) afresh to a
-    temp folder and every message's row read. Having a file there doesn't mean it can be read,
-    and these are what people least want to lose. True when it lists no Messages.
+    What stops the backup's Messages being read from its folder now, every row: UNREADABLE,
+    NO_ROOM, or None. Having a file there doesn't mean it can be read, and these are what people
+    least want to lose.
+
+    Copied (decrypted) afresh only when it has to be. A full drive is the usual reason to remove
+    an older backup, so lack of room must never be told as a bad newer backup.
     """
     domain, path = "HomeDomain", "Library/SMS/sms.db"
+    encrypted = getattr(backup, "encrypted", False)
 
-    def file_id(suffix: str) -> str:
-        return hashlib.sha1(f"{domain}-{path}{suffix}".encode()).hexdigest()
+    def stored(suffix: str) -> Optional[str]:
+        file_id = hashlib.sha1(f"{domain}-{path}{suffix}".encode()).hexdigest()
+        if file_id not in ids:
+            return None
+        found = os.path.join(backup.backup_dir, file_id[:2], file_id)
+        if not os.path.isfile(found):  # iOS 9 and earlier
+            found = os.path.join(backup.backup_dir, file_id)
+        # An empty file holds nothing to read, and can be listed without a key to decrypt it.
+        return found if os.path.getsize(found) else None
 
-    if file_id("") not in ids:
-        return True
     work = None
     try:
-        work = tempfile.mkdtemp(prefix="openextract-check-")
+        db, wal = stored(""), stored("-wal")
+        if db is None:
+            return None
+        if not encrypted and not wal:
+            _count_messages(connect_readonly(db, backup))  # in place, needing no room
+            return None
+        from app_copies import temp_prefix  # here, as it imports messages
+
+        # Named as the copies the next engine's start clears away, if this one is stopped partway.
+        work = tempfile.mkdtemp(prefix=f"{temp_prefix('messages')}{os.getpid()}-")
+        # Closing it copies the -wal into the database, so that can be there twice.
+        needed = os.path.getsize(db) + (2 * os.path.getsize(wal) if wal else 0)
+        if shutil.disk_usage(work).free < needed + _SPARE_ROOM:
+            return NO_ROOM
         copy = os.path.join(work, "sms.db")
-        for suffix in ("", "-wal"):
-            stored_as = file_id(suffix)
-            if stored_as not in ids:
+        for suffix, source in (("", db), ("-wal", wal)):
+            if not source:
                 continue
-            if getattr(backup, "encrypted", False):
+            if encrypted:
                 backup._decrypted_backup.extract_file(
                     relative_path=path + suffix, domain_like=domain, output_filename=copy + suffix)
             else:
-                source = os.path.join(backup.backup_dir, stored_as[:2], stored_as)
-                if not os.path.isfile(source):  # iOS 9 and earlier
-                    source = os.path.join(backup.backup_dir, stored_as)
                 shutil.copyfile(source, copy + suffix)
-        conn = sqlite3.connect(copy)
-        try:
-            conn.execute("SELECT count(*) FROM message NOT INDEXED").fetchone()
-        finally:
-            conn.close()
-        return True
+        _count_messages(sqlite3.connect(copy))
+        return None
     except Exception as e:  # the decryption library raises many kinds
         print(f"[files] couldn't read the backup's Messages: {type(e).__name__}", file=sys.stderr, flush=True)
-        return False
+        if isinstance(e, OSError) and e.errno in (errno.ENOSPC, getattr(errno, "EDQUOT", errno.ENOSPC)):
+            return NO_ROOM
+        if isinstance(e, sqlite3.OperationalError) and "disk is full" in str(e):
+            return NO_ROOM
+        return UNREADABLE
     finally:
         if work:
             shutil.rmtree(work, ignore_errors=True)
