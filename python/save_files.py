@@ -88,8 +88,8 @@ def new_page(path: str, files=None):
     was_there = os.path.lexists(path)
     opened = False
     try:
-        # "x": never replace a file that is already there, even one that turned up after the name was picked
-        with open(path, "x", encoding="utf-8") as f:
+        # "x" when the name was free, so a file that has turned up since is never written over
+        with open(path, "w" if was_there else "x", encoding="utf-8") as f:
             opened = True
             yield f
     except BaseException as e:
