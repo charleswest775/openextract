@@ -23,23 +23,21 @@ Kept openextract-local because the library intentionally omits them as
 
 import base64
 import datetime
-import filecmp
 import hashlib
 import io
 import json
 import os
-import shutil
 import sqlite3
 import sys
-import unicodedata
 import uuid
 import weakref
-from typing import Callable, Optional
+from typing import Optional
 
 import backup_files
 from app_copies import AppCopies, NotEnoughSpace, is_openable, join_name, split_name
 from app_copies import ProgressCallback as CopyProgress
 from export_progress import ExportProgress, ProgressCallback
+from save_names import SaveNames, copy_new, holds, same_file, write_new
 from ios_backup_core.db import connect_readonly
 from ios_backup_core.extractors.photos import (
     PhotoExtractor as _CorePhotoExtractor,
@@ -229,69 +227,6 @@ def _jpeg_exif(img, taken: Optional[datetime.datetime]) -> bytes:
     except Exception:
         return b""
     return data if len(data) <= _JPEG_MAX_EXIF else b""
-
-
-class _SaveNames:
-    """Where one save puts each photo, so that none is written over another file.
-
-    iPhones reuse names (IMG_0001 again in a later DCIM folder), and macOS and Windows
-    folders don't tell IMG_0001.JPG from img_0001.jpg. The second gets "IMG_0001 (2).JPG",
-    as in Finder and File Explorer. A file already in the folder is this photo only if it
-    holds the same bytes, so saving again into a folder makes no copies of what's there.
-    """
-
-    def __init__(self):
-        self._taken: set = set()
-
-    def place(self, folder: str, name: str, is_this_photo: Callable[[str], bool]) -> tuple:
-        """(the path for the photo, whether that path already holds it)."""
-        base, ext = os.path.splitext(name)
-        n = 1
-        while True:
-            path = os.path.join(folder, name if n == 1 else f"{base} ({n}){ext}")
-            key = unicodedata.normalize("NFC", path).casefold()
-            if key not in self._taken:
-                there = os.path.lexists(path)
-                if not there or (os.path.isfile(path) and is_this_photo(path)):
-                    self._taken.add(key)
-                    return path, there
-            n += 1
-
-
-def _holds(path: str, data: bytes) -> bool:
-    """Whether the file at ``path`` holds exactly ``data``."""
-    try:
-        if os.path.getsize(path) != len(data):
-            return False
-        with open(path, "rb") as f:
-            return f.read() == data
-    except OSError:
-        return False
-
-
-def _same_file(path: str, source: str) -> bool:
-    """Whether the file at ``path`` holds exactly what ``source`` does."""
-    try:
-        return filecmp.cmp(path, source, shallow=False)
-    except OSError:
-        return False
-
-
-def _write_new(path: str, write: Callable[[str], object]) -> None:
-    """Make the new file ``path`` with ``write``; if that fails, leave no part of it behind."""
-    try:
-        write(path)
-    except Exception:
-        try:
-            os.remove(path)
-        except OSError:
-            pass
-        raise
-
-
-def _write_bytes(path: str, data: bytes) -> None:
-    with open(path, "wb") as f:
-        f.write(data)
 
 
 class PhotoExtractor:
@@ -870,7 +805,7 @@ class PhotoExtractor:
         on_progress(done, total, failed) is told how far the save has got, a few
         times a second at most (see export_progress.py).
         Every file it writes gets the photo's date taken as its modified time.
-        No photo is written over another file: see _SaveNames.
+        No photo or .json is written over another file: see save_names.py.
         """
         if options is None:
             options = {}
@@ -898,7 +833,7 @@ class PhotoExtractor:
 
         exported = 0
         errors = 0
-        names = _SaveNames()
+        names = SaveNames()
         progress = ExportProgress(on_progress, sum(
             1 for p in all_photos
             if (include_videos or p.get("kind") != "video") and (include_live or p.get("kind") != "live_photo")
@@ -938,26 +873,26 @@ class PhotoExtractor:
                         buf = io.BytesIO()
                         rgb.save(buf, format="JPEG", quality=jpeg_quality, exif=exif)
                     jpeg = buf.getvalue()
-                    dest_path, there = names.place(dest_dir, base + ".jpg", lambda p: _holds(p, jpeg))
+                    dest_path, there = names.place(dest_dir, base + ".jpg", lambda p: holds(p, jpeg))
                     if not there:
-                        _write_new(dest_path, lambda p: _write_bytes(p, jpeg))
+                        write_new(dest_path, jpeg)
                 else:
-                    dest_path, there = names.place(dest_dir, filename, lambda p: _same_file(p, source))
+                    dest_path, there = names.place(dest_dir, filename, lambda p: same_file(p, source))
                     if not there:
-                        _write_new(dest_path, lambda p: shutil.copyfile(source, p))
-                        try:
-                            shutil.copystat(source, dest_path)
-                        except OSError:
-                            pass  # the photo is saved; only the drive won't take its dates
+                        copy_new(source, dest_path)
                 _set_file_date(dest_path, taken)
 
                 exported += 1
 
                 if include_sidecar:
                     meta = {k: v for k, v in photo.items() if k != "file_hash"}
-                    with open(dest_path + ".json", "w", encoding="utf-8") as f:
-                        json.dump(meta, f, indent=2, default=str)
-                    _set_file_date(dest_path + ".json", taken)
+                    # os.linesep, as earlier saves wrote it, so saving again finds those the same
+                    sidecar = json.dumps(meta, indent=2, default=str).replace("\n", os.linesep).encode("utf-8")
+                    sidecar_path, there = names.place(
+                        dest_dir, os.path.basename(dest_path) + ".json", lambda p: holds(p, sidecar))
+                    if not there:
+                        write_new(sidecar_path, sidecar)
+                    _set_file_date(sidecar_path, taken)
 
             except Exception:
                 errors += 1

@@ -9,7 +9,7 @@ import { check, launch, sleep } from '../harness.mjs';
 // Every function on window.openextract, by its path. scripts/e2e-coverage.test.mjs fails if
 // preload.ts exposes something not listed here.
 export const BRIDGE = [
-  'call', 'exportPdf', 'exportHtmlPdf', 'selectFolder', 'saveFolder', 'saveFile', 'writeFile', 'openExternal', 'relaunch',
+  'call', 'exportPdf', 'exportHtmlPdf', 'selectFolder', 'saveFolder', 'saveFile', 'writeFile', 'writeNewFile', 'openExternal', 'relaunch',
   'openPath', 'showInFolder', 'textSize.get', 'textSize.set', 'onNotification', 'getVersion',
   'updates.getState', 'updates.setAutoCheck', 'updates.askLater', 'updates.check', 'updates.download', 'updates.install', 'updates.onStatus',
   'getAppState', 'setFirstLaunchCompleted', 'addSession', 'removeSession', 'getRecentSessions', 'incrementExportCount',
@@ -77,6 +77,10 @@ export default {
       const file = path.join(scratch, 'ünïcode – 日本.txt');
       await app.api('writeFile', file, 'héllo\n🌲');
       check('writeFile writes UTF-8, unicode file names included', fs.existsSync(file) && fs.readFileSync(file, 'utf-8') === 'héllo\n🌲');
+      const written = await app.api('writeNewFile', scratch, 'new file', 'txt', 'first');
+      const numbered = await app.api('writeNewFile', scratch, 'new file', 'txt', 'second');
+      check('writeNewFile numbers the second instead of replacing the first', written.value === path.join(scratch, 'new file.txt')
+        && numbered.value === path.join(scratch, 'new file (2).txt') && fs.readFileSync(written.value, 'utf-8') === 'first', { written, numbered });
       await app.api('openPath', file);
       await app.api('showInFolder', file);
       const shellCalls = await opened();

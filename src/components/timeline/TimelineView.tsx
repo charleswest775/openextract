@@ -78,7 +78,7 @@ export default function TimelineView({ udid, index, startingFilters, query, onOp
     run(async () => {
       const folder = await saveFolder();
       if (!folder) return null;
-      // The PDF is the web page, printed by Chromium (and never overwrites a file)
+      // The PDF is the web page, printed by Chromium. No format overwrites a file
       const path = await writeTimeline(filteredEntries, format, folder, 'timeline-export');
       return { title: `Saved ${plural(filteredEntries.length, 'event')} from the Timeline`, path };
     });

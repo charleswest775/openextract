@@ -151,12 +151,12 @@ class _SaveNameTests:
                 f.write(b"par")
             raise OSError(28, "No space left on device")
 
-        with mock.patch.object(photos.shutil, "copyfile", side_effect=drive_full):
+        with mock.patch("shutil.copyfile", side_effect=drive_full):
             result = self.save({FIRST: b"first"})
         self.assertEqual((result["exported"], result["errors"], _saved(self.out)), (0, 1, []))
 
     def test_a_drive_that_will_not_take_file_details_still_gets_the_photo(self):
-        with mock.patch.object(photos.shutil, "copystat", side_effect=PermissionError(1, "no")):
+        with mock.patch("shutil.copystat", side_effect=PermissionError(1, "no")):
             result = self.save({FIRST: b"first"})
         self.assertEqual((result["exported"], result["errors"], _saved(self.out)), (1, 0, [b"first"]))
 

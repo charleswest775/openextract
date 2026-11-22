@@ -24,6 +24,7 @@ const { app, BrowserWindow, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { fileURLToPath } = require('url');
+import { safeBaseName, writeNewFile } from './newFile';
 
 type Sidecar = { call: (method: string, params: any, timeoutMs?: number) => Promise<any> };
 
@@ -191,21 +192,8 @@ function defaultPageSize(): 'Letter' | 'A4' {
   return ['US', 'CA', 'MX', 'PH', 'CL', 'CO', 'VE', 'PR'].includes(country) ? 'Letter' : 'A4';
 }
 
-/** "Mom.pdf", or "Mom (2).pdf" if that exists, so we never overwrite a file. */
-function uniquePath(target: string): string {
-  if (!fs.existsSync(target)) return target;
-  const dir = path.dirname(target);
-  const ext = path.extname(target);
-  const base = path.basename(target, ext);
-  for (let n = 2; n < 1000; n++) {
-    const candidate = path.join(dir, `${base} (${n})${ext}`);
-    if (!fs.existsSync(candidate)) return candidate;
-  }
-  return path.join(dir, `${base} (${Date.now()})${ext}`);
-}
-
-/** Render one local HTML file to a PDF file. */
-async function htmlFileToPdf(htmlPath: string, pdfPath: string): Promise<void> {
+/** Render one local HTML file to a new PDF: `pdfPath`, or a numbered name if that's taken. Resolves to the file written. */
+async function htmlFileToPdf(htmlPath: string, pdfPath: string): Promise<string> {
   const win = new BrowserWindow({
     show: false,
     width: 820,
@@ -246,17 +234,7 @@ async function htmlFileToPdf(htmlPath: string, pdfPath: string): Promise<void> {
       }
       throw err;
     }
-    try {
-      fs.writeFileSync(pdfPath, pdf);
-    } catch (err) {
-      // No half-written PDF (a full disk): the name was free, so the file is ours.
-      try {
-        fs.rmSync(pdfPath, { force: true });
-      } catch {
-        // Nothing more to do; the error below is what the user sees.
-      }
-      throw err;
-    }
+    return writeNewFile(pdfPath, pdf);
   } finally {
     await closeWindow(win);
   }
@@ -510,9 +488,8 @@ async function runJob(sidecar: Sidecar, job: PdfJob, outputDir: string): Promise
     checkPrintable(pages, staging);
     const pdfFiles: string[] = [];
     for (const page of pages) {
-      const target = uniquePath(path.join(outputDir, `${path.basename(page, path.extname(page))}.pdf`));
-      await htmlFileToPdf(page, target);
-      pdfFiles.push(target);
+      const target = path.join(outputDir, `${path.basename(page, path.extname(page))}.pdf`);
+      pdfFiles.push(await htmlFileToPdf(page, target));
     }
     return {
       files: pdfFiles,
@@ -573,20 +550,7 @@ export async function exportMessagesPdf(
   return { files, message_count: messageCount, splits, ...extra };
 }
 
-// What can't be in a file name: folders, characters Windows refuses, control characters
-// and the marks that reverse the direction of text (python/record_document.py's rule).
-// eslint-disable-next-line no-control-regex
-const FILE_NAME_UNSAFE = /[<>:"/\\|?*\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g;
-
-/** A PDF's name from what the window sent: one file name, never a path, never empty. */
-export function safeBaseName(name: unknown): string {
-  const cleaned = String(name ?? '').replace(FILE_NAME_UNSAFE, ' ').replace(/\s+/g, ' ').trim()
-    // A leading dot hides a file on a Mac; Windows drops trailing dots and spaces
-    .replace(/^[.\s]+/, '').slice(0, 120).replace(/[.\s]+$/, '');
-  if (!cleaned) return 'export';
-  // Names Windows keeps for devices, with or without an extension ("CON.pdf")
-  return /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|\s|$)/i.test(cleaned) ? `_${cleaned}` : cleaned;
-}
+export { safeBaseName };
 
 /**
  * Print a page the window built (the Timeline, saved as a PDF) to
@@ -601,14 +565,13 @@ export async function exportHtmlToPdf(html: unknown, outputDir: unknown, baseNam
   if (typeof outputDir !== 'string' || !outputDir || !fs.existsSync(outputDir)) throw new Error('Choose a folder to save the PDF in.');
   if (printingBroken) throw new Error(PDFS_NEED_RESTART);
 
-  const target = uniquePath(path.join(outputDir, `${safeBaseName(baseName)}.pdf`));
+  const target = path.join(outputDir, `${safeBaseName(baseName)}.pdf`);
   const staging = fs.realpathSync(fs.mkdtempSync(path.join(app.getPath('temp'), STAGING_PREFIX)));
   activeStagingDirs.add(staging);
   try {
     const page = path.join(staging, 'page.html');
     fs.writeFileSync(page, html, 'utf-8');
-    await htmlFileToPdf(page, target);
-    return { file: target };
+    return { file: await htmlFileToPdf(page, target) };
   } finally {
     activeStagingDirs.delete(staging);
     try {

@@ -747,7 +747,7 @@ class _WhatsAppExport(MessageExtractor):
 
     def _write_txt(self, messages, output_dir, base, merged=False):
         filepath = os.path.join(output_dir, self._unused_name(output_dir, base, ".txt"))
-        with open(filepath, "w", encoding="utf-8-sig") as f:
+        with open(filepath, "x", encoding="utf-8-sig") as f:
             for msg in messages:
                 date = self._readable_date(msg.get("date"))
                 where = ""
@@ -760,7 +760,7 @@ class _WhatsAppExport(MessageExtractor):
 
     def _write_csv(self, messages, output_dir, base, merged=False):
         filepath = os.path.join(output_dir, self._unused_name(output_dir, base, ".csv"))
-        with open(filepath, "w", newline="", encoding="utf-8-sig") as f:
+        with open(filepath, "x", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
             writer.writerow(_MERGED_CSV_HEADER if merged else _CSV_HEADER)
             for msg in messages:
@@ -858,7 +858,7 @@ class _WhatsAppExport(MessageExtractor):
         else:
             title = f"WhatsApp chat: {safe_name}" if safe_name else "WhatsApp chat"
             heading = safe_name
-        with open(filepath, "w", encoding="utf-8") as f:
+        with open(filepath, "x", encoding="utf-8") as f:
             f.write(f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>{title}</title>
 <style>

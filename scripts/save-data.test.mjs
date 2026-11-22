@@ -617,18 +617,18 @@ const ENTRY = {
 
 test('writeTimeline writes text formats into the folder, and prints the PDF from the web page', async t => {
   const { lib: save, calls } = loadWith(t, {
-    writeFile: async () => {},
+    // The main process picks a name that's free and says which
+    writeNewFile: async (dir, base, ext) => `${dir}/${base} (2).${ext}`,
     exportHtmlPdf: async (_html, dir, base) => ({ success: true, data: { file: `${dir}/${base} (2).pdf` } }),
   });
-  assert.equal(await save.writeTimeline([ENTRY], 'csv', '/tmp/out', 'timeline-export'), '/tmp/out/timeline-export.csv');
-  assert.equal(calls[0][0], 'writeFile');
-  assert.equal(calls[0][1], '/tmp/out/timeline-export.csv');
-  assert.ok(calls[0][2].startsWith(`${BOM}Date,Time,Type,Contact,Description\n`));
+  assert.equal(await save.writeTimeline([ENTRY], 'csv', '/tmp/out', 'timeline-export'), '/tmp/out/timeline-export (2).csv');
+  assert.deepEqual(calls[0].slice(0, 4), ['writeNewFile', '/tmp/out', 'timeline-export', 'csv']);
+  assert.ok(calls[0][4].startsWith(`${BOM}Date,Time,Type,Contact,Description\n`));
 
-  assert.equal(await save.writeTimeline([ENTRY], 'txt', '/tmp/out', 'Mom', 'Everything with Mom'), '/tmp/out/Mom.txt');
-  assert.ok(calls[1][2].startsWith('Everything with Mom\n1 event · Saved '));
-  assert.equal(await save.writeTimeline([ENTRY], 'html', '/tmp/out', 'timeline-export'), '/tmp/out/timeline-export.html');
-  assert.ok(calls[2][2].includes('<h1>Timeline</h1>'));
+  assert.equal(await save.writeTimeline([ENTRY], 'txt', '/tmp/out', 'Mom', 'Everything with Mom'), '/tmp/out/Mom (2).txt');
+  assert.ok(calls[1][4].startsWith('Everything with Mom\n1 event · Saved '));
+  assert.equal(await save.writeTimeline([ENTRY], 'html', '/tmp/out', 'timeline-export'), '/tmp/out/timeline-export (2).html');
+  assert.ok(calls[2][4].includes('<h1>Timeline</h1>'));
 
   // The PDF: the same page, printed; the main process picks a name that's free
   assert.equal(await save.writeTimeline([ENTRY], 'pdf', '/tmp/out', 'Mom', 'Everything with Mom'), '/tmp/out/Mom (2).pdf');
@@ -646,7 +646,7 @@ test('writeTimeline passes on a PDF that couldn\'t be printed', async t => {
 test('writeTimeline: more events than one PDF holds are refused before the page is built; the other formats have no limit', async t => {
   assert.equal(lib.MAX_PDF_EVENTS, 25_000);
   const { lib: save, calls } = loadWith(t, {
-    writeFile: async () => {},
+    writeNewFile: async (dir, base, ext) => `${dir}/${base}.${ext}`,
     exportHtmlPdf: async (_html, dir, base) => ({ success: true, data: { file: `${dir}/${base}.pdf` } }),
   });
   const many = n => Array.from({ length: n }, (_, i) => ({ ...ENTRY, id: `message:${i}` }));
@@ -659,7 +659,7 @@ test('writeTimeline: more events than one PDF holds are refused before the page 
 
   // The other formats save them all (one is checked: formatting 25,000 events takes a moment)
   assert.equal(await save.writeTimeline(tooMany, 'csv', '/tmp/out', 'timeline-export'), '/tmp/out/timeline-export.csv');
-  assert.deepEqual(calls.map(c => c[0]), ['writeFile']);
+  assert.deepEqual(calls.map(c => c[0]), ['writeNewFile']);
 
   // Right at the limit it prints
   assert.equal(await save.writeTimeline(many(lib.MAX_PDF_EVENTS), 'pdf', '/tmp/out', 'timeline-export'), '/tmp/out/timeline-export.pdf');

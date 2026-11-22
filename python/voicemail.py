@@ -10,13 +10,14 @@ Keeps openextract's CSV + audio-folder export wrapper.
 import base64
 import csv
 import os
-import shutil
 
 from ios_backup_core.extractors.voicemail import (
     VoicemailExtractor as _CoreVoicemailExtractor,
 )
 
 from local_dates import csv_date, local_datetime
+from record_document import unused_path
+from save_names import SaveNames, copy_new, same_file
 
 
 class VoicemailExtractor:
@@ -65,6 +66,10 @@ class VoicemailExtractor:
         Dates are in the computer's time zone, as message saves are: the CSV's
         as ISO 8601 with the offset, the audio file names by the local day, so
         a voicemail left in the evening isn't filed under the next day.
+
+        Nothing already in the folder is replaced: a list saved again is
+        "voicemails (2).csv", a different recording of the same name "... (2).amr",
+        and the same recording isn't copied again.
         """
         voicemails_data = self.list_voicemails(backup, contacts, include_deleted=True)
         if "error" in voicemails_data:
@@ -78,12 +83,13 @@ class VoicemailExtractor:
         audio_dir = os.path.join(output_dir, "audio")
         os.makedirs(audio_dir, exist_ok=True)
 
-        csv_path = os.path.join(output_dir, "voicemails.csv")
+        csv_path = unused_path(output_dir, "voicemails", ".csv")
+        names = SaveNames()
         exported_count = 0
 
         try:
             # A byte-order mark, so Excel reads names and transcripts in any alphabet right
-            with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
+            with open(csv_path, 'x', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f)
                 writer.writerow(CSV_HEADER)
 
@@ -108,7 +114,9 @@ class VoicemailExtractor:
                         dest_dir = audio_dir if folder == "voicemail" else os.path.join(audio_dir, _LIST_NAMES[folder])
                         os.makedirs(dest_dir, exist_ok=True)
                         name = _safe_name(f"{vm['contact_name']}_{self._file_day(vm['date_received'])}_{vm['id']}")
-                        shutil.copy2(src, os.path.join(dest_dir, f"{name}.amr"))
+                        dest, there = names.place(dest_dir, f"{name}.amr", lambda p: same_file(p, src))
+                        if not there:
+                            copy_new(src, dest)
 
                     exported_count += 1
 

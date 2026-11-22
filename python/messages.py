@@ -155,6 +155,9 @@ _VIDEO_EXTENSIONS = (".mov", ".mp4", ".m4v")
 # only get a link, which opens them in another app.
 _BROWSER_AUDIO_EXTENSIONS = (".mp3", ".m4a", ".aac", ".wav")
 
+# The folder of files beside a web page: "Mom.html" and "Mom_attachments".
+ATTACHMENTS_SUFFIX = "_attachments"
+
 # What get_attachment says when there's nothing to give. Matched by the app
 # and the contract tests, so they keep their words.
 ATTACHMENT_NOT_FOUND = "Attachment not found"  # no attachment has that id
@@ -731,19 +734,25 @@ class MessageExtractor:
     @staticmethod
     def _unused_name(output_dir, base, ext) -> str:
         """"Mom.txt", or "Mom (2).txt" if that exists, so saving again never
-        overwrites a file. The PDF export does the same (electron/pdfExport.ts)."""
-        name = f"{base}{ext}"
-        n = 2
-        while os.path.exists(os.path.join(output_dir, name)):
-            name = f"{base} ({n}){ext}"
+        overwrites a file. The PDF export does the same (electron/newFile.ts).
+
+        A web page needs "Mom_attachments" unused too: that folder is another save's
+        (its page moved, another backup's, or People's), and files in it would be replaced."""
+        def taken(stem: str) -> bool:
+            names = [stem + ext] + ([stem + ATTACHMENTS_SUFFIX] if ext == ".html" else [])
+            return any(os.path.lexists(os.path.join(output_dir, name)) for name in names)
+
+        stem, n = base, 2
+        while taken(stem):
+            stem = f"{base} ({n})"
             n += 1
-        return name
+        return f"{stem}{ext}"
 
     def _export_txt(self, messages, chat_id, output_dir, display_name = ""):
         base = self._get_filename_for_message_export(display_name, messages)
         filename = self._unused_name(output_dir, base or f"conversation_{chat_id}", ".txt")
         filepath = os.path.join(output_dir, filename)
-        with open(filepath, "w", encoding="utf-8-sig") as f:
+        with open(filepath, "x", encoding="utf-8-sig") as f:
             for msg in messages:
                 date = self._readable_date(msg["date"])
                 sender = msg["sender"]
@@ -755,7 +764,7 @@ class MessageExtractor:
         base = self._get_filename_for_message_export(display_name, messages)
         filename = self._unused_name(output_dir, base or f"conversation_{chat_id}", ".csv")
         filepath = os.path.join(output_dir, filename)
-        with open(filepath, "w", newline="", encoding="utf-8-sig") as f:
+        with open(filepath, "x", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
             writer.writerow(["Date", "Sender", "Text", "Is From Me", "Has Attachments"])
             for msg in messages:
@@ -794,7 +803,7 @@ class MessageExtractor:
             attachments.begin(filepath)
         safe_name = html.escape(display_name) if display_name else ""
         title = f"Conversation Export: {safe_name}" if safe_name else "Conversation Export"
-        with open(filepath, "w", encoding="utf-8") as f:
+        with open(filepath, "x", encoding="utf-8") as f:
             f.write(f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>{title}</title>
 <style>
@@ -950,8 +959,8 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
             return {"error": f"Unsupported format: {fmt}"}
 
     def _export_merged_txt(self, messages, output_dir):
-        filepath = os.path.join(output_dir, "all_conversations.txt")
-        with open(filepath, "w", encoding="utf-8-sig") as f:
+        filepath = os.path.join(output_dir, self._unused_name(output_dir, "all_conversations", ".txt"))
+        with open(filepath, "x", encoding="utf-8-sig") as f:
             for msg in messages:
                 date = self._readable_date(msg["date"])
                 sender = msg["sender"]
@@ -962,8 +971,8 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
         return {"files": [filepath], "message_count": len(messages)}
 
     def _export_merged_csv(self, messages, output_dir):
-        filepath = os.path.join(output_dir, "all_conversations.csv")
-        with open(filepath, "w", newline="", encoding="utf-8-sig") as f:
+        filepath = os.path.join(output_dir, self._unused_name(output_dir, "all_conversations", ".csv"))
+        with open(filepath, "x", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
             writer.writerow(["Date", "Conversation", "Direction", "Sender", "Text", "Is From Me", "Has Attachments"])
             for msg in messages:
@@ -978,10 +987,10 @@ body {{ font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto
     def _export_merged_html(self, messages, output_dir, attachments=None, part_label=""):
         # One part of a PDF save split by year: "all_conversations 2019-2021"
         name = f"all_conversations {part_label}" if part_label else "all_conversations"
-        filepath = os.path.join(output_dir, f"{name}.html")
+        filepath = os.path.join(output_dir, self._unused_name(output_dir, name, ".html"))
         if attachments is not None:
             attachments.begin(filepath)
-        with open(filepath, "w", encoding="utf-8") as f:
+        with open(filepath, "x", encoding="utf-8") as f:
             f.write("""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Merged Conversations Export</title>
 <style>
@@ -1127,7 +1136,7 @@ class _HtmlAttachmentWriter:
     def begin(self, html_path: str) -> None:
         """Use the folder beside ``html_path``. Called before any render()."""
         base = os.path.splitext(os.path.basename(html_path))[0]
-        self._rel = f"{base}_attachments"
+        self._rel = f"{base}{ATTACHMENTS_SUFFIX}"
         self._dir = os.path.join(os.path.dirname(html_path), self._rel)
 
     @staticmethod

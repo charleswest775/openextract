@@ -447,6 +447,23 @@ describe('exportHtmlToPdf (a page the window built: the Timeline)', () => {
     assert.equal(fs.readFileSync(path.join(outputDir, 'Theo.pdf'), 'utf-8'), 'the first one');
   });
 
+  test('two saves printing at once get a file each', async () => {
+    const { pdf, outputDir } = setup();
+    const saved = await Promise.all([pdf.exportHtmlToPdf(PAGE, outputDir, 'Theo'), pdf.exportHtmlToPdf(PAGE, outputDir, 'Theo')]);
+    assert.deepEqual(saved.map(r => path.basename(r.file)).sort(), ['Theo (2).pdf', 'Theo.pdf']);
+  });
+
+  test('a file that turns up while the PDF prints is kept', async () => {
+    const { env, pdf, outputDir } = setup();
+    env.hooks.printToPDF = async () => {
+      fs.writeFileSync(path.join(outputDir, 'Theo.pdf'), 'theirs');
+      return Buffer.from('%PDF-1.4\n% stub\n');
+    };
+    const result = await pdf.exportHtmlToPdf(PAGE, outputDir, 'Theo');
+    assert.equal(result.file, path.join(outputDir, 'Theo (2).pdf'));
+    assert.equal(fs.readFileSync(path.join(outputDir, 'Theo.pdf'), 'utf-8'), 'theirs');
+  });
+
   test('the name it is given can only name a file in the chosen folder', async () => {
     const { pdf, outputDir } = setup();
     const cases = [

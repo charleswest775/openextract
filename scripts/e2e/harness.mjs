@@ -290,9 +290,9 @@ export class App {
     }, [format, mode ?? null]);
   }
 
-  /** Clicks `button`, saves as `format` into a fresh folder, and returns the notice and files. */
-  async exportTo(dir, button, format, { mode, within, timeoutMs } = {}) {
-    fs.rmSync(dir, { recursive: true, force: true });
+  /** Clicks `button`, saves as `format` into a fresh folder (or, with `keep`, the folder as it is), and returns the notice and files. */
+  async exportTo(dir, button, format, { mode, within, timeoutMs, keep } = {}) {
+    if (!keep) fs.rmSync(dir, { recursive: true, force: true });
     fs.mkdirSync(dir, { recursive: true });
     await this.stubDialogs(dir);
     await this.clearNotices();

@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld('openextract', {
     ipcRenderer.invoke('dialog:saveFile', options),
   writeFile: (filePath: string, content: string) =>
     ipcRenderer.invoke('fs:writeFile', filePath, content),
+  // Save text as <folder>/<baseName>.<extension>, never overwriting; resolves to the path written
+  writeNewFile: (folder: string, baseName: string, extension: string, content: string) =>
+    ipcRenderer.invoke('fs:writeNewFile', folder, baseName, extension, content),
 
   // Open URL in system browser
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
