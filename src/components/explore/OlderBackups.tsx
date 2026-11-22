@@ -4,8 +4,6 @@ import { FolderIcon, LockIcon } from '../shared/Icons';
 
 interface OlderBackup {
   backup_dir: string;
-  device_name: string;
-  product_version: string;
   last_backup: string;
   encrypted: boolean;
 }

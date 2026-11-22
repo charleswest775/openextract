@@ -165,6 +165,20 @@ def test_ordinary_clutter_is_fine(manager, old, new):
     assert ask(manager, opened(manager, new), old)["allowed"]
 
 
+def test_odd_values_in_a_backups_info_dont_break_the_list(manager, out, old, new):
+    import json
+    import plistlib
+
+    info = plistlib.loads((old / "Info.plist").read_bytes())
+    info.update({"Device Name": {"a": b"bytes"}, "Product Version": b"\xff", "Phone Number": 5})
+    (old / "Info.plist").write_bytes(plistlib.dumps(info))
+    kept = opened(manager, new)
+    json.dumps(older_backups.list_older(kept, manager.read_info))
+    found = ask(manager, kept, old)
+    json.dumps(found)
+    assert found["allowed"] and isinstance(found["older"]["device_name"], str)
+
+
 def test_the_stamp_follows_the_folder(manager, old, new):
     kept = opened(manager, new)
     first = ask(manager, kept, old)["stamp"]

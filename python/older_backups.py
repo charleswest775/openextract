@@ -133,8 +133,10 @@ def _find(kept, read_info: ReadInfo) -> tuple[str, Optional[dict], list[dict]]:
 
 def list_older(kept, read_info: ReadInfo) -> dict:
     """What Backup details lists. Cheap: check() does the slow part when one is picked."""
-    fields = ("backup_dir", "device_name", "product_version", "last_backup", "encrypted")
-    return {"backups": [{f: info.get(f) for f in fields} for info in _find(kept, read_info)[2]]}
+    # Only these: the rest of Info.plist can hold anything, of any type.
+    return {"backups": [{"backup_dir": info["backup_dir"], "last_backup": info["last_backup"],
+                         "encrypted": bool(info.get("encrypted"))}
+                        for info in _find(kept, read_info)[2]]}
 
 
 def _measure(folder: str, cluster: int = 1) -> dict:
@@ -231,7 +233,7 @@ def check(kept, wanted: str, read_info: ReadInfo) -> dict:
     def facts(info: dict, folder: str, total: int) -> dict:
         return {
             "backup_dir": folder,
-            "device_name": info.get("device_name") or "",
+            "device_name": str(info.get("device_name") or ""),
             "phone_number": str(info.get("phone_number") or ""),
             "last_backup": info.get("last_backup") or "",
             "encrypted": bool(info.get("encrypted")),

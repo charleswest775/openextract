@@ -964,7 +964,7 @@ class SidecarServer:
     def backup_list_older(self, params):
         """
         Older backups of the same iPhone beside the open backup, which may go to the Trash.
-        Returns { backups: [{ backup_dir, device_name, product_version, last_backup, encrypted }] }.
+        Returns { backups: [{ backup_dir, last_backup, encrypted }] }.
         """
         kept = self.backup_manager.get_open_backup(params["udid"])
         return older_backups.list_older(kept, self.backup_manager.read_info)

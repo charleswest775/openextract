@@ -45,6 +45,21 @@ function when(iso: string): string {
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+const LONGEST_NAME = 60;
+
+// Names and folders come from the backup, which may be someone else's: none may add lines to
+// the question, turn its text around, or push the warnings out of sight.
+function oneLine(value: unknown): string {
+  return String(value ?? '')
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ')
+    .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '');
+}
+
+function shortName(value: unknown): string {
+  const name = Array.from(oneLine(value));
+  return name.length > LONGEST_NAME ? `${name.slice(0, LONGEST_NAME).join('')}…` : name.join('');
+}
+
 /** The dialog. The first button keeps the backup, and is what Return and Esc press. */
 export function confirmation(older: BackupFacts, newer: BackupFacts, platform: string) {
   const trash = trashName(platform);
@@ -67,8 +82,8 @@ export function confirmation(older: BackupFacts, newer: BackupFacts, platform: s
     );
   }
   const detail = [
-    `Older backup: ${older.device_name}, ${when(older.last_backup)}, ${size(older.bytes)}\n${older.backup_dir}`,
-    `Newer backup, which stays: ${newer.device_name}, ${when(newer.last_backup)}, ${size(newer.bytes)}\n${newer.backup_dir}`,
+    `Older backup: ${shortName(older.device_name)}, ${when(older.last_backup)}, ${size(older.bytes)}\n${oneLine(older.backup_dir)}`,
+    `Newer backup, which stays: ${shortName(newer.device_name)}, ${when(newer.last_backup)}, ${size(newer.bytes)}\n${oneLine(newer.backup_dir)}`,
     ...warnings,
     "Anything deleted from the iPhone between the two, such as messages and photos, is only in the older one.",
     `You can put it back until the ${trash} is emptied, which some computers do by themselves. It takes up the same space until then.`,

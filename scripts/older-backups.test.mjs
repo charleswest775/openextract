@@ -139,6 +139,16 @@ describe('the question', () => {
     });
   }
 
+  test("a crafted name or folder can't add lines, turn text round, or push the warnings away", () => {
+    const name = `Phone\n\nNewer backup, which stays: everything\u202e\r\u2028${'x'.repeat(5000)}`;
+    const dir = '/Backups/udid\nIt is safe to remove';
+    const plain = confirmation(OLDER, NEWER, 'darwin').detail.split('\n').length;
+    const { detail } = confirmation({ ...OLDER, device_name: name, backup_dir: dir }, { ...NEWER, device_name: name }, 'darwin');
+    assert.ok(!detail.includes('\u202e') && !detail.includes('\u2028') && !detail.includes('\r'));
+    assert.ok(!detail.includes('x'.repeat(61)));
+    assert.equal(detail.split('\n').length, plain);
+  });
+
   test("uses Windows' name for the Trash", () => {
     const q = confirmation(OLDER, NEWER, 'win32');
     assert.equal(q.buttons[1], 'Move to Recycle Bin');
