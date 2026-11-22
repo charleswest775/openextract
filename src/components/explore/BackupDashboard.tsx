@@ -9,8 +9,10 @@ import {
   CalendarIcon,
 } from '../shared/Icons';
 import { ReportProblemButton } from '../shared/Feedback';
+import OlderBackups from './OlderBackups';
 
 interface Props {
+  udid: string;
   // Loaded once by ExploreLayout, which also uses the counts to hide empty sections.
   stats: BackupStats | null;
   loading: boolean;
@@ -191,7 +193,8 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 
 // ── Main Dashboard ───────────────────────────────────────────────────────────
 
-function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
+function DashboardContent({ udid, stats, onNavigate, hasBrowserHistory }: {
+  udid: string;
   stats: BackupStats;
   onNavigate: (tab: string) => void;
   hasBrowserHistory: boolean;
@@ -558,6 +561,8 @@ function DashboardContent({ stats, onNavigate, hasBrowserHistory }: {
             </InsightCard>
           )}
         </div>
+
+        <OlderBackups udid={udid} />
       </div>
     </div>
   );
@@ -569,7 +574,7 @@ function listOf(items: string[]): string {
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
-export default function BackupDashboard({ stats, loading, error, onNavigate, hasBrowserHistory }: Props) {
+export default function BackupDashboard({ udid, stats, loading, error, onNavigate, hasBrowserHistory }: Props) {
   if (loading) return <LoadingSkeleton />;
 
   if (error) {
@@ -586,5 +591,5 @@ export default function BackupDashboard({ stats, loading, error, onNavigate, has
 
   if (!stats) return null;
 
-  return <DashboardContent stats={stats} onNavigate={onNavigate} hasBrowserHistory={hasBrowserHistory} />;
+  return <DashboardContent udid={udid} stats={stats} onNavigate={onNavigate} hasBrowserHistory={hasBrowserHistory} />;
 }

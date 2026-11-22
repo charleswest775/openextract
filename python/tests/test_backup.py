@@ -924,13 +924,21 @@ class TestStartBackup(unittest.TestCase):
         import time
         device_dir = os.path.join(output_dir, "abc-123")
         os.makedirs(device_dir)
-        if manifest_age_s is not None:
+        if manifest_age_s is not None and manifest_age_s >= 0:
             manifest = os.path.join(device_dir, "Manifest.db")
             open(manifest, "wb").close()
             then = time.time() - manifest_age_s
             os.utime(manifest, (then, then))
         mb2 = self._make_mb2_mock()
-        mb2.backup.side_effect = _stub.exceptions.ConnectionTerminatedError()
+
+        async def _backup(**kwargs):
+            if manifest_age_s is not None and manifest_age_s < 0:
+                # This backup's own, written wherever it was told to write.
+                new = os.path.join(kwargs["backup_directory"], "abc-123", "Manifest.db")
+                open(new, "wb").close()
+            raise _stub.exceptions.ConnectionTerminatedError()
+
+        mb2.backup.side_effect = _backup
         with (
             patch("pymobiledevice3.lockdown.create_using_usbmux", new_callable=AsyncMock,
                   return_value=_make_lockdown_mock()),

@@ -36,6 +36,9 @@ contextBridge.exposeInMainWorld('openextract', {
   // Reveal a saved file or folder in Finder / Explorer
   showInFolder: (filePath: string) => ipcRenderer.invoke('shell:showItemInFolder', filePath),
 
+  // Ask to move an older backup to the Trash; the main process checks, asks and does it
+  trashOlderBackup: (udid: string, backupDir: string) => ipcRenderer.invoke('backup:trashOlder', udid, backupDir),
+
   // A video's poster frame from a copy the engine made: a data: URL, or null (Linux, or it can't be drawn)
   mediaThumbnail: (filePath: string, size?: number) => ipcRenderer.invoke('media:thumbnail', filePath, size),
 

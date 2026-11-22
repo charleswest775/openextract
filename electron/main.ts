@@ -8,6 +8,7 @@ import { exportHtmlToPdf, exportMessagesPdf, PdfExportMethod, removeStaleStaging
 import { FeedbackRecorder } from './feedback';
 import { FeedbackReports } from './feedbackReports';
 import { installFolderFor, installFolderWarning, isInsideFolder, resolveReal } from './installFolder';
+import { CHECK_OLDER_TIMEOUT_MS, takeMoveLock, trashOlderBackup } from './olderBackups';
 // ── Media in the window (videos, posters): only from the engine's copy folders ──
 const os = require('os');
 const { nativeImage } = require('electron');
@@ -369,6 +370,9 @@ const LOST_CONNECTION = /^(DEVICE_DISCONNECTED|PASSCODE_REQUIRED):|connection to
 const COMPUTER_SLEPT =
   'DEVICE_DISCONNECTED: Your computer went to sleep during the backup, which disconnects the iPhone. ' +
   'Keep the computer plugged in with its lid open until the backup finishes, then click Retry.';
+// The engine adds this when the folder had an earlier backup, which a failed try doesn't touch
+// (EARLIER_UNCHANGED in python/device_backup.py). It's as true when the computer slept.
+const EARLIER_UNCHANGED = "The backup that was already in that folder hasn't been changed.";
 // How long the app waits for a search for iPhones (backup.list_devices; see the sidecar:call
 // handler). python/tests/test_fake_iphone_search.py checks the engine's own limits fit inside it.
 const LIST_DEVICES_TIMEOUT_MS = 90_000;
@@ -453,7 +457,7 @@ app.whenReady().then(async () => {
       let message = String(error?.message ?? error);
       if (awake?.slept() && LOST_CONNECTION.test(message)) {
         appendLog(logPath, `[Electron] backup.start failed after the computer slept: ${message.split('\n')[0]}`);
-        message = COMPUTER_SLEPT;
+        message = message.includes(EARLIER_UNCHANGED) ? `${COMPUTER_SLEPT} ${EARLIER_UNCHANGED}` : COMPUTER_SLEPT;
       }
       feedback.recordCall(method, params, { ok: false, error: message });
       if (method === 'open_backup') {
@@ -464,6 +468,49 @@ app.whenReady().then(async () => {
       return { success: false, error: message };
     } finally {
       awake?.stop();
+    }
+  });
+
+  // ── An older backup to the Trash ────────────────────────────────────────
+  // The only thing in the app that removes a backup, and only to the Trash (olderBackups.ts).
+  // The window says which; it can't skip the checks or the question.
+  ipcMain.handle('backup:trashOlder', async (_event: any, udid: unknown, backupDir: unknown) => {
+    const params = { udid, backup_dir: backupDir };
+    try {
+      return await trashOlderBackup({
+        platform: process.platform,
+        lock: () => takeMoveLock(process.platform),
+        check: async (id, dir) => {
+          const found = await sidecar.call('backup.check_older', { udid: id, backup_dir: dir }, CHECK_OLDER_TIMEOUT_MS);
+          feedback.recordCall('backup.check_older', params, { ok: true, result: found });
+          return found;
+        },
+        // No window to ask in means no.
+        confirm: async options =>
+          mainWindow && !mainWindow.isDestroyed() ? dialog.showMessageBox(mainWindow, options) : { response: 0 },
+        trashItem: target => {
+          // Windows won't move the folder this process is working in, as a file dialog can leave it.
+          try {
+            if (isInsideFolder(resolveReal(process.cwd()), resolveReal(target))) process.chdir(os.homedir());
+          } catch {
+            // The working folder has gone, so it's in nobody's way.
+          }
+          return shell.trashItem(target);
+        },
+        exists: target => {
+          try {
+            fs.lstatSync(target);
+            return true;
+          } catch (err: any) {
+            return err?.code === 'ENOENT' ? false : null;
+          }
+        },
+      }, udid, backupDir);
+    } catch (error: any) {
+      const message = String(error?.message ?? error);
+      console.error('Checking an older backup failed', error);
+      feedback.recordCall('backup.check_older', params, { ok: false, error: message });
+      return { status: 'failed', message: "OpenExtract couldn't check that backup, so it didn't move it." };
     }
   });
 

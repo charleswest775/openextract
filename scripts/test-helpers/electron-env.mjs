@@ -142,6 +142,8 @@ export function createElectron({
   const hooks = {
     /** (win, filePath) => Promise, runs inside win.loadFile */
     loadFile: async () => {},
+    /** (path) => Promise, runs inside shell.trashItem */
+    trashItem: async () => {},
     /** (win, options) => Promise<Buffer>, runs inside webContents.printToPDF */
     printToPDF: async () => Buffer.from('%PDF-1.4\n% stub\n'),
   };
@@ -264,6 +266,11 @@ export function createElectron({
       return Promise.resolve('');
     },
     showItemInFolder: p => record('shell.showItemInFolder', p),
+    // Only recorded: a test never puts anything in this computer's Trash.
+    trashItem: async p => {
+      record('shell.trashItem', p);
+      await hooks.trashItem(p);
+    },
   };
 
   // powerSaveBlocker: the blockers started and not yet stopped, by id → type.

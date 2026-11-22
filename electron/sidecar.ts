@@ -1,6 +1,7 @@
 export {};
 const { spawn } = require('child_process');
 const { StringDecoder } = require('string_decoder');
+const { randomUUID } = require('crypto');
 
 interface PendingRequest {
   method: string;
@@ -27,8 +28,7 @@ export class PythonSidecar {
   private process: any = null;
   private pythonPath: string;
   private pythonArgs: string[];
-  private requestId: number = 0;
-  private pending: Map<number, PendingRequest> = new Map();
+  private pending: Map<string, PendingRequest> = new Map();
   private buffer: string = '';
   private readonly TIMEOUT_MS = 300000; // 5 min — backups can take a while
   private logPath: string;
@@ -161,7 +161,7 @@ export class PythonSidecar {
   }
 
   /** Stop waiting for call `id` and start the clock of the next one in line. */
-  private finish(id: number): PendingRequest | undefined {
+  private finish(id: string): PendingRequest | undefined {
     const req = this.pending.get(id);
     if (!req) return undefined;
     if (req.timeout) clearTimeout(req.timeout);
@@ -213,7 +213,10 @@ export class PythonSidecar {
     }
 
     const proc = this.process;
-    const id = ++this.requestId;
+    // Unguessable. The window can make the engine write lines on this pipe (write_file to
+    // /dev/stdout), and with ids it could count it could answer its own calls in the engine's
+    // place, backup.check_older's "allowed" included (olderBackups.ts).
+    const id: string = randomUUID();
     const request = JSON.stringify({ id, method, params }) + '\n';
 
     return new Promise((resolve, reject) => {

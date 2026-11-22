@@ -330,6 +330,15 @@ class MessageExtractor:
         self._copies = AppCopies("messages")
         self._thumbnails = ThumbnailCache()
 
+    def close_databases(self) -> None:
+        """
+        Let go of the sms.db files read so far, which the library otherwise keeps open until the
+        engine stops. Windows won't move a folder with a file open in it, and on a Mac the open
+        file follows the folder into the Trash and would be shown as whatever backup is next at
+        that path. The next call opens what it needs again.
+        """
+        self._inner.close()
+
     # ── Delegated raw-extraction methods ─────────────────────────────────────
 
     def list_conversations(self, backup, contacts: dict) -> dict:

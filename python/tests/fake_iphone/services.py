@@ -121,6 +121,7 @@ class MobileBackup2(Service):
 
     def change_password(self, request: dict) -> None:
         self.phone.password_changes.append(dict(request))
+        self.phone.run_hooks("ChangePassword", request)
         # The iPhone reads the backup's Manifest.plist to re-key it. A 0-byte one, which every
         # backup try leaves until it finishes, fails with MBErrorDomain/205 (OE-6;
         # libimobiledevice #1582). A missing one is a new backup.
@@ -173,6 +174,11 @@ class MobileBackup2(Service):
 
     def contents(self, f: dict):
         kind = f.get("generate")
+        if "data" in f:  # a test's own bytes (encrypted_backup.plan_sending)
+            data = f["data"]
+            for i in range(0, len(data), plans.CHUNK):
+                yield data[i:i + plans.CHUNK]
+            return
         if kind is None:  # a recorded trace: make up the metadata files, whatever size they were
             kind = {"Manifest.db": "manifest_db", "Manifest.plist": "manifest_plist", "Status.plist": "status_plist"}.get(
                 f["path"].rsplit("/", 1)[-1])

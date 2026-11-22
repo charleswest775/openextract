@@ -44,17 +44,18 @@ describe('PythonSidecar with a running engine', () => {
     assert.equal(env.PYTHONUNBUFFERED, '1');
   });
 
-  test('ids are unique and increasing across many concurrent calls, and each call gets its own answer', async () => {
+  test('ids are unique and unguessable, and each of many concurrent calls gets its own answer', async () => {
     const first = await Promise.all(Array.from({ length: 200 }, (_, i) => sidecar.call('echo', { i })));
     first.forEach((r, i) => assert.equal(r.params.i, i, `call ${i} got another call's answer`));
     const ids = first.map(r => r.id);
     assert.equal(new Set(ids).size, ids.length, 'an id was used twice');
-    for (let i = 1; i < ids.length; i++) assert.ok(ids[i] > ids[i - 1], `id ${ids[i]} after ${ids[i - 1]}`);
+    // Random, not counted: whatever can write into the pipe could otherwise answer for the engine.
+    for (const id of ids) assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     // The engine saw them in the same order they were made.
     for (let i = 1; i < first.length; i++) assert.ok(first[i].seq > first[i - 1].seq);
 
     const second = await Promise.all(Array.from({ length: 50 }, () => sidecar.call('echo')));
-    assert.ok(Math.min(...second.map(r => r.id)) > Math.max(...ids), 'ids were reused');
+    assert.ok(second.every(r => !ids.includes(r.id)), 'ids were reused');
   });
 
   test('answers arriving out of order resolve the right calls', async () => {
@@ -90,7 +91,7 @@ describe('PythonSidecar with a running engine', () => {
   test('a multi-byte UTF-8 character split between two chunks survives', async () => {
     const payload = 'Zoë 🙂 café';
     // Cut the answer line in the middle of "ë" and in the middle of the emoji.
-    const id = sidecar.requestId + 1;
+    const id = '0'.repeat(36); // as long as the real one, so the cuts fall in the same places
     const line = Buffer.from(JSON.stringify({ id, result: payload }) + '\n', 'utf-8');
     const cuts = [line.indexOf(Buffer.from('ë')) + 1, line.indexOf(Buffer.from('🙂')) + 2];
     assert.equal(await sidecar.call('split', { payload, cuts, gap: 40 }), payload);

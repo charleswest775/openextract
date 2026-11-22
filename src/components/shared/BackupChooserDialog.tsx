@@ -30,6 +30,7 @@ export default function BackupChooserDialog({ folder, backups, onChoose, onCance
             <button
               key={b.backup_dir}
               onClick={() => onChoose(b)}
+              title={b.backup_dir}
               className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-elevated transition-colors flex items-center gap-3"
             >
               <div className="flex-1 min-w-0">

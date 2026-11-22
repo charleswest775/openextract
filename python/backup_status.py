@@ -10,6 +10,8 @@ How an iPhone backup is written (a trace of a real first backup, an iPhone 17 on
   1. The computer writes <udid>/Info.plist. pymobiledevice3 also writes a Status.plist that says
      SnapshotState "finished" and replaces Manifest.plist with an empty file, all before the
      iPhone sends anything. (Finder, iTunes and libimobiledevice don't touch either file.)
+     So the engine never points it at a folder that holds a backup (backup_beside.py).
+     OpenExtract 0.18.0 and earlier did.
   2. The iPhone creates <udid>/Snapshot and writes its own Status.plist, which it writes four
      times in all.
   3. Every file arrives in Snapshot/<xx>/<fileID>, then Manifest.plist and Manifest.db.
@@ -31,7 +33,8 @@ So the signs that a backup didn't finish, most reliable first:
     still counts: a backup that stops before any file arrives leaves the same empty folders.
   - An empty Manifest.plist. pymobiledevice3 empties it before the backup starts and the iPhone
     replaces it near the end. This covers the minutes before Snapshot exists, while the iPhone
-    prepares or waits for its passcode. (OpenExtract 0.12 and earlier left this; Finder doesn't.)
+    prepares or waits for its passcode. (OpenExtract 0.18.0 and earlier left this in an earlier
+    backup too; Finder doesn't.)
   - A Status.plist the iPhone wrote saying anything but "finished". libimobiledevice counts a
     backup as good only when it says "finished". pymobiledevice3 writes "finished" itself before
     the backup, so "finished" proves nothing and is ignored.
@@ -70,8 +73,11 @@ NOTHING_TO_OPEN = (
     "Make a new backup to see everything."
 )
 CANT_UNLOCK = (
-    "This backup didn't finish, and it's encrypted, so OpenExtract can't unlock what's in it. "
-    "Make a new backup to see everything."
+    "This backup didn't finish, and it's encrypted, so OpenExtract can't unlock what's in it: "
+    "the file with its keys, Manifest.plist, is empty or missing. Don't delete this folder. "
+    "If you have an older copy of that file from this backup, for example in Time Machine or "
+    "File History, put it back in the folder and open the backup again. "
+    "If not, make a new backup to see what's on the iPhone now."
 )
 
 
@@ -133,7 +139,7 @@ def _snapshot_state(backup_dir: str) -> Optional[str]:
     return state if isinstance(state, str) else None
 
 
-def _is_plain_sqlite(path: str) -> bool:
+def is_plain_sqlite(path: str) -> bool:
     try:
         with open(path, "rb") as f:
             return f.read(len(_SQLITE_HEADER)) == _SQLITE_HEADER
@@ -194,8 +200,11 @@ def check(backup_dir: str) -> Completion:
     is_backup = has_index or (
         os.path.exists(os.path.join(backup_dir, "Info.plist")) and (snapshot or marker is not None))
     # A failed try by pymobiledevice3 empties Manifest.plist, which holds an encrypted backup's
-    # keys. An encrypted Manifest.db can't be read without them.
-    keys_lost = db is not None and empty_manifest_plist and not _is_plain_sqlite(manifest_db)
+    # keys. An encrypted Manifest.db can't be read without them. OpenExtract 0.18.0 and earlier
+    # then removed the empty file if the next try turned encryption on, so in a folder with its
+    # marker a missing one means the same.
+    no_keys = empty_manifest_plist or (manifest_plist is None and marker is not None)
+    keys_lost = db is not None and no_keys and not is_plain_sqlite(manifest_db)
     confirmed = not signs and marked_finished
     return Completion(
         finished=not signs,

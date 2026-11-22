@@ -31,7 +31,9 @@ from ios_backup_core.backup import (
     open_local_backup,
 )
 
+import backup_beside
 import backup_status
+import older_backups
 
 # Re-export for any code paths still importing EncryptedBackup directly via
 # this module (none in main.py, but kept to avoid surprises).
@@ -275,11 +277,19 @@ class BackupManager:
                 info = self._read_backup_info(backup_dir)
                 if info:
                     backups.append(info)
+            for backup_dir in backup_beside.unplaced(search_dir):
+                info = self._read_backup_info(backup_dir)
+                if info and info["openable"]:  # a try with nothing to open isn't a backup to offer
+                    backups.append(info)
 
         # Newest first. last_backup is an ISO date in UTC, or "" when unknown.
         backups.sort(key=lambda b: str(b.get("last_backup") or ""), reverse=True)
         return {"backups": backups, "search_dirs": searched,
                 "permission_denied": permission_denied}
+
+    def read_info(self, backup_dir: str) -> Optional[dict]:
+        """What's known about the backup in this folder now, or None if it isn't one."""
+        return self._read_backup_info(backup_dir)
 
     def _read_backup_info(self, backup_dir: str) -> Optional[dict]:
         """Read metadata from a backup directory.
@@ -316,7 +326,10 @@ class BackupManager:
                     "product_version": plist.get("Product Version", "Unknown"),
                     "serial_number": plist.get("Serial Number", ""),
                     "phone_number": plist.get("Phone Number", ""),
-                    "last_backup": plist.get("Last Backup Date", ""),
+                    # pymobiledevice3's Info.plist has no date. The iPhone's last Status.plist
+                    # does, and the newest of one iPhone's backups has to be listed first.
+                    "last_backup": (plist.get("Last Backup Date")
+                                    or (completion.finished and self._status_date(backup_dir)) or ""),
                 }
                 # Convert datetime to ISO string. plistlib returns a naive
                 # datetime holding UTC; mark it as UTC so the renderer shows
@@ -371,6 +384,15 @@ class BackupManager:
         return info
 
     @staticmethod
+    def _status_date(backup_dir: str) -> Optional[datetime]:
+        try:
+            with open(os.path.join(backup_dir, "Status.plist"), "rb") as f:
+                date = plistlib.load(f).get("Date")
+        except Exception:  # missing, empty or damaged: no date
+            return None
+        return date if isinstance(date, datetime) else None
+
+    @staticmethod
     def _norm_udid(udid: str) -> str:
         """Normalise a UDID for comparison: strip dashes, lowercase."""
         return udid.replace("-", "").lower()
@@ -395,6 +417,8 @@ class BackupManager:
                 matches.append(info)
             else:
                 others.append(info)
+        # One iPhone can have several here (backup_beside.py): the newest.
+        matches.sort(key=lambda b: str(b.get("last_backup") or ""), reverse=True)
         for candidates in (matches, others):
             if candidates:
                 return next((b for b in candidates if b["openable"]), candidates[0])
@@ -496,6 +520,8 @@ class BackupManager:
         # decrypt backup: ...") and RuntimeError if the optional
         # iphone-backup-decrypt extra is missing. An unencrypted backup needs
         # neither.
+        # Before the keys and list of files are read, so a change from then on is noticed.
+        opened_as = older_backups.identity(backup_dir)
         decrypted_backup = None
         if encrypted:
             decrypted_backup = open_local_backup(backup_dir, password=password)._decrypted_backup
@@ -509,6 +535,7 @@ class BackupManager:
             encrypted=encrypted,
             decrypted_backup=decrypted_backup,
         )
+        backup.opened_as = opened_as
         if legacy and not encrypted:
             # Turn Manifest.mbdb into a database now, so a damaged one fails here
             # with a clear message instead of every screen coming up empty.

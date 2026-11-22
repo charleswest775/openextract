@@ -19,6 +19,7 @@ import time
 import warnings
 from typing import Any, Callable, Optional
 
+import backup_beside
 import backup_status
 
 _LOG_PATH = os.environ.get('OPENEXTRACT_LOG_PATH') or os.path.join(tempfile.gettempdir(), 'python_log.txt')
@@ -86,6 +87,31 @@ _SYNC_IN_PROGRESS = (
     "Another app is syncing or backing up your iPhone, such as Apple Devices, iTunes or Finder. "
     "Wait for it to finish or close it, then try again."
 )
+
+
+# Added to the error when a try beside a backup that was already there fails (backup_beside.py).
+# That one may itself be unfinished, so it isn't called finished or good, only unchanged.
+# electron/main.ts keeps EARLIER_UNCHANGED when it swaps the message for "your computer went to sleep".
+EARLIER_UNCHANGED = "The backup that was already in that folder hasn't been changed."
+_ROOM_FOR_BOTH = (
+    "It's kept, so the drive needs room for both. Don't delete it to make room unless you have "
+    "another copy."
+)
+# In place of _UNFINISHED_BACKUP then, which would point at the backup that's fine.
+_NEW_CANT_CONTINUE = (
+    "The iPhone couldn't continue the new backup. Choose a new, empty folder, then try again."
+)
+_NO_SPACE = "Not enough free space for this backup."
+
+
+def _saying_earlier_is_unchanged(message: str) -> str:
+    message = message.rstrip() or "The backup didn't finish."
+    if message == _UNFINISHED_BACKUP:
+        message = _NEW_CANT_CONTINUE
+    if message[-1] not in ".!?":
+        message += "."
+    room = f" {_ROOM_FOR_BOTH}" if message.startswith(_NO_SPACE) else ""
+    return f"{message} {EARLIER_UNCHANGED}{room}"
 
 
 def _is_disk_full(exc: Exception) -> bool:
@@ -305,6 +331,9 @@ class _ReceivedBytes:
         self._current: Optional[str] = None
         self._current_size = 0
         self.total = 0  # high-water mark, so the figure never goes back
+
+    def writing_to(self, backup_directory: str) -> None:
+        self._root = backup_directory
 
     def file_started(self, backup_file) -> bool:
         """filter_callback: notes the new file, and keeps every file (returns True)."""
@@ -527,7 +556,7 @@ def _disk_full_message(free_bytes: Optional[int], needed_bytes: Optional[int], p
     else:
         (free,) = _gb(free_bytes)
         detail = f" The drive you chose only has {free} GB free."
-    return (f"Not enough free space for this backup.{detail} Free up space or choose a "
+    return (f"{_NO_SPACE}{detail} Free up space or choose a "
             "folder on an external drive, then try again.")
 
 
@@ -917,6 +946,9 @@ class DeviceBackupManager:
         """
         Initiate a full backup of the device identified by *udid*.
 
+        A backup of this iPhone already in *output_dir* is never written to, renamed or deleted here:
+        the new one gets a folder of its own beside it (backup_beside.py).
+
         :param udid:        Device UDID (from list_devices).
         :param output_dir:  Destination directory; created if it does not exist.
         :param encrypted:   Whether to request an encrypted backup.
@@ -929,7 +961,28 @@ class DeviceBackupManager:
                               "existing_password": <bool> }. existing_password is True when
                             the iPhone already had a backup password, so the backup is
                             encrypted with that one, not with *password* (OE-68).
+                            "earlier_backup": <dir> is added when there was already a
+                            backup there, which is kept.
         """
+        destination = backup_beside.Destination(output_dir, log=_dev_log)
+        try:
+            return self._back_up(udid, output_dir, encrypted, password, notify, destination)
+        except Exception as e:
+            if not destination.beside:
+                raise
+            raise RuntimeError(_saying_earlier_is_unchanged(str(e))) from (e.__cause__ or e)
+        finally:
+            destination.close()
+
+    def _back_up(
+        self,
+        udid: str,
+        output_dir: str,
+        encrypted: bool,
+        password: Optional[str],
+        notify: Callable[..., None],
+        destination: backup_beside.Destination,
+    ) -> dict:
         try:
             from pymobiledevice3.lockdown import create_using_usbmux
             from pymobiledevice3.services.mobilebackup2 import Mobilebackup2Service
@@ -1051,8 +1104,14 @@ class DeviceBackupManager:
             # until it's entered.
             _tracked_notify("waiting", 0, 0, 0)
 
+            # Both steps below write into the folder they're given, and an earlier backup mustn't
+            # be it: backup() empties its Manifest.plist, and turning encryption on has the
+            # iPhone read that file and can have it rewritten.
+            backup_root = destination.prepare(lockdown.udid or udid)
+            received.writing_to(backup_root)
+
             if encrypted:
-                already = await self._configure_encryption_async(lockdown, password or "", output_dir)
+                already = await self._configure_encryption_async(lockdown, password or "", backup_root)
             else:
                 # The iPhone encrypts every backup once it has a backup password, asked or not.
                 try:
@@ -1070,10 +1129,10 @@ class DeviceBackupManager:
                 if not transferring:
                     _tracked_notify("passcode", last_pct[0], 0, 0)
 
-            # Marks the folder (pymobiledevice3 writes to <output_dir>/<udid>) as holding a
+            # Marks the folder (pymobiledevice3 writes to <backup_root>/<udid>) as holding a
             # backup that started, until the iPhone reports success (backup_status.py).
             attempt = backup_attempt[0] = backup_status.BackupTry(
-                os.path.join(output_dir, lockdown.udid or udid), log=_dev_log).start()
+                os.path.join(backup_root, lockdown.udid or udid), log=_dev_log).start()
             mb2_logger = logging.getLogger("pymobiledevice3.services.mobilebackup2")
             passcode_watcher = _BackupPasscodeWatcher(_on_passcode_prompt)
             mb2_logger.addHandler(passcode_watcher)
@@ -1088,7 +1147,7 @@ class DeviceBackupManager:
                     async with service as mb2:
                         await mb2.backup(
                             full=True,
-                            backup_directory=output_dir,
+                            backup_directory=backup_root,
                             progress_callback=_progress_cb,
                             filter_callback=received.file_started,
                         )
@@ -1140,7 +1199,7 @@ class DeviceBackupManager:
             # plain statvfs free space, which is what disk_usage returns.
             needed_bytes, free_bytes = _disk_space_from_error(e)
             if free_bytes is None:
-                free_bytes = _free_bytes(output_dir)
+                free_bytes = _free_bytes(destination.root)
             _dev_log(f"not enough disk space: {e} | needed={needed_bytes} free={free_bytes} "
                      f"phone_used={phone_used_bytes} output_dir={output_dir!r}")
             raise RuntimeError(_disk_full_message(free_bytes, needed_bytes, phone_used_bytes)) from e
@@ -1153,11 +1212,13 @@ class DeviceBackupManager:
             # during this run, with Snapshot removed and nothing else left half done, means
             # it finished. (pymobiledevice3 writes Info.plist first, and a folder used
             # before has an older Manifest.db.)
-            actual = self._resolve_backup_path(output_dir, udid)
+            attempt = backup_attempt[0]
+            # Beside an earlier backup, only the try's own folder can say it finished.
+            actual = (attempt.backup_dir if attempt is not None and destination.beside
+                      else self._resolve_backup_path(output_dir, udid))
             copied = received.update()
-            if backup_status.finished_since(actual, started_at):
-                if backup_attempt[0] is not None:
-                    backup_attempt[0].finished()
+            if attempt is not None and backup_status.finished_since(actual, started_at):
+                attempt.finished()
                 _tracked_notify("finalizing", 100, 0, 0)
             elif transferring or copied > 0:
                 _dev_log(f"connection dropped partway: {copied} bytes received, last device "
@@ -1191,18 +1252,22 @@ class DeviceBackupManager:
                 # The drive filled up while files arrived ("[Errno 28] No space left on
                 # device"): the iPhone's own free-space check passed, so the error came from
                 # writing, not from the iPhone's refusal (MBErrorDomain/105) handled above.
-                free_bytes = _free_bytes(output_dir)
+                free_bytes = _free_bytes(destination.root)
                 _dev_log(f"disk full while writing: {e!r} free={free_bytes} phone_used={phone_used_bytes}")
                 raise RuntimeError(_disk_full_message(free_bytes, None, phone_used_bytes)) from e
-            message = _backup_error_message(e, output_dir)
+            message = _backup_error_message(e, destination.root)
             if message is None:
                 raise
             _dev_log(f"backup failed: {e!r}")
             raise RuntimeError(message) from e
-        actual_backup_path = self._resolve_backup_path(output_dir, udid)
+        actual_backup_path = (destination.finish() if destination.beside
+                              else self._resolve_backup_path(output_dir, udid))
         _dev_log(f"backup complete. output_dir={output_dir!r} resolved={actual_backup_path!r}")
-        return {"success": True, "backup_path": actual_backup_path,
-                "existing_password": bool(existing_password[0])}
+        result = {"success": True, "backup_path": actual_backup_path,
+                  "existing_password": bool(existing_password[0])}
+        if destination.beside:
+            result["earlier_backup"] = destination.earlier
+        return result
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
@@ -1218,19 +1283,20 @@ class DeviceBackupManager:
         """
         _dev_log(f"[_resolve_backup_path] output_dir={output_dir!r} udid={udid!r}")
 
-        # Case 1: files written directly into output_dir
-        if os.path.exists(os.path.join(output_dir, "Manifest.db")):
-            _dev_log(f"[_resolve_backup_path] case 1 match (direct): {output_dir!r}")
-            return output_dir
-
-        # Case 2: well-known UDID subfolder variants (with/without dashes)
+        # Case 1: well-known UDID subfolder variants (with/without dashes). Looked for first:
+        # when the folder chosen is itself an older backup, this is the one just made.
         for candidate_name in [udid, udid.replace("-", "")]:
             candidate = os.path.join(output_dir, candidate_name)
             if os.path.isdir(candidate) and os.path.exists(
                 os.path.join(candidate, "Manifest.db")
             ):
-                _dev_log(f"[_resolve_backup_path] case 2 match (UDID subdir): {candidate!r}")
+                _dev_log(f"[_resolve_backup_path] case 1 match (UDID subdir): {candidate!r}")
                 return candidate
+
+        # Case 2: files written directly into output_dir
+        if os.path.exists(os.path.join(output_dir, "Manifest.db")):
+            _dev_log(f"[_resolve_backup_path] case 2 match (direct): {output_dir!r}")
+            return output_dir
 
         # Case 3: scan one level deep; prefer the most recently modified Manifest.db
         # so that a freshly-created backup is chosen over stale ones.

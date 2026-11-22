@@ -150,6 +150,7 @@ from year_counts import YearCounter  # noqa: E402
 from bundle import BundleExporter  # noqa: E402
 from person_export import PersonExporter  # noqa: E402
 import backup_files  # noqa: E402
+import older_backups  # noqa: E402
 import build_info  # noqa: E402
 
 
@@ -262,6 +263,9 @@ class SidecarServer:
             "backup.install_device_support": self.backup_install_device_support,
             "backup.pair_device": self.backup_pair_device,
             "backup.start": self.backup_start,
+            # Older backups beside the open one: these only look (older_backups.py)
+            "backup.list_older": self.backup_list_older,
+            "backup.check_older": self.backup_check_older,
         }
 
     # ── Notification helpers ──────────────────────────────────────────────────
@@ -347,6 +351,9 @@ class SidecarServer:
         # WhatsApp's names and file list too (a reopened backup is a new
         # accessor anyway; this keeps a backup made again in place honest)
         self.whatsapp_extractor.clear_cache()
+        # An older backup that was looked at first mustn't stay open: it may be moved to the
+        # Trash from inside this one (older_backups.py).
+        self.message_extractor.close_databases()
         return self.backup_manager.open_backup(udid, password=password, backup_dir=backup_dir)
 
     def validate_password(self, params):
@@ -957,6 +964,23 @@ class SidecarServer:
         """
         return self.device_backup_manager.pair_device(params["udid"])
 
+    def backup_list_older(self, params):
+        """
+        Older backups of the same iPhone beside the open backup, which may go to the Trash.
+        Returns { backups: [{ backup_dir, last_backup, encrypted }] }.
+        """
+        kept = self.backup_manager.get_open_backup(params["udid"])
+        return older_backups.list_older(kept, self.backup_manager.read_info)
+
+    def backup_check_older(self, params):
+        """
+        Whether params["backup_dir"], one of backup.list_older's, may go to the Trash now.
+        Only looks: the app's main process does the moving, after asking
+        (electron/olderBackups.ts). Returns what older_backups.check says.
+        """
+        kept = self.backup_manager.get_open_backup(params["udid"])
+        return older_backups.check(kept, params["backup_dir"], self.backup_manager.read_info)
+
     def backup_start(self, params):
         """
         Initiate a full backup of the device identified by params["udid"].
@@ -971,7 +995,8 @@ class SidecarServer:
         Phases: "negotiating" → "waiting" (for the iPhone; still 0%) → "passcode"
         (if it asks for its passcode to allow the backup) → "backing_up" → "finalizing"
 
-        Returns on completion: { "success": true, "backup_path": "..." }
+        Returns on completion: { "success": true, "backup_path": "...",
+                                 "earlier_backup": "..." (if the folder already held one; it's kept) }
         """
         udid = params["udid"]
         output_dir = params["output_dir"]

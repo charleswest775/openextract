@@ -22,6 +22,7 @@ from fake_iphone import FakeIPhone, run_backup  # noqa: E402
 from fake_iphone import plan as plans  # noqa: E402
 
 import backup  # noqa: E402
+import backup_beside  # noqa: E402
 import backup_status  # noqa: E402
 import device_backup  # noqa: E402
 
@@ -36,6 +37,13 @@ DROPPED = device_backup._CONNECTION_DROPPED.split("{copied}")[0]
 def quick_engine(monkeypatch):
     monkeypatch.setattr(device_backup, "_BYTES_REPORT_INTERVAL_S", 0.05)
     monkeypatch.setattr(device_backup, "_BACKUP_LOCK_RETRY_DELAY_S", 0.05)
+
+
+@pytest.fixture
+def writes_in_place(monkeypatch):
+    """As OpenExtract 0.18.0 and earlier backed up: straight over the backup already in the folder.
+    People still have the folders that left, and the app has to tell what they are."""
+    monkeypatch.setattr(backup_beside, "holds_a_backup", lambda folder: False)
 
 
 @pytest.fixture
@@ -167,7 +175,7 @@ def test_cut_off_partway_into_an_empty_folder(out):
     assert str(raised.value) == backup_status.NOTHING_TO_OPEN
 
 
-def test_cut_off_partway_over_an_older_backup(out):
+def test_cut_off_partway_over_an_older_backup(out, writes_in_place):
     # OE-31's shape: a folder with a finished backup, then a try that stops partway. The folder
     # still holds the older backup's Manifest.db and files, so it can be opened, but it's no
     # longer that backup: the app says it didn't finish.
@@ -185,7 +193,7 @@ def test_cut_off_partway_over_an_older_backup(out):
     assert can_read  # what's there can still be looked at
 
 
-def test_cut_off_with_every_file_sent_but_none_moved(out):
+def test_cut_off_with_every_file_sent_but_none_moved(out, writes_in_place):
     first = run_backup(FakeIPhone(), out)
     assert first.error is None
     _a_week_later(first)
@@ -197,7 +205,7 @@ def test_cut_off_with_every_file_sent_but_none_moved(out):
     assert {"openextract_try", "snapshot", "status:moving"} <= set(info["unfinished_signs"])
 
 
-def test_cut_off_partway_through_the_moves(out):
+def test_cut_off_partway_through_the_moves(out, writes_in_place):
     # A real iPhone moves files out of Snapshot one at a time, 128 to a message, then
     # Manifest.plist and Manifest.db. This one stops after the first message: some new files are
     # in place, the rest are still in Snapshot, and the folder's Manifest.db is the older one.
