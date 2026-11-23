@@ -65,6 +65,12 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.19.0" date="2026-11-23">
+      <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.19.0</url>
+      <description>
+        <p>Two new sections: Voice Memos, with the iPhone's recordings, their transcripts and Recently Deleted, and Calendar, with every event and calendar files (.ics) to save. On People, photos, videos, voice messages and documents now show on each message as they do on the phone, and Save everything saves your whole history with someone, with every file. A chat too big for one PDF is saved as one PDF per year. Back up my iPhone no longer ruins the backup already in a folder when a new backup fails partway: if one failed with 0.18.0 or earlier, see Fixed below. Older backups can be moved to the Trash from Backup details. Saves never replace a file that's already there, so photos that share a name like IMG_0001 are all saved, and a save that runs out of room says so instead of calling photos &quot;not in this backup&quot;. Long saves from encrypted backups are much faster and show how far they've got.</p>
+      </description>
+    </release>
     <release version="0.18.0" date="2026-11-19">
       <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.18.0</url>
       <description>
