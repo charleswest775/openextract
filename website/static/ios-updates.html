@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>iOS 27 and iPhone Backups: What Each Update Changed</title>
+  <meta name="description" content="iOS 27.2.1 is current and 27.3 is in beta. What each iOS release changed for iPhone backups, from Apple's own notes, and which ones OpenExtract has tested." />
+  <link rel="canonical" href="https://www.openextract.app/ios-updates" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/ios-updates" />
+  <meta property="og:title" content="iOS 27 and iPhone backups: what each update changed" />
+  <meta property="og:description" content="iOS 27 back to iOS 18, newest first: what Apple changed for backups, in Apple's words, and which iOS versions OpenExtract has tested." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "iOS 27 and iPhone backups: what each update changed",
+    "description": "iOS 27.2.1 is current and 27.3 is in beta. What each iOS release changed for iPhone backups, from Apple's own notes, and which ones OpenExtract has tested.",
+    "url": "https://www.openextract.app/ios-updates",
+    "datePublished": "2026-11-22",
+    "dateModified": "2026-11-22",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": { "@type": "WebSite", "name": "OpenExtract", "url": "https://www.openextract.app/" },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "mentions": [
+      { "@type": "SoftwareApplication", "name": "iOS", "softwareVersion": "27.2.1", "operatingSystem": "iOS", "url": "https://support.apple.com/en-us/149076" },
+      { "@type": "SoftwareApplication", "name": "Apple Devices", "operatingSystem": "Windows", "url": "https://support.apple.com/guide/devices-windows/welcome/windows" }
+    ],
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/home-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      { "@type": "Question", "name": "Does iOS 27 change iPhone backups?", "acceptedAnswer": { "@type": "Answer", "text": "Not in any way Apple describes. Apple's update notes for iOS 27, 27.0.1, 27.2 and 27.2.1 don't mention backups. The iOS 27 security notes list two fixes in a component called MobileBackup, and Apple says nothing about the backup format changing. You back up the same way as before: Finder on a Mac, the Apple Devices app or iTunes on Windows." } },
+      { "@type": "Question", "name": "Can OpenExtract open a backup from iOS 27?", "acceptedAnswer": { "@type": "Answer", "text": "No iOS 27 backup is in OpenExtract's tests yet, so we can't promise it. OpenExtract opens any backup folder that has a Manifest.db file in it, so try it. If something is missing or wrong, open an issue on GitHub or use Help in the app." } },
+      { "@type": "Question", "name": "Which iOS versions has OpenExtract tested?", "acceptedAnswer": { "@type": "Answer", "text": "Real backups from iOS 13.3.1, 13.4.1, 15.3.1, 16.1.2 and 17.3 are checked before every release. Generated backups cover iOS 15, 17 and 26 (with iOS 26.5's database layouts), plus older backup formats from iOS 6 to 10.1. iOS 11, 12, 14, 18 and 27 aren't tested yet." } },
+      { "@type": "Question", "name": "Where does the Apple Devices app save iPhone backups?", "acceptedAnswer": { "@type": "Answer", "text": "Apple's instructions say to look in %USERPROFILE%\\Apple\\MobileSync\\Backup, and if that folder doesn't open, in %AppData%\\Apple Computer\\MobileSync\\Backup. Apple Devices and iTunes keep their backups in one of these." } }
+    ]
+  }
+  </script>
+
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__pay" href="/support" aria-label="Pay it forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C1 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.2 4.4 2.5h2c.7-1.3 2.2-2.5 4.4-2.5 3.7 0 5.6 3.9 4.2 7.1C19.5 16.4 12 21 12 21z"/></svg><span class="nav__pay-label">Pay it forward</span></a>
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">iOS 27.2.1 · checked Nov 22, 2026</div>
+    <h1>iOS 27 and iPhone backups: <span class="it it--coral">what each update changed</span></h1>
+    <p class="page-head__lede">The current version is iOS 27.2.1, released on November 9, 2026, and iOS 27.3 is in beta. Apple's notes for iOS 27 don't mention any change to backups, apart from two security fixes in a part of iOS called MobileBackup. Below is each release, newest first: what changed for backups in Apple's words, and whether OpenExtract has tested backups from it.</p>
+    <p class="alt-disclosure">We make OpenExtract, a free iPhone backup viewer. Every fact here about Apple's software links to Apple's own page, checked on November 22, 2026. "Tested" means backups from that iOS version are in OpenExtract's automated checks; <a href="#how-we-test">how we test</a> explains which ones.</p>
+  </header>
+
+  <section class="matrix-wrap ios-hub">
+    <h2>OpenExtract and each iOS version</h2>
+    <div class="matrix">
+      <table>
+        <thead>
+          <tr>
+            <th class="matrix__head--label">iOS</th>
+            <th class="matrix__head--plain">Released</th>
+            <th class="matrix__head--oe">OpenExtract's tests</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="matrix__k"><a href="#ios-27">iOS 27</a><span class="matrix__sub">27.3 in beta</span></td><td class="matrix__cell">Sep 14, 2026</td><td class="matrix__cell"><span class="ios-status ios-status--none">Not yet tested</span></td></tr>
+          <tr><td class="matrix__k"><a href="#ios-26">iOS 26</a></td><td class="matrix__cell">Sep 15, 2025</td><td class="matrix__cell"><span class="ios-status ios-status--gen">Generated backups</span><span class="matrix__sub">with iOS 26.5's database layouts</span></td></tr>
+          <tr><td class="matrix__k"><a href="#ios-18">iOS 18</a></td><td class="matrix__cell">Sep 16, 2024</td><td class="matrix__cell"><span class="ios-status ios-status--none">Not yet tested</span></td></tr>
+          <tr><td class="matrix__k">iOS 17</td><td class="matrix__cell">Sep 18, 2023</td><td class="matrix__cell"><span class="ios-status ios-status--real">Real backup</span><span class="matrix__sub">iOS 17.3, and generated ones</span></td></tr>
+          <tr><td class="matrix__k">iOS 16</td><td class="matrix__cell">Sep 12, 2022</td><td class="matrix__cell"><span class="ios-status ios-status--real">Real backup</span><span class="matrix__sub">iOS 16.1.2</span></td></tr>
+          <tr><td class="matrix__k">iOS 15</td><td class="matrix__cell">Sep 20, 2021</td><td class="matrix__cell"><span class="ios-status ios-status--real">Real backup</span><span class="matrix__sub">iOS 15.3.1, and generated ones</span></td></tr>
+          <tr><td class="matrix__k">iOS 14</td><td class="matrix__cell">Sep 16, 2020</td><td class="matrix__cell"><span class="ios-status ios-status--none">Not yet tested</span></td></tr>
+          <tr><td class="matrix__k">iOS 13</td><td class="matrix__cell">Sep 19, 2019</td><td class="matrix__cell"><span class="ios-status ios-status--real">Real backups</span><span class="matrix__sub">iOS 13.3.1 and 13.4.1</span></td></tr>
+          <tr><td class="matrix__k">iOS 11 and 12</td><td class="matrix__cell">2017 and 2018</td><td class="matrix__cell"><span class="ios-status ios-status--none">Not yet tested</span></td></tr>
+          <tr><td class="matrix__k">iOS 10</td><td class="matrix__cell">Sep 13, 2016</td><td class="matrix__cell"><span class="ios-status ios-status--gen">Generated backups</span><span class="matrix__sub">iOS 10.1.1, encrypted and not</span></td></tr>
+          <tr><td class="matrix__k">iOS 9 and earlier</td><td class="matrix__cell">Sep 16, 2015, and before</td><td class="matrix__cell"><span class="ios-status ios-status--gen">Generated backups</span><span class="matrix__sub">iOS 6.1.6, 7.1.2, 8.4.1 and 9.3.5</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="matrix-note">Release dates are from Apple's <a href="https://support.apple.com/en-us/100100">security releases</a> page and its archives. "Not yet tested" doesn't mean it won't open: OpenExtract opens any backup folder with a <code>Manifest.db</code> file in it, and older ones with <code>Manifest.mbdb</code>. It means we can't promise every screen is right.</p>
+  </section>
+
+  <section class="alts ios-hub" id="ios-27">
+    <h2>iOS 27</h2>
+    <p class="alts__intro">Released on September 14, 2026, for iPhone 11 and later, according to its <a href="https://support.apple.com/en-us/149034">security notes</a>. OpenExtract hasn't tested an iOS 27 backup yet. If you open one and something looks wrong, <a href="https://github.com/charleswest775/openextract/issues">tell us on GitHub</a> or use Help in the app.</p>
+    <div class="alts__list">
+      <div class="alt" id="ios-27-3">
+        <h3>iOS 27.3 <span class="alt__maker">· in beta</span></h3>
+        <div class="alt__facts">Beta 2 · November 19, 2026 · build 24C5049f</div>
+        <p>A beta for developers, not a release. Apple's <a href="https://developer.apple.com/documentation/ios-ipados-release-notes/ios-ipados-27_3-release-notes">release notes for beta 2</a> don't mention backups. We'll add it here when it's released.</p>
+        <p class="ios-oe"><span class="ios-status ios-status--none">Not yet tested</span></p>
+      </div>
+      <div class="alt" id="ios-27-2-1">
+        <h3>iOS 27.2.1 <span class="alt__maker">· current</span></h3>
+        <div class="alt__facts">Released November 9, 2026</div>
+        <p>"Bug fixes and security updates", in Apple's words. Nothing about backups in its <a href="https://support.apple.com/en-us/149076">update notes</a> or its <a href="https://support.apple.com/en-us/149715">security notes</a>.</p>
+        <p class="ios-oe"><span class="ios-status ios-status--none">Not yet tested</span></p>
+      </div>
+      <div class="alt" id="ios-27-2">
+        <h3>iOS 27.2</h3>
+        <div class="alt__facts">Released October 26, 2026</div>
+        <p>Adds Suggestions in Messages, changes to Shared Albums in Photos, and separate New Episodes and Continue Playing sections in Podcasts. Its <a href="https://support.apple.com/en-us/149076">update notes</a> and <a href="https://support.apple.com/en-us/149230">security notes</a> say nothing about backups.</p>
+        <p class="ios-oe"><span class="ios-status ios-status--none">Not yet tested</span></p>
+      </div>
+      <div class="alt" id="ios-27-1">
+        <h3>iOS 27.1</h3>
+        <div class="alt__facts">Released October 23, 2026</div>
+        <p>Apple's <a href="https://support.apple.com/en-us/100100">security releases</a> page lists iOS 27.1 for iPhone Duo only, with no published security entries. Apple's iOS 27 update notes don't describe it.</p>
+        <p class="ios-oe"><span class="ios-status ios-status--none">Not yet tested</span></p>
+      </div>
+      <div class="alt" id="ios-27-0-1">
+        <h3>iOS 27.0.1</h3>
+        <div class="alt__facts">Released September 28, 2026</div>
+        <p>Fixes for iPhone 18 Pro restarts and a few other bugs. Nothing about backups in its <a href="https://support.apple.com/en-us/149076">update notes</a>.</p>
+        <p class="ios-oe"><span class="ios-status ios-status--none">Not yet tested</span></p>
+      </div>
+      <div class="alt" id="ios-27-0">
+        <h3>iOS 27</h3>
+        <div class="alt__facts">Released September 14, 2026</div>
+        <p>Apple's <a href="https://support.apple.com/en-us/149076">update notes</a> cover Siri AI, parental controls and Liquid Glass changes, and don't mention backups. Its <a href="https://support.apple.com/en-us/149034">security notes</a> list two fixes in MobileBackup: one where an app might change protected parts of the file system, and one where someone with physical access to a trust-paired device could read and write any file. iOS 26.7 got the same two fixes the same day.</p>
+        <p>Apple's <a href="https://developer.apple.com/documentation/ios-ipados-release-notes/ios-ipados-27-release-notes">notes for developers</a> also mention the Podcasts app migrating its library the first time it opens after the update. OpenExtract reads that library from backups, and we haven't checked an iOS 27 one yet.</p>
+        <p class="ios-oe"><span class="ios-status ios-status--none">Not yet tested</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="alts ios-hub" id="ios-26">
+    <h2>iOS 26</h2>
+    <p class="alts__intro">Released on September 15, 2025. Apple still ships security updates for it; the latest is iOS 26.7.3, from November 9, 2026, according to its <a href="https://support.apple.com/en-us/100100">security releases</a> page. OpenExtract tests iOS 26 with generated backups, described under <a href="#how-we-test">how we test</a>. No real iOS 26 backup is in the tests yet.</p>
+    <div class="alts__list">
+      <div class="alt" id="ios-26-7">
+        <h3>iOS 26.7</h3>
+        <div class="alt__facts">Released September 14, 2026</div>
+        <p>The same two MobileBackup fixes as iOS 27, according to its <a href="https://support.apple.com/en-us/149041">security notes</a>. The <a href="https://support.apple.com/en-us/123075">update notes</a> for 26.7 and its later fixes, 26.7.1 to 26.7.3, don't mention backups.</p>
+        <p class="ios-oe"><span class="ios-status ios-status--gen">Generated backups, iOS 26.5 layouts</span></p>
+      </div>
+      <div class="alt" id="ios-26-5">
+        <h3>iOS 26.5</h3>
+        <div class="alt__facts">Released May 11, 2026</div>
+        <p>Adds end-to-end encrypted RCS messaging in Messages, in beta and with supported carriers, according to Apple's <a href="https://support.apple.com/en-us/123075">update notes</a>. Apple doesn't say whether it changes what a backup holds, and we haven't checked a backup with these messages in it.</p>
+        <p class="ios-oe"><span class="ios-status ios-status--gen">Generated backups</span><span class="ios-oe__note">OpenExtract's generated iOS 26 backups use this release's database layouts.</span></p>
+      </div>
+      <div class="alt" id="ios-26-2">
+        <h3>iOS 26.2</h3>
+        <div class="alt__facts">Released December 12, 2025</div>
+        <p>Two security fixes about restoring from a backup, in its <a href="https://support.apple.com/en-us/125884">security notes</a>: restoring a maliciously crafted backup could change protected system files, and restoring from a backup could stop the passcode being asked for right after Face ID was set up.</p>
+        <p class="ios-oe"><span class="ios-status ios-status--gen">Generated backups, iOS 26.5 layouts</span></p>
+      </div>
+      <div class="alt" id="ios-26-0">
+        <h3>iOS 26</h3>
+        <div class="alt__facts">Released September 15, 2025</div>
+        <p>Apple's <a href="https://support.apple.com/en-us/123075">update notes</a> don't mention backups. A few changes touch data that ends up in one: Messages can screen unknown senders into their own list, the Phone app can screen calls from unknown numbers, and Notes can import and export Markdown. We haven't checked how each of these looks in a backup.</p>
+        <p class="ios-oe"><span class="ios-status ios-status--gen">Generated backups, iOS 26.5 layouts</span></p>
+      </div>
+    </div>
+    <p class="matrix-note">The other iOS 26 updates, 26.0.1, 26.1, 26.2.1, 26.3 to 26.4.2, 26.5.1 to 26.6.2, and 26.7.1 to 26.7.3, mention nothing about backups in Apple's update notes or security notes.</p>
+  </section>
+
+  <section class="alts ios-hub" id="ios-18">
+    <h2>iOS 18</h2>
+    <p class="alts__intro">Released on September 16, 2024. Apple still ships <a href="https://support.apple.com/en-us/100100">security updates</a> for it, most recently iOS 18.7.12 on November 9, 2026. OpenExtract hasn't tested an iOS 18 backup yet.</p>
+    <div class="alts__list">
+      <div class="alt" id="ios-18-4">
+        <h3>iOS 18.4</h3>
+        <div class="alt__facts">Released March 31, 2025</div>
+        <p>Its <a href="https://support.apple.com/en-us/122371">security notes</a> fix an issue where sensitive keychain data might be accessible from an iOS backup.</p>
+        <p class="ios-oe"><span class="ios-status ios-status--none">Not yet tested</span></p>
+      </div>
+      <div class="alt" id="ios-18-1">
+        <h3>iOS 18.1 to 18.3</h3>
+        <div class="alt__facts">Released October 28, 2024 to January 27, 2025</div>
+        <p>Each fixed ways that restoring a maliciously crafted backup could change protected system files, according to the security notes for <a href="https://support.apple.com/en-us/121563">18.1</a>, <a href="https://support.apple.com/en-us/121837">18.2</a> and <a href="https://support.apple.com/en-us/122066">18.3</a>. The iOS 18.1 <a href="https://support.apple.com/en-us/121161">update notes</a> also fix digital car keys that might not work after restoring from a backup.</p>
+        <p class="ios-oe"><span class="ios-status ios-status--none">Not yet tested</span></p>
+      </div>
+    </div>
+    <p class="matrix-note">This page starts at iOS 18. For older versions, the table at the top shows what OpenExtract tests.</p>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2 id="apple-devices">The Apple Devices app on Windows</h2>
+      <p>On a Windows PC, Apple's own instructions for backing up an iPhone start with the <a href="https://support.apple.com/en-us/108967">Apple Devices app</a>, and use iTunes only if the PC doesn't have it. Apple Devices comes from the Microsoft Store, which <a href="https://support.apple.com/en-us/118406">keeps it up to date</a>.</p>
+      <p>Its <a href="https://support.apple.com/guide/devices-windows/back-up-and-restore-your-device-mchla3c8ed03/windows">user guide</a> lists the choices: back up to iCloud or to the computer, tick Encrypt local backup to protect the backup with a password, then Backup Now. It can back up over a cable or over Wi-Fi. One choice matters for what you can get back later: only an <a href="https://support.apple.com/en-us/108353">encrypted backup</a> includes saved passwords, Wi-Fi settings, website history, Health data and call history.</p>
+      <p>To find the backups on a PC, Apple says to <a href="https://support.apple.com/en-us/108809">look in</a> <code>%USERPROFILE%\Apple\MobileSync\Backup</code>, or in <code>%AppData%\Apple Computer\MobileSync\Backup</code> if that folder doesn't open. <a href="/use-cases/where-are-iphone-backups-stored">Where iPhone backups are stored</a> has the folders on a Mac too, and how to keep a backup safe. OpenExtract finds backups in those folders on its own. On Windows it can also make a backup itself, using the iPhone connection that Apple Devices installs, and offers to install Apple Devices if the PC has neither it nor iTunes.</p>
+
+      <h2 id="how-we-test">How we test</h2>
+      <p>OpenExtract is free and open source, made by an independent developer with help from contributors. Its checks run on two kinds of backup.</p>
+      <ul>
+        <li><strong>Real backups.</strong> Public test backups that forensic researchers made from real iPhones and published with their passwords: iOS 13.3.1, 13.4.1, 15.3.1, 16.1.2 and 17.3. The checks open each one, compare what OpenExtract shows with the raw databases so nothing is silently dropped, and look for specific events from the researchers' own logs of what they did on the phone.</li>
+        <li><strong>Generated backups.</strong> Made-up people's phones, written by our own generator, with an answer key for what a correct reader should show. They use database layouts taken from real backups of iOS 15.3.1 and 17.3, and from Apple's iOS 26.5 Simulator for iOS 26. Apple's Simulator gives the layouts for Messages, Contacts, Photos, Safari, Calendar and Voice Memos. For call history, Notes, voicemail and the backup's own index, the iOS 26 backups use iOS 17.3 layouts. Separate generated backups, checked on every change to the code, cover the older formats of iOS 6 to 10.1.</li>
+      </ul>
+      <p>The real backups and the generated ones are checked before every release, on Windows, Mac and Linux. The <a href="https://github.com/charleswest775/openextract/actions/runs/44853824590">most recent run</a> passed on all three. We ran the same checks again on a Mac on November 22, 2026, against the current code, and they passed. The test setup is public: see <a href="https://github.com/charleswest775/openextract/tree/main/corpus">the corpus folder on GitHub</a>.</p>
+      <p>New releases go on this page after we've read Apple's notes for them. A version moves to tested only once a backup from it is in these checks.</p>
+    </div>
+  </section>
+
+  <section class="vs-faq">
+    <h2>Questions</h2>
+    <details class="qa">
+      <summary>Does iOS 27 change iPhone backups?</summary>
+      <p>Not in any way Apple describes. Apple's update notes for iOS 27, 27.0.1, 27.2 and 27.2.1 don't mention backups. The iOS 27 security notes list two fixes in a component called MobileBackup, and Apple says nothing about the backup format changing. You back up the same way as before: Finder on a Mac, the Apple Devices app or iTunes on Windows.</p>
+    </details>
+    <details class="qa">
+      <summary>Can OpenExtract open a backup from iOS 27?</summary>
+      <p>No iOS 27 backup is in OpenExtract's tests yet, so we can't promise it. OpenExtract opens any backup folder that has a Manifest.db file in it, so try it. If something is missing or wrong, open an issue on GitHub or use Help in the app.</p>
+    </details>
+    <details class="qa">
+      <summary>Which iOS versions has OpenExtract tested?</summary>
+      <p>Real backups from iOS 13.3.1, 13.4.1, 15.3.1, 16.1.2 and 17.3 are checked before every release. Generated backups cover iOS 15, 17 and 26 (with iOS 26.5's database layouts), plus older backup formats from iOS 6 to 10.1. iOS 11, 12, 14, 18 and 27 aren't tested yet.</p>
+    </details>
+    <details class="qa">
+      <summary>Where does the Apple Devices app save iPhone backups?</summary>
+      <p>Apple's instructions say to look in <code>%USERPROFILE%\Apple\MobileSync\Backup</code>, and if that folder doesn't open, in <code>%AppData%\Apple Computer\MobileSync\Backup</code>. Apple Devices and iTunes keep their backups in one of these. <a href="/use-cases/where-are-iphone-backups-stored">Where iPhone backups are stored</a> has the details.</p>
+    </details>
+  </section>
+
+  <section class="prose" id="sources">
+    <div class="prose__inner">
+      <h2>Sources</h2>
+      <p>Everything this page says about Apple's software comes from Apple's own pages, checked on November 22, 2026:</p>
+      <ul>
+        <li><a href="https://support.apple.com/en-us/100100">Apple security releases</a>: release dates, and that 27.2.1 is the latest iOS. Older dates come from its archives for <a href="https://support.apple.com/en-us/121012">2022 to 2023</a>, <a href="https://support.apple.com/en-us/120989">2020 to 2021</a>, <a href="https://support.apple.com/en-us/103179">2018 to 2019</a>, <a href="https://support.apple.com/en-us/103178">2016 to 2017</a> and <a href="https://support.apple.com/en-us/103813">2015</a>.</li>
+        <li><a href="https://developer.apple.com/news/releases/">Apple Developer releases</a>: iOS 27.3 beta 2, build 24C5049f.</li>
+        <li>Update notes: <a href="https://support.apple.com/en-us/149076">About iOS 27 Updates</a>, <a href="https://support.apple.com/en-us/123075">About iOS 26 Updates</a>, <a href="https://support.apple.com/en-us/121161">About iOS 18 Updates</a>.</li>
+        <li>Notes for developers: <a href="https://developer.apple.com/documentation/ios-ipados-release-notes/ios-ipados-27-release-notes">iOS &amp; iPadOS 27</a> and <a href="https://developer.apple.com/documentation/ios-ipados-release-notes/ios-ipados-27_3-release-notes">iOS &amp; iPadOS 27.3 beta 2</a>.</li>
+        <li>Security notes: iOS <a href="https://support.apple.com/en-us/149715">27.2.1</a>, <a href="https://support.apple.com/en-us/149230">27.2</a>, <a href="https://support.apple.com/en-us/149034">27</a>, <a href="https://support.apple.com/en-us/149041">26.7</a>, <a href="https://support.apple.com/en-us/125884">26.2</a>, <a href="https://support.apple.com/en-us/122371">18.4</a>, <a href="https://support.apple.com/en-us/122066">18.3</a>, <a href="https://support.apple.com/en-us/121837">18.2</a> and <a href="https://support.apple.com/en-us/121563">18.1</a>.</li>
+        <li><a href="https://support.apple.com/en-us/108967">How to back up your iPhone, iPad, or iPod touch with Windows</a> and the <a href="https://support.apple.com/guide/devices-windows/back-up-and-restore-your-device-mchla3c8ed03/windows">Apple Devices User Guide</a>: backing up with Apple Devices.</li>
+        <li><a href="https://support.apple.com/en-us/118406">Update Apple software for Microsoft Windows</a>: Apple Devices updates through the Microsoft Store.</li>
+        <li><a href="https://support.apple.com/en-us/108353">About encrypted backups</a>: what only encrypted backups include.</li>
+        <li><a href="https://support.apple.com/en-us/108809">Locate and manage backups</a>: the backup folders on Mac and Windows.</li>
+      </ul>
+      <p>If Apple has released something we haven't added yet, or something here is wrong, <a href="https://github.com/charleswest775/openextract/issues">open an issue</a> and we'll fix it.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Windows · Mac · Linux</div>
+        <h3>Have a backup?<br /><span class="it">See what's in it.</span></h3>
+        <p>Free. No trial, no limits, no account. Your backup never leaves your computer.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/use-cases/where-are-iphone-backups-stored">Where iPhone backups are stored →</a>
+        <a class="uc-related__link" href="/backup-files">What each file in a backup is →</a>
+        <a class="uc-related__link" href="/blog/what-is-in-an-iphone-backup">What's actually in an iPhone backup →</a>
+        <a class="uc-related__link" href="/blog/encrypted-backups-are-better">Why encrypted backups are better →</a>
+        <a class="uc-related__link" href="/use-cases/view-iphone-backup-on-windows">View an iPhone backup on Windows →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">No trial. No limits. No account.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/support">Pay it forward</a></li>
+        <li><a href="/what-people-say">What people say</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
