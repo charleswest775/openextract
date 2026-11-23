@@ -100,6 +100,15 @@ contextBridge.exposeInMainWorld('openextract', {
     status: () => ipcRenderer.invoke('support:status'),
     snooze: () => ipcRenderer.invoke('support:snooze'),
     markPaid: () => ipcRenderer.invoke('support:paid'),
+    // "Using it for paid work?": 'work' or 'personal'.
+    answerBusiness: (answer: 'work' | 'personal') => ipcRenderer.invoke('support:business-answer', answer),
+  },
+
+  // "Using it for paid work?" after a save from many different iPhones (`devices` in the past year). Once.
+  onBusinessCard: (callback: (devices: number) => void) => {
+    const listener = (_event: any, devices: number) => callback(devices);
+    ipcRenderer.on('business-card:show', listener);
+    return () => ipcRenderer.removeListener('business-card:show', listener);
   },
 
   // In-app feedback. A report is sent only when the user clicks Send in the form.

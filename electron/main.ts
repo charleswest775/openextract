@@ -10,6 +10,7 @@ import { FeedbackRecorder } from './feedback';
 import { FeedbackReports } from './feedbackReports';
 import { installFolderFor, installFolderWarning, isInsideFolder, resolveReal } from './installFolder';
 import { CHECK_OLDER_TIMEOUT_MS, takeMoveLock, trashOlderBackup } from './olderBackups';
+import { isBusinessAnswer, recordSave, shouldAskBusiness } from './businessUse';
 // ── Media in the window (videos, posters): only from the engine's copy folders ──
 const os = require('os');
 const { nativeImage } = require('electron');
@@ -133,6 +134,12 @@ const store = new JsonStore({
   exportCheckOptOut: false,
   // True once a thank-you was sent from the feedback form; the ask then drops its Say thanks button.
   thanksSent: false,
+  // "Using it for paid work?" (businessUse.ts): hashed iPhone IDs → when something was last
+  // saved from each, for the past year only; whether the question has shown (it shows once);
+  // and the answer, 'work' or 'personal' (null if the card was closed without one).
+  devicesSaved: {},
+  businessAskShown: false,
+  businessUse: null,
   // Feedback reports sent from this computer (reference, random lookup code, status),
   // the email last typed into the form, and when their status was last checked.
   feedbackReports: [],
@@ -147,6 +154,9 @@ const FEEDBACK_CHECK_DELAY_MS = 15_000;
 let exportCheckShownThisRun = false;
 // The "Pay it forward" card was dismissed (its × or Say thanks): no more asks after exports until the app is opened again.
 let askSnoozedThisRun = false;
+// The iPhone whose backup is open (its ID from the last open_backup that opened), so a save
+// can be counted against it for "Using it for paid work?".
+let openDeviceId: string | null = null;
 
 // Settings > Text size scales the whole window, so layouts keep their proportions.
 const TEXT_SIZE_ZOOM: Record<string, number> = { default: 1, large: 1.15, larger: 1.3 };
@@ -446,6 +456,12 @@ app.whenReady().then(async () => {
         : undefined;
       const result = await sidecar.call(method, params, timeoutMs);
       feedback.recordCall(method, params, { ok: true, result });
+      if (method === 'open_backup' && (result as any)?.status !== 'password_required') {
+        // Info.plist's ID when the engine has it: a newer backup beside an older one has a
+        // dated folder name, but it's still the same iPhone.
+        const id = (result as any)?.info?.udid ?? params?.udid;
+        openDeviceId = typeof id === 'string' && id.trim() ? id : null;
+      }
       if (method === 'open_backup') {
         const ts = new Date().toTimeString().slice(0, 8);
         const status = (result as any)?.status ?? 'unknown';
@@ -741,6 +757,10 @@ app.whenReady().then(async () => {
   ipcMain.handle('support:paid', () => {
     store.set('paidItForward', true);
   });
+  // "Using it for paid work?": 'work' or 'personal'. Kept on this computer only.
+  ipcMain.handle('support:business-answer', (_event: any, answer: unknown) => {
+    if (isBusinessAnswer(answer)) store.set('businessUse', answer);
+  });
 
   ipcMain.handle('increment-export-count', (event: any, area?: string) => {
     const stats = store.get('stats', { totalExports: 0 }) as any;
@@ -755,6 +775,17 @@ app.whenReady().then(async () => {
     // Dismissing the ask quiets it until the app is opened again; "I've paid" ends it.
     const exportArea = typeof area === 'string' ? area : undefined;
     const paid = store.get('paidItForward', false) === true;
+    // Many different iPhones in a year: once, ask whether it's paid work, instead of the
+    // other cards on this export (businessUse.ts). Only hashed IDs are kept.
+    if (openDeviceId) {
+      const saved = recordSave(store.get('devicesSaved', {}), openDeviceId, Date.now());
+      store.set('devicesSaved', saved.log);
+      if (shouldAskBusiness({ count: saved.count, shown: store.get('businessAskShown', false) === true, paid })) {
+        store.set('businessAskShown', true);
+        event.sender.send('business-card:show', saved.count);
+        return stats.totalExports;
+      }
+    }
     if (!paid && !store.get('payIntroShown', false)) {
       store.set('payIntroShown', true);
       event.sender.send('share-prompt:show', exportArea, true);
