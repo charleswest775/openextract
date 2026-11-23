@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Check an iPhone for known spyware with MVT — OpenExtract</title>
+  <meta name="description" content="Check an iPhone for known spyware such as Pegasus with Amnesty International's free MVT and an encrypted backup. What a clean result does and doesn't mean, and where to get help." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/check-iphone-for-spyware" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/check-iphone-for-spyware" />
+  <meta property="og:title" content="Check an iPhone for known spyware with MVT" />
+  <meta property="og:description" content="An encrypted backup, Amnesty International's Mobile Verification Toolkit, and an honest read of the result." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Check an iPhone for known spyware with MVT",
+    "description": "Check an iPhone for known spyware such as Pegasus with Amnesty International's free MVT and an encrypted backup. What a clean result does and doesn't mean, and where to get help.",
+    "url": "https://www.openextract.app/use-cases/check-iphone-for-spyware",
+    "datePublished": "2026-11-22",
+    "dateModified": "2026-11-23",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/home-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Does OpenExtract check for spyware itself?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract makes and opens iPhone backups. The checking is done by MVT, the Mobile Verification Toolkit from Amnesty International's Security Lab."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does a clean result mean my iPhone is safe?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. MVT looks only for indicators that have already been published. Its documentation warns that public indicators can miss recent traces and give a false sense of security. If you have reason to worry, get expert help even after a clean result."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Why does the backup need to be encrypted?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "MVT's documentation recommends encrypted backups because they contain more data than unencrypted ones, such as Safari history. MVT can read an unencrypted backup too, but it has less to check."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I check someone else's iPhone?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Only with their explicit consent. MVT's license allows it to be used only with the explicit consent of the person whose data is being checked."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does anything get uploaded?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "OpenExtract reads and makes the backup on your own computer and doesn't send it anywhere. MVT also runs on your computer. It goes online to download indicator lists and check for updates, and while checking it follows known short links to see where they lead, unless you start the command with MVT_NETWORK_ACCESS_ALLOWED=false."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does this work on Windows?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "OpenExtract makes the backup on Windows 10 and 11. MVT doesn't officially support running directly on Windows; its documentation recommends Windows Subsystem for Linux (WSL), following the Linux steps."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract is open source under the MIT license, with no paid tier and no account. MVT is free from PyPI under its own license, an adaptation of the Mozilla Public License with a consent clause."
+        }
+      }
+    ]
+  }
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__pay" href="/support" aria-label="Pay it forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C1 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.2 4.4 2.5h2c.7-1.3 2.2-2.5 4.4-2.5 3.7 0 5.6 3.9 4.2 7.1C19.5 16.4 12 21 12 21z"/></svg><span class="nav__pay-label">Pay it forward</span></a>
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 10 min · checked Nov 22, 2026</div>
+    <h1>Check an iPhone for<br /><span class="it">known spyware</span>.</h1>
+    <p class="page-head__lede">Amnesty International's Mobile Verification Toolkit (MVT) is a free tool that looks through an iPhone backup for traces of known spyware, such as NSO Group's Pegasus. It works best on an encrypted backup. OpenExtract, also free, makes one in a few clicks on a Mac, a Windows PC or Linux. Here's how to use the two together, and how to read the result honestly.</p>
+    <p class="alt-disclosure">We make OpenExtract. We don't make MVT and aren't connected to Amnesty International. The facts about MVT here come from its own documentation, checked on November 22, 2026, and every MVT command on this page was run with MVT 2026.11.2 on a test backup. It's all listed under <a href="#sources">Sources</a>.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>Before you start</h2>
+      <ul>
+        <li><strong>MVT is built for experts.</strong> <a href="https://docs.mvt.re/en/latest/introduction/">Its makers describe it</a> as a forensic tool for technologists and investigators that needs the command line, and say it isn't meant for people checking their own phone. If you're at home in a terminal, the steps below work. If you're worried and the terminal isn't for you, go straight to <a href="#get-help">where to get help</a>.</li>
+        <li><strong>It only finds what's already known.</strong> MVT compares the backup with published lists of indicators: website addresses, file names and app IDs tied to spyware that researchers have caught. MVT's own docs warn that these public lists can miss recent traces. A clean result isn't proof.</li>
+        <li><strong>Most people are never targeted.</strong> <a href="https://support.apple.com/en-us/102174">Apple says</a> the vast majority of iPhone users will never face a mercenary spyware attack. These attacks aim at a very small number of people, often journalists, activists, politicians and diplomats.</li>
+        <li><strong>Only your own phone, or with consent.</strong> <a href="https://docs.mvt.re/en/latest/license/">MVT's license</a> allows it to be used only with the explicit consent of the person whose data is checked.</li>
+      </ul>
+      <p><strong>What you'll need:</strong> the iPhone and its cable; a Mac with Apple Silicon, a Windows 10 or 11 PC, or a Linux PC; about half an hour for the backup; and some comfort typing commands in a terminal.</p>
+    </div>
+  </section>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>Install OpenExtract</h2>
+        <p>Free for Mac (Apple Silicon), Windows 10 and 11, and Linux. <a href="/#download">Download it here</a>. No account, no trial, no card.</p>
+        <p>Already have an encrypted backup made with Finder, iTunes or the Apple Devices app? MVT reads those too. Skip to step 03 and use that backup's folder (<a href="/use-cases/where-are-iphone-backups-stored">here's where to find it</a>).</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>Make an encrypted backup</h2>
+        <p>Plug the iPhone into the computer with a cable and unlock it. In OpenExtract, click <strong>Back up my iPhone</strong>.</p>
+        <p>Under <strong>1. Select device</strong>, click your iPhone. If the iPhone asks <strong>Trust This Computer?</strong>, tap Trust and enter its passcode. Under <strong>2. Backup destination</strong>, click <strong>Choose...</strong> and pick an empty folder, such as a new folder called <code>iphone-backup</code> in your home folder. Under <strong>3. Encryption</strong>, tick <strong>Encrypt backup</strong> and type a password where it says <strong>Set a backup password</strong>. Write it down: MVT needs it, and it can't be recovered.</p>
+        <p>Click <strong>Start Backup</strong>. When the iPhone asks for its passcode, enter it there. Keep the iPhone connected and unlocked until OpenExtract says <strong>Backup complete!</strong> and shows the backup's folder: a folder inside the one you chose, named with a long ID for your iPhone.</p>
+        <p>If the iPhone already has a backup password, set earlier in Finder, iTunes or OpenExtract, the box is already ticked and OpenExtract says so. The backup uses that password, and that's the one MVT will need. When the backup is done, OpenExtract opens it and asks for the password. Typing it and clicking <strong>Unlock</strong> is a quick way to check you have the right one.</p>
+        <p>On Windows, if OpenExtract says it needs Apple Devices, click <strong>Install Apple Devices</strong> (Apple's free app, from the Microsoft Store), then <strong>Check again</strong>. On Linux, install usbmuxd first: <code>sudo apt install usbmuxd</code> on Ubuntu or Debian.</p>
+        <p>Under the hood, OpenExtract makes the backup with <a href="https://github.com/doronz88/pymobiledevice3">pymobiledevice3</a>, the open-source tool <a href="https://docs.mvt.re/en/latest/ios/backup/pymobiledevice3/">MVT's docs use for backups</a>, and asks the iPhone for a full backup, as MVT's instructions do.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>Install MVT</h2>
+        <p>MVT runs in a terminal and <a href="https://docs.mvt.re/en/latest/install/">needs Python 3.11 or newer</a> (<code>python3 --version</code> tells you which you have). What to install first depends on the computer:</p>
+        <p><strong>Mac:</strong> MVT's docs use <a href="https://brew.sh">Homebrew</a> for Python and say Xcode is needed too.</p>
+        <pre class="code-block"><code>brew install python3</code></pre>
+        <p><strong>Linux:</strong></p>
+        <pre class="code-block"><code>sudo apt install python3 python3-venv python3-pip sqlite3</code></pre>
+        <p><strong>Windows:</strong> MVT doesn't officially support running directly on Windows. Its docs recommend Windows Subsystem for Linux (WSL). <a href="https://learn.microsoft.com/en-us/windows/wsl/install">Microsoft's steps</a>: open PowerShell as administrator, run <code>wsl --install</code>, and restart. Then open Ubuntu, the Linux it installs, and follow the Linux steps from here on.</p>
+        <p>Then, on any of the three, install MVT in a folder of its own:</p>
+        <pre class="code-block"><code>python3 -m venv mvt-env
+source mvt-env/bin/activate
+pip install mvt</code></pre>
+        <p>In a new terminal window, run <code>source mvt-env/bin/activate</code> again before using MVT. (MVT's docs also offer <code>pipx install mvt</code>, which does the same in one step once pipx is installed.)</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Download the latest indicators</h2>
+        <pre class="code-block"><code>mvt download-iocs</code></pre>
+        <p>This fetches the public indicator lists MVT's maintainers collect from Amnesty International and other researchers, and MVT uses them automatically from then on. When we ran it on November 22, 2026, it downloaded 19 lists with 11,494 indicators in all, among them NSO Group's Pegasus, Predator, Operation Triangulation and a list of stalkerware. Run it again before each check to get the newest lists.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">05</div>
+      <div>
+        <h2>Decrypt a copy of the backup</h2>
+        <pre class="code-block"><code>mvt-ios decrypt-backup -d ~/mvt-decrypted ~/iphone-backup/YOUR-IPHONE-ID</code></pre>
+        <p>Replace <code>YOUR-IPHONE-ID</code> with the folder name OpenExtract showed; <code>ls ~/iphone-backup</code> lists it. In WSL on Windows, the C: drive is under <code>/mnt/c</code>, so a backup in <code>C:\Users\YOUR-NAME\iphone-backup</code> is at <code>/mnt/c/Users/YOUR-NAME/iphone-backup</code>.</p>
+        <p>MVT asks <code>Enter backup password:</code> and shows a star for each character you type. It writes a decrypted copy to <code>mvt-decrypted</code> and leaves the backup itself as it was. That copy has no password on it: your messages, contacts and the rest are in plain files. Keep it on your own computer, and delete it when you're done.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">06</div>
+      <div>
+        <h2>Run the check</h2>
+        <pre class="code-block"><code>mvt-ios check-backup --output ~/mvt-results ~/mvt-decrypted</code></pre>
+        <p>MVT reads the decrypted copy, module by module (messages, Safari history, calls, WhatsApp, configuration profiles and more), and compares what it finds with the indicators. Lines saying a module "produced no detections" are what you hope to see. "There might be no data to extract" is normal too: that app or file just isn't in this backup.</p>
+        <p>At the end, a box counts the alerts: informational, low, medium, high and critical. The <code>mvt-results</code> folder gets a file for each kind of record and a <code>timeline.csv</code>. Anything that matched an indicator is also saved in a file ending in <code>_detected.json</code>.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">07</div>
+      <div>
+        <h2>Read the result, then tidy up</h2>
+        <p><strong>No alerts</strong> means none of today's public indicators matched. That's worth knowing, but it isn't a clean bill of health, and MVT says so itself when it finds nothing. If you have a real reason to worry, such as a threat notification from Apple, ask for expert help anyway.</p>
+        <p><strong>An alert</strong> means something in the backup matched a known indicator, such as a website address tied to Pegasus. It's a reason to get help, not a verdict on its own: MVT's own message says only an expert's review can confirm whether it's a sign of an attack. Keep the backup and the <code>mvt-results</code> folder, don't reset the iPhone, and contact one of the helplines below. MVT's docs warn that resetting the iPhone's settings can remove traces an expert would look for. If the alert points to a text message or a page in Safari history, you can open the same backup in OpenExtract and read it there, with the rest of the conversation.</p>
+        <p>When you're done, delete <code>mvt-decrypted</code>. Keep the backup or delete it, as you like. OpenExtract never changes it.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose" id="get-help">
+    <div class="prose__inner">
+      <h2>Where to get help</h2>
+      <ul>
+        <li><strong>If Apple sent you a threat notification.</strong> <a href="https://support.apple.com/en-us/102174">Apple says</a> these are high-confidence alerts that someone was targeted by mercenary spyware, and should be taken very seriously. It suggests expert help, such as Access Now's Digital Security Helpline, and turning on <a href="https://support.apple.com/en-us/105120">Lockdown Mode</a>. Apple's notifications never ask you to click a link or give your Apple Account password. To check one is real, sign in at <a href="https://account.apple.com">account.apple.com</a>; a real one shows at the top of the page.</li>
+        <li><strong><a href="https://www.accessnow.org/help/">Access Now's Digital Security Helpline</a>.</strong> Free, around the clock, in 10 languages, and it answers within two hours. It helps civil society: activists, journalists, bloggers, media organizations and human rights defenders. It checks first that a request is one it can take on.</li>
+        <li><strong><a href="https://securitylab.amnesty.org/get-help/">Amnesty International's Security Lab</a>.</strong> The team behind MVT. It supports journalists, activists and civil society organizations at risk from targeted digital attacks. Its Get Help page leads to a <a href="https://securitylab.amnesty.org/digital-resources/">Digital Security Resource Hub</a> of helplines and guides, and to a way to <a href="https://securitylab.amnesty.org/contact-us/">contact the Lab securely</a>.</li>
+        <li><strong>If you're worried about someone you know</strong>, such as a partner or an ex with access to your phone or accounts: <a href="https://support.apple.com/guide/personal-safety/welcome/web">Apple's Personal Safety User Guide</a> walks through securing your accounts and devices and cutting digital ties, including Safety Check on iOS 16 and later.</li>
+      </ul>
+
+      <h2>If MVT stops with a message</h2>
+      <ul>
+        <li><strong><code>The backup appears to be encrypted. Please decrypt it first</code></strong>: <code>check-backup</code> was pointed at the backup itself. Do step 05, then point <code>check-backup</code> at <code>~/mvt-decrypted</code>.</li>
+        <li><strong><code>Failed to decrypt backup. Password is probably wrong.</code></strong>: try again with care. If the iPhone already had a backup password, it's that one, not a new one.</li>
+        <li><strong>"command not found" for <code>mvt</code> or <code>mvt-ios</code></strong>: the folder MVT is installed in isn't active in this window. Run <code>source mvt-env/bin/activate</code> from the folder where you made it.</li>
+        <li><strong><code>This phone is running an outdated iOS version</code></strong>: a warning, not an alert. MVT compares the backup's iOS version with the newest one. Updating the iPhone is worth doing either way.</li>
+      </ul>
+
+      <h2>Common questions</h2>
+      <p><strong>Does OpenExtract check for spyware itself?</strong> No. OpenExtract makes and opens iPhone backups. The checking is done by MVT, the Mobile Verification Toolkit from Amnesty International's Security Lab.</p>
+      <p><strong>Does a clean result mean my iPhone is safe?</strong> No. MVT looks only for indicators that have already been published. <a href="https://docs.mvt.re/en/latest/introduction/">Its documentation warns</a> that public indicators can miss recent traces and give a false sense of security. If you have reason to worry, get expert help even after a clean result.</p>
+      <p><strong>Why does the backup need to be encrypted?</strong> <a href="https://docs.mvt.re/en/latest/ios/backup/pymobiledevice3/">MVT's documentation recommends encrypted backups</a> because they contain more data than unencrypted ones, <a href="https://docs.mvt.re/en/latest/ios/methodology/">such as Safari history</a>. MVT can read an unencrypted backup too, but it has less to check. We wrote more about <a href="/blog/encrypted-backups-are-better">what encrypted backups hold</a>.</p>
+      <p><strong>Can I check someone else's iPhone?</strong> Only with their explicit consent. <a href="https://docs.mvt.re/en/latest/license/">MVT's license</a> allows it to be used only with the explicit consent of the person whose data is being checked.</p>
+      <p><strong>Does anything get uploaded?</strong> OpenExtract reads and makes the backup on your own computer and doesn't send it anywhere. MVT also runs on your computer. It goes online to download indicator lists and check for updates, and while checking it <a href="https://docs.mvt.re/en/latest/iocs/">follows known short links</a> to see where they lead, unless you start the command with <code>MVT_NETWORK_ACCESS_ALLOWED=false</code>.</p>
+      <p><strong>Does this work on Windows?</strong> OpenExtract makes the backup on Windows 10 and 11. MVT doesn't officially support running directly on Windows; <a href="https://docs.mvt.re/en/latest/install/">its documentation recommends</a> Windows Subsystem for Linux (WSL), following the Linux steps.</p>
+      <p><strong>Is it free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier and no account. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>. MVT is <a href="https://pypi.org/project/mvt/">free from PyPI</a> under its own license, an adaptation of the Mozilla Public License with a consent clause.</p>
+    </div>
+  </section>
+
+  <section class="prose" id="sources">
+    <div class="prose__inner">
+      <h2>Sources</h2>
+      <p>What we ran: on November 22, 2026 we installed MVT 2026.11.2 from PyPI in a Python 3.12 virtual environment on a Mac, ran <code>mvt download-iocs</code>, and ran <code>decrypt-backup</code> and <code>check-backup</code> on an encrypted test backup of a made-up person, made with the same generator OpenExtract's own tests use. We added the file OpenExtract leaves in a backup folder when a backup finishes, so the folder looked like one the app makes. MVT decrypted it, ran its 28 backup modules, read 1,284 messages, 357 Safari history entries and 166 calls, and reported no alerts, as expected for a backup with no spyware in it. On a copy with a known Pegasus web address added to Safari history, it reported one critical alert and wrote <code>safari_history_detected.json</code>. On November 23 we ran the same steps on a Windows 11 PC, in WSL with Ubuntu 26.04 and its Python 3.14 (WSL was already installed there, so we didn't run <code>wsl --install</code>). The backup was on the C: drive and MVT read it through <code>/mnt/c</code>. We typed the password at MVT's prompt in a terminal, and it showed a star for each character. The results matched the Mac's, and the backup's files were unchanged afterwards. We haven't yet run MVT on a backup OpenExtract made from a real iPhone; the OpenExtract steps and button names come from the app itself (version 0.18.0).</p>
+      <p>Everything else this page says about MVT comes from its own documentation and repository, checked on November 22, 2026:</p>
+      <ul>
+        <li><a href="https://docs.mvt.re/en/latest/introduction/">Introduction</a>: what MVT does, that it's for technologists and investigators, the warning about public indicators, and where civil society can get help.</li>
+        <li><a href="https://docs.mvt.re/en/latest/install/">Installation</a>: Python 3.11 or newer, what to install on Mac and Linux, and WSL for Windows.</li>
+        <li><a href="https://docs.mvt.re/en/latest/ios/methodology/">iOS Forensic Methodology</a>: encrypted backups hold records unencrypted ones don't, such as Safari history.</li>
+        <li><a href="https://docs.mvt.re/en/latest/ios/backup/pymobiledevice3/">Backup with pymobiledevice3</a>: why to encrypt, the full backup, the folder named after the iPhone's ID, and the warning about resetting settings.</li>
+        <li><a href="https://docs.mvt.re/en/latest/ios/backup/check/">Check a Backup with mvt-ios</a>: <code>decrypt-backup</code>, <code>check-backup</code> and the <code>_detected</code> files.</li>
+        <li><a href="https://docs.mvt.re/en/latest/iocs/">Indicators of Compromise</a>: <code>download-iocs</code>, and the short-link checks with <code>MVT_NETWORK_ACCESS_ALLOWED</code>.</li>
+        <li><a href="https://docs.mvt.re/en/latest/license/">License</a>: the consensual-use clause.</li>
+        <li><a href="https://github.com/mvt-project/mvt">MVT on GitHub</a> and <a href="https://pypi.org/project/mvt/">on PyPI</a>: who makes it, and the current version.</li>
+      </ul>
+      <p>Help and Apple's advice, also checked on November 22, 2026: <a href="https://securitylab.amnesty.org/get-help/">Amnesty International Security Lab: Get Help</a>, <a href="https://www.accessnow.org/help/">Access Now's Digital Security Helpline</a>, <a href="https://support.apple.com/en-us/102174">About Apple threat notifications</a>, <a href="https://support.apple.com/en-us/105120">About Lockdown Mode</a>, <a href="https://support.apple.com/guide/personal-safety/welcome/web">Apple's Personal Safety User Guide</a>, and Microsoft's <a href="https://learn.microsoft.com/en-us/windows/wsl/install">Install WSL</a> and <a href="https://learn.microsoft.com/en-us/windows/wsl/filesystems">working across file systems</a>.</p>
+      <p>Tools and advice change. If something here is out of date, <a href="https://github.com/charleswest775/openextract/issues">open an issue</a> and we'll fix it.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Free · no account</div>
+        <h3>An encrypted backup,<br /><span class="it">in a few clicks.</span></h3>
+        <p>OpenExtract runs on your own computer and never uploads the backup.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/blog/encrypted-backups-are-better">Encrypted backups are better, actually →</a>
+        <a class="uc-related__link" href="/use-cases/where-are-iphone-backups-stored">Where iPhone backups are stored →</a>
+        <a class="uc-related__link" href="/blog/what-is-in-an-iphone-backup">What's actually in an iPhone backup →</a>
+        <a class="uc-related__link" href="/use-cases/iphone-backup-extractor-linux">Read iPhone backups on Linux →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Make the backup MVT reads.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/support">Pay it forward</a></li>
+        <li><a href="/what-people-say">What people say</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
