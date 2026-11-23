@@ -519,7 +519,11 @@ app.whenReady().then(async () => {
   removeStaleStagingDirs();
   ipcMain.handle('export:pdf', async (_event: any, method: PdfExportMethod, params: any) => {
     try {
-      const data = await exportMessagesPdf(sidecar, method, params);
+      const data = await exportMessagesPdf(sidecar, method, params, step => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('sidecar:notification', { jsonrpc: '2.0', method: 'pdf.progress', params: step });
+        }
+      });
       return { success: true, data };
     } catch (error: any) {
       console.error('PDF export failed', error);

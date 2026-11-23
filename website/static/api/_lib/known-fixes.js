@@ -60,15 +60,19 @@ const KNOWN_FIXES = [
   },
   {
     id: 'saving-timed-out',
-    title: 'Saving stopped after 5 minutes',
+    title: 'Saving stopped after 5 minutes in 0.10.2 and earlier',
     area: 'app',
     seen: ['Sidecar call timed out: export_photos'],
     fixedIn: '0.11.0',
     // electron/sidecar.ts up to 0.10.2 gave every call 5 minutes, which saving a big photo
     // library (decrypted file by file from an encrypted backup) runs past (OE-14). Later
-    // versions give saving 2 hours. The engine goes on saving after the app stops waiting.
+    // versions give saving much longer, so a save that still times out there has some other
+    // cause, which updating to 0.11.0 doesn't help (OE-132): hence `when`, and the last sentence
+    // of the text, for people who find it on the page. The engine goes on saving after the app
+    // stops waiting.
     match: /Sidecar call timed out: export_/,
-    text: 'OpenExtract 0.10.2 and earlier stop waiting for a save after 5 minutes. That isn\'t long enough for a big photo library, especially from an encrypted backup. Install the latest version from openextract.app, which waits much longer and shows how far a save has got. If you can\'t update yet, the files usually go on saving anyway: open the folder you chose and wait until new files stop appearing, then quit and reopen OpenExtract before you browse again.',
+    when: /App: OpenExtract 0\.(?:\d|10)\.\d+\b/,
+    text: 'OpenExtract 0.10.2 and earlier stop waiting for a save after 5 minutes. That isn\'t long enough for a big photo library, especially from an encrypted backup. Install the latest version from openextract.app, which waits much longer and shows how far a save has got. If you can\'t update yet, the files usually go on saving anyway: open the folder you chose and wait until new files stop appearing, then quit and reopen OpenExtract before you browse again. A save that times out in 0.11.0 or later has a different cause: quit and reopen OpenExtract, save less at a time (one chat, say), and if it happens again tell us with Report this problem.',
   },
   {
     id: 'backup-password',

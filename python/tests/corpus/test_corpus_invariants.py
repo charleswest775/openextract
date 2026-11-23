@@ -752,4 +752,12 @@ def test_read_only_copy_reads_the_same(ctx, tmp_path):
 # Keep last: protocol problems anywhere above would show up here too.
 def test_protocol_stayed_clean(ctx):
     assert not ctx.client.protocol_errors, ctx.client.protocol_errors
-    assert not ctx.client.notifications, f"unexpected notifications: {ctx.client.notifications[:3]}"
+    # The only notifications these calls send: how far a save of chats has got (python/main.py _chat_progress).
+    unexpected = [n for n in ctx.client.notifications if not _is_chat_save_progress(n)]
+    assert not unexpected, f"unexpected notifications: {unexpected[:3]}"
+
+
+def _is_chat_save_progress(note: dict) -> bool:
+    params = note.get("params") or {}
+    return (note.get("method") == "export.progress" and params.get("kind") in ("messages", "whatsapp")
+            and params.get("phase") in ("reading", "saving") and 0 <= params.get("done", -1) <= params.get("total", -1))

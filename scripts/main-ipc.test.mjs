@@ -117,8 +117,8 @@ function fakeModules() {
     './sidecar': { PythonSidecar },
     './updater': { initUpdater: options => f.updaterInits.push(options) },
     './pdfExport': {
-      exportMessagesPdf: async (sidecar, method, params) => {
-        f.pdfCalls.push({ sidecar, method, params });
+      exportMessagesPdf: async (sidecar, method, params, onStep) => {
+        f.pdfCalls.push({ sidecar, method, params, onStep });
         return f.pdfAnswer(method, params);
       },
       exportHtmlToPdf: async (html, outputDir, baseName) => {
@@ -1141,6 +1141,16 @@ describe('export:pdf', () => {
     assert.equal(call.sidecar, m.sidecar);
     assert.equal(call.method, 'export_conversation');
     assert.deepEqual(call.params, params);
+  });
+
+  test('sends the window which PDF a save is on', async () => {
+    const m = await loadMain();
+    await m.invoke('export:pdf', 'export_whatsapp_chats', { output_dir: m.userData });
+    const step = { kind: 'whatsapp', part: 2, parts: 5 };
+    m.fakes.pdfCalls[0].onStep(step);
+    assert.deepEqual(m.window.webContents.sent.at(-1), ['sidecar:notification', { jsonrpc: '2.0', method: 'pdf.progress', params: step }]);
+    m.window.destroyed = true;
+    assert.doesNotThrow(() => m.fakes.pdfCalls[0].onStep(step));
   });
 
   test('a failed PDF export is wrapped and recorded for feedback', async () => {

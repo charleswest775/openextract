@@ -619,6 +619,36 @@ describe('a PDF too big for one file, split by year', () => {
     assert.deepEqual(result.splits.map(s => [s.name, s.labels]), [[null, ['2022', '2023', '2024']]]);
   });
 
+  test('says which PDF it is saving and printing', async () => {
+    const { pdf, outputDir } = setup();
+    const plan = { groups: [{ chat_ids: [7], split: true, messages: 300, images: 30, estimate: ESTIMATE, parts: YEARS }] };
+    const engine = fakeEngine([], {
+      plan,
+      onCall: params => ({ file: writePage(params.output_dir, `Mom, ${params.part.label}.html`) }),
+    });
+    const steps = [];
+    await pdf.exportMessagesPdf(engine, 'export_whatsapp_chat', { udid: 'u', chat_id: 7, output_dir: outputDir }, s => steps.push(s));
+    assert.deepEqual(steps, [1, 2, 3].flatMap(part => [
+      { kind: 'whatsapp', part, parts: 3 },
+      { kind: 'whatsapp', part, parts: 3, printing: { file: part, files: 3 } },
+    ]));
+
+    // An unsplit "Save all" is one engine call that several PDFs are printed from
+    const all = [];
+    await pdf.exportMessagesPdf(fakeEngine(['Mom.html', 'Dad.html']), 'export_conversations',
+      { udid: 'u', chat_ids: [1, 2], output_dir: freshDir('pdf-out') }, s => all.push(s));
+    assert.deepEqual(all, [
+      { kind: 'messages', part: 1, parts: 1 },
+      { kind: 'messages', part: 1, parts: 1, printing: { file: 1, files: 2 } },
+      { kind: 'messages', part: 1, parts: 1, printing: { file: 2, files: 2 } },
+    ]);
+
+    // Saves that aren't of chats have no such steps
+    const none = [];
+    await pdf.exportMessagesPdf(fakeEngine(['Calls.html']), 'export_calls', { udid: 'u', output_dir: freshDir('pdf-out') }, s => none.push(s));
+    assert.deepEqual(none, []);
+  });
+
   test('a plan that can\'t be made: the save goes ahead as one call', async () => {
     const { pdf, outputDir } = setup();
     for (const plan of [new Error('Sidecar call timed out: plan_pdf_parts'), { error: 'WhatsApp isn\'t in this backup' }, null]) {

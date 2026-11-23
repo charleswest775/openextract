@@ -15,7 +15,8 @@
  * plans a conversation's save first (plan_pdf_parts, python/pdf_parts.py): a
  * chat too big for one sensible file is split by year, and each part is saved
  * here as its own engine call, folder and PDF. The result says what was split
- * and why.
+ * and why. The engine reports progress as it reads and writes each chat, and
+ * which PDF that is comes from here (PdfStep).
  *
  * Chromium prints a whole page at once, so a page too big for it, or with more
  * photos than one PDF can hold, is refused before printing, in plain words.
@@ -44,6 +45,18 @@ export interface PdfSplit {
   images: number;
   /** About how big one PDF of all of it would have been. */
   estimate: { pages: number; megabytes: number };
+}
+
+/**
+ * Where a save of conversations or chats has got to, sent to the window as pdf.progress
+ * (src/lib/exportProgress.ts). `part` of `parts` is the engine call it's on; `printing`,
+ * once that call is done, is which PDF of how many is being printed.
+ */
+export interface PdfStep {
+  kind: 'messages' | 'whatsapp';
+  part: number;
+  parts: number;
+  printing?: { file: number; files: number };
 }
 
 export interface PdfExportResult {
@@ -115,11 +128,12 @@ const RESTART_BEFORE_NEXT_PDF = 'Quit and reopen OpenExtract before saving anoth
 const PDFS_NEED_RESTART = 'Quit and reopen OpenExtract to save PDFs again: printing stopped working after an earlier PDF was too big. Everything else still saves as usual.';
 let printingBroken = false;
 
-// Copying and converting every image in a long thread can take a while. A save
-// split by year has this long for each part.
+// How long the engine may go without a word while it writes a PDF's page. Saves of
+// conversations report every message, which starts this over (electron/sidecar.ts), so
+// they are only given up on when nothing has moved for this long.
 const SIDECAR_TIMEOUT_MS = 60 * 60 * 1000;
 
-// Planning reads every message once, but converts nothing.
+// Planning reads every message once, but converts nothing. It reports each page read.
 const PLAN_TIMEOUT_MS = 30 * 60 * 1000;
 
 // The saves that may be split by year: Messages conversations and WhatsApp chats.
@@ -461,7 +475,12 @@ interface JobResult {
  * files are copied) is passed on as it is. If export_person's PDF can't be
  * made, the folder of originals it copied into the chosen folder is removed again.
  */
-async function runJob(sidecar: Sidecar, job: PdfJob, outputDir: string): Promise<JobResult> {
+async function runJob(
+  sidecar: Sidecar,
+  job: PdfJob,
+  outputDir: string,
+  onPrinting?: (page: number, pages: number) => void,
+): Promise<JobResult> {
   // What's in the chosen folder before a person's originals are copied into it
   const namesBefore = job.method === 'export_person' ? namesIn(outputDir) : null;
   const staging = fs.realpathSync(fs.mkdtempSync(path.join(app.getPath('temp'), STAGING_PREFIX)));
@@ -487,7 +506,8 @@ async function runJob(sidecar: Sidecar, job: PdfJob, outputDir: string): Promise
     });
     checkPrintable(pages, staging);
     const pdfFiles: string[] = [];
-    for (const page of pages) {
+    for (const [i, page] of pages.entries()) {
+      onPrinting?.(i + 1, pages.length);
       const target = path.join(outputDir, `${path.basename(page, path.extname(page))}.pdf`);
       pdfFiles.push(await htmlFileToPdf(page, target));
     }
@@ -517,12 +537,14 @@ async function runJob(sidecar: Sidecar, job: PdfJob, outputDir: string): Promise
 /**
  * Run an engine export as PDF. `params` are the same as for the HTML export;
  * `params.output_dir` is where the PDFs go. A conversation too big for one
- * file is saved as several, one engine call each (planJobs).
+ * file is saved as several, one engine call each (planJobs). `onStep` hears
+ * which of them it's on, and when each is printed.
  */
 export async function exportMessagesPdf(
   sidecar: Sidecar,
   method: PdfExportMethod,
   params: any,
+  onStep?: (step: PdfStep) => void,
 ): Promise<PdfExportResult> {
   if (!ALLOWED_METHODS.has(method)) throw new Error(`PDF export is not available for ${method}`);
   const outputDir = params?.output_dir;
@@ -534,9 +556,17 @@ export async function exportMessagesPdf(
   const files: string[] = [];
   let messageCount = 0;
   let extra: JobResult['extra'] = {};
-  for (const job of jobs) {
+  for (const [i, job] of jobs.entries()) {
+    const report = (printing?: PdfStep['printing']) => {
+      if (!onStep || !PLANNED_METHODS.has(method)) return;
+      const kind = method.includes('whatsapp') ? 'whatsapp' : 'messages';
+      onStep({ kind, part: i + 1, parts: jobs.length, ...(printing ? { printing } : {}) });
+    };
     try {
-      const done = await runJob(sidecar, job, outputDir);
+      report();
+      // A split save's parts are one PDF each; only an unsplit "Save all" prints several from one call
+      const done = await runJob(sidecar, job, outputDir,
+        (page, pages) => report({ file: i + page, files: jobs.length + pages - 1 }));
       files.push(...done.files);
       messageCount += done.message_count;
       extra = { ...extra, ...done.extra };

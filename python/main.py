@@ -148,6 +148,7 @@ from device_backup import DeviceBackupManager  # noqa: E402
 from stats import StatsComputer  # noqa: E402
 from year_counts import YearCounter  # noqa: E402
 from bundle import BundleExporter  # noqa: E402
+from export_progress import ChatSaveProgress  # noqa: E402
 from person_export import PersonExporter  # noqa: E402
 import backup_files  # noqa: E402
 import older_backups  # noqa: E402
@@ -300,6 +301,19 @@ class SidecarServer:
                 "kind": kind, "done": done, "total": total, "failed": failed,
             })
         return notify
+
+    def _chat_progress(self, kind: str, chats: int = 1, read_first: bool = False) -> ChatSaveProgress:
+        """
+        Progress for saving chats (kind "messages" or "whatsapp"), or planning their PDF. It goes out as
+            { "jsonrpc":"2.0", "method":"export.progress",
+              "params": { "kind": "whatsapp", "done": int, "total": int, "failed": 0,
+                          "phase": "reading" | "saving", "chat": int, "chats": int, "percent": int } }
+
+        Each one starts the app's time limit for the call over (electron/sidecar.ts).
+        """
+        def notify(update: dict) -> None:
+            self.send_notification("export.progress", {"kind": kind, "failed": 0, **update})
+        return ChatSaveProgress(notify, chats, read_first)
 
     def _open_progress(self, kind: str):
         """
@@ -519,7 +533,8 @@ class SidecarServer:
         return self.message_extractor.export_conversation(
             backup, chat_id, contacts, fmt, output_dir,
             date_from=date_from, date_to=date_to, query=query,
-            display_name=display_name, part=params.get("part")
+            display_name=display_name, part=params.get("part"),
+            progress=self._chat_progress("messages"),
         )
 
     def export_conversations(self, params):
@@ -538,7 +553,8 @@ class SidecarServer:
         conv_names = {int(k): v for k, v in conversation_names.items()}
         return self.message_extractor.export_conversations(
             backup, chat_ids, conv_names, contacts, fmt, output_dir,
-            mode=mode, date_from=date_from, date_to=date_to, query=query, part=params.get("part")
+            mode=mode, date_from=date_from, date_to=date_to, query=query, part=params.get("part"),
+            progress=self._chat_progress("messages", len(chat_ids), mode == "merged"),
         )
 
     def export_photos(self, params):
@@ -730,7 +746,7 @@ class SidecarServer:
         return self.whatsapp_extractor.export_conversation(
             backup, chat_id, contacts, fmt, output_dir,
             date_from=date_from, date_to=date_to, query=query, display_name=display_name,
-            part=params.get("part")
+            part=params.get("part"), progress=self._chat_progress("whatsapp"),
         )
 
     def export_whatsapp_chats(self, params):
@@ -749,7 +765,8 @@ class SidecarServer:
         names = {int(k): v for k, v in conversation_names.items()}
         return self.whatsapp_extractor.export_conversations(
             backup, chat_ids, names, contacts, fmt, output_dir,
-            mode=mode, date_from=date_from, date_to=date_to, query=query, part=params.get("part")
+            mode=mode, date_from=date_from, date_to=date_to, query=query, part=params.get("part"),
+            progress=self._chat_progress("whatsapp", len(chat_ids), mode == "merged"),
         )
 
     def plan_pdf_parts(self, params):
@@ -767,6 +784,7 @@ class SidecarServer:
         return extractor.plan_pdf_parts(
             backup, chat_ids, contacts, merged=params.get("mode") == "merged",
             date_from=params.get("date_from"), date_to=params.get("date_to"), query=params.get("query"),
+            progress=self._chat_progress(source, len(chat_ids), read_first=True),
         )
 
     # ── Podcasts ─────────────────────────────────────────────────────────────

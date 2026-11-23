@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { loadTs } from './test-helpers/load-ts.mjs';
 import { enUS } from './test-helpers/time-zones.mjs';
 
-const { exportProgressFor, percentDone } = loadTs('src/lib/exportProgress.ts');
+const { chatSaveAfter, chatSaveStatus, exportProgressFor, NO_CHAT_SAVE, percentDone } = loadTs('src/lib/exportProgress.ts');
 const { photoSaveProgress, photoSaveFailures } = loadTs('src/lib/photoCounts.ts');
 
 const n = x => x.toLocaleString();
@@ -71,10 +71,10 @@ test('failures show once there are any, in the words the finished notice uses', 
 let state;
 let effects = [];
 const react = {
-  useState: init => [state === undefined ? init : state, v => { state = v; }],
+  useState: init => [state === undefined ? init : state, v => { state = typeof v === 'function' ? v(state ?? init) : v; }],
   useEffect: fn => { effects.push(fn); },
 };
-const { useExportProgress } = loadTs('src/hooks/useExportProgress.ts', { stubs: { react } });
+const { useChatSaveProgress, useExportProgress } = loadTs('src/hooks/useExportProgress.ts', { stubs: { react } });
 
 function render(kind, active) {
   effects = [];
@@ -129,5 +129,71 @@ test('useExportProgress without the app bridge (the renderer in a plain browser)
   state = undefined;
   globalThis.window = {};
   assert.equal(render('photos', true).value, null);
+  delete globalThis.window;
+});
+
+// ── Saving conversations and WhatsApp chats (OE-132) ─────────────────────────
+
+const reading = (over = {}) => note({ kind: 'whatsapp', phase: 'reading', done: 500, total: 2000, failed: 0, chat: 1, chats: 1, percent: 2, ...over });
+const saving = (over = {}) => reading({ phase: 'saving', done: 1200, percent: 64, ...over });
+const step = params => ({ jsonrpc: '2.0', method: 'pdf.progress', params: { kind: 'whatsapp', ...params } });
+const status = (...notes) => chatSaveStatus(notes.reduce((s, x) => chatSaveAfter(s, 'whatsapp', x), NO_CHAT_SAVE), 'chat');
+
+test('a save of one chat says which message it is on', () => {
+  assert.equal(status(), null);
+  assert.equal(status(reading()).text, `Reading 500 of ${n(2000)} messages…`);
+  assert.equal(status(saving()).text, `Saving ${n(1201)} of ${n(2000)} messages…`);
+  assert.equal(status(saving({ done: 0, total: 1 })).text, 'Saving 1 of 1 message…');
+  assert.equal(status(saving()).percent, 64);
+});
+
+test('a save of several chats says which chat', () => {
+  assert.equal(status(saving({ chat: 3, chats: 40 })).text, `Saving chat 3 of 40: ${n(1201)} of ${n(2000)} messages…`);
+  assert.equal(status(reading({ chat: 3, chats: 40 })).text, `Reading chat 3 of 40: 500 of ${n(2000)} messages…`);
+});
+
+test('a PDF save split by year says which PDF, and when it is printing', () => {
+  const second = step({ part: 2, parts: 5 });
+  assert.equal(status(second).text, 'Saving PDF 2 of 5…');
+  assert.equal(status(second, reading()).text, 'Saving PDF 2 of 5…');
+  assert.equal(status(second, saving()).text, `Saving PDF 2 of 5: ${n(1201)} of ${n(2000)} messages…`);
+  assert.equal(status(step({ part: 1, parts: 1 }), reading({ chat: 3, chats: 17 })).text, 'Saving chat 3 of 17…');
+  assert.equal(status(step({ part: 2, parts: 5, printing: { file: 2, files: 5 } })).text, 'Making PDF 2 of 5…');
+  assert.equal(status(step({ part: 1, parts: 1, printing: { file: 1, files: 1 } })).text, 'Making the PDF…');
+});
+
+test('a PDF save fills its bar once, from planning to the last page printed', () => {
+  const printing = (part, parts, file, files) => step({ part, parts, printing: { file, files } });
+  const saves = [
+    [reading({ percent: 10 }), step({ part: 1, parts: 2 }), saving({ percent: 99 }), printing(1, 2, 1, 2),
+      step({ part: 2, parts: 2 }), reading({ percent: 1 }), saving({ percent: 99 }), printing(2, 2, 2, 2)],
+    [reading({ percent: 10 }), step({ part: 1, parts: 1 }), saving({ chats: 3, percent: 50 }), saving({ chat: 3, chats: 3, percent: 99 }),
+      printing(1, 1, 1, 3), printing(1, 1, 2, 3), printing(1, 1, 3, 3)],
+  ];
+  for (const notes of saves) {
+    const bar = notes.map((_, i) => status(...notes.slice(0, i + 1)).percent);
+    assert.deepEqual(bar, [...bar].sort((a, b) => a - b), bar.join(', '));
+    assert.ok(bar.at(-1) <= 100 && bar.at(-1) >= 85, bar.join(', '));
+  }
+});
+
+test('other saves\' updates don\'t show on this one', () => {
+  for (const other of [saving({ kind: 'messages' }), note({ kind: 'whatsapp', done: 1, total: 2 }), step({ kind: 'messages', part: 1, parts: 2 }), null]) {
+    assert.equal(chatSaveAfter(NO_CHAT_SAVE, 'whatsapp', other), NO_CHAT_SAVE);
+  }
+});
+
+test('useChatSaveProgress follows the save while it runs, then shows nothing', () => {
+  state = undefined;
+  const { listeners, send } = bridge();
+  effects = [];
+  assert.equal(useChatSaveProgress('whatsapp', true), null);
+  const stop = effects.map(fn => fn()).filter(Boolean);
+  send(step({ part: 2, parts: 5 }));
+  send(saving());
+  assert.match(useChatSaveProgress('whatsapp', true).text, /^Saving PDF 2 of 5: /);
+  assert.equal(useChatSaveProgress('whatsapp', false), null);
+  stop.forEach(fn => fn());
+  assert.equal(listeners.size, 0);
   delete globalThis.window;
 });
