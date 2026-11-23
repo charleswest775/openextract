@@ -24,7 +24,7 @@
     "description": "Check an iPhone for known spyware such as Pegasus with Amnesty International's free MVT and an encrypted backup. What a clean result does and doesn't mean, and where to get help.",
     "url": "https://www.openextract.app/use-cases/check-iphone-for-spyware",
     "datePublished": "2026-11-22",
-    "dateModified": "2026-11-22",
+    "dateModified": "2026-11-23",
     "image": "https://www.openextract.app/img/og-image.png",
     "isPartOf": {
       "@type": "WebSite",
@@ -275,7 +275,7 @@ pip install mvt</code></pre>
   <section class="prose" id="sources">
     <div class="prose__inner">
       <h2>Sources</h2>
-      <p>What we ran: on November 22, 2026 we installed MVT 2026.11.2 from PyPI in a Python 3.12 virtual environment on a Mac, ran <code>mvt download-iocs</code>, and ran <code>decrypt-backup</code> and <code>check-backup</code> on an encrypted test backup of a made-up person, made with the same generator OpenExtract's own tests use. We added the file OpenExtract leaves in a backup folder when a backup finishes, so the folder looked like one the app makes. MVT decrypted it, ran its 28 backup modules, read 1,284 messages, 357 Safari history entries and 166 calls, and reported no alerts, as expected for a backup with no spyware in it. On a copy with a known Pegasus web address added to Safari history, it reported one critical alert and wrote <code>safari_history_detected.json</code>. We haven't yet run MVT on a backup OpenExtract made from a real iPhone; the OpenExtract steps and button names come from the app itself (version 0.18.0).</p>
+      <p>What we ran: on November 22, 2026 we installed MVT 2026.11.2 from PyPI in a Python 3.12 virtual environment on a Mac, ran <code>mvt download-iocs</code>, and ran <code>decrypt-backup</code> and <code>check-backup</code> on an encrypted test backup of a made-up person, made with the same generator OpenExtract's own tests use. We added the file OpenExtract leaves in a backup folder when a backup finishes, so the folder looked like one the app makes. MVT decrypted it, ran its 28 backup modules, read 1,284 messages, 357 Safari history entries and 166 calls, and reported no alerts, as expected for a backup with no spyware in it. On a copy with a known Pegasus web address added to Safari history, it reported one critical alert and wrote <code>safari_history_detected.json</code>. On November 23 we ran the same steps on a Windows 11 PC, in WSL with Ubuntu 26.04 and its Python 3.14 (WSL was already installed there, so we didn't run <code>wsl --install</code>). The backup was on the C: drive and MVT read it through <code>/mnt/c</code>. We typed the password at MVT's prompt in a terminal, and it showed a star for each character. The results matched the Mac's, and the backup's files were unchanged afterwards. We haven't yet run MVT on a backup OpenExtract made from a real iPhone; the OpenExtract steps and button names come from the app itself (version 0.18.0).</p>
       <p>Everything else this page says about MVT comes from its own documentation and repository, checked on November 22, 2026:</p>
       <ul>
         <li><a href="https://docs.mvt.re/en/latest/introduction/">Introduction</a>: what MVT does, that it's for technologists and investigators, the warning about public indicators, and where civil society can get help.</li>
