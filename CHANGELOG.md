@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Calendar: All calendars now says how many events are in how many calendars, counting only calendars with events, as the home tile does, instead of also counting the empty calendar every iPhone has. An open repeating event says how it repeats once, in its details, instead of also as a label above them
+- Voice Memos: an open recording no longer shows its file's internal name (such as 20251117 211010-7003F8D2.m4a) beside Save, and the sidebar's headings match the rest of the app
+
 ## [0.19.0] - 2026-11-23
 
 Two new sections: Voice Memos, with the iPhone's recordings, their transcripts and Recently Deleted, and Calendar, with every event and calendar files (.ics) to save. On People, photos, videos, voice messages and documents now show on each message as they do on the phone, and Save everything saves your whole history with someone, with every file. A chat too big for one PDF is saved as one PDF per year. Back up my iPhone no longer ruins the backup already in a folder when a new backup fails partway: if one failed with 0.18.0 or earlier, see Fixed below. Older backups can be moved to the Trash from Backup details. Saves never replace a file that's already there, so photos that share a name like IMG_0001 are all saved, and a save that runs out of room says so instead of calling photos "not in this backup". Long saves from encrypted backups are much faster and show how far they've got.

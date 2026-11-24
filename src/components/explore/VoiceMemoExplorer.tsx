@@ -365,7 +365,7 @@ function VoiceMemosEmpty({ emptyReason, error }: { emptyReason: string | null; e
 }
 
 function SidebarHeading({ children }: { children: string }) {
-  return <h3 className="px-3 pt-4 pb-1 text-xs uppercase tracking-wide text-text-tertiary font-medium">{children}</h3>;
+  return <h3 className="hearth-eyebrow px-3 pt-4 pb-1">{children}</h3>;
 }
 
 function SidebarButton({ title, count, current, onClick, quiet = false }: {
@@ -458,7 +458,6 @@ function MemoRow({ memo, query, open, found, showFolder, player, opening, transc
               >
                 Save
               </button>
-              {memo.file_name && <span className="text-xs text-text-tertiary break-all">{memo.file_name}</span>}
             </div>
           )}
           {opening && <div role="status" className="text-sm text-text-secondary">{opening}</div>}

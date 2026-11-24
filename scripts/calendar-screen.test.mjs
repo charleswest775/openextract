@@ -212,6 +212,7 @@ test('opens on All calendars, upcoming first: the person\'s own events, grouped 
   assert.ok(areas.every(a => a === 'calendar'), 'saves report under Calendar');
   const out = html(probe);
   assert.match(out, /6 events/, 'the person\'s own events; holidays aren\'t counted');
+  assert.match(out, /6 events in 2 calendars/, 'as the home tile counts: the empty Personal calendar isn\'t one');
   // The list: All calendars, then each account's calendars, then Other calendars
   for (const label of ['All calendars', '>On My iPhone<', '>iCloud<', '>Other calendars<', 'US Holidays']) assert.match(out, new RegExp(label));
   assert.ok(out.indexOf('>On My iPhone<') < out.indexOf('>iCloud<') && out.indexOf('>iCloud<') < out.indexOf('>Other calendars<'));
@@ -302,7 +303,7 @@ test('a repeating event\'s details: how it repeats and the dates it skipped; a f
   probe.rerender();
   let out = renderToStaticMarkup(eventRow(probe, 11));
   assert.match(out, />Repeats</);
-  assert.match(out, /Repeats every week on Tuesday/);
+  assert.equal(out.split('Repeats every week on Tuesday').length - 1, 1, 'said once: in the details, not again as a chip');
   assert.match(out, /Skipped on /);
   assert.match(out, /Example Gym/);
   assert.match(out, /12 Rock St/);

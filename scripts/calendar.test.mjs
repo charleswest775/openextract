@@ -294,6 +294,7 @@ test('a changed date switched between timed and all day, in Los Angeles', { skip
 test('row chips: cancelled or tentative, how it repeats, a changed date', () => {
   const weekly = { frequency: 'weekly', interval: 1, count: null, until: null, by_day: ['TU'], by_month_day: [], by_month: [], by_set_pos: [], by_year_day: [], by_week_no: [], week_start: null, last_start: null };
   assert.deepEqual(cal.eventChips(event({ status: 'cancelled', recurrence: weekly, repeats: 'Every week on Tuesday' })), ['Cancelled', 'Repeats every week on Tuesday']);
+  assert.deepEqual(cal.eventChips(event({ status: 'cancelled', recurrence: weekly, repeats: 'Every week on Tuesday' }), true), ['Cancelled'], 'open: the details say how it repeats');
   assert.deepEqual(cal.eventChips(event({ status: 'tentative' })), ['Tentative']);
   assert.deepEqual(cal.eventChips(event({ status: 'confirmed' })), []);
   assert.deepEqual(cal.eventChips(event({ detached_from: { event_id: 2, original_start: '2026-03-03T17:00:00+00:00' } })), ['Changed for this date']);

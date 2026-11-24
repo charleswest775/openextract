@@ -489,11 +489,16 @@ export function changedText(e: CalendarEvent): string | null {
   return 'Changed for this date';
 }
 
-/** The chips on a row: cancelled or tentative, how it repeats, and a changed date of a repeating event. */
-export function eventChips(e: CalendarEvent): string[] {
+/**
+ * The chips on a row: cancelled or tentative, how it repeats, and a changed date of a repeating event.
+ * An open row keeps only the status: its details say how it repeats.
+ */
+export function eventChips(e: CalendarEvent, open = false): string[] {
   const chips: string[] = [];
   if (e.status === 'cancelled') chips.push('Cancelled');
   else if (e.status === 'tentative') chips.push('Tentative');
+  // An open event's Repeats line says how it repeats and what changed; once is enough
+  if (open) return chips;
   const repeats = repeatText(e);
   if (repeats) chips.push(repeats);
   const changed = changedText(e);
