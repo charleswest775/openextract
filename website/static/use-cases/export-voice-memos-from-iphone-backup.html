@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Export voice memos from an iPhone backup, free — OpenExtract</title>
+  <meta name="description" content="Get the recordings from the iPhone&#x27;s Voice Memos app out of a backup: play them, read their transcripts, and save them as audio files named by date, with a spreadsheet. Free." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/export-voice-memos-from-iphone-backup" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/export-voice-memos-from-iphone-backup" />
+  <meta property="og:title" content="Export voice memos from an iPhone backup, free" />
+  <meta property="og:description" content="Open an iPhone backup and save its voice memos as audio files named by date, with their transcripts, Recently Deleted and a spreadsheet of them all." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Export voice memos from an iPhone backup",
+    "description": "Get the recordings from the iPhone's Voice Memos app out of a backup: play them, read their transcripts, and save them as audio files named by date, with a spreadsheet. Free.",
+    "url": "https://www.openextract.app/use-cases/export-voice-memos-from-iphone-backup",
+    "inLanguage": "en",
+    "datePublished": "2026-11-23",
+    "dateModified": "2026-11-23",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/home-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Can I get voice memos off my iPhone without iCloud?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. When you back up an iPhone to a computer, the Voice Memos app's recordings go into the backup, and OpenExtract saves them from there as audio files. No iCloud, no Apple account and no cloud service is needed."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Why does a recording say \"Kept in iCloud only\"?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "With iCloud turned on for Voice Memos, the iPhone can list a recording whose audio is in iCloud without a copy on the phone, for example after the app was deleted and installed again. A backup holds only what's on the phone, so OpenExtract shows the recording's name, date and length but has no audio to play or save. Play it once on the iPhone so it downloads, then make a new backup."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I get voice memos I deleted?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "If they were still in Recently Deleted when the backup was made, yes. Voice Memos keeps deleted recordings there for 30 days unless you've changed that in Settings, and OpenExtract lists them under Recently Deleted and saves them in a folder of their own. A recording erased from Recently Deleted isn't in a backup made after that."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Are the transcripts saved?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. If the iPhone transcribed a recording, OpenExtract shows the transcript when you open the recording, and saving the audio files puts each transcript beside its recording as a text file."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What kind of audio files do I get?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The recordings as the iPhone made them, usually .m4a files, which play in Music, QuickTime, Windows Media Player, VLC and most other players. Each file is named with the date and time it was recorded and its title, and dated to when it was recorded."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do I need an encrypted backup?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Voice Memos is in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it, and the password stays on your computer."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which versions of iOS does it read?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "It's been checked on a real backup from iOS 26. Older versions, back to iOS 13, keep their recordings the way Apple's own app describes, and OpenExtract reads both layouts, but those haven't been checked against a real backup with recordings yet. If OpenExtract can't read the voice memos in a backup, the Voice Memos screen says so and has a button to report the problem."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does anything get uploaded?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. It goes online only when you let it: to check for a new version, if you allow it (you can turn that off in Settings); to send a problem report or a thank-you, when you click Send; and on Windows, to install Apple's free Apple Devices app from Microsoft, if you ask it to, for backing up an iPhone. Nothing from inside your backup goes with any of them."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it really free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. The code is on GitHub."
+        }
+      }
+    ]
+  }
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__pay" href="/support" aria-label="Pay it forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C1 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.2 4.4 2.5h2c.7-1.3 2.2-2.5 4.4-2.5 3.7 0 5.6 3.9 4.2 7.1C19.5 16.4 12 21 12 21z"/></svg><span class="nav__pay-label">Pay it forward</span></a>
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 4 min</div>
+    <h1>Export <span class="it">voice memos</span><br />from an iPhone backup.</h1>
+    <p class="page-head__lede">Back up the iPhone to your Windows PC or Mac, open the backup in OpenExtract, a free app, and play the recordings from the Voice Memos app, with their transcripts and Recently Deleted. Save them all as audio files named by the date they were recorded, with a spreadsheet of the lot. Nothing is uploaded.</p>
+    <p class="alt-disclosure">OpenExtract is an independent open-source app. It isn't made by Apple and has no connection to it.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <p>Voice Memos on the iPhone shares one recording at a time. If you have years of them, a lecture series, a band's practice tapes or a parent telling family stories, getting them all onto a computer means sharing each one, and they arrive with names that say nothing about when they were made. If the phone is broken or gone, there may be no way to share them at all.</p>
+      <p>There's another way in. When you back up an iPhone to a computer, the Voice Memos app's recordings go into that backup, with their names, dates, folders and favourites, any transcripts the iPhone made, and the ones in Recently Deleted. OpenExtract reads them from there, in its own Voice Memos section, and saves them as files you keep. It's free, with no trial and no limit on how much you save.</p>
+      <figure class="screen">
+        <a class="screen__frame" href="/img/screens/voice-memos-2000.webp">
+          <img src="/img/screens/voice-memos-1000.webp" srcset="/img/screens/voice-memos-1000.webp 1000w, /img/screens/voice-memos-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 720px" width="1000" height="625" loading="lazy" decoding="async" alt="The Voice Memos section in OpenExtract, opened on a made-up sample backup: 11 recordings, about 3 hours 28 minutes in all, with Favorites, a folder called Site visits and Recently Deleted down the side. A recording called DD presentation run-through is open, with a player, Open in another app and Save buttons, and its transcript. Above it, Frog pond tour is marked Favorite and Permit comments call is marked Kept in iCloud only." />
+        </a>
+        <figcaption><strong>Voice Memos, opened from a backup</strong>A made-up sample backup in OpenExtract. <a href="/screenshots">See every screen</a>.</figcaption>
+      </figure>
+
+      <h2>Who this is for</h2>
+      <ul>
+        <li><strong>Keeping recordings that matter.</strong> A grandparent's stories, a child's first words, a song idea: every recording in one folder on your computer, named by the day it was made.</li>
+        <li><strong>Recordings from a phone that's gone.</strong> If the iPhone is broken, lost, sold or locked for good, a backup on a computer can still hold its voice memos.</li>
+        <li><strong>Lectures, meetings and interviews.</strong> Save hours of recordings in one go, with the transcripts the iPhone made, instead of sharing them one at a time.</li>
+        <li><strong>A recording you deleted.</strong> If it was still in Recently Deleted when the backup was made, it's there to play and save.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>Install OpenExtract</h2>
+        <p>Download it for <a href="/download/windows">Windows</a> or <a href="/download/mac">Mac</a> (Apple Silicon) and install it. There's a <a href="/use-cases/iphone-backup-extractor-linux">Linux version</a> too. It's free, with no account and no trial. The Windows installer is signed by Charles West, the developer; if SmartScreen shows a notice for a new app, choose More info, then Run anyway.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>Back up the iPhone, or use a backup you have</h2>
+        <p>On OpenExtract's start screen, click <strong>Back up my iPhone</strong>, connect the phone with a cable, tap <strong>Trust</strong> on it and enter its passcode if it asks, then choose a folder and start. A backup often takes about half an hour. Voice Memos is in ordinary and encrypted backups alike, so encryption is up to you; an encrypted backup holds more of the rest, such as call history (<a href="/blog/encrypted-backups-are-better">here's why encrypted backups are better</a>).</p>
+        <p>Already backed up with Finder on a Mac, or with the Apple Devices app or iTunes on Windows? OpenExtract lists the backups it finds on the start screen, or you can choose <strong>Open a backup folder</strong>. Here's <a href="/use-cases/where-are-iphone-backups-stored">where iPhone backups are stored</a>. A backup has the recordings as they were on the day it was made, so make a new one if you want today's.</p>
+        <p>If you use iCloud for Voice Memos, play any recording you want to keep on the iPhone first, so its audio is on the phone when you back it up (<a href="#icloud-only">why</a>).</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>Open Voice Memos</h2>
+        <p>Open the backup (type its password if it's encrypted) and click <strong>Voice Memos</strong> on its home page. Its tile says how long the recordings run in all. If there are no recordings in the backup, there's no Voice Memos tile. Down the side, as in the iPhone's app, are <strong>All Recordings</strong>, <strong>Favorites</strong>, your folders under <strong>My folders</strong>, and <strong>Recently Deleted</strong>, with recordings deleted on the iPhone that are still in the backup.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Listen, and read the transcripts</h2>
+        <p>Each recording shows its name, when it was made, how long it is and its folder, with notes such as "Favorite", "Enhanced" or "Recorded on Apple Watch". Click one to open it and play it. If the iPhone made a transcript, it's shown below the player. <strong>Open in another app</strong> plays it in your computer's own player, and <strong>Save</strong> saves just that recording. A recording that's too long to play in OpenExtract, or of a kind it can't play, says so and opens in another app.</p>
+        <p>The search box finds recordings by name or folder, and finds words in a transcript once you've opened that recording.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">05</div>
+      <div>
+        <h2>Save them</h2>
+        <p>Click <strong>Save</strong> at the top of the Voice Memos screen. Choose <strong>Audio files</strong> (every recording, with the spreadsheet) or <strong>Spreadsheet</strong> alone, click <strong>Save</strong> and pick a folder. Saving again never overwrites anything; the new folder gets "(2)" added to its name.</p>
+        <p>To save your voice memos along with everything else, click <strong>Save to this computer</strong> on the backup's home page, then <strong>Save</strong> next to Voice Memos.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>What you get</h2>
+      <ul>
+        <li><strong>Audio files</strong> is a <code>Voice Memos</code> folder with every recording whose audio is in the backup, each named with the date and time it was recorded and its title, such as <code>2025-03-14 09.30 Grandma on the farm.m4a</code>, and dated to when it was recorded, so your computer sorts them in order. Recordings from Recently Deleted go in a <code>Recently Deleted</code> folder inside it. A transcript is saved beside its recording as a text file of the same name.</li>
+        <li><strong>Spreadsheet (CSV)</strong> is <code>Voice Memos.csv</code>, which opens in Excel, Numbers or Google Sheets: every recording's title, date, length and folder, whether it's a favourite or in Recently Deleted (and when it was deleted), whether it was recorded on an Apple Watch, its audio file and its transcript. It's in the Audio files folder too.</li>
+      </ul>
+      <p>When the save finishes it says how many recordings were saved, and how many weren't in the backup or couldn't be copied.</p>
+
+      <h2 id="icloud-only">Recordings kept in iCloud only</h2>
+      <p>With iCloud turned on for Voice Memos, the iPhone can list a recording whose audio is in iCloud and not on the phone. That can happen, for example, after the Voice Memos app is deleted and installed again and its old recordings come back from iCloud. An iPhone backup holds only what's on the phone, so for such a recording OpenExtract shows its name, date and length, marked <strong>Kept in iCloud only</strong>, but has no audio to play or save. Play it once on the iPhone, so it downloads, then make a new backup.</p>
+
+      <h2>What it can't do</h2>
+      <ul>
+        <li><strong>No audio that wasn't on the iPhone.</strong> A recording kept in iCloud only is listed but has no audio in the backup, as above.</li>
+        <li><strong>Not iCloud.</strong> OpenExtract reads what was on the iPhone when the backup was made, not Voice Memos in iCloud or on a Mac.</li>
+        <li><strong>Long recordings play in another app.</strong> A recording too long to play in OpenExtract, roughly 50 minutes or more at the iPhone's usual quality, opens in your computer's own player instead. It's saved like any other.</li>
+        <li><strong>Not mixed in with the rest.</strong> Voice memos aren't in the backup's Timeline, its search, People or the Year view.</li>
+        <li><strong>It can't put recordings back</strong> into Voice Memos on a phone. The files are a copy for your computer.</li>
+      </ul>
+
+      <h2>Common questions</h2>
+      <p><strong>Can I get voice memos off my iPhone without iCloud?</strong> Yes. When you back up an iPhone to a computer, the Voice Memos app's recordings go into the backup, and OpenExtract saves them from there as audio files. No iCloud, no Apple account and no cloud service is needed.</p>
+      <p><strong>Why does a recording say "Kept in iCloud only"?</strong> With iCloud turned on for Voice Memos, the iPhone can list a recording whose audio is in iCloud without a copy on the phone, for example after the app was deleted and installed again. A backup holds only what's on the phone, so OpenExtract shows the recording's name, date and length but has no audio to play or save. Play it once on the iPhone so it downloads, then make a new backup.</p>
+      <p><strong>Can I get voice memos I deleted?</strong> If they were still in Recently Deleted when the backup was made, yes. Voice Memos keeps deleted recordings there for 30 days unless you've changed that in Settings, and OpenExtract lists them under Recently Deleted and saves them in a folder of their own. A recording erased from Recently Deleted isn't in a backup made after that.</p>
+      <p><strong>Are the transcripts saved?</strong> Yes. If the iPhone transcribed a recording, OpenExtract shows the transcript when you open the recording, and saving the audio files puts each transcript beside its recording as a text file.</p>
+      <p><strong>What kind of audio files do I get?</strong> The recordings as the iPhone made them, usually .m4a files, which play in Music, QuickTime, Windows Media Player, VLC and most other players. Each file is named with the date and time it was recorded and its title, and dated to when it was recorded.</p>
+      <p><strong>Do I need an encrypted backup?</strong> No. Voice Memos is in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it, and the password stays on your computer.</p>
+      <p><strong>Which versions of iOS does it read?</strong> It's been checked on a real backup from iOS 26. Older versions, back to iOS 13, keep their recordings the way Apple's own app describes, and OpenExtract reads both layouts, but those haven't been checked against a real backup with recordings yet. If OpenExtract can't read the voice memos in a backup, the Voice Memos screen says so and has a button to report the problem.</p>
+      <p><strong>Does anything get uploaded?</strong> No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. It goes online only when you let it: to check for a new version, if you allow it (you can turn that off in Settings); to send a problem report or a thank-you, when you click Send; and on Windows, to install Apple's free Apple Devices app from Microsoft, if you ask it to, for backing up an iPhone. Nothing from inside your backup goes with any of them.</p>
+      <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Windows · Mac · Linux</div>
+        <h3>Your voice memos,<br /><span class="it">in files you keep.</span></h3>
+        <p>Free, open source, and the backup never leaves your computer.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails from an iPhone backup →</a>
+        <a class="uc-related__link" href="/use-cases/export-calendar-from-iphone-backup">Export calendar events from an iPhone backup →</a>
+        <a class="uc-related__link" href="/use-cases/export-iphone-data">Export everything else from your iPhone →</a>
+        <a class="uc-related__link" href="/use-cases/where-are-iphone-backups-stored">Where are iPhone backups stored? →</a>
+        <a class="uc-related__link" href="/blog/encrypted-backups-are-better">Why encrypted backups are better →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Your voice memos, saved on your computer.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/support">Pay it forward</a></li>
+        <li><a href="/what-people-say">What people say</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
