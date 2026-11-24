@@ -239,7 +239,7 @@ export default function CalendarExplorer({ udid, query, backupDate }: Props) {
           <section aria-label={calendar ? calendarName(calendar) : 'All calendars'} className="flex-1 min-w-0 overflow-y-auto">
             <CalendarHeader
               calendar={calendar}
-              ownCalendars={ownIds.size}
+              ownCalendars={calendars.filter(c => isOwnCalendar(c) && c.event_count > 0).length}
               ownCount={ownCount}
               view={view}
               upcoming={parts.upcoming.length}
@@ -378,7 +378,8 @@ function CalendarHeader({ calendar, ownCalendars, ownCount, view, upcoming, past
   counted: boolean;
   onView: (view: AgendaView) => void;
 }) {
-  const facts = calendar ? calendarFacts(calendar) : [plural(ownCalendars, 'calendar'), plural(ownCount, 'event')];
+  // As the home tile counts them: only calendars with events (every iPhone has an empty Default)
+  const facts = calendar ? calendarFacts(calendar) : [ownCount ? `${plural(ownCount, 'event')} in ${plural(ownCalendars, 'calendar')}` : 'No events in your calendars'];
   return (
     <div className="px-8 pt-6 pb-4 border-b border-rule">
       <div className="flex items-start gap-4">
@@ -425,7 +426,7 @@ function EventRow({ event, query, open, calendar, showCalendar, onToggle }: {
   showCalendar: boolean;
   onToggle: () => void;
 }) {
-  const chips = eventChips(event);
+  const chips = eventChips(event, open);
   const place = placeLine(event);
   const cancelled = event.status === 'cancelled';
   return (
