@@ -816,6 +816,11 @@ const REAL_ERRORS = [
     fix: 'no-backups-found',
     reportedError: 'No iPhone backups found in /Users/jane/Desktop/iPhone stuff. Pick the parent folder that contains a UDID-named subfolder (e.g. MobileSync/Backup).',
   },
+  // The same after #191: the engine's words on what the folder held, then where to look.
+  {
+    fix: 'no-backups-found',
+    reportedError: "No iPhone backups found in C:\\Users\\jane\\Desktop. OpenExtract looked 4 folders deep (12 folders and 30 files at the top) and found no backup. Choose the backup's own folder (the one with Manifest.db in it) or the folder it's in.",
+  },
   { fix: 'backup-password', errors: [['open_backup', WRONG_PASSWORD]] },
   // The iPhone's own storage full, which 0.10.1 blamed on the drive (OE-10).
   {
