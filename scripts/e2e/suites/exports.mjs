@@ -6,7 +6,7 @@
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { check, csvRows, launch, looksValid, pdfStats, sleep, timing } from '../harness.mjs';
+import { check, csvRows, launch, looksValid, num, pdfStats, sleep, timing } from '../harness.mjs';
 
 // Every kind on "Save to this computer" (ExportPanel's KINDS) with every format it offers, in
 // the order its dialog lists them: the kind's own format first, then PDF, web page, spreadsheet,
@@ -425,6 +425,58 @@ export default {
         await prompts();
         // Only the changed one is saved again, beside it; the rest are there already
         await keeps("Photos: saving again keeps what's in the folder and copies only what's missing", res, [media[0]], 'Save all', 'only', 1, { timeoutMs: 600_000 });
+      }
+      // Photos: only the ones picked (OE-193, OE-195). Select, click the first, Shift-click the third.
+      {
+        await app.click('Select');
+        await app.waitForText(/Shift-click selects every one in between/, 5_000);
+        const tiles = await app.eval(() => {
+          const t = [...document.querySelectorAll('div.grid .aspect-square')];
+          if (t.length < 3) return t.length;
+          t[0].click();
+          t[2].dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
+          return t.length;
+        });
+        const bar = await app.waitForText(/3 (photos|videos)[^\n]* selected|\d+ photos? and \d+ videos? selected/, 5_000);
+        check('Photos: Select, a click and a Shift-click pick 3', tiles >= 3 && !!bar, { tiles });
+        const dir = path.join(root, 'photos-picked');
+        const res = await run(dir, 'Save 3 selected', 'only', { timeoutMs: 120_000 });
+        const media = res.files.filter(f => /\.(jpe?g|heic|png|mov|mp4|gif)$/i.test(f));
+        ok('Photos: Save 3 selected saves just those 3', res, { pass: media.length === 3, detail: { media: media.length } });
+        await prompts();
+        const again = await run(dir, 'Save 3 selected', 'only', { timeoutMs: 120_000, keep: true });
+        check('Photos: saving them again copies nothing and says they were there',
+          /3 were already in that folder/.test(again.notice?.text ?? '') && again.files.length === res.files.length,
+          { notice: again.notice?.text?.split('\n').slice(0, 2), files: [res.files.length, again.files.length] });
+        await prompts();
+        await app.click('Cancel');
+      }
+      // Photos: only those from some dates. From the 11th photo's day to the 31st's, in this computer's time zone.
+      {
+        const day = iso => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+        const shown = key.photos.filter(p => !p.trashed);
+        const days = shown.map(p => day(p.date)).sort();
+        const [from, to] = [days[10], days[30]];
+        const want = days.filter(d => d >= from && d <= to).length;
+        await app.eval(([from, to]) => {
+          const set = (el, v) => {
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v);
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+          };
+          const [a, b] = document.querySelectorAll('input[type=date]');
+          set(a, from);
+          set(b, to);
+        }, [from, to]);
+        const header = await app.waitForText(new RegExp(`\\b${want.toLocaleString('en-US')} photos? (?:and videos|or video) from these dates`), 15_000);
+        const count = num((await app.text()).match(/([\d,]+) photos? (?:and videos|or video) from these dates/)?.[1]);
+        check(`Photos: ${from} to ${to} shows its ${want}`, !!header && count === want, { count, want });
+        const dir = path.join(root, 'photos-dates');
+        const res = await run(dir, 'Save these', 'only', { timeoutMs: 300_000 });
+        const media = res.files.filter(f => /\.(jpe?g|heic|png|mov|mp4|gif)$/i.test(f));
+        ok('Photos: Save these saves the photos from those dates', res,
+          { pass: media.length === want && /^Saved photos and videos from /.test(res.notice?.text ?? ''), detail: { media: media.length, want } });
+        await prompts();
+        await app.click('Any date');
       }
 
       // Recovered messages, when the scan finds any.

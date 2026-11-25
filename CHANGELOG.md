@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Photos: pick the photos and videos you want and save just those. Click Select, then click each one, or Shift-click to pick every photo between the last one you clicked and this one. Cmd-click (Ctrl-click on Windows) picks a photo without clicking Select first, and Escape or Cancel stops picking. Save then says how many it will save ("Save 12 selected"), and puts them in the same year and month folders as Save all. Picking works in All Photos, Favorites, Hidden and every album (OE-193, OE-195)
+- Photos: From and to dates narrow the grid to the photos and videos taken on those days, in All Photos or any album, and Save these saves just those. The header counts what's left ("45 photos and videos from these dates"), and Any date shows everything again. A backup whose Photos library can't be read (some very old or damaged backups) has no dates for its photos, so the dates aren't offered there (OE-193)
+
+### Changed
+- Photos: with Videos or Live Photos picked in the type menu, the Save button now reads Save these and saves only that type. It used to save every photo and video in the album whatever the menu showed
+- Saving photos into a folder you've saved them to before now says how many were already there, for example "40 exported · 1,200 were already in that folder". As since 0.19.0, only the ones that weren't there are copied, so saving all your photos again after a newer backup adds just the new ones (OE-193)
+
 ### Fixed
 - Calendar: All calendars now says how many events are in how many calendars, counting only calendars with events, as the home tile does, instead of also counting the empty calendar every iPhone has. An open repeating event says how it repeats once, in its details, instead of also as a label above them
 - Voice Memos: an open recording no longer shows its file's internal name (such as 20251117 211010-7003F8D2.m4a) beside Save, and the sidebar's headings match the rest of the app

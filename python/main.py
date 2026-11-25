@@ -449,12 +449,15 @@ class SidecarServer:
         return self.photo_extractor.list_albums(backup)
 
     def list_photos(self, params):
+        """A page of the photos in album_id (All Photos when it's left out). date_from and
+        date_to (Unix seconds, date_to left out) keep the ones taken in that time."""
         udid = params["udid"]
         offset = params.get("offset", 0)
         limit = params.get("limit", 100)
         album_id = params.get("album_id")
         backup = self.backup_manager.get_open_backup(udid)
-        return self.photo_extractor.list_photos(backup, offset, limit, album_id)
+        return self.photo_extractor.list_photos(
+            backup, offset, limit, album_id, date_from=params.get("date_from"), date_to=params.get("date_to"))
 
     def get_photo_metadata(self, params):
         udid = params["udid"]

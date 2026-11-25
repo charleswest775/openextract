@@ -1,5 +1,5 @@
 import {
-  ArchiveRestore, ArrowLeft, AudioWaveform, BookUser, Briefcase, CalendarClock, CalendarDays, ChevronRight, Clock, Download, FolderOpen,
+  ArchiveRestore, ArrowLeft, AudioWaveform, BookUser, Briefcase, CalendarClock, CalendarDays, Check, ChevronRight, Clock, Download, FolderOpen,
   Globe, House, Image, LayoutGrid, LifeBuoy, Lock, MessageCircle, MessagesSquare, NotebookPen, PackageOpen, Phone, Play, Plus,
   Podcast, Search,
   Settings, Smartphone, Users, Voicemail,
@@ -52,6 +52,7 @@ export const HomeIcon = icon(House); // the backup's home page
 export const ArrowLeftIcon = icon(ArrowLeft);
 export const ChevronRightIcon = icon(ChevronRight);
 export const PlayIcon = icon(Play);
+export const CheckIcon = icon(Check); // a photo picked on the Photos screen
 
 // Things
 export const PhoneIcon = icon(Smartphone); // the device, not a call

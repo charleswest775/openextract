@@ -525,6 +525,24 @@ def case_list_photos(ctx):
         assert all(p["favorite"] for p in favorites["photos"])
         assert favorites["total"] == sum(1 for p in m.expected["photos"] if p["favorite"] and not p["trashed"])
 
+    # Dates (OE-193): the photos taken from date_from up to date_to, paged and counted on their own.
+    def taken(p):
+        return datetime.fromisoformat(p["date_created"]).timestamp()
+
+    stamps = sorted({taken(p) for p in m.photos if p["date_created"]})
+    low, high = stamps[len(stamps) // 4] - 0.5, stamps[len(stamps) // 2] - 0.5
+    want = sorted(p["uuid"] for p in m.photos if p["date_created"] and low <= taken(p) < high)
+    got, offset = [], 0
+    while True:
+        dated = m.rpc("list_photos", offset=offset, limit=7, date_from=low, date_to=high)
+        got += dated["photos"]
+        offset += 7
+        if offset >= dated["total"]:
+            break
+    assert want and sorted(p["uuid"] for p in got) == want
+    assert (dated["total"], dated["in_backup"], dated["not_in_backup"]) == (len(want), len(want), 0)
+    assert m.rpc("list_photos", offset=0, limit=100, date_from=stamps[-1] + 1)["total"] == 0
+
 
 @contract("get_photo_thumbnail")
 def case_get_photo_thumbnail(ctx):
@@ -785,6 +803,20 @@ def case_export_photos(ctx):
         meta = json.loads(Path(f"{image}.json").read_text(encoding="utf-8"))
         assert meta["uuid"] == photo["uuid"] and "file_hash" not in meta
     shutil.rmtree(out)
+
+    # Only the photos picked on the Photos screen (OE-193, OE-195), from either kind of backup;
+    # saving them again into that folder finds them there and copies nothing.
+    for engine, name in ((m, "photos-picked"), (ctx.maren_enc, "photos-picked-encrypted")):
+        picked = engine.photos[::25][:4]
+        out = ctx.out(name)
+        options = {"uuids": [p["uuid"] for p in picked], "folder_structure": "by_date"}
+        result = engine.rpc("export_photos", output_dir=str(out), options=options)
+        assert (result["exported"], result["errors"], result["already_there"]) == (len(picked), 0, 0)
+        assert sorted(p.name for p in files_under(out)) == sorted(p["filename"] for p in picked)
+        again = engine.rpc("export_photos", output_dir=str(out), options=options)
+        assert (again["exported"], again["errors"], again["already_there"]) == (len(picked), 0, len(picked))
+        assert len(files_under(out)) == len(picked)
+        shutil.rmtree(out)
 
 
 @contract("export_voicemails")
