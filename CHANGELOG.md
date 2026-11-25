@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Photos: a People list under the albums, from the groups your iPhone's Photos app made of the faces it found, named or not (most never are), each with a face and how many photos the backup has. Pick someone to see just their photos, or several to see photos with any of them or only those with all of them together, and Save saves exactly those. OpenExtract only reads what your iPhone worked out; it never compares faces itself
+
 ### Fixed
 - Calendar: All calendars now says how many events are in how many calendars, counting only calendars with events, as the home tile does, instead of also counting the empty calendar every iPhone has. An open repeating event says how it repeats once, in its details, instead of also as a label above them
 - Voice Memos: an open recording no longer shows its file's internal name (such as 20251117 211010-7003F8D2.m4a) beside Save, and the sidebar's headings match the rest of the app
