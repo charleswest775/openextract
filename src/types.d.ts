@@ -79,7 +79,11 @@ declare global {
         snooze: () => Promise<void>;
         /** "I've paid" / "Already paid? Stop asking": no more asks after exports, ever. */
         markPaid: () => Promise<void>;
+        /** "Using it for paid work?": what the person answered. Kept on this computer. */
+        answerBusiness: (answer: 'work' | 'personal') => Promise<void>;
       };
+      /** "Using it for paid work?" after saving from many different iPhones (`devices` in the past year). Shows once. Returns a cleanup function. */
+      onBusinessCard: (callback: (devices: number) => void) => () => void;
       feedback: {
         /** Scrubbed facts for the feedback form (no backup content, paths or names). */
         getDiagnostics: (reportedError?: string) => Promise<FeedbackDiagnostics>;

@@ -282,6 +282,8 @@ The only network request the app makes is an update check: it asks GitHub for th
 
 MIT — use it however you want.
 
+If you use OpenExtract for paid work (a repair shop, an investigator, a law firm, an IT team), I ask that you pay [$50 a case or $200 a year](https://www.openextract.app/support#business), with a receipt you can bill to your client. It's a request, not a condition of the license: nothing in the app changes either way.
+
 ## Contributing
 
 PRs welcome! Key areas where help is needed:

@@ -29,7 +29,7 @@ const EXPECTED_CHANNELS = [
   'feedback:fixed-reports', 'feedback:get-diagnostics', 'feedback:mark-announced', 'feedback:saved-email',
   'feedback:send', 'fs:writeFile', 'fs:writeNewFile', 'get-app-state', 'get-recent-sessions', 'increment-export-count',
   'remove-session', 'set-first-launch-completed', 'shell:openExternal', 'shell:openPath',
-  'shell:showItemInFolder', 'sidecar:call', 'support:paid', 'support:snooze', 'support:status', 'text-size:get', 'text-size:set', 'updates:check',
+  'shell:showItemInFolder', 'sidecar:call', 'support:business-answer', 'support:paid', 'support:snooze', 'support:status', 'text-size:get', 'text-size:set', 'updates:check',
   'updates:download', 'updates:get-state', 'updates:install', 'updates:set-auto-check',
   // Media in the window (electron/localMedia.ts)
   'media:thumbnail',
@@ -974,6 +974,76 @@ describe('after an export: "Pay it forward" and the export check', () => {
 });
 
 // ── Engine and PDF bridges ──────────────────────────────────────────────────
+
+describe('"Using it for paid work?" after saves from many iPhones', () => {
+  /** Opens a backup of `udid` through the engine and saves from it once. */
+  async function saveFrom(m, udid, area = 'photos') {
+    await m.invoke('sidecar:call', 'open_backup', { udid: `folder-${udid}`, backup_dir: `/B/${udid}` });
+    return m.invoke('increment-export-count', area);
+  }
+  const engineAnswersWith = m => {
+    m.sidecar.answer = async (_method, params) => (params.password === 'needed'
+      ? { status: 'password_required' }
+      : { status: 'ready', info: { udid: params.udid.replace('folder-', '') } });
+  };
+
+  test('the 6th different iPhone brings it once, in place of the other cards; only hashes are kept', async () => {
+    const userData = freshDir('main-userdata');
+    const m = await loadMain({ userData });
+    engineAnswersWith(m);
+    for (const id of ['P1', 'P2', 'P1', 'P3', 'P4', 'P5']) await saveFrom(m, id);
+    assert.ok(!m.env.senderSent.some(s => s[0] === 'business-card:show'));
+    await saveFrom(m, 'P6', 'messages');
+    assert.deepEqual(m.env.senderSent.at(-1), ['business-card:show', 6]);
+    await saveFrom(m, 'P7');
+    assert.equal(m.env.senderSent.filter(s => s[0] === 'business-card:show').length, 1);
+    assert.equal(m.env.senderSent.at(-1)[0], 'share-prompt:show');
+
+    const state = m.readState();
+    assert.equal(state.businessAskShown, true);
+    assert.equal(Object.keys(state.devicesSaved).length, 7);
+    const raw = fs.readFileSync(m.stateFile, 'utf-8');
+    assert.ok(!/P[1-7]|folder-/.test(raw), 'no iPhone IDs or folders in the state file');
+
+    // Never again, even in a later run.
+    const run2 = await loadMain({ userData });
+    engineAnswersWith(run2);
+    for (const id of ['Q1', 'Q2']) await saveFrom(run2, id);
+    assert.ok(!run2.env.senderSent.some(s => s[0] === 'business-card:show'));
+  });
+
+  test('counts the iPhone from Info.plist, not the folder name', async () => {
+    const m = await loadMain();
+    m.sidecar.answer = async () => ({ status: 'ready', info: { udid: 'SAME' } });
+    for (let i = 0; i < 6; i++) {
+      await m.invoke('sidecar:call', 'open_backup', { udid: `SAME-2026010${i}`, backup_dir: `/B/${i}` });
+      await m.invoke('increment-export-count', 'photos');
+    }
+    assert.equal(Object.keys(m.readState().devicesSaved).length, 1);
+    assert.ok(!m.env.senderSent.some(s => s[0] === 'business-card:show'));
+  });
+
+  test('a backup still waiting for its password isn\'t the open one', async () => {
+    const m = await loadMain();
+    engineAnswersWith(m);
+    await saveFrom(m, 'A');
+    await m.invoke('sidecar:call', 'open_backup', { udid: 'folder-B', password: 'needed' });
+    await m.invoke('increment-export-count', 'photos');
+    assert.equal(Object.keys(m.readState().devicesSaved).length, 1);
+  });
+
+  test('not after "I\'ve paid"; the answer is kept, and only work or personal', async () => {
+    const m = await loadMain({ state: { paidItForward: true } });
+    engineAnswersWith(m);
+    for (const id of ['A', 'B', 'C', 'D', 'E', 'F', 'G']) await saveFrom(m, id);
+    assert.ok(!m.env.senderSent.some(s => s[0] === 'business-card:show'));
+
+    await m.invoke('support:business-answer', 'billing');
+    assert.equal(m.readState().businessUse, null);
+    await m.invoke('support:business-answer', 'work');
+    assert.equal(m.readState().businessUse, 'work');
+  });
+});
 
 describe('sidecar:call', () => {
   test('wraps answers as {success, data} and failures as {success: false, error}', async () => {

@@ -14,6 +14,8 @@ import type { FeedbackArea } from './feedback';
 export const SUPPORT_PAY_URL = 'https://www.openextract.app/support/pay';
 /** The site's amounts: $0 if money's tight, $5, $25, $100, and rates for paid work. */
 export const SUPPORT_AMOUNTS_URL = 'https://www.openextract.app/support#pay';
+/** The site's business rates ($50 a case, $200 a year, with a receipt), for "Using it for paid work?". */
+export const SUPPORT_BUSINESS_URL = 'https://www.openextract.app/support#business';
 
 /** Which wording the card uses. */
 export type AskMode =

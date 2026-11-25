@@ -14,6 +14,7 @@ export const BRIDGE = [
   'updates.getState', 'updates.setAutoCheck', 'updates.askLater', 'updates.check', 'updates.download', 'updates.install', 'updates.onStatus',
   'getAppState', 'setFirstLaunchCompleted', 'addSession', 'removeSession', 'getRecentSessions', 'incrementExportCount',
   'onSharePrompt', 'support.status', 'support.snooze', 'support.markPaid',
+  'onBusinessCard', 'support.answerBusiness',
   'feedback.getDiagnostics', 'feedback.send', 'feedback.savedEmail', 'feedback.fixedReports',
   'feedback.markAnnounced', 'feedback.onFixed', 'feedback.optOutOfExportCheck',
   'feedback.onExportCheck', 'copyText',
@@ -143,6 +144,12 @@ export default {
       check('support.snooze quiets the ask; support.markPaid is remembered', before?.paid === false && after?.paid === true && quiet === 2,
         { before, after, quiet });
       await app.api('feedback.optOutOfExportCheck');
+
+      // "Using it for paid work?" needs saves from 6 different iPhones (scripts/main-ipc.test.mjs
+      // covers that); here: the listener registers, and an answer goes through.
+      const unsubscribed = await app.eval(() => typeof window.openextract.onBusinessCard(() => {}) === 'function');
+      const answered = await app.api('support.answerBusiness', 'personal');
+      check('onBusinessCard registers; support.answerBusiness goes through', unsubscribed === true && !answered.__missing && !answered.__error, { unsubscribed, answered });
 
       // Feedback: diagnostics and the saved email are local; sending is not exercised here
       // (it would reach openextract.app), see scripts/feedback.test.mjs.

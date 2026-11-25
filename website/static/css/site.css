@@ -1200,6 +1200,7 @@ a.pay-tier:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(31,
 .pay-pro {
   margin-top: 28px; display: flex; gap: 28px; align-items: center; justify-content: space-between;
   padding: 24px 28px; border-radius: 18px; background: var(--sage-15); border: 1px solid var(--sage-22);
+  scroll-margin-top: 90px;
 }
 .pay-pro__title { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
 .pay-pro p { font-size: 15px; line-height: 1.55; color: var(--ink-soft); max-width: 560px; }
