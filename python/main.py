@@ -466,11 +466,21 @@ class SidecarServer:
         return self.photo_extractor.list_photo_people(backup)
 
     def get_face_thumbnail(self, params):
-        """One face from list_photo_people's ``face``, as a square JPEG: ``{data, mime_type}`` or ``{error}``."""
+        """Someone from list_photo_people's ``face``, as a square JPEG: ``{data, mime_type}`` or ``{error}``.
+
+        Takes the face as given: ``file_hash`` and Photos' face box (``center_x``, ``center_y``,
+        ``size``), or its ``body`` box when it has no face box.
+        """
         backup = self.backup_manager.get_open_backup(params["udid"])
+
+        def number(name):
+            value = params.get(name)
+            return float(value) if value is not None else None
+
+        body = params.get("body")
         return self.photo_extractor.get_face_thumbnail(
-            backup, params["file_hash"], float(params["center_x"]), float(params["center_y"]),
-            float(params["size"]), int(params.get("px", 96)))
+            backup, params["file_hash"], number("center_x"), number("center_y"), number("size"),
+            int(params.get("px", 96)), body=body if isinstance(body, dict) else None)
 
     def get_photo_metadata(self, params):
         udid = params["udid"]

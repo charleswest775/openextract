@@ -2,12 +2,18 @@
 // found (its People album), named or not. Most groups are never named on the phone, so they're
 // shown by face. OpenExtract only shows what Photos worked out; it never compares faces itself.
 
-/** A face to show for someone: Photos' box on a still photo in the backup, for get_face_thumbnail. */
+/**
+ * A face to show for someone, passed as it is to get_face_thumbnail: Photos' face box on a still
+ * photo in the backup; else, for someone Photos only saw from the side or behind, their body box
+ * (no face box); `poster` when it's the iPhone's own thumbnail of a video they're in.
+ */
 export interface PhotoPersonFace {
   file_hash: string;
-  center_x: number;
-  center_y: number;
-  size: number;
+  center_x: number | null;
+  center_y: number | null;
+  size: number | null;
+  body?: { center_x: number; center_y: number; width: number; height: number };
+  poster?: boolean;
 }
 
 /** One person from list_photo_people. */
