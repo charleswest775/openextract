@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - Calendar: All calendars now says how many events are in how many calendars, counting only calendars with events, as the home tile does, instead of also counting the empty calendar every iPhone has. An open repeating event says how it repeats once, in its details, instead of also as a label above them
 - Voice Memos: an open recording no longer shows its file's internal name (such as 20251117 211010-7003F8D2.m4a) beside Save, and the sidebar's headings match the rest of the app
+- Open a backup folder: choosing a folder above the backup, such as MobileSync, a drive, or a folder another program keeps its backups in, now finds backups up to four folders down instead of saying none were found. Choosing a folder inside a backup opens that backup. When there's no backup, the message says what the folder holds (it's empty, it has a .zip to extract first, it has a backup's files but not Manifest.db, or it holds photos) and which folder to choose, instead of asking for "a UDID-named subfolder"
 
 ## [0.19.0] - 2026-11-23
 

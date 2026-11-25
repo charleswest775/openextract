@@ -117,3 +117,19 @@ test("the missing-backup prefix matches the engine's", () => {
   const engine = fs.readFileSync(path.join(root, 'python', 'backup.py'), 'utf-8');
   assert.equal(engine.match(/^BACKUP_MISSING = "([^"]+)"/m)[1], BACKUP_MISSING_PREFIX);
 });
+
+const { noBackupsMessage } = load('src/lib/foundBackups.ts');
+
+test("a folder with no backup: the site's known fix still matches, and the engine's words are kept (#191)", () => {
+  const msg = noBackupsMessage('D:\\Phone', 'That folder is empty.', 'win32');
+  assert.match(msg, /^No iPhone backups found in D:\\Phone\. That folder is empty\. /);
+  assert.match(msg, /Manifest\.db/);
+  assert.match(msg, /MobileSync\\Backup/);
+  assert.doesNotMatch(msg, /UDID/);
+});
+
+test('a folder with no backup and no hint, on a Mac', () => {
+  const msg = noBackupsMessage('/Volumes/Old', undefined, 'darwin');
+  assert.doesNotMatch(msg, /undefined|  /);
+  assert.match(msg, /Library\/Application Support\/MobileSync\/Backup/);
+});
