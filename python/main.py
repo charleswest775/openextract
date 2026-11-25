@@ -202,6 +202,8 @@ class SidecarServer:
             "search_messages": self.search_messages,
             "list_albums": self.list_albums,
             "list_photos": self.list_photos,
+            "list_photo_people": self.list_photo_people,
+            "get_face_thumbnail": self.get_face_thumbnail,
             "get_photo_thumbnail": self.get_photo_thumbnail,
             "get_photo": self.get_photo,
             "get_photo_path": self.get_photo_path,
@@ -454,7 +456,21 @@ class SidecarServer:
         limit = params.get("limit", 100)
         album_id = params.get("album_id")
         backup = self.backup_manager.get_open_backup(udid)
-        return self.photo_extractor.list_photos(backup, offset, limit, album_id)
+        return self.photo_extractor.list_photos(backup, offset, limit, album_id,
+                                                person_ids=params.get("person_ids"),
+                                                person_match=params.get("person_match") or "any")
+
+    def list_photo_people(self, params):
+        """The People album: the groups the iPhone's Photos app made of the faces it found (photos.py)."""
+        backup = self.backup_manager.get_open_backup(params["udid"])
+        return self.photo_extractor.list_photo_people(backup)
+
+    def get_face_thumbnail(self, params):
+        """One face from list_photo_people's ``face``, as a square JPEG: ``{data, mime_type}`` or ``{error}``."""
+        backup = self.backup_manager.get_open_backup(params["udid"])
+        return self.photo_extractor.get_face_thumbnail(
+            backup, params["file_hash"], float(params["center_x"]), float(params["center_y"]),
+            float(params["size"]), int(params.get("px", 96)))
 
     def get_photo_metadata(self, params):
         udid = params["udid"]

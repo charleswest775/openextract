@@ -31,6 +31,8 @@ SYNTHETIC = {
     "maren-encrypted": "syn-maren-ios26-encrypted",
     "einstein": "syn-einstein-ios26-plain",
     "einstein-encrypted": "syn-einstein-ios17-encrypted",
+    # A few placeholder photos with a People album (people and faces), which maren's photos don't have.
+    "testpersona": "syn-testpersona-ios26-plain",
 }
 
 

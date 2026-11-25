@@ -64,6 +64,9 @@ MAREN = "syn-maren-ios26-plain"
 MAREN_ENCRYPTED = "syn-maren-ios26-encrypted"
 EINSTEIN = "syn-einstein-ios26-plain"
 EINSTEIN_ENCRYPTED = "syn-einstein-ios17-encrypted"
+# The test persona's few placeholder photos carry a People album (people and faces), which maren's don't.
+TESTPERSONA = "syn-testpersona-ios26-plain"
+TESTPERSONA_ENCRYPTED = "syn-testpersona-ios17-encrypted"  # iOS 17: the faces table's other column names
 
 # Set by CI: a backup that can't be generated fails the run instead of skipping it.
 REQUIRE_ENV = "OPENEXTRACT_REQUIRE_GENERATED"

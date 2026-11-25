@@ -20,6 +20,10 @@ import type { TimelineEntry } from '../../types/timeline';
 import {
   albumCount, AlbumNode, hasSidebar, isFolder, PhotoAlbum, photoSidebar, saveLabel, savedTitle,
 } from '../../lib/photoAlbums';
+import {
+  PersonMatch, PhotoPerson, PhotoPersonFace, peopleSavedTitle, peopleShowing, peopleShown, personDescription,
+  personLabel, SAVE_PEOPLE, showMorePeople, togglePerson,
+} from '../../lib/photoPeople';
 
 interface PhotoAsset {
   uuid: string;
@@ -56,6 +60,11 @@ const thumbnailFailedSet = new Set<string>();
 // Track in-flight requests so we don't double-request
 const thumbnailInflight = new Set<string>();
 
+// Face thumbnails for the People list, by face (photo and box), like the photo thumbnails above.
+const faceDataCache = new Map<string, string>();
+const faceKey = (face: PhotoPersonFace) => `${face.file_hash}:${face.center_x}:${face.center_y}:${face.size}`;
+const FACE_PX = 64; // drawn at 28 px; twice that and more for sharp screens
+
 interface Props {
   udid: string;
   /** A photo a search found: shown full size over the grid. */
@@ -81,6 +90,13 @@ export default function PhotoExplorer({ udid, open }: Props) {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [kindFilter, setKindFilter] = useState<string>('all');
+  // The People list: the groups the iPhone's Photos app made of faces. Picking anyone
+  // filters All Photos to them (and clears the album); picking an album clears them.
+  const [people, setPeople] = useState<PhotoPerson[]>([]);
+  const [pickedPeople, setPickedPeople] = useState<string[]>([]);
+  const [personMatch, setPersonMatch] = useState<PersonMatch>('any');
+  const [showAllPeople, setShowAllPeople] = useState(false);
+  const [faces, setFaces] = useState<Record<string, string>>({});
   const { busy, run } = useSaveAction('photos');
   const saving = useExportProgress('photos', busy);
   const [videoLoading, setVideoLoading] = useState(false);
@@ -95,10 +111,16 @@ export default function PhotoExplorer({ udid, open }: Props) {
 
   useEffect(() => {
     mountedRef.current = true;
-    // Another backup's albums have other ids: start again from All Photos.
+    // Another backup's albums and people have other ids: start again from All Photos.
     setSelectedAlbum(null);
+    setPickedPeople([]);
+    setPersonMatch('any');
+    setShowAllPeople(false);
+    setPeople([]);
+    setFaces({});
     setOpenFolders(new Set());
     loadAlbums();
+    loadPeople();
     loadPhotos(0);
     return () => { mountedRef.current = false; };
   }, [udid]);
@@ -112,7 +134,16 @@ export default function PhotoExplorer({ udid, open }: Props) {
     }
   }
 
-  async function loadPhotos(offset: number, albumId?: string | null) {
+  async function loadPeople() {
+    try {
+      const result = await sidecarCall<{ people?: PhotoPerson[] }>('list_photo_people', { udid });
+      if (mountedRef.current) setPeople(result.people ?? []);
+    } catch {
+      // Non-critical: an engine without People, or a library it couldn't read, lists no one.
+    }
+  }
+
+  async function loadPhotos(offset: number, albumId?: string | null, personIds: string[] = [], match: PersonMatch = 'any') {
     if (loadingRef.current) return;
     loadingRef.current = true;
     const request = ++requestRef.current;
@@ -128,7 +159,10 @@ export default function PhotoExplorer({ udid, open }: Props) {
       do {
         result = await sidecarCall<PhotoPage>(
           'list_photos',
-          { udid, offset: next, limit: BATCH_SIZE, album_id: albumId ?? undefined }
+          {
+            udid, offset: next, limit: BATCH_SIZE, album_id: albumId ?? undefined,
+            ...(personIds.length > 0 ? { person_ids: personIds, person_match: match } : {}),
+          }
         );
         if (!mountedRef.current || request !== requestRef.current) return;
         next += BATCH_SIZE;
@@ -230,22 +264,33 @@ export default function PhotoExplorer({ udid, open }: Props) {
     }
   }
 
-  const handleAlbumSelect = useCallback((albumId: string | null) => {
+  // Show a new selection from its first page: an album (null is All Photos), or people in All Photos.
+  function showSelection(albumId: string | null, personIds: string[], match: PersonMatch) {
     setSelectedAlbum(albumId);
+    setPickedPeople(personIds);
+    setPersonMatch(match);
     setPhotos([]);
     setThumbnails({});
     setFailedThumbs(new Set());
     offsetRef.current = 0;
     loadingRef.current = false;
-    loadPhotos(0, albumId);
+    loadPhotos(0, albumId, personIds, match);
+  }
+
+  const handleAlbumSelect = useCallback((albumId: string | null) => {
+    showSelection(albumId, [], 'any');
   }, [udid]);
+
+  function handlePersonToggle(id: string) {
+    showSelection(null, togglePerson(pickedPeople, id), personMatch);
+  }
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 400 && hasMore && !loadingRef.current) {
-      loadPhotos(offsetRef.current, selectedAlbum);
+      loadPhotos(offsetRef.current, selectedAlbum, pickedPeople, personMatch);
     }
-  }, [hasMore, selectedAlbum]);
+  }, [hasMore, selectedAlbum, pickedPeople, personMatch]);
 
   function handleSave() {
     run(async () => {
@@ -264,9 +309,14 @@ export default function PhotoExplorer({ udid, open }: Props) {
           include_metadata_sidecar: false,
           // The album, Favorites or Hidden on screen; nothing for All Photos.
           album_id: selectedAlbum ?? undefined,
+          // The people picked, as on screen.
+          ...(pickedPeople.length > 0 ? { person_ids: pickedPeople, person_match: personMatch } : {}),
         },
       }));
-      return { title: savedTitle(selectedAlbum, albums), detail: photoExportSummary(result), path: outputDir };
+      const title = pickedPeople.length > 0
+        ? peopleSavedTitle(pickedPeople.map(id => people.find(p => p.id === id) ?? { name: null }), personMatch)
+        : savedTitle(selectedAlbum, albums);
+      return { title, detail: photoExportSummary(result), path: outputDir };
     });
   }
 
@@ -302,9 +352,46 @@ export default function PhotoExplorer({ udid, open }: Props) {
   const shownCount = inBackup ?? total;
 
   const sidebar = photoSidebar(albums);
+  const showingAll = selectedAlbum === null && pickedPeople.length === 0;
   // All Photos counts what the grid shows while it's open (the DCIM scan, when Photos.sqlite
   // lists nothing), else the engine's count, so it doesn't change with the album picked.
-  const allPhotosCount = selectedAlbum === null ? shownCount : sidebar.allPhotos && albumCount(sidebar.allPhotos);
+  const allPhotosCount = showingAll ? shownCount : sidebar.allPhotos && albumCount(sidebar.allPhotos);
+  const listedPeople = peopleShown(people, showAllPeople, pickedPeople);
+  const morePeople = people.length - listedPeople.length;
+  const picked = pickedPeople.map(id => people.find(p => p.id === id)).filter((p): p is PhotoPerson => !!p);
+
+  // Face thumbnails for the people listed, a few at a time.
+  useEffect(() => {
+    let cancelled = false;
+    const wanted = listedPeople.filter(p => p.face && !faces[p.id]);
+    (async () => {
+      for (let i = 0; i < wanted.length; i += 4) {
+        const found: Record<string, string> = {};
+        await Promise.all(wanted.slice(i, i + 4).map(async person => {
+          const face = person.face!;
+          const key = faceKey(face);
+          let data = faceDataCache.get(key);
+          if (!data) {
+            try {
+              const result = await sidecarCall<{ data?: string; error?: string }>(
+                'get_face_thumbnail', { udid, ...face, px: FACE_PX });
+              if (result.data && !result.error) {
+                data = result.data;
+                if (faceDataCache.size >= 500) faceDataCache.delete(faceDataCache.keys().next().value!);
+                faceDataCache.set(key, data);
+              }
+            } catch {
+              // The row keeps its plain circle.
+            }
+          }
+          if (data) found[person.id] = data;
+        }));
+        if (cancelled || !mountedRef.current) return;
+        if (Object.keys(found).length > 0) setFaces(prev => ({ ...prev, ...found }));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [udid, people, showAllPeople]);
 
   function toggleFolder(id: string) {
     setOpenFolders(prev => {
@@ -360,9 +447,9 @@ export default function PhotoExplorer({ udid, open }: Props) {
     const el = gridRef.current;
     if (!el || loading || !hasMore) return;
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
-      loadPhotos(offsetRef.current, selectedAlbum);
+      loadPhotos(offsetRef.current, selectedAlbum, pickedPeople, personMatch);
     }
-  }, [filteredPhotos.length, loading, hasMore, selectedAlbum]);
+  }, [filteredPhotos.length, loading, hasMore, selectedAlbum, pickedPeople, personMatch]);
 
   return (
     <div className="h-full flex flex-col">
@@ -383,7 +470,12 @@ export default function PhotoExplorer({ udid, open }: Props) {
               <option value="live_photo">Live Photos</option>
               <option value="screenshot">Screenshots</option>
             </select>
-            <SaveButton onClick={handleSave} busy={busy} disabled={shownCount === 0} label={saveLabel(selectedAlbum)} />
+            <SaveButton
+              onClick={handleSave}
+              busy={busy}
+              disabled={shownCount === 0}
+              label={pickedPeople.length > 0 ? SAVE_PEOPLE : saveLabel(selectedAlbum)}
+            />
           </>
         }
       />
@@ -401,15 +493,48 @@ export default function PhotoExplorer({ udid, open }: Props) {
       {notInBackup > 0 && shownCount > 0 && (
         <p className="px-6 py-2 text-sm text-text-secondary border-b border-rule">{moreOnlyInIcloud(notInBackup)}</p>
       )}
+      {picked.length > 0 && (
+        <div role="group" aria-label="People picked" className="px-6 py-2 border-b border-rule flex items-center gap-2 flex-wrap text-sm">
+          <span className="text-text-secondary">{peopleShowing(picked.length, personMatch)}</span>
+          {picked.map(person => (
+            <span key={person.id} className="inline-flex items-center gap-1.5 pl-1 pr-1 py-0.5 rounded-full bg-accent-wash">
+              <FaceCircle data={faces[person.id]} size={20} />
+              <span className="max-w-[160px] truncate">{personLabel(person)}</span>
+              <button
+                onClick={() => handlePersonToggle(person.id)}
+                aria-label={`Remove ${personLabel(person)}`}
+                className="w-5 h-5 rounded-full flex items-center justify-center text-text-tertiary hover:bg-surface"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          {picked.length > 1 && (
+            <span role="group" aria-label="Which photos" className="inline-flex rounded-full border border-rule overflow-hidden">
+              {(['any', 'all'] as const).map(match => (
+                <button
+                  key={match}
+                  onClick={() => showSelection(null, pickedPeople, match)}
+                  aria-pressed={personMatch === match}
+                  className={`px-3 py-0.5 ${personMatch === match ? 'bg-accent-wash font-medium' : 'hover:bg-surface'}`}
+                >
+                  {match === 'any' ? 'Any of them' : 'All together'}
+                </button>
+              ))}
+            </span>
+          )}
+          <button onClick={() => handleAlbumSelect(null)} className="ml-auto text-accent hover:underline">Clear</button>
+        </div>
+      )}
 
       <div className="flex-1 flex overflow-hidden">
         {/* Album sidebar */}
-        {hasSidebar(sidebar) && (
+        {(hasSidebar(sidebar) || people.length > 0) && (
           <nav aria-label="Albums" className="w-[240px] flex-shrink-0 border-r border-rule overflow-y-auto py-2 px-2">
             <SidebarButton
               title="All Photos"
               count={allPhotosCount || undefined}
-              selected={selectedAlbum === null}
+              selected={showingAll}
               onClick={() => handleAlbumSelect(null)}
             />
             {sidebar.smart.map(album => sidebarItem(album))}
@@ -417,6 +542,29 @@ export default function PhotoExplorer({ udid, open }: Props) {
             {albumTree(sidebar.albums, 0)}
             {sidebar.shared.length > 0 && <SidebarHeading>Shared albums</SidebarHeading>}
             {sidebar.shared.map(album => sidebarItem(album))}
+            {people.length > 0 && (
+              <>
+                {/* The groups the iPhone's Photos app made of the faces it found; most are never named. */}
+                <SidebarHeading>People</SidebarHeading>
+                {listedPeople.map(person => (
+                  <PersonButton
+                    key={person.id}
+                    person={person}
+                    face={faces[person.id]}
+                    picked={pickedPeople.includes(person.id)}
+                    onClick={() => handlePersonToggle(person.id)}
+                  />
+                ))}
+                {morePeople > 0 && (
+                  <button
+                    onClick={() => setShowAllPeople(true)}
+                    className="w-full py-2 px-3 rounded-lg text-left text-sm text-accent hover:bg-surface"
+                  >
+                    {showMorePeople(morePeople)}
+                  </button>
+                )}
+              </>
+            )}
           </nav>
         )}
 
@@ -508,6 +656,41 @@ export default function PhotoExplorer({ udid, open }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+interface PersonButtonProps {
+  person: PhotoPerson;
+  face?: string;
+  picked: boolean;
+  onClick: () => void;
+}
+
+/** A row of the People list: the face, the name or "Unnamed person", and the photos in the backup. Picking toggles. */
+function PersonButton({ person, face, picked, onClick }: PersonButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={picked}
+      aria-label={personDescription(person)}
+      title={personDescription(person)}
+      className={`w-full py-1.5 pl-2 pr-3 rounded-lg text-left text-sm flex items-center gap-2 ${
+        picked ? 'bg-accent-wash font-medium' : 'hover:bg-surface'
+      }`}
+    >
+      <FaceCircle data={face} size={28} />
+      <span className={`truncate flex-1 ${person.name ? '' : 'text-text-secondary'}`}>{personLabel(person)}</span>
+      <span className="text-xs text-text-tertiary flex-shrink-0 ml-1">{person.in_backup.toLocaleString()}</span>
+    </button>
+  );
+}
+
+/** A face thumbnail in a circle, or an empty circle while it loads (or when there's no face to show). */
+function FaceCircle({ data, size }: { data?: string; size: number }) {
+  return data ? (
+    <img src={`data:image/jpeg;base64,${data}`} alt="" className="rounded-full object-cover flex-shrink-0" style={{ width: size, height: size }} />
+  ) : (
+    <span aria-hidden="true" className="rounded-full bg-surface border border-rule flex-shrink-0" style={{ width: size, height: size }} />
   );
 }
 
