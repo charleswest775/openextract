@@ -48,6 +48,34 @@ export default {
       if (u.opened) await app.closeBackup();
       else await app.eval(() => [...document.querySelectorAll('[role=alert] button')].forEach(b => b.click()));
 
+      // A folder above the backup's own, up to 4 folders up (a drive with Apple Computer/MobileSync/
+      // Backup/<udid> on it), finds and opens it, and so does one of the backup's own folders. One
+      // folder further up isn't searched, and the message says how far it looked (#331).
+      const einstein = backups.einstein;
+      const drive = path.join(scratch, 'drive');
+      const deep = path.join(drive, 'Apple Computer', 'MobileSync', 'Backup', path.basename(einstein.dir));
+      fs.cpSync(einstein.dir, deep, { recursive: true });
+      const ownFolder = fs.readdirSync(deep).find(n => /^[0-9a-f]{2}$/i.test(n));
+      const dismiss = () => app.eval(() => [...document.querySelectorAll('[role=alert] button')].forEach(b => b.click()));
+      for (const [what, chosen] of [
+        ['4 folders above it (a drive)', drive],
+        ['2 folders above it (MobileSync)', path.join(drive, 'Apple Computer', 'MobileSync')],
+        ['one of its own folders', path.join(deep, ownFolder)],
+      ]) {
+        const r = await app.openBackup(chosen);
+        const opened = r.opened && !!(await app.waitFor(() => /Albert|Einstein/.test(document.body.innerText), null, 30_000));
+        check(`a backup is found and opened from ${what}`, opened, r);
+        if (r.opened) await app.closeBackup();
+        else await dismiss();
+      }
+      const tooFar = path.join(scratch, 'too-far');
+      fs.cpSync(einstein.dir, path.join(tooFar, 'X', 'Apple Computer', 'MobileSync', 'Backup', path.basename(einstein.dir)), { recursive: true });
+      const far = await app.openBackup(tooFar);
+      check('a backup 5 folders down is not found, and the message says how far it looked',
+        !far.opened && /No iPhone backups found/.test(far.error ?? '') && /4 folders deep/.test(far.error ?? ''), far);
+      if (far.opened) await app.closeBackup();
+      else await dismiss();
+
       // A folder holding several backups asks which one to open.
       const parent = path.join(scratch, 'two-backups');
       fs.mkdirSync(parent, { recursive: true });
