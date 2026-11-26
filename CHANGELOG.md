@@ -8,10 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Photos: pick the photos and videos you want and save just those. Click Select, then click each one, or Shift-click to pick every photo between the last one you clicked and this one. Cmd-click (Ctrl-click on Windows) picks a photo without clicking Select first, and Escape or Cancel stops picking. Save then says how many it will save ("Save 12 selected"), and puts them in the same year and month folders as Save all. Picking works in All Photos, Favorites, Hidden and every album (OE-193, OE-195)
+- Photos: From and to dates narrow the grid to the photos and videos taken on those days, in All Photos, any album or the photos of the people picked, and Save these saves just those. The header counts what's left ("45 photos and videos from these dates"), and Any date shows everything again. A backup whose Photos library can't be read (some very old or damaged backups) has no dates for its photos, so the dates aren't offered there (OE-193)
 - Photos: a People list under the albums, from the groups your iPhone's Photos app made of the faces it found, named or not (most never are), each with a face (or their head and shoulders, for someone Photos only saw from the side or behind) and how many photos the backup has. Pick someone to see just their photos, or several to see photos with any of them or only those with all of them together, and Save saves exactly those. OpenExtract only reads what your iPhone worked out; it never compares faces itself
 - Using it for paid work?: after you save from a sixth different iPhone in a year, the app asks once whether it's paid work, and if it is, points to the business rates on the site ($50 a case or $200 a year, with a receipt). It's a request, not a condition of the license: nothing in the app changes either way, and it never asks again. The count stays on your computer, as scrambled iPhone IDs, and nothing is sent. Not shown to anyone who has said they've paid
 
 ### Changed
+- Photos: with Videos or Live Photos picked in the type menu, the Save button now reads Save these and saves only that type. It used to save every photo and video in the album whatever the menu showed
+- Saving photos into a folder you've saved them to before now says how many were already there, for example "40 exported · 1,200 were already in that folder". As since 0.19.0, only the ones that weren't there are copied, so saving all your photos again after a newer backup adds just the new ones (OE-193)
 - Saving a conversation or WhatsApp chat as a PDF: each PDF now holds up to about 500 photos or 1,000 pages, half as much as before, so a computer without much memory to spare can print it. A long chat is split into more PDFs than before, by year or by runs of months; a shorter one still goes in one file (OE-170)
 
 ### Fixed

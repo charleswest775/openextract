@@ -98,6 +98,12 @@ _IPHONE_THUMBNAILS = "Media/PhotoData/Thumbnails/V2/"
 # Video files get_thumbnail knows by name besides the library's VIDEO_EXTENSIONS (its _VIDEO_EXTS).
 _MORE_VIDEO_EXTENSIONS = {".mkv", ".3gp", ".webm"}
 
+# Photos.sqlite's ZDATECREATED counts seconds from 2001-01-01 UTC, this many seconds after 1970's.
+_APPLE_EPOCH_UNIX = 978307200
+# ZUUIDs looked up at once: each can be asked for as text and as iOS 6's 16 bytes, and
+# older SQLite allows 999 values in one query.
+_UUID_CHUNK = 400
+
 # What the app is told when a video can't be handed to the computer's video player
 # (get_file_for_app), in words for people. The Photos screen shows them under "This video
 # couldn't be opened". FILE_NOT_FOUND is matched by the app and by a known fix
@@ -330,6 +336,8 @@ class PhotoExtractor:
         # its originals (relative path → fileID) and its in-backup counts.
         self._originals_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
         self._in_backup_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+        # The date of every photo in each listing a date range has been asked of (_listing_dates).
+        self._listing_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
         # The library's People list with each person's photo uuids, per open backup.
         self._people_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
         # The thumbnails the iPhone's Photos app made, by the photo they're of, and the
@@ -361,7 +369,8 @@ class PhotoExtractor:
         return {**result, "albums": [{**a, "in_backup": in_backup(a)} for a in result["albums"]]}
 
     def list_photos(self, backup, offset: int = 0, limit: int = 100,
-                    album_id: Optional[str] = None, person_ids: Optional[list] = None,
+                    album_id: Optional[str] = None, date_from: Optional[float] = None,
+                    date_to: Optional[float] = None, person_ids: Optional[list] = None,
                     person_match: str = "any") -> dict:
         """List photo assets, post-processed to add file_hash for downstream RPCs.
 
@@ -372,12 +381,21 @@ class PhotoExtractor:
         iCloud). ``missing_from_folder`` is how many the backup lists but its folder
         doesn't have (OE-102); they're left out too, and not counted as iCloud-only.
 
+        ``date_from`` and ``date_to`` (Unix seconds; ``date_to`` itself is left out) keep
+        the photos taken in that time, and every count is then of those (see
+        _list_photos_between). A backup with no Photos library has no dates, so a date
+        range finds nothing there; its listing without one says ``source`` "dcim_scan".
+
         ``person_ids`` (ids from list_photo_people) keeps All Photos' photos with any
         of those people on, or all of them with ``person_match`` "all".
         """
         person_ids = [str(p) for p in person_ids or []]
         if person_ids and not self._has_people():
             return {"photos": [], "total": 0, "offset": offset, "limit": limit, "source": "unavailable"}
+        if date_from is not None or date_to is not None:
+            return self._list_photos_between(backup, offset, limit, album_id, date_from, date_to,
+                                             person_ids, person_match)
+
         # An older ios-backup-core has no LIBRARY, and its All Photos already holds every photo.
         core_album_id = None if album_id == LIBRARY and _CORE_LIBRARY is None else album_id
         if person_ids:
@@ -429,6 +447,146 @@ class PhotoExtractor:
             out["missing_from_folder"] = missing
         return out
 
+    def _list_photos_between(self, backup, offset: int, limit: int, album_id: Optional[str],
+                             date_from: Optional[float], date_to: Optional[float],
+                             person_ids: Optional[list] = None, person_match: str = "any") -> dict:
+        """list_photos for the photos taken from ``date_from`` up to (not including) ``date_to``.
+
+        The library lists photos newest first, so the ones in a date range are one run
+        of its rows: after the rows newer than the range, as long as the rows in it.
+        The library is asked for that run, and ``total`` and ``offset`` count rows in it.
+        Photos with no date are in no range. ``person_ids`` narrows the listing first,
+        as list_photos does without dates.
+        """
+        low = None if date_from is None else float(date_from) - _APPLE_EPOCH_UNIX
+        high = None if date_to is None else float(date_to) - _APPLE_EPOCH_UNIX
+        out = {"photos": [], "total": 0, "offset": offset, "limit": limit, "source": "photos_sqlite"}
+        people = {"person_ids": person_ids, "person_match": person_match} if person_ids else {}
+        rows = self._listing_dates(backup, album_id, **people)
+        if rows is None:
+            return {**out, "source": "dcim_scan", "in_backup": 0, "not_in_backup": 0, "missing_from_folder": 0}
+
+        def dated(ts) -> bool:
+            return isinstance(ts, (int, float)) and not isinstance(ts, bool)
+
+        newer = 0 if high is None else sum(1 for _, ts in rows if dated(ts) and ts >= high)
+        between = frozenset(pk for pk, ts in rows
+                            if dated(ts) and (low is None or ts >= low) and (high is None or ts < high))
+        total = len(between)
+        if offset < total and limit > 0:
+            core_album_id = None if album_id == LIBRARY and _CORE_LIBRARY is None else album_id
+            page = self._inner.list_photos(backup, newer + offset, min(limit, total - offset), core_album_id,
+                                           **people)
+            for asset in page.get("photos", []):
+                adapted = self._add_file_hash(asset, backup)
+                if adapted is not None:
+                    out["photos"].append(adapted)
+        out["total"] = total
+
+        counts = self._in_backup_counts(backup)
+        if counts is not None:
+            in_backup = len(between & counts["present"])
+            missing = len(between & counts["missing_ids"])
+            out["in_backup"] = in_backup
+            out["not_in_backup"] = max(total - in_backup - missing, 0)
+            out["missing_from_folder"] = missing
+        return out
+
+    def _listing_dates(self, backup, album_id: Optional[str], person_ids: Optional[list] = None,
+                       person_match: str = "any") -> Optional[list]:
+        """(Z_PK, ZDATECREATED) of each row the library's list_photos(album_id, person_ids)
+        lists, in no order.
+
+        The same rows as that listing (an album's, Favorites', Hidden's or All Photos',
+        narrowed to some people with the library's own condition for them), so
+        _list_photos_between can find a date range's run in it; the photo counts mirror
+        it the same way (_count_in_backup). Read once per backup and listing. None when
+        the backup has no Photos library to read, or a library from before Favorites and
+        Hidden (whose rows this can't mirror).
+        """
+        per_backup = self._listing_cache.setdefault(backup, {})
+        match = "all" if person_match == "all" else "any"
+        key = (album_id or "", tuple(person_ids or ()), match if person_ids else "")
+        if key in per_backup:
+            return per_backup[key]
+        rows = None
+        conn = self._inner._open_photos_db(backup) if smart_album_where is not None else None
+        if conn is not None:
+            try:
+                assets = asset_table(conn)
+                columns = {col[1] for col in conn.execute(f"PRAGMA table_info('{assets}')")}
+                core_album_id = None if album_id == LIBRARY and _CORE_LIBRARY is None else album_id
+                where = smart_album_where(columns, core_album_id)
+                junc_table, albums_col, assets_col = self._inner._find_album_junction(conn)
+                params: list = []
+                if where is None and junc_table and albums_col and assets_col:
+                    sql = (f"SELECT a.Z_PK, a.ZDATECREATED FROM {assets} a "
+                           f"JOIN '{junc_table}' j ON j.{assets_col} = a.Z_PK WHERE j.{albums_col} = ?")
+                    params.append(int(album_id))
+                else:
+                    # The whole library when the backup's albums can't be read, as the listing does.
+                    sql = (f"SELECT a.Z_PK, a.ZDATECREATED FROM {assets} a "
+                           f"WHERE {where or smart_album_where(columns, None)}")
+                if person_ids:
+                    people_where, people_params = self._inner._people_condition(conn, list(person_ids), match)
+                    sql += f" AND {people_where}"
+                    params += people_params
+                rows = [(pk, ts) for pk, ts in conn.execute(sql, params).fetchall()]
+            except (sqlite3.Error, ValueError) as e:
+                print(f"[photos] couldn't read the dates of {album_id or 'All Photos'}: {e}",
+                      file=sys.stderr, flush=True)
+                rows = None
+            finally:
+                conn.close()
+        per_backup[key] = rows
+        return rows
+
+    def photos_by_uuid(self, backup, uuids: list) -> list:
+        """The photos with these uuids, as list_photos gives them, newest first.
+
+        For saving the photos someone picked on the Photos screen, without listing a
+        whole library to find them. Leaves out any the backup has no file for, and
+        uuids it doesn't know. A backup with no Photos library lists the DCIM scan's
+        photos, whose uuid is their file's id, so those are found in that scan.
+        """
+        wanted = list(dict.fromkeys(str(u) for u in uuids if u))
+        found: dict = {}
+        conn = self._inner._open_photos_db(backup) if wanted else None
+        if conn is not None:
+            try:
+                assets = asset_table(conn)
+                for start in range(0, len(wanted), _UUID_CHUNK):
+                    chunk = wanted[start:start + _UUID_CHUNK]
+                    keys: list = list(chunk)
+                    for value in chunk:  # iOS 6 keeps ZUUID as the UUID's 16 bytes
+                        try:
+                            keys.append(uuid.UUID(value).bytes)
+                        except ValueError:
+                            pass
+                    marks = ", ".join("?" * len(keys))
+                    for row in conn.execute(f"SELECT * FROM {assets} WHERE ZUUID IN ({marks})", keys):
+                        asset = self._inner._asset_row_to_dict(row, [], "")
+                        directory, filename = row["ZDIRECTORY"] or "", row["ZFILENAME"] or ""
+                        asset["relative_path"] = (
+                            _build_dcim_path(directory, filename) if directory and filename else None)
+                        adapted = self._add_file_hash(asset, backup)
+                        if adapted is not None:
+                            found[adapted["uuid"]] = adapted
+            except sqlite3.Error as e:
+                print(f"[photos] couldn't look up the photos picked: {e}", file=sys.stderr, flush=True)
+            finally:
+                conn.close()
+        left = set(wanted) - set(found)
+        if left:
+            for photo in self._list_photos_from_dcim(backup, 0, sys.maxsize)["photos"]:
+                if photo["uuid"] in left:
+                    found[photo["uuid"]] = photo
+
+        def newest_first(photo: dict) -> tuple:
+            taken = _date_taken(photo)
+            return (taken is not None, taken.timestamp() if taken else 0.0)
+
+        return sorted(found.values(), key=newest_first, reverse=True)
     # ── People: the groups the iPhone's Photos app made of the faces it found ──
 
     def _has_people(self) -> bool:
@@ -831,8 +989,8 @@ class PhotoExtractor:
         Returns ``{"library": n, "albums": {album id: n}, "smart": {Favorites or
         Hidden id: n}, "has_albums": bool, "present": Z_PKs in the backup, "missing":
         {"library", "albums", "smart"} for the assets the backup lists but its folder
-        doesn't have}``, or None when Photos.sqlite can't be read (list_photos then
-        reports only ``total``).
+        doesn't have, "missing_ids": their Z_PKs}``, or None when Photos.sqlite can't
+        be read (list_photos then reports only ``total``).
         """
         if backup in self._in_backup_cache:
             return self._in_backup_cache[backup]
@@ -903,6 +1061,7 @@ class PhotoExtractor:
             found["smart"][album_id] = sum(1 for pk in pks if pk in present)
             lost["smart"][album_id] = sum(1 for pk in pks if pk in missing)
         return {**found, "has_albums": bool(junc_table), "present": frozenset(present), "missing": lost,
+                "missing_ids": frozenset(missing),
                 "present_uuids": frozenset(present_uuids), "missing_uuids": frozenset(missing_uuids),
                 "stills": stills, "videos": videos}
 
@@ -1196,14 +1355,22 @@ class PhotoExtractor:
                                               (an album, Favorites or Hidden, or LIBRARY
                                               for every photo with the hidden ones);
                                               default All Photos, without hidden photos
+          date_from, date_to (number)       - only the photos list_photos lists for
+                                              these dates (Unix seconds, date_to left out)
           person_ids (list), person_match   - save what list_photos lists for these people
                                               ("any", the default, or "all")
+          kind (str)                        - only photos of this kind ("video", ...)
+          uuids (list)                      - only these photos, whatever album_id, the
+                                              people and the dates say: the ones someone
+                                              picked. One the backup has no file for is an error
 
         on_progress(done, total, failed) is told how far the save has got, a few
         times a second at most (see export_progress.py).
         Every file it writes gets the photo's date taken as its modified time;
         one that was already there is left entirely as it was.
         No photo or .json is written over another file: see save_names.py.
+        ``exported`` counts the photos now in the folder, ``already_there`` the ones
+        among them an earlier save had put there, which weren't copied again.
         """
         if options is None:
             options = {}
@@ -1215,27 +1382,42 @@ class PhotoExtractor:
         folder_structure = options.get("folder_structure", "flat")
         include_sidecar = options.get("include_metadata_sidecar", False)
         album_id = options.get("album_id") or None
+        date_from, date_to = options.get("date_from"), options.get("date_to")
         person_ids = options.get("person_ids") or None
         person_match = options.get("person_match") or "any"
+        only_kind = options.get("kind") or None
+        uuids = options.get("uuids")
 
         os.makedirs(output_dir, exist_ok=True)
 
-        # Load all assets in batches via this adapter (so file_hash is populated)
-        all_photos = []
-        offset = 0
-        batch = 200
-        people = {"person_ids": person_ids, "person_match": person_match} if person_ids else {}
-        while True:
-            result = self.list_photos(backup, offset=offset, limit=batch, album_id=album_id, **people)
-            all_photos.extend(result["photos"])
-            if offset + batch >= result["total"]:
-                break
-            offset += batch
+        errors = 0
+        result: dict = {}
+        if uuids is not None:
+            all_photos = self.photos_by_uuid(backup, uuids)
+            errors = len({str(u) for u in uuids if u}) - len(all_photos)
+        else:
+            # Load all assets in batches via this adapter (so file_hash is populated)
+            all_photos = []
+            offset = 0
+            batch = 200
+            # Only the filters that are set, so a list_photos without them still works.
+            narrow = {k: v for k, v in (("date_from", date_from), ("date_to", date_to)) if v is not None}
+            if person_ids:
+                narrow.update(person_ids=person_ids, person_match=person_match)
+            while True:
+                result = self.list_photos(backup, offset=offset, limit=batch, album_id=album_id, **narrow)
+                all_photos.extend(result["photos"])
+                if offset + batch >= result["total"]:
+                    break
+                offset += batch
+        if only_kind:
+            all_photos = [p for p in all_photos if p.get("kind") == only_kind]
 
         exported = 0
-        errors = 0
+        already_there = 0
         names = SaveNames()
-        progress = ExportProgress(on_progress, sum(
+        # Picked photos it couldn't find count as failed from the start, so they're in the total too.
+        progress = ExportProgress(on_progress, errors + sum(
             1 for p in all_photos
             if (include_videos or p.get("kind") != "video") and (include_live or p.get("kind") != "live_photo")
         ))
@@ -1283,6 +1465,8 @@ class PhotoExtractor:
                         copy_new(source, dest_path)
                 if not there:
                     _set_file_date(dest_path, taken)
+                else:
+                    already_there += 1
 
                 exported += 1
 
@@ -1302,6 +1486,7 @@ class PhotoExtractor:
         progress.update(exported + errors, errors)
         return {
             "exported": exported,
+            "already_there": already_there,
             "errors": errors,
             # Library items left out because the backup has no file for them
             # (only in iCloud). list_photos never returns them, so they aren't errors.
