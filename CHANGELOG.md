@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - Open a backup folder: the same backup is no longer listed several times when a link in the folder (a symlink, or on Windows a junction such as Documents and Settings) leads back to it, and a MobileSync/Backup that's a link to an external drive is still found. A folder named Backup is looked inside even when thousands of other folders sit beside it, and a backup in a folder of yours with a two-letter name like "de" or "ca" is found. On a Mac, choosing your Library folder no longer stops to ask for access to other apps' data. The message for a folder with no backup says "1 folder" and "1 file" instead of "1 folders" and "1 files"
+- Notes: every note in the backup now shows. An iPhone that has had notes since before iOS 9 can still keep an old account's notes (often "On My iPhone") in a separate file, and when it did, Notes listed only those old notes and none of the others. Now it lists both. A note whose text is only numbers, such as a code, now shows its text instead of a blank page
 
 ## [0.20.0] - 2026-11-25
 
