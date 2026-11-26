@@ -291,6 +291,18 @@ describe('Claude (desktop) connected', () => {
     assert.equal(A.claudeHasAddon(win), false);
     mkdir(path.join(roaming, 'Claude', 'Claude Extensions', 'local.dxt.OpenExtract'));
     assert.equal(A.claudeHasAddon(win), true);
+
+    // Claude for Windows as a Microsoft Store package: its data is in the package's LocalCache
+    const local = mkdir(path.join(home, 'AppData', 'Local'));
+    const msix = { platform: 'win32', env: { APPDATA: mkdir(path.join(home, 'Other', 'Roaming')), LOCALAPPDATA: local }, homedir: home };
+    const pkgExt = path.join(local, 'Packages', 'Claude_pzs8sxrjxfjjc', 'LocalCache', 'Roaming', 'Claude', 'Claude Extensions');
+    mkdir(path.join(local, 'Packages', 'SomethingElse_abc', 'LocalCache', 'Roaming', 'Claude', 'Claude Extensions', 'openextract-ai'));
+    mkdir(path.join(local, 'Packages', 'Claude_pzs8sxrjxfjjc', 'LocalCache'));
+    assert.deepEqual(A.claudePackageExtensionsDirs(msix), [pkgExt]);
+    assert.equal(A.claudeHasAddon(msix), false);
+    mkdir(path.join(pkgExt, 'local.mcpb.charles-west.openextract-ai'));
+    assert.equal(A.claudeHasAddon(msix), true);
+    assert.deepEqual(A.claudePackageExtensionsDirs(mac), []);
     assert.equal(A.claudeExtensionsDir({ platform: 'linux', env: {}, homedir: home }), null);
   });
 });

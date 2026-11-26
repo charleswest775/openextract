@@ -24,7 +24,7 @@ interface Store {
 
 export interface AskAiOptions {
   ipcMain: { handle(channel: string, listener: (event: any, ...args: any[]) => any): void };
-  shell: { openPath(file: string): Promise<string> };
+  shell: { openPath(file: string): Promise<string>; showItemInFolder?(file: string): void };
   store: Store;
   /** index.json, or null when Ask AI is off. */
   indexUrl: string | null;
@@ -66,7 +66,12 @@ export type AskAiState =
     claudeCode: { command: string | null } | null;
   };
 
-export type AskAiResult = { ok: true } | { ok: false; error: string };
+export type AskAiResult = { ok: true; message?: string } | { ok: false; error: string };
+
+/** Claude for Windows doesn't open .mcpb files (its package declares no file types), so the file is
+ * shown in its folder and the screen says where it goes in Claude. Checked on a real PC 2026-11-25. */
+export const WINDOWS_CLAUDE_STEPS = "In Claude, open Settings, then Extensions. Click Advanced settings, then "
+  + "Install Extension, and choose the file that's selected in the folder that just opened.";
 
 /** A path as the person would recognise it: ~/.codex/config.toml on a Mac. */
 function shown(file: string, homedir: string, platform: string): string {
@@ -163,6 +168,10 @@ export function registerAskAi(o: AskAiOptions): void {
     if (!detect().includes('claude')) return { ok: false, error: "Claude isn't on this computer." };
     const result = await install(event?.sender);
     if (!result.ok) return result;
+    if (o.platform === 'win32') {
+      o.shell.showItemInFolder?.(result.mcpb);
+      return { ok: true, message: WINDOWS_CLAUDE_STEPS };
+    }
     const failed = await o.shell.openPath(result.mcpb);
     if (failed) {
       return { ok: false, error: `Claude didn't open OpenExtract AI. In Claude, open Settings, then Extensions, and install this file: ${result.mcpb}` };

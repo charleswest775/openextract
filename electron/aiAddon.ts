@@ -207,10 +207,22 @@ export function claudeExtensionsDir({ platform, env, homedir }: Place): string |
   return null;
 }
 
-/** Connected to Claude (desktop) = its extensions folder holds the add-on (named after its manifest). */
+/**
+ * Claude for Windows from its installer from claude.ai is a Microsoft Store (MSIX) package, which keeps its
+ * data in the package's own folder (LocalCache\Roaming\Claude), not in %APPDATA%\Claude. Seen on a real
+ * PC on 2026-11-25: the package folder was Packages\Claude_pzs8sxrjxfjjc.
+ */
+export function claudePackageExtensionsDirs({ platform, env, homedir }: Place, look: Look = realLook): string[] {
+  if (platform !== 'win32') return [];
+  const packages = path.join(localAppData({ platform, env, homedir }), 'Packages');
+  return look.list(packages).filter(name => /^Claude_/i.test(name))
+    .map(name => path.join(packages, name, 'LocalCache', 'Roaming', 'Claude', 'Claude Extensions'));
+}
+
+/** Connected to Claude (desktop) = one of its extensions folders holds the add-on (named after its manifest). */
 export function claudeHasAddon(place: Place, look: Look = realLook): boolean {
-  const dir = claudeExtensionsDir(place);
-  return dir !== null && look.list(dir).some(name => /openextract/i.test(name));
+  const dirs = [claudeExtensionsDir(place), ...claudePackageExtensionsDirs(place, look)];
+  return dirs.some(dir => dir !== null && look.list(dir).some(name => /openextract/i.test(name)));
 }
 
 // ── index.json ──────────────────────────────────────────────────────────────

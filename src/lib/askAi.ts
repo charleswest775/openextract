@@ -38,7 +38,7 @@ export interface AddonStatus {
   freeQuestionsLeft: number;
 }
 
-export type AskAiResult = { ok: true } | { ok: false; error: string };
+export type AskAiResult = { ok: true; message?: string } | { ok: false; error: string };
 
 export interface InstallProgress {
   step: 'index' | 'download' | 'verify' | 'unpack';

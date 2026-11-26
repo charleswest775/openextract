@@ -69,7 +69,7 @@ export default function AskAiScreen({ onBack }: Props) {
     setNotes(n => ({ ...n, [id]: undefined }));
     try {
       const result = await action();
-      setNotes(n => ({ ...n, [id]: result.ok ? { kind: 'done', text: done } : { kind: 'error', text: result.error } }));
+      setNotes(n => ({ ...n, [id]: result.ok ? { kind: 'done', text: result.message ?? done } : { kind: 'error', text: result.error } }));
     } catch {
       setNotes(n => ({ ...n, [id]: { kind: 'error', text: 'Something went wrong. Try again.' } }));
     } finally {
