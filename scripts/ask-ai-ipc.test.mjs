@@ -65,7 +65,7 @@ function setup({ indexUrl, layout = macLayout(), platform = 'darwin', arch = 'ar
   const shell = { openPath: async p => { opened.push(p); return openPath ? openPath(p) : ''; } };
   registerAskAi({
     ipcMain: electron.electron.ipcMain, shell, store, indexUrl, platform, arch, env: layout.env, homedir: layout.home,
-    fetch: fetchFn, look, systemApps: layout.systemApps, run, statusRunner,
+    fetch: fetchFn, look, systemApps: layout.systemApps, macBinDirs: [], run, statusRunner,
   });
   return { invoke: electron.invoke, sent: electron.senderSent, handlers: electron.handlers, store, opened, layout };
 }

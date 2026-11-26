@@ -137,7 +137,12 @@ export interface DetectOptions extends Place {
   look?: Look;
   /** The system's Applications folder on macOS (a test points it at a temp folder). */
   systemApps?: string;
+  /** macOS folders a command-line `claude` is often in but an app opened from Finder doesn't
+   * have on its PATH: Homebrew's and /usr/local/bin (a test points them at temp folders). */
+  macBinDirs?: string[];
 }
+
+const MAC_BIN_DIRS = ['/opt/homebrew/bin', '/usr/local/bin'];
 
 function localAppData({ env, homedir }: Place): string {
   return env.LOCALAPPDATA || path.join(homedir, 'AppData', 'Local');
@@ -171,9 +176,13 @@ export function detectAiApps(options: DetectOptions): AiAppId[] {
     const apps = [options.systemApps ?? '/Applications', path.join(homedir, 'Applications')];
     if (apps.some(dir => has(path.join(dir, 'Claude.app')))) found.add('claude');
     if (apps.some(dir => has(path.join(dir, 'ChatGPT.app')))) found.add('chatgpt');
-    if (pathDirs(options).some(dir => isFile(path.join(dir, 'claude')))
+    // An app opened from Finder gets a short PATH (/usr/bin:/bin:/usr/sbin:/sbin), so Homebrew's,
+    // /usr/local/bin and npm's usual global folder are looked in by name too.
+    const binDirs = [...pathDirs(options), ...(options.macBinDirs ?? MAC_BIN_DIRS)];
+    if (binDirs.some(dir => isFile(path.join(dir, 'claude')))
       || isFile(path.join(homedir, '.local', 'bin', 'claude'))
-      || isFile(path.join(homedir, '.claude', 'local', 'claude'))) found.add('claude-code');
+      || isFile(path.join(homedir, '.claude', 'local', 'claude'))
+      || isFile(path.join(homedir, '.npm-global', 'bin', 'claude'))) found.add('claude-code');
   } else if (platform === 'win32') {
     const local = localAppData(options);
     const packages = path.join(local, 'Packages');

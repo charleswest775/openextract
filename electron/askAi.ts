@@ -37,6 +37,7 @@ export interface AskAiOptions {
   // For tests: where to look and what to run instead of the real thing.
   look?: Look;
   systemApps?: string;
+  macBinDirs?: string[];
   run?: Run;
   statusRunner?: StatusRunner;
   stallMs?: number;
@@ -79,7 +80,7 @@ export function registerAskAi(o: AskAiOptions): void {
   const off: AskAiResult = { ok: false, error: ASK_AI_OFF };
   const look = o.look ?? realLook;
   const place = { platform: o.platform, env: o.env, homedir: o.homedir };
-  const detect = () => detectAiApps({ ...place, look, systemApps: o.systemApps });
+  const detect = () => detectAiApps({ ...place, look, systemApps: o.systemApps, macBinDirs: o.macBinDirs });
 
   // One install at a time; a second click while one runs waits for the same one.
   let installing: Promise<InstallResult> | null = null;

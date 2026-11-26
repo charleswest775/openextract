@@ -143,9 +143,12 @@ function macLayout() {
   const home = mkdir(path.join(base, 'Users', 'sam'));
   const systemApps = mkdir(path.join(base, 'Applications'));
   const bin = mkdir(path.join(base, 'opt', 'bin'));
+  const brew = mkdir(path.join(base, 'opt', 'homebrew', 'bin'));
+  const usrLocal = mkdir(path.join(base, 'usr', 'local', 'bin'));
   const rec = recording();
-  const detect = () => A.detectAiApps({ platform: 'darwin', homedir: home, env: { PATH: `${bin}:relative/bin` }, systemApps, look: rec.look });
-  return { base, home, systemApps, bin, detect, touched: rec.touched };
+  const detect = () => A.detectAiApps({ platform: 'darwin', homedir: home, env: { PATH: `${bin}:relative/bin` }, systemApps,
+    macBinDirs: [brew, usrLocal], look: rec.look });
+  return { base, home, systemApps, bin, brew, usrLocal, detect, touched: rec.touched };
 }
 
 function windowsLayout() {
@@ -176,6 +179,10 @@ describe('detectAiApps: macOS', () => {
       [m => touch(path.join(m.bin, 'claude')), ['claude-code']],
       [m => touch(path.join(m.home, '.local', 'bin', 'claude')), ['claude-code']],
       [m => touch(path.join(m.home, '.claude', 'local', 'claude')), ['claude-code']],
+      // Not on a Finder-opened app's PATH, so looked in by name
+      [m => touch(path.join(m.brew, 'claude')), ['claude-code']],
+      [m => touch(path.join(m.usrLocal, 'claude')), ['claude-code']],
+      [m => touch(path.join(m.home, '.npm-global', 'bin', 'claude')), ['claude-code']],
     ];
     for (const [make, expected] of cases) {
       const m = macLayout();
@@ -205,6 +212,7 @@ describe('detectAiApps: macOS', () => {
       path.join(m.systemApps, 'Claude.app'), path.join(m.home, 'Applications', 'Claude.app'),
       path.join(m.systemApps, 'ChatGPT.app'), path.join(m.home, 'Applications', 'ChatGPT.app'),
       path.join(m.bin, 'claude'), path.join(m.home, '.local', 'bin', 'claude'), path.join(m.home, '.claude', 'local', 'claude'),
+      path.join(m.brew, 'claude'), path.join(m.usrLocal, 'claude'), path.join(m.home, '.npm-global', 'bin', 'claude'),
     ];
     assert.deepEqual([...new Set(m.touched)].sort(), expected.sort());
   });
