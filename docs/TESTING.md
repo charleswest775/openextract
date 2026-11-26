@@ -51,8 +51,11 @@ node scripts/e2e/run.mjs --backups e2e-backups.json --suites screens,exports   #
 node scripts/e2e/run.mjs --list                   # what each suite covers
 ```
 
-A window opens and clicks through the app by itself; leave it alone until it closes. On Linux
-without a display, put `xvfb-run -a` in front. Results, timings and screenshots of the
+A window opens and clicks through the app by itself; leave it alone until it closes. On a Mac
+the window stays hidden (`--background`, the default there outside CI), so the run doesn't take
+the screen and keyboard while you work on something else; add `--show` to watch it. `--background`
+works on other systems too, but only for the development build. On Linux without a display, put
+`xvfb-run -a` in front. Results, timings and screenshots of the
 fictional backups go to `e2e-out/`. `--app <path>` runs the suites against a packaged or
 installed build instead of this checkout.
 
