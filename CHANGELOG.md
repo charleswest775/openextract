@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 - Photos: with Videos or Live Photos picked in the type menu, the Save button now reads Save these and saves only that type. It used to save every photo and video in the album whatever the menu showed
 - Saving photos into a folder you've saved them to before now says how many were already there, for example "40 exported · 1,200 were already in that folder". As since 0.19.0, only the ones that weren't there are copied, so saving all your photos again after a newer backup adds just the new ones (OE-193)
+- Saving a conversation or WhatsApp chat as a PDF: each PDF now holds up to about 500 photos or 1,000 pages, half as much as before, so a computer without much memory to spare can print it. A long chat is split into more PDFs than before, by year or by runs of months; a shorter one still goes in one file (OE-170)
 
 ### Fixed
 - Photos: the grid fills much faster, because it uses the small copies of each photo the iPhone keeps in the backup instead of opening every full-size photo, and a video's tile no longer copies the whole video out of an encrypted backup first, which held up every photo after it

@@ -53,6 +53,11 @@ const isDev = !app.isPackaged;
 // The end-to-end tests (scripts/e2e) run an unpackaged build with the renderer from dist/,
 // as packaged builds load it, and the engine from python/. Development builds only.
 const isE2E = isDev && process.env.OPENEXTRACT_E2E === '1';
+// The tests can also run with the window never shown (run.mjs --background), so a run on
+// someone's Mac doesn't take the screen and keyboard from what they're doing. Showing a
+// window is what brings the app to the front on macOS, even showInactive(). A window that
+// was never shown still renders (paintWhenInitiallyHidden), so the tests and screenshots work.
+const e2eHidden = isE2E && process.env.OPENEXTRACT_E2E_HIDDEN === '1';
 
 app.setName('OpenExtract');
 
@@ -203,6 +208,7 @@ function createWindow() {
     minHeight: 600,
     title: `OpenExtract v${app.getVersion()}`,
     backgroundColor: '#fbf6f1',
+    show: !e2eHidden,
     // On macOS the real traffic lights sit inside the app's 52px header row
     // (see .titlebar in index.css); elsewhere the native frame stays.
     ...(isMac ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 19 } } : {}),
