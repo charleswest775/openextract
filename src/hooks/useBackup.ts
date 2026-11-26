@@ -22,11 +22,12 @@ export function useBackup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const listBackups = useCallback(async (customPath?: string, skipSizes = false): Promise<BackupInfo[]> => {
+  /** Backups in customPath (or the usual folders), and the engine's words on what a folder with none held. */
+  const listBackups = useCallback(async (customPath?: string, skipSizes = false): Promise<{ backups: BackupInfo[]; hint?: string }> => {
     setLoading(true);
     setError(null);
     try {
-      const result = await sidecarCall<{ backups: BackupInfo[] }>('list_backups', {
+      const result = await sidecarCall<{ backups: BackupInfo[]; hint?: string }>('list_backups', {
         path: customPath,
       });
       setBackups(result.backups);
@@ -43,7 +44,7 @@ export function useBackup() {
           }).catch(() => {});
         }
       }
-      return result.backups;
+      return { backups: result.backups, hint: result.hint };
     } catch (e: any) {
       setError(e.message);
       // Rethrow so callers can tell "no backups here" apart from "couldn't read

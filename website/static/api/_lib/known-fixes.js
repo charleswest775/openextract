@@ -224,7 +224,7 @@ const KNOWN_FIXES = [
     area: 'open',
     seen: ['No iPhone backups found in'],
     match: /No iPhone backups found/i,
-    text: 'Choose the folder that holds your backups, not one backup inside it. If a backup you were making with OpenExtract didn\'t finish, there\'s nothing to open yet: make the backup again first. On a Mac it\'s Library/Application Support/MobileSync/Backup in your user folder. On Windows it\'s usually Apple/MobileSync/Backup in your user folder, or AppData/Roaming/Apple Computer/MobileSync/Backup.',
+    text: 'Choose the backup\'s own folder (the one with Manifest.db in it) or the folder it\'s in. If the backup came as a .zip file, extract it first. If a backup you were making with OpenExtract didn\'t finish, there\'s nothing to open yet: make the backup again first. On a Mac it\'s Library/Application Support/MobileSync/Backup in your user folder. On Windows it\'s usually Apple/MobileSync/Backup in your user folder, or AppData/Roaming/Apple Computer/MobileSync/Backup.',
   },
   {
     id: 'files-missing-from-backup-folder',

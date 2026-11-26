@@ -62,6 +62,8 @@ from rpc_contract_support import (  # noqa: E402
     MAREN,
     MAREN_ENCRYPTED,
     PDF_MAGIC,
+    TESTPERSONA,
+    TESTPERSONA_ENCRYPTED,
     VOICEMAIL_TRANSCRIPT,
     BackupEngine,
     ContractRuntime,
@@ -146,6 +148,14 @@ class Ctx:
     @property
     def einstein(self) -> BackupEngine:
         return self.runtime.backup(EINSTEIN)
+
+    @property
+    def testpersona(self) -> BackupEngine:
+        return self.runtime.backup(TESTPERSONA)
+
+    @property
+    def testpersona_enc(self) -> BackupEngine:
+        return self.runtime.backup(TESTPERSONA_ENCRYPTED)
 
     @property
     def whatsapp(self) -> BackupEngine:
@@ -524,6 +534,59 @@ def case_list_photos(ctx):
     if favorites.get("source") == "photos_sqlite":  # an engine without Favorites can't filter by it
         assert all(p["favorite"] for p in favorites["photos"])
         assert favorites["total"] == sum(1 for p in m.expected["photos"] if p["favorite"] and not p["trashed"])
+
+
+def _photo_people_expected(engine: BackupEngine) -> list[dict]:
+    """The answer key's People album as list_photo_people lists it: people (not pets), not merged away, with photos."""
+    return [p for p in engine.expected.get("photo_people") or []
+            if not p["pet"] and not p["merged_into"] and p["photos"]]
+
+
+@contract("list_photo_people")
+def case_list_photo_people(ctx):
+    for engine in (ctx.testpersona, ctx.testpersona_enc):  # iOS 26 and iOS 17, plain and encrypted
+        result = engine.rpc("list_photo_people")
+        expected = _photo_people_expected(engine)
+        if not expected:
+            pytest.skip("the generated test persona has no People album: ios-backup-core is older than #39")
+        assert result["source"] == "photos_sqlite"
+        uuids = {p["id"]: p["uuid"] for p in engine.expected["photos"]}
+        assert sorted((p["name"] or "", p["photo_count"]) for p in result["people"]) == sorted(
+            (p["name"] or "", len(p["photos"])) for p in expected)
+        for person in result["people"]:
+            assert {"id", "name", "contact_uri", "photo_count", "in_backup", "not_in_backup",
+                    "missing_from_folder", "face"} <= set(person)
+            assert person["in_backup"] == person["photo_count"] and person["not_in_backup"] == 0
+            face = person["face"]
+            assert face["file_hash"] and 0 <= face["center_x"] <= 1 and 0 <= face["center_y"] <= 1 and face["size"] > 0
+            page = engine.rpc("list_photos", offset=0, limit=100, person_ids=[person["id"]])
+            key = next(p for p in expected if (p["name"] or "") == (person["name"] or ""))
+            assert sorted(p["uuid"] for p in page["photos"]) == sorted(uuids[i] for i in key["photos"])
+            assert (page["total"], page["in_backup"], page["not_in_backup"]) == (len(key["photos"]),) * 2 + (0,)
+        assert result["people"] == sorted(result["people"], key=lambda p: -p["in_backup"])
+        assert any(p["name"] is None for p in result["people"])  # most groups are never named
+        ids = [p["id"] for p in result["people"]]
+        together = engine.rpc("list_photos", offset=0, limit=100, person_ids=ids, person_match="all")
+        anyone = engine.rpc("list_photos", offset=0, limit=100, person_ids=ids)
+        assert together["in_backup"] == len(together["photos"]) < anyone["in_backup"] == len(anyone["photos"])
+        assert engine.rpc("list_photos", offset=0, limit=100, person_ids=["999999"])["total"] == 0
+    assert ctx.maren.rpc("list_photo_people")["people"] == []  # maren's library has no faces
+
+
+@contract("get_face_thumbnail")
+def case_get_face_thumbnail(ctx):
+    for engine in (ctx.testpersona, ctx.testpersona_enc):  # the encrypted one hands out "dcim:" keys
+        people = engine.rpc("list_photo_people")["people"]
+        if not people:
+            pytest.skip("the generated test persona has no People album: ios-backup-core is older than #39")
+        face = people[0]["face"]
+        result = engine.rpc("get_face_thumbnail", **face, px=80)
+        image = Image.open(io.BytesIO(decoded(result, "face")))
+        assert result["mime_type"] == "image/jpeg" and image.format == "JPEG" and image.size == (80, 80)
+        assert result["cached"] is False
+        again = engine.rpc("get_face_thumbnail", **face, px=80)
+        assert again["cached"] is True and again["data"] == result["data"]
+        assert "error" in engine.rpc("get_face_thumbnail", file_hash="no-such-file", center_x=0.5, center_y=0.5, size=0.1)
 
 
 @contract("get_photo_thumbnail")

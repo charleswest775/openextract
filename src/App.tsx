@@ -6,10 +6,11 @@ import BackupFlow from './components/backup/BackupFlow';
 import PasswordDialog from './components/shared/PasswordDialog';
 import BackupChooserDialog from './components/shared/BackupChooserDialog';
 import type { RecentSession } from './lib/appState';
-import { backupMissingMessage } from './lib/foundBackups';
+import { backupMissingMessage, noBackupsMessage } from './lib/foundBackups';
 import FullDiskAccessDialog, { FULL_DISK_ACCESS_PREFIX } from './components/shared/FullDiskAccessDialog';
 import UpdateNotice from './components/shared/UpdateNotice';
 import PayItForwardPrompt from './components/shared/PayItForwardPrompt';
+import BusinessUsePrompt from './components/shared/BusinessUsePrompt';
 import ExportCheckPrompt from './components/shared/ExportCheckPrompt';
 import FixedReportNotice from './components/shared/FixedReportNotice';
 import { FeedbackProvider, ReportProblemButton } from './components/shared/Feedback';
@@ -92,9 +93,9 @@ export default function App() {
     const path = await window.openextract.selectFolder();
     if (!path) return;
     try {
-      const found = await backup.listBackups(path, true);
+      const { backups: found, hint } = await backup.listBackups(path, true);
       if (found.length === 0) {
-        setOpenError(`No iPhone backups found in ${path}. Pick the parent folder that contains a UDID-named subfolder (e.g. MobileSync/Backup).`);
+        setOpenError(noBackupsMessage(path, hint, window.openextract.platform));
         return;
       }
       if (found.length > 1) {
@@ -186,6 +187,7 @@ export default function App() {
       {/* Bottom-right notices, stacked so they never overlap */}
       <div className="fixed right-6 bottom-6 z-40 flex flex-col items-end gap-3">
         <PayItForwardPrompt />
+        <BusinessUsePrompt />
         <ExportCheckPrompt />
         <FixedReportNotice />
         <UpdateNotice />

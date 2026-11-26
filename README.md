@@ -11,7 +11,7 @@ Made by an independent developer with help from contributors.
 
 **No cloud. No subscriptions. Your data stays on your computer.**
 
-[![The home page of a sample iPhone backup in OpenExtract: tiles with counts of messages, WhatsApp messages, photos, people, address book cards, calls, notes, voicemails and podcasts, plus web history, timeline and year, under a search box for the whole backup.](website/static/img/screens/home-1000.webp)](website/static/img/screens/home-2000.webp)
+[![The home page of a sample iPhone backup in OpenExtract: tiles with counts of messages, WhatsApp messages, photos, people, address book cards, calls, notes, voicemails, podcasts, voice memos and calendar events, plus web history, timeline and year, under a search box for the whole backup.](website/static/img/screens/home-1000.webp)](website/static/img/screens/home-2000.webp)
 
 ## Features
 
@@ -25,8 +25,10 @@ Made by an independent developer with help from contributors.
 - 👤 **Address book** — Browse and export your saved contact cards
 - 📝 **Notes** — Read and export your iOS notes
 - 🎙️ **Podcasts** — The shows you follow and every episode you played; save your subscriptions as OPML for another podcast app, or everything as a spreadsheet ([guide](https://www.openextract.app/use-cases/export-podcasts-from-iphone-backup?ref=gh-readme))
+- 🎤 **Voice Memos** — Every recording, with its transcript, folders and Recently Deleted; play them in the app or save them as audio files named by date ([guide](https://www.openextract.app/use-cases/export-voice-memos-from-iphone-backup?ref=gh-readme))
+- 📅 **Calendar** — Every event by account and calendar, upcoming and past; save them as .ics files for Calendar, Outlook or Google Calendar, or as a spreadsheet ([guide](https://www.openextract.app/use-cases/export-calendar-from-iphone-backup?ref=gh-readme))
 - 🔒 **Encrypted Backups** — Full support for password-protected backups
-- 📤 **Export** — Every save lists its formats the same way and in the same order: PDF, web page (HTML), spreadsheet (CSV) and plain text for messages, WhatsApp, people, the timeline, calls and web history, with contact cards, podcast subscriptions, original photos and voicemail audio where they apply
+- 📤 **Export** — Every save lists its formats the same way and in the same order: PDF, web page (HTML), spreadsheet (CSV) and plain text for messages, WhatsApp, people, the timeline, calls and web history, with contact cards, podcast subscriptions, calendar files, original photos and voicemail and voice memo audio where they apply
 
 ## Writing
 
@@ -131,6 +133,16 @@ These use a made-up test backup, so none of the people or messages are real. Cli
     <td width="50%" valign="top">
       <a href="website/static/img/screens/podcasts-2000.webp"><img src="website/static/img/screens/podcasts-1000.webp" width="100%" alt="The Podcasts screen with a show open: whether it's followed, its feed address, and the episodes listened to, each marked played, in progress, saved or downloaded, with buttons to get the audio or open the episode page."></a>
       <br><b>Podcasts</b>: the shows you follow and every episode you played. Save your subscriptions for another podcast app.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="website/static/img/screens/voice-memos-2000.webp"><img src="website/static/img/screens/voice-memos-1000.webp" width="100%" alt="The Voice Memos section in OpenExtract, opened on a made-up sample backup: 11 recordings, about 3 hours 28 minutes in all, with Favorites, a folder called Site visits and Recently Deleted down the side. A recording called DD presentation run-through is open, with a player, Open in another app and Save buttons, and its transcript. Above it, Frog pond tour is marked Favorite and Permit comments call is marked Kept in iCloud only."></a>
+      <br><b>Voice Memos</b>: every recording with its transcript. Play them, or save them all as audio files named by date.
+    </td>
+    <td width="50%" valign="top">
+      <a href="website/static/img/screens/calendar-2000.webp"><img src="website/static/img/screens/calendar-1000.webp" width="100%" alt="The Calendar section in OpenExtract, opened on a made-up sample backup: All calendars, with 3 events upcoming and 29 past as of the backup on June 28, 2026. A dentist cleaning on July 9 is open, showing when, where, two alerts and its Home calendar. Down the side are the calendars by account, On My iPhone and iCloud (Home and Work), with US Holidays and Found in Mail under Other calendars."></a>
+      <br><b>Calendar</b>: every event, upcoming and past, by calendar. Save them as .ics files for another calendar app.
     </td>
   </tr>
 </table>
@@ -269,6 +281,8 @@ The only network request the app makes is an update check: it asks GitHub for th
 ## License
 
 MIT — use it however you want.
+
+If you use OpenExtract for paid work (a repair shop, an investigator, a law firm, an IT team), I ask that you pay [$50 a case or $200 a year](https://www.openextract.app/support#business), with a receipt you can bill to your client. It's a request, not a condition of the license: nothing in the app changes either way.
 
 ## Contributing
 

@@ -33,6 +33,7 @@ from ios_backup_core.backup import (
 )
 
 import backup_beside
+import backup_search
 import backup_status
 import older_backups
 from save_files import NO_ROOM_TO_DECRYPT, SaveStopped, out_of_space, remove
@@ -350,10 +351,24 @@ class BackupManager:
                 if info and info["openable"]:  # a try with nothing to open isn't a backup to offer
                     backups.append(info)
 
+        hint = ""
+        if custom_path and searched and not backups:
+            # Not the backup or the folder just above it: inside a backup, or further up (#191).
+            inside = backup_search.enclosing(custom_path, self._read_backup_info)
+            if inside:
+                return {"backups": [inside], "search_dirs": [custom_path]}
+            deeper, stopped = backup_search.find_below(custom_path, self._read_backup_info)
+            backups.extend(deeper)
+            if not backups:
+                hint = backup_search.describe(custom_path, stopped=stopped)
+
         # Newest first. last_backup is an ISO date in UTC, or "" when unknown.
         backups.sort(key=lambda b: str(b.get("last_backup") or ""), reverse=True)
-        return {"backups": backups, "search_dirs": searched,
-                "permission_denied": permission_denied}
+        result = {"backups": backups, "search_dirs": searched,
+                  "permission_denied": permission_denied}
+        if hint:
+            result["hint"] = hint
+        return result
 
     def read_info(self, backup_dir: str) -> Optional[dict]:
         """What's known about the backup in this folder now, or None if it isn't one."""

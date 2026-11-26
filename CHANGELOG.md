@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Photos: a People list under the albums, from the groups your iPhone's Photos app made of the faces it found, named or not (most never are), each with a face (or their head and shoulders, for someone Photos only saw from the side or behind) and how many photos the backup has. Pick someone to see just their photos, or several to see photos with any of them or only those with all of them together, and Save saves exactly those. OpenExtract only reads what your iPhone worked out; it never compares faces itself
+- Using it for paid work?: after you save from a sixth different iPhone in a year, the app asks once whether it's paid work, and if it is, points to the business rates on the site ($50 a case or $200 a year, with a receipt). It's a request, not a condition of the license: nothing in the app changes either way, and it never asks again. The count stays on your computer, as scrambled iPhone IDs, and nothing is sent. Not shown to anyone who has said they've paid
+
+### Fixed
+- Photos: the grid fills much faster, because it uses the small copies of each photo the iPhone keeps in the backup instead of opening every full-size photo, and a video's tile no longer copies the whole video out of an encrypted backup first, which held up every photo after it
+- Calendar: All calendars now says how many events are in how many calendars, counting only calendars with events, as the home tile does, instead of also counting the empty calendar every iPhone has. An open repeating event says how it repeats once, in its details, instead of also as a label above them
+- Voice Memos: an open recording no longer shows its file's internal name (such as 20251117 211010-7003F8D2.m4a) beside Save, and the sidebar's headings match the rest of the app
+- Open a backup folder: choosing a folder above the backup, such as MobileSync, a drive, or a folder another program keeps its backups in, now finds backups up to four folders down instead of saying none were found. Choosing a folder inside a backup opens that backup. When there's no backup, the message says what the folder holds (it's empty, it has a .zip to extract first, it has a backup's files but not Manifest.db, or it holds photos) and which folder to choose, instead of asking for "a UDID-named subfolder"
+
+## [0.19.0] - 2026-11-23
+
 Two new sections: Voice Memos, with the iPhone's recordings, their transcripts and Recently Deleted, and Calendar, with every event and calendar files (.ics) to save. On People, photos, videos, voice messages and documents now show on each message as they do on the phone, and Save everything saves your whole history with someone, with every file. A chat too big for one PDF is saved as one PDF per year. Back up my iPhone no longer ruins the backup already in a folder when a new backup fails partway: if one failed with 0.18.0 or earlier, see Fixed below. Older backups can be moved to the Trash from Backup details. Saves never replace a file that's already there, so photos that share a name like IMG_0001 are all saved, and a save that runs out of room says so instead of calling photos "not in this backup". Long saves from encrypted backups are much faster and show how far they've got.
 
 ### Added

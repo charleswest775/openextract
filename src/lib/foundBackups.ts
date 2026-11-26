@@ -75,3 +75,24 @@ export function whenLine(b: Pick<BackupInfo, 'last_backup' | 'unfinished'>, form
   if (!date) return undefined;
   return b.unfinished ? `Started ${date}` : `Backed up ${date}`;
 }
+
+/**
+ * What "Open a backup folder" says when the chosen folder has no backup in it, at any of the
+ * levels the engine looks (python/backup_search.py). `hint` is the engine's sentence on what the
+ * folder held, which also tells a feedback report which case it was (the report hides the path).
+ * It starts with the words the site's known fix matches (website/static/api/_lib/known-fixes.js).
+ * Feedback #191: the old words asked for "a UDID-named subfolder".
+ */
+export function noBackupsMessage(path: string, hint: string | undefined, platform: string): string {
+  const where = platform === 'darwin'
+    ? 'Finder keeps them in Library/Application Support/MobileSync/Backup in your user folder.'
+    : platform === 'win32'
+      ? 'iTunes and Apple Devices keep them in Apple Computer\\MobileSync\\Backup or Apple\\MobileSync\\Backup, in AppData\\Roaming or your user folder.'
+      : '';
+  return [
+    `No iPhone backups found in ${path}.`,
+    hint?.trim(),
+    "Choose the backup's own folder (the one with Manifest.db in it) or the folder it's in.",
+    where,
+  ].filter(Boolean).join(' ');
+}

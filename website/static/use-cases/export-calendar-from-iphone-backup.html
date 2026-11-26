@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Export calendar events from an iPhone backup, free — OpenExtract</title>
+  <meta name="description" content="Get every event from the iPhone&#x27;s Calendar app out of a backup and save them as .ics calendar files that Calendar, Outlook and Google Calendar import, or a spreadsheet. Free." />
+  <link rel="canonical" href="https://www.openextract.app/use-cases/export-calendar-from-iphone-backup" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/use-cases/export-calendar-from-iphone-backup" />
+  <meta property="og:title" content="Export calendar events from an iPhone backup, free" />
+  <meta property="og:description" content="Open an iPhone backup, see every calendar event, and save them as .ics files that Calendar, Outlook and Google Calendar import, or as a spreadsheet." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Export calendar events from an iPhone backup",
+    "description": "Get every event from the iPhone's Calendar app out of a backup and save them as .ics calendar files that Calendar, Outlook and Google Calendar import, or a spreadsheet. Free.",
+    "url": "https://www.openextract.app/use-cases/export-calendar-from-iphone-backup",
+    "inLanguage": "en",
+    "datePublished": "2026-11-23",
+    "dateModified": "2026-11-23",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    },
+    "about": {
+      "@type": "SoftwareApplication",
+      "name": "OpenExtract",
+      "applicationCategory": "UtilityApplication",
+      "applicationSubCategory": "DataExtraction",
+      "operatingSystem": "Windows 10, Windows 11, macOS (Apple Silicon), Linux",
+      "url": "https://www.openextract.app/",
+      "screenshot": "https://www.openextract.app/img/screens/home-2000.png",
+      "downloadUrl": "https://github.com/charleswest775/openextract/releases",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Can I get calendar events off my iPhone without iCloud?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. When you back up an iPhone to a computer, the Calendar app's events go into the backup, and OpenExtract saves them from there as calendar files or a spreadsheet. No iCloud and no Apple account is needed."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which calendar apps can import the files?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The .ics files are the standard iCalendar format, which Calendar on a Mac, Outlook and Google Calendar import, along with most other calendar apps. Import each file into a new, empty calendar if you can, so you can remove it in one go if it isn't what you wanted."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Will importing send invitations to the people on my events?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Who organized an event and who was invited are written into each event's notes, not as invitees, so importing the file doesn't turn your events into meeting invitations or email anyone."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it show which calendar each event was in?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Events are grouped by account, such as iCloud, On My iPhone, Exchange or Gmail, then by calendar, each with its colour, and saving every calendar writes one file per calendar. Holidays, birthdays, Found in Mail and calendars you subscribed to are listed apart, under Other calendars."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do repeating events come out right?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. A repeating event is saved once, with its repeat rule and any dates you skipped or moved, so a calendar app shows every date. On screen it's listed once, on the day the series started, with how it repeats in words, such as \"Every week on Tuesday\"."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do all-day events stay on the right day?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. A birthday or holiday on July 4 stays on July 4 on screen and in the saved files, whatever time zone your computer is in. An event set in another time zone shows its time there as well as on your computer's clock."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do I need an encrypted backup?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. The Calendar is in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it, and the password stays on your computer."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which versions of iOS does it read?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "It's been checked on backups from iOS 13, 15, 16, 17 and 26, and versions in between should read the same way. Very old versions, before iOS 13, may use a layout it can't read yet; if so, the Calendar screen says so and has a button to report the problem."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does anything get uploaded?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. It goes online only when you let it: to check for a new version, if you allow it (you can turn that off in Settings); to send a problem report or a thank-you, when you click Send; and on Windows, to install Apple's free Apple Devices app from Microsoft, if you ask it to, for backing up an iPhone. Nothing from inside your backup goes with any of them."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it really free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. The code is on GitHub."
+        }
+      }
+    ]
+  }
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__pay" href="/support" aria-label="Pay it forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C1 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.2 4.4 2.5h2c.7-1.3 2.2-2.5 4.4-2.5 3.7 0 5.6 3.9 4.2 7.1C19.5 16.4 12 21 12 21z"/></svg><span class="nav__pay-label">Pay it forward</span></a>
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">Guide · 4 min</div>
+    <h1>Export <span class="it">calendar events</span><br />from an iPhone backup.</h1>
+    <p class="page-head__lede">Back up the iPhone to your Windows PC or Mac, open the backup in OpenExtract, a free app, and see every event in the iPhone's calendars, upcoming and past. Save them as .ics calendar files that Calendar, Outlook and Google Calendar import, or as a spreadsheet. Nothing is uploaded.</p>
+    <p class="alt-disclosure">OpenExtract is an independent open-source app. It isn't made by Apple and has no connection to it.</p>
+  </header>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <p>Calendar on the iPhone has no way to save your events as a file. If they're in iCloud you can see them on another Apple device, but events kept "On My iPhone", years of past appointments, or a calendar from a phone that's broken or gone have nowhere else to go. Moving to Android, Outlook or Google Calendar means starting again, or finding a way to get the events out.</p>
+      <p>There's another way in. When you back up an iPhone to a computer, the Calendar app's database goes into that backup: every calendar and the account it belongs to, and each event's time, place, notes, links, who was invited and how they answered, alerts and how it repeats. OpenExtract reads it from there, in its own Calendar section, and saves it as files you keep. It's free, with no trial and no limit on how much you save.</p>
+      <figure class="screen">
+        <a class="screen__frame" href="/img/screens/calendar-2000.webp">
+          <img src="/img/screens/calendar-1000.webp" srcset="/img/screens/calendar-1000.webp 1000w, /img/screens/calendar-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 720px" width="1000" height="625" loading="lazy" decoding="async" alt="The Calendar section in OpenExtract, opened on a made-up sample backup: All calendars, with 3 events upcoming and 29 past as of the backup on June 28, 2026. A dentist cleaning on July 9 is open, showing when, where, two alerts and its Home calendar. Down the side are the calendars by account, On My iPhone and iCloud (Home and Work), with US Holidays and Found in Mail under Other calendars." />
+        </a>
+        <figcaption><strong>Calendar, opened from a backup</strong>A made-up sample backup in OpenExtract. <a href="/screenshots">See every screen</a>.</figcaption>
+      </figure>
+
+      <h2>Who this is for</h2>
+      <ul>
+        <li><strong>Moving to Android, Outlook or Google Calendar.</strong> Take your events with you in calendar files, one per calendar, instead of typing them in again.</li>
+        <li><strong>Events from a phone that's gone.</strong> If the iPhone is broken, lost, sold or locked for good, a backup on a computer can still hold its calendar, including events that were only ever on the phone.</li>
+        <li><strong>A record of when things happened.</strong> Appointments, trips and meetings going back years, with places and who was there, to look through or keep as a spreadsheet.</li>
+        <li><strong>Checking a date.</strong> When was that appointment, that trip, that meeting? Past events are listed a day at a time, newest first.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="uc-steps">
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">01</div>
+      <div>
+        <h2>Install OpenExtract</h2>
+        <p>Download it for <a href="/download/windows">Windows</a> or <a href="/download/mac">Mac</a> (Apple Silicon) and install it. There's a <a href="/use-cases/iphone-backup-extractor-linux">Linux version</a> too. It's free, with no account and no trial. The Windows installer is signed by Charles West, the developer; if SmartScreen shows a notice for a new app, choose More info, then Run anyway.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--butter);">02</div>
+      <div>
+        <h2>Back up the iPhone, or use a backup you have</h2>
+        <p>On OpenExtract's start screen, click <strong>Back up my iPhone</strong>, connect the phone with a cable, tap <strong>Trust</strong> on it and enter its passcode if it asks, then choose a folder and start. A backup often takes about half an hour. The Calendar is in ordinary and encrypted backups alike, so encryption is up to you; an encrypted backup holds more of the rest, such as call history (<a href="/blog/encrypted-backups-are-better">here's why encrypted backups are better</a>).</p>
+        <p>Already backed up with Finder on a Mac, or with the Apple Devices app or iTunes on Windows? OpenExtract lists the backups it finds on the start screen, or you can choose <strong>Open a backup folder</strong>. Here's <a href="/use-cases/where-are-iphone-backups-stored">where iPhone backups are stored</a>. A backup has the calendar as it was on the day it was made, so make a new one if you want today's.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--sage);">03</div>
+      <div>
+        <h2>Open Calendar</h2>
+        <p>Open the backup (type its password if it's encrypted) and click <strong>Calendar</strong> on its home page. Its tile says how many calendars have events. Down the side is <strong>All calendars</strong>, then your calendars grouped by account (iCloud, On My iPhone, Exchange, Gmail and others), each with its colour and how many events it has. Holidays, birthdays, Found in Mail and calendars you subscribed to are listed apart under <strong>Other calendars</strong>, so they don't crowd your own; open one to see its events.</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--plum);">04</div>
+      <div>
+        <h2>Look through your events</h2>
+        <p><strong>Upcoming</strong> and <strong>Past</strong> divide at the day the backup was made, and the screen says which day that is. Events are listed a day at a time: upcoming ones forward, past ones backward from the backup. Click an event to see its time, place, links, who organized it and who was invited and how they answered, its alerts, notes and calendar. An event set in another time zone shows its time there as well as on your computer's clock, and all-day events stay on their own day wherever you are.</p>
+        <p>A repeating event is listed once, on the day the series started, with how it repeats in words, such as "Every week on Tuesday" or "Every year on the third Sunday of June".</p>
+      </div>
+    </div>
+    <div class="uc-step">
+      <div class="uc-step__num" style="color: var(--coral);">05</div>
+      <div>
+        <h2>Save your calendars</h2>
+        <p>Click <strong>Save</strong> at the top of the Calendar screen. With <strong>All calendars</strong> chosen it saves every calendar; with one calendar open, just that one. Choose <strong>Calendar file</strong> (.ics, for another calendar app) or <strong>Spreadsheet</strong>, click <strong>Save</strong> and pick a folder. Saving again never overwrites a file; the new one gets "(2)" added to its name.</p>
+        <p>To save your calendar along with everything else, click <strong>Save to this computer</strong> on the backup's home page, then <strong>Save</strong> next to Calendar.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <div class="prose__inner">
+      <h2>What you get</h2>
+      <ul>
+        <li><strong>Calendar file (.ics)</strong>: saving every calendar makes a folder named after the iPhone with one file per calendar that has events, such as <code>Home.ics</code> and <code>Work.ics</code>; saving one calendar makes its file alone. Each event keeps its time and time zone, place, notes, link, alerts, and its repeat rule with any dates you skipped or moved. Who organized it and who was invited are written into its notes, so importing doesn't send anyone an invitation.</li>
+        <li><strong>Spreadsheet (CSV)</strong> is <code>Calendar.csv</code> (or one calendar's), which opens in Excel, Numbers or Google Sheets: each event's calendar and account, title, start and end, time zone, place and address, notes, link, how it repeats, status, organizer, invitees and alerts, and when it was created and last changed.</li>
+      </ul>
+
+      <figure class="screen">
+        <a class="screen__frame" href="/img/screens/calendar-event-2000.webp">
+          <img src="/img/screens/calendar-event-1000.webp" srcset="/img/screens/calendar-event-1000.webp 1000w, /img/screens/calendar-event-2000.webp 2000w" sizes="(max-width: 720px) calc(100vw - 48px), 720px" width="1000" height="625" loading="lazy" decoding="async" alt="A repeating work meeting opened in OpenExtract&#x27;s Calendar, on a made-up sample backup: Cottonwood check-in, every 2 weeks on Thursday, 20 times, organized by Owen Castellanos, with each invitee&#x27;s email and answer, Accepted or Maybe, a 10-minute alert and its Work calendar." />
+        </a>
+        <figcaption><strong>A repeating meeting</strong>How it repeats, who organized it, and how each person answered.</figcaption>
+      </figure>
+
+      <h2>Putting the events into another calendar app</h2>
+      <p>Import each .ics file into a new, empty calendar if the app lets you, so you can remove it in one go if it isn't what you wanted.</p>
+      <ul>
+        <li><strong>Calendar on a Mac:</strong> File › Import, choose the file, then choose the calendar to add it to, or New Calendar.</li>
+        <li><strong>Google Calendar:</strong> on the web, Settings › Import &amp; export › Import, choose the file and the calendar to add it to.</li>
+        <li><strong>Outlook:</strong> open the .ics file with Outlook, or use its Import option, and add the events to a calendar.</li>
+      </ul>
+      <p>Phone apps, Android's included, usually can't import a file themselves; import into Google Calendar or Outlook on the web and the events appear on the phone.</p>
+
+      <h2>What it can't do</h2>
+      <ul>
+        <li><strong>Repeating events are listed once on screen.</strong> A series shows on the day it started, not on each later date, and one that began in the past is under Past even if it still repeats. The saved files have the full repeat rule, so a calendar app shows every date.</li>
+        <li><strong>No attachments or reminders.</strong> Files attached to events aren't read, and the Reminders app is a different thing that OpenExtract doesn't read.</li>
+        <li><strong>Not iCloud.</strong> OpenExtract reads what was on the iPhone when the backup was made, not iCloud Calendar on the web or another device.</li>
+        <li><strong>Not mixed in with the rest.</strong> Events aren't in the backup's Timeline, its search, People or the Year view.</li>
+        <li><strong>It can't put events back</strong> into Calendar on a phone by itself. The files are for your computer and for importing into a calendar app.</li>
+      </ul>
+
+      <h2>Common questions</h2>
+      <p><strong>Can I get calendar events off my iPhone without iCloud?</strong> Yes. When you back up an iPhone to a computer, the Calendar app's events go into the backup, and OpenExtract saves them from there as calendar files or a spreadsheet. No iCloud and no Apple account is needed.</p>
+      <p><strong>Which calendar apps can import the files?</strong> The .ics files are the standard iCalendar format, which Calendar on a Mac, Outlook and Google Calendar import, along with most other calendar apps. Import each file into a new, empty calendar if you can, so you can remove it in one go if it isn't what you wanted.</p>
+      <p><strong>Will importing send invitations to the people on my events?</strong> No. Who organized an event and who was invited are written into each event's notes, not as invitees, so importing the file doesn't turn your events into meeting invitations or email anyone.</p>
+      <p><strong>Does it show which calendar each event was in?</strong> Yes. Events are grouped by account, such as iCloud, On My iPhone, Exchange or Gmail, then by calendar, each with its colour, and saving every calendar writes one file per calendar. Holidays, birthdays, Found in Mail and calendars you subscribed to are listed apart, under Other calendars.</p>
+      <p><strong>Do repeating events come out right?</strong> Yes. A repeating event is saved once, with its repeat rule and any dates you skipped or moved, so a calendar app shows every date. On screen it's listed once, on the day the series started, with how it repeats in words, such as "Every week on Tuesday".</p>
+      <p><strong>Do all-day events stay on the right day?</strong> Yes. A birthday or holiday on July 4 stays on July 4 on screen and in the saved files, whatever time zone your computer is in. An event set in another time zone shows its time there as well as on your computer's clock.</p>
+      <p><strong>Do I need an encrypted backup?</strong> No. The Calendar is in ordinary backups as well as encrypted ones. If the backup is encrypted, OpenExtract asks for its password when you open it, and the password stays on your computer.</p>
+      <p><strong>Which versions of iOS does it read?</strong> It's been checked on backups from iOS 13, 15, 16, 17 and 26, and versions in between should read the same way. Very old versions, before iOS 13, may use a layout it can't read yet; if so, the Calendar screen says so and has a button to report the problem.</p>
+      <p><strong>Does anything get uploaded?</strong> No. OpenExtract reads the backup on your own computer and doesn't send it anywhere. It goes online only when you let it: to check for a new version, if you allow it (you can turn that off in Settings); to send a problem report or a thank-you, when you click Send; and on Windows, to install Apple's free Apple Devices app from Microsoft, if you ask it to, for backing up an iPhone. Nothing from inside your backup goes with any of them.</p>
+      <p><strong>Is it really free?</strong> Yes. OpenExtract is open source under the MIT license, with no paid tier, no account and no strings attached. <a href="https://github.com/charleswest775/openextract">The code is on GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section class="inline-download">
+    <div class="inline-download__inner">
+      <div>
+        <div class="privacy__eyebrow">Windows · Mac · Linux</div>
+        <h3>Your calendar,<br /><span class="it">in files you keep.</span></h3>
+        <p>Free, open source, and the backup never leaves your computer.</p>
+      </div>
+      <div class="inline-download__list">
+        <a class="dl-row dl-row--primary" href="/download/windows">
+          <span class="dl-row__os">Download for Windows</span>
+          <span class="dl-row__meta">10 &amp; 11</span>
+        </a>
+        <a class="dl-row" href="/download/mac">
+          <span class="dl-row__os">Download for macOS</span>
+          <span class="dl-row__meta">Apple Silicon</span>
+        </a>
+        <a class="dl-row" href="/download/linux">
+          <span class="dl-row__os">Download for Linux</span>
+          <span class="dl-row__meta">Ubuntu &amp; Debian · .deb</span>
+        </a>
+        <a class="dl-row" href="/download/linux-appimage">
+          <span class="dl-row__os">Other Linux</span>
+          <span class="dl-row__meta">AppImage · needs libfuse2</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="uc-related">
+    <div class="uc-related__inner">
+      <div class="uc-related__head">Related</div>
+      <div class="uc-related__grid">
+        <a class="uc-related__link" href="/use-cases/export-voice-memos-from-iphone-backup">Export voice memos from an iPhone backup →</a>
+        <a class="uc-related__link" href="/use-cases/export-iphone-contacts">Export contacts from an iPhone backup →</a>
+        <a class="uc-related__link" href="/use-cases/export-iphone-data">Export everything else from your iPhone →</a>
+        <a class="uc-related__link" href="/use-cases/where-are-iphone-backups-stored">Where are iPhone backups stored? →</a>
+        <a class="uc-related__link" href="/use-cases/keep-messages-iphone-to-android">Moving from iPhone to Android →</a>
+        <a class="uc-related__link" href="/guides">All iPhone backup guides →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Your calendar, saved on your computer.</div>
+        <div class="cta-strip__sub">Free, open source, nothing uploaded. Mac · Windows · Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/#download">Download OpenExtract →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/support">Pay it forward</a></li>
+        <li><a href="/what-people-say">What people say</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
