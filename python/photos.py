@@ -37,6 +37,7 @@ import backup_files
 from app_copies import AppCopies, NotEnoughSpace, is_openable, join_name, split_name
 from app_copies import ProgressCallback as CopyProgress
 from export_progress import ExportProgress, ProgressCallback
+from save_files import SaveStopped
 from save_names import SaveNames, copy_new, holds, same_file, write_new
 from ios_backup_core.db import connect_readonly
 from ios_backup_core.extractors.photos import (
@@ -1239,6 +1240,11 @@ class PhotoExtractor:
             1 for p in all_photos
             if (include_videos or p.get("kind") != "video") and (include_live or p.get("kind") != "live_photo")
         ))
+        # From an encrypted backup each photo is decrypted to a temp copy on this
+        # computer's own drive. Each is dropped once saved, so the save needs room
+        # there for one photo, not the whole library (OE-200). Copies made before
+        # the save (a photo on screen, a video open in another app) are left.
+        kept = backup.temp_copies() if callable(getattr(backup, "temp_copies", None)) else None
 
         for photo in all_photos:
             progress.update(exported + errors, errors)
@@ -1253,13 +1259,14 @@ class PhotoExtractor:
             if kind == "live_photo" and not include_live:
                 continue
 
+            source = None
             try:
                 subfolder = self._export_subfolder(photo, folder_structure)
                 dest_dir = os.path.join(output_dir, subfolder) if subfolder else output_dir
                 os.makedirs(dest_dir, exist_ok=True)
 
-                source = self._resolve_file(backup, file_hash)
-                if not source or not os.path.exists(source):
+                source = self._source_to_save(backup, file_hash)
+                if not source:
                     errors += 1
                     continue
 
@@ -1296,8 +1303,13 @@ class PhotoExtractor:
                         write_new(sidecar_path, sidecar)
                         _set_file_date(sidecar_path, taken)
 
+            except SaveStopped as e:  # no room to decrypt: every photo after would fail the same way
+                return {"error": str(e.after(exported, "photo"))}
             except Exception:
                 errors += 1
+            finally:
+                if kept is not None and source and source not in kept:
+                    backup.drop_temp_copy(source)
 
         progress.update(exported + errors, errors)
         return {
@@ -1312,6 +1324,21 @@ class PhotoExtractor:
         }
 
     # ── Private helpers ──────────────────────────────────────────────────────
+
+    def _source_to_save(self, backup, file_hash: str) -> Optional[str]:
+        """The file to save for ``file_hash``, or None if it can't be had.
+
+        Raises SaveStopped when an encrypted backup's file couldn't be decrypted
+        for want of room on this computer: get_file says None for that as for
+        any failure, so a photo it found nothing for is looked for again
+        (OpenBackup.get_file_again), which tells the two apart.
+        """
+        source = self._resolve_file(backup, file_hash)
+        again = getattr(backup, "get_file_again", None)
+        if (not source or not os.path.exists(source)) and file_hash.startswith("dcim:") \
+                and getattr(backup, "encrypted", False) and callable(again):
+            source = again(file_hash[len("dcim:"):], "CameraRollDomain")
+        return source if source and os.path.exists(source) else None
 
     def _export_subfolder(self, photo: dict, folder_structure: str) -> str:
         """Return the relative subfolder path for a photo based on folder_structure."""

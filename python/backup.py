@@ -201,6 +201,28 @@ class OpenBackup(LocalBackupAccessor):
         self._file_cache[cache_key] = out
         return out
 
+    def _is_temp_copy(self, path) -> bool:
+        """True for a file get_file decrypted into the temp folder (they're all directly in it)."""
+        return bool(self._encrypted and path) and (
+            os.path.normcase(os.path.dirname(os.path.abspath(path)))
+            == os.path.normcase(os.path.abspath(self._temp_dir)))
+
+    def temp_copies(self) -> set:
+        """The decrypted temp copies kept now: a save leaves these for whoever already has them."""
+        return {path for path in self._file_cache.values() if self._is_temp_copy(path)}
+
+    def drop_temp_copy(self, path: str) -> None:
+        """Delete ``path`` if it's a decrypted temp copy, and forget it: get_file decrypts it again if asked.
+
+        A save from an encrypted backup drops each photo's copy once it's saved,
+        so it needs room on this computer for one photo, not for all it saves.
+        """
+        if not self._is_temp_copy(path):
+            return
+        for key in [key for key, value in self._file_cache.items() if value == path]:
+            del self._file_cache[key]
+        remove(path)
+
     def close(self) -> None:
         """Close the cached Manifest.db connection and delete the temp files.
 

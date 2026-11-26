@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Saving a conversation or WhatsApp chat as a PDF: each PDF now holds up to about 500 photos or 1,000 pages, half as much as before, so a computer without much memory to spare can print it. A long chat is split into more PDFs than before, by year or by runs of months; a shorter one still goes in one file (OE-170)
 
 ### Fixed
+- Photos: saving from an encrypted backup no longer needs the whole library's size free on this computer's own drive as well as where you save. Each photo is decrypted there to be saved, and those copies were kept until the backup was closed; now each goes once it's saved. If there's no room to decrypt even one, the save stops and says so, instead of counting every photo after as failed (OE-200)
 - Photos: the grid fills much faster, because it uses the small copies of each photo the iPhone keeps in the backup instead of opening every full-size photo, and a video's tile no longer copies the whole video out of an encrypted backup first, which held up every photo after it
 - Calendar: All calendars now says how many events are in how many calendars, counting only calendars with events, as the home tile does, instead of also counting the empty calendar every iPhone has. An open repeating event says how it repeats once, in its details, instead of also as a label above them
 - Voice Memos: an open recording no longer shows its file's internal name (such as 20251117 211010-7003F8D2.m4a) beside Save, and the sidebar's headings match the rest of the app
