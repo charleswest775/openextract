@@ -22,13 +22,18 @@ from typing import Callable, Iterable, Optional
 
 from local_dates import MONTHS
 
-# One PDF holds up to about this much: 1,000 photos (photos are copied in whole,
+# One PDF holds up to about this much: 500 photos (photos are copied in whole,
 # about 0.5 MB each at the PDF's 1600 px, messages.PDF_IMAGE_MAX_PX, so about a
-# 500 MB file) or 2,000 pages. Measured 2026-11-20 by saving a 60,000-message
+# 250 MB file) or 1,000 pages. Measured 2026-11-20 by saving a 60,000-message
 # chat with real photos: about 11 messages to a page, a photo takes 0.4 of one,
 # and a year of 15,000 messages and 500 photos made a 1,540-page, 260 MB PDF.
-MAX_IMAGES = 1000
-MAX_PAGES = 2000
+# The limits were 1,000 photos and 2,000 pages until 2026-11-23: a chat right at
+# them (17,315 messages, 985 photos) printed 2,188 pages on Windows with the
+# printing process at 1.6 GB, which a small computer may not have to spare
+# (feedback OE-170, "Printing failed" on Windows). Half that leaves room, and
+# the page estimate runs about 10% low on text-heavy chats.
+MAX_IMAGES = 500
+MAX_PAGES = 1000
 MESSAGES_PER_PAGE = 11
 PAGES_PER_IMAGE = 0.43
 MB_PER_IMAGE = 0.5

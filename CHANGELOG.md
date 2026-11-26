@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Photos: a People list under the albums, from the groups your iPhone's Photos app made of the faces it found, named or not (most never are), each with a face (or their head and shoulders, for someone Photos only saw from the side or behind) and how many photos the backup has. Pick someone to see just their photos, or several to see photos with any of them or only those with all of them together, and Save saves exactly those. OpenExtract only reads what your iPhone worked out; it never compares faces itself
 - Using it for paid work?: after you save from a sixth different iPhone in a year, the app asks once whether it's paid work, and if it is, points to the business rates on the site ($50 a case or $200 a year, with a receipt). It's a request, not a condition of the license: nothing in the app changes either way, and it never asks again. The count stays on your computer, as scrambled iPhone IDs, and nothing is sent. Not shown to anyone who has said they've paid
 
+### Changed
+- Saving a conversation or WhatsApp chat as a PDF: each PDF now holds up to about 500 photos or 1,000 pages, half as much as before, so a computer without much memory to spare can print it. A long chat is split into more PDFs than before, by year or by runs of months; a shorter one still goes in one file (OE-170)
+
 ### Fixed
 - Photos: the grid fills much faster, because it uses the small copies of each photo the iPhone keeps in the backup instead of opening every full-size photo, and a video's tile no longer copies the whole video out of an encrypted backup first, which held up every photo after it
 - Calendar: All calendars now says how many events are in how many calendars, counting only calendars with events, as the home tile does, instead of also counting the empty calendar every iPhone has. An open repeating event says how it repeats once, in its details, instead of also as a label above them

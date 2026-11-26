@@ -39,53 +39,53 @@ class TestPlan(unittest.TestCase):
                                             "messages": 3, "images": 0}])
 
     def test_years_that_fit_together_stay_one_file(self):
-        # 3 years, 900 photos and about 1,400 pages in all: under the limits
-        counts = {**year(2022, 300, 25), **year(2023, 300, 25), **year(2024, 300, 25)}
+        # 3 years, 432 photos and about 680 pages in all: under the limits
+        counts = {**year(2022, 150, 12), **year(2023, 150, 12), **year(2024, 150, 12)}
         self.assertLess(sum(c[1] for c in counts.values()), MAX_IMAGES)
         self.assertFalse(plan(counts)["split"])
 
     def test_three_heavy_years_make_three_files(self):
-        counts = {**year(2022, 500, 40), **year(2023, 500, 40), **year(2024, 500, 40)}
+        counts = {**year(2022, 300, 25), **year(2023, 300, 25), **year(2024, 300, 25)}
         result = plan(counts)
         self.assertTrue(result["split"])
         self.assertEqual(labels(result), ["2022", "2023", "2024"])
         self.assertEqual([(p["from"], p["to"]) for p in result["parts"]],
                          [("2022-01", "2022-12"), ("2023-01", "2023-12"), ("2024-01", "2024-12")])
-        self.assertEqual([p["images"] for p in result["parts"]], [480, 480, 480])
-        self.assertEqual(result["messages"], 18000)
-        self.assertEqual(sum(p["messages"] for p in result["parts"]), 18000)
+        self.assertEqual([p["images"] for p in result["parts"]], [300, 300, 300])
+        self.assertEqual(result["messages"], 10800)
+        self.assertEqual(sum(p["messages"] for p in result["parts"]), 10800)
 
     def test_quiet_years_share_a_file_and_busy_years_get_their_own(self):
         counts = {f"{y}-06": [30, 2] for y in range(2015, 2022)}
         for y in (2022, 2023, 2024):
-            counts.update(year(y, 900, 50))
+            counts.update(year(y, 450, 25))
         self.assertEqual(labels(plan(counts)), ["2015–2021", "2022", "2023", "2024"])
 
     def test_a_quiet_year_between_busy_ones_isnt_glued_to_one(self):
-        counts = {**year(2022, 900, 50), "2023-04": [10, 0], **year(2024, 900, 50)}
+        counts = {**year(2022, 450, 25), "2023-04": [10, 0], **year(2024, 450, 25)}
         self.assertEqual(labels(plan(counts)), ["2022", "2023", "2024"])
 
     def test_photos_alone_can_make_a_split(self):
-        # Few messages, but 1,200 photos: 400 MB in one file
-        counts = {**year(2023, 10, 50), **year(2024, 10, 50)}
+        # Few messages, but 600 photos: 300 MB in one file
+        counts = {**year(2023, 10, 25), **year(2024, 10, 25)}
         self.assertEqual(labels(plan(counts)), ["2023", "2024"])
 
     def test_text_alone_can_make_a_split(self):
-        # No photos, but about 3,300 pages
-        counts = {**year(2023, 1500, 0), **year(2024, 1500, 0)}
-        self.assertGreater(36000 / MESSAGES_PER_PAGE, MAX_PAGES)
+        # No photos, but about 1,650 pages
+        counts = {**year(2023, 750, 0), **year(2024, 750, 0)}
+        self.assertGreater(18000 / MESSAGES_PER_PAGE, MAX_PAGES)
         self.assertEqual(labels(plan(counts)), ["2023", "2024"])
 
     def test_a_year_too_big_on_its_own_splits_into_even_runs_of_months(self):
-        result = plan(year(2024, 2000, 200))  # 2,400 photos in one year
+        result = plan(year(2024, 1000, 100))  # 1,200 photos in one year
         self.assertEqual(labels(result), ["Jan–Apr 2024", "May–Aug 2024", "Sep–Dec 2024"])
         self.assertEqual([(p["from"], p["to"]) for p in result["parts"]],
                          [("2024-01", "2024-04"), ("2024-05", "2024-08"), ("2024-09", "2024-12")])
         # A year a little too big: two halves, not nine months and three
-        self.assertEqual(labels(plan(year(2024, 1000, 100))), ["Jan–Jun 2024", "Jul–Dec 2024"])
+        self.assertEqual(labels(plan(year(2024, 500, 50))), ["Jan–Jun 2024", "Jul–Dec 2024"])
 
     def test_a_split_year_sits_between_whole_years(self):
-        counts = {**year(2022, 900, 50), **year(2023, 2000, 200), "2024-02": [5, 0]}
+        counts = {**year(2022, 450, 25), **year(2023, 1000, 100), "2024-02": [5, 0]}
         self.assertEqual(labels(plan(counts)), ["2022", "Jan–Apr 2023", "May–Aug 2023", "Sep–Dec 2023", "2024"])
 
     def test_a_single_month_too_big_on_its_own_is_one_part(self):
@@ -95,11 +95,11 @@ class TestPlan(unittest.TestCase):
         self.assertEqual(sum(p["images"] for p in result["parts"]), 1510)
 
     def test_messages_without_a_date_go_with_the_first_part(self):
-        counts = {None: [5, 1], **year(2023, 600, 60), **year(2024, 600, 60)}
+        counts = {None: [5, 1], **year(2023, 300, 30), **year(2024, 300, 30)}
         result = plan(counts)
         self.assertEqual(labels(result), ["2023", "2024"])
         self.assertEqual([p["undated"] for p in result["parts"]], [True, False])
-        self.assertEqual(result["parts"][0]["messages"], 7205)
+        self.assertEqual(result["parts"][0]["messages"], 3605)
         self.assertEqual(sum(p["messages"] for p in result["parts"]), result["messages"])
 
     def test_nothing_to_save_is_one_empty_file(self):
