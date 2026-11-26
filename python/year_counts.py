@@ -233,7 +233,8 @@ class YearCounter:
         if entry_type == "photo":
             return self._photo_counts(backup)
         if entry_type == "note":
-            notes = self._notes.list_notes(backup).get("notes", [])
+            # Not those in Recently Deleted, as the Timeline leaves them out (and deleted voicemails here)
+            notes = [n for n in self._notes.list_notes(backup).get("notes", []) if not n.get("is_deleted")]
             return _by_year((_local_day(n.get("created") or n.get("modified")), 1) for n in notes)
         if entry_type == "browser":
             visits = self._browser.list_browser_history(backup, "all", 0, 0).get("visits", [])

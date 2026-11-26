@@ -657,6 +657,15 @@ class TestSharedNotes(PersonExportCase):
         text = self.read(self.ok("txt", note_ids=[41])["file"], encoding="utf-8-sig")
         self.assertIn("(Shared note) “Trip packing list”\n    tent\n    stove <and> fuel\n", text)
 
+    def test_a_note_in_recently_deleted_says_so_in_every_format(self):
+        self.notes[0]["is_deleted"] = True
+        page = self.read(self.ok("html", note_ids=["41"])["file"])
+        self.assertIn('<span class="src">Shared note (Recently Deleted)</span>', page)
+        rows = list(csv.reader(open(self.ok("csv", note_ids=[41])["file"], encoding="utf-8-sig")))
+        self.assertEqual(rows[2][1], "Shared note (Recently Deleted)")
+        text = self.read(self.ok("txt", note_ids=[41])["file"], encoding="utf-8-sig")
+        self.assertIn("(Shared note (Recently Deleted)) “Trip packing list”\n", text)
+
     def test_a_notes_title_isnt_repeated_at_the_top_of_its_text(self):
         # A real note's text starts with its title, which is already its heading
         self.notes = [note(43, D(4), "Trip packing list", "Trip packing list\ntent\nstove")]

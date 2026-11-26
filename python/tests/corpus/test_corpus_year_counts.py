@@ -58,6 +58,9 @@ def _timeline_days(ctx) -> dict:
         if v["date_received"]:
             out["voicemail"][_local_day(v["date_received"])] += 1
     for n in ctx.notes_result.get("notes", []):
+        # The Timeline leaves out notes in Recently Deleted (deletedNote in useTimeline.ts)
+        if n.get("is_deleted"):
+            continue
         if n.get("created") or n.get("modified"):
             out["note"][_local_day(n.get("created") or n.get("modified"))] += 1
     for v in ctx.browser_result.get("visits", []):

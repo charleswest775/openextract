@@ -756,7 +756,7 @@ function TimelineEntryCard({ entry, udid, onOpenWhatsApp, onOpenMessage }: Props
       </>
     );
   } else if (entry.type === 'note' && entry.note) {
-    const { title, bodyPreview, body: noteBody, modified } = entry.note;
+    const { title, bodyPreview, body: noteBody, modified, deleted } = entry.note;
 
     body = (
       <>
@@ -770,7 +770,7 @@ function TimelineEntryCard({ entry, udid, onOpenWhatsApp, onOpenMessage }: Props
           </div>
         )}
         <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: 1 }}>
-          Modified: {formatDate(modified)}
+          Modified: {formatDate(modified)}{deleted && ' · Recently Deleted'}
         </div>
         {noteOpen && (
           <NoteViewerModal

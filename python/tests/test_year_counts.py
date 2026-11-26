@@ -140,6 +140,16 @@ class TestLocalDays(_Base):
         self.assertEqual(days, {"2026-06-26": {"call": 1, "note": 1, "browser": 1}})
 
 
+class TestNotesInRecentlyDeleted(_Base):
+    def test_arent_counted_as_the_timeline_leaves_them_out(self):
+        when = _utc(2024, 5, 5, 12).isoformat()
+        self.notes.list_notes.return_value = {"notes": [
+            {"created": when}, {"created": when, "is_deleted": False}, {"created": when, "is_deleted": True},
+        ]}
+        days = self._counts(_FakeBackup({}), 2024, types=["note"])["days"]
+        self.assertEqual(sum(d["note"] for d in days.values()), 2)
+
+
 class TestWhatCounts(_Base):
     DAY = _apple(_utc(2024, 5, 5, 12)) * _NANO
 
