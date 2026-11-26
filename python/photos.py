@@ -93,6 +93,10 @@ print(f"[photos] PIL={HAS_PIL} HEIF={HAS_HEIF}", file=sys.stderr, flush=True)
 # saved on this iPhone, PhotoData/CPLAssets for ones iCloud Photos brought in
 # from other devices.
 _ORIGINALS_PREFIXES = ("Media/DCIM/", "Media/PhotoData/CPLAssets/")
+# Where the iPhone's Photos app keeps the thumbnails it made of each photo (_iphone_thumbnails).
+_IPHONE_THUMBNAILS = "Media/PhotoData/Thumbnails/V2/"
+# Video files get_thumbnail knows by name besides the library's VIDEO_EXTENSIONS (its _VIDEO_EXTS).
+_MORE_VIDEO_EXTENSIONS = {".mkv", ".3gp", ".webm"}
 
 # What the app is told when a video can't be handed to the computer's video player
 # (get_file_for_app), in words for people. The Photos screen shows them under "This video
@@ -154,18 +158,88 @@ def _selection_count(part: dict, has_albums: bool, album_id: Optional[str]) -> O
     return part["library"]
 
 
+# A face box smaller than this (a fraction of the photo's shorter side) isn't used for a
+# face thumbnail: Photos keeps some faces with no box at all (size 0).
+MIN_FACE_SIZE = 0.01
+# A face thumbnail is cut from at least this many pixels of the photo, so a small face
+# shows with what's around it instead of as a few blurred pixels.
+MIN_FACE_CROP = 96
+
+
 def face_crop_box(width: int, height: int, center_x: float, center_y: float, size: float,
                   scale: float = 2.0) -> tuple:
     """(left, top, right, bottom) in pixels: a square ``scale`` times Photos' face box, kept inside the photo.
 
     Photos measures the box's centre from the photo's bottom-left corner, as fractions
-    of its width and height, and its size as a fraction of the shorter side.
+    of its width and height, and its size as a fraction of the shorter side. The square
+    is at least MIN_FACE_CROP pixels (or the whole shorter side of a smaller photo).
     """
     short = min(width, height)
-    side = max(1, min(short, round(size * short * scale)))
+    side = max(1, min(short, max(MIN_FACE_CROP, round(size * short * scale))))
     left = min(max(round(center_x * width - side / 2), 0), width - side)
     top = min(max(round((1 - center_y) * height - side / 2), 0), height - side)
     return left, top, left + side, top + side
+
+
+# A body box narrower than this (a fraction of the photo's width) isn't used.
+MIN_BODY_WIDTH = 0.02
+
+
+def body_crop_box(width: int, height: int, center_x: float, center_y: float, body_w: float, body_h: float) -> tuple:
+    """(left, top, right, bottom) in pixels: a square over the top of Photos' body box (head and shoulders).
+
+    The body box is measured like the face box, from the bottom-left corner, with its width
+    and height as fractions of the photo's width and height. The square is as wide as the body
+    (at least MIN_FACE_CROP pixels), starts just above its top, and stays inside the photo.
+    """
+    short = min(width, height)
+    side = max(1, min(short, max(MIN_FACE_CROP, round(body_w * width * 1.1))))
+    top_of_body = (1 - center_y - body_h / 2) * height
+    left = min(max(round(center_x * width - side / 2), 0), width - side)
+    top = min(max(round(top_of_body - side * 0.05), 0), height - side)
+    return left, top, left + side, top + side
+
+
+def choose_face(faces: list, key_face, stills: dict, posters: dict) -> Optional[dict]:
+    """The face list_photo_people shows for someone, from their face rows (_faces_by_person), or None.
+
+    In order: Photos' key face, else their biggest face, on a still photo in the backup
+    (``stills``: uuid -> file_hash); else their biggest body box on one (Photos keeps some
+    people's faces with no face box, only a body box: someone seen from the side or behind);
+    else a face or body box, or just the picture, from the iPhone's own thumbnail of a video
+    they're in (``posters``: video uuid -> thumbnail key), since a face can't be cut from the
+    video itself. Faces with no box (centre 0, 0, size 0) came out as a single colour.
+    """
+    def has_face(f):
+        return (f.get("size") or 0) >= MIN_FACE_SIZE and f.get("center_x") is not None and f.get("center_y") is not None
+
+    def has_body(f):
+        return (f.get("body_w") or 0) >= MIN_BODY_WIDTH and (f.get("body_h") or 0) > 0 and f.get("body_x") is not None
+
+    def face_out(f, file_hash):
+        return {"file_hash": file_hash, "center_x": f["center_x"], "center_y": f["center_y"], "size": f["size"]}
+
+    def body_out(f, file_hash):
+        return {"file_hash": file_hash, "center_x": None, "center_y": None, "size": None,
+                "body": {"center_x": f["body_x"], "center_y": f["body_y"], "width": f["body_w"], "height": f["body_h"]}}
+
+    on_stills = [f for f in faces if not f["video"] and f["asset_uuid"] in stills]
+    boxed = sorted((f for f in on_stills if has_face(f)), key=lambda f: (f["face"] != key_face, -f["size"]))
+    if boxed:
+        return face_out(boxed[0], stills[boxed[0]["asset_uuid"]])
+    bodies = sorted((f for f in on_stills if has_body(f)), key=lambda f: -(f["body_w"] * f["body_h"]))
+    if bodies:
+        return body_out(bodies[0], stills[bodies[0]["asset_uuid"]])
+    in_videos = [f for f in faces if f["video"] and f["asset_uuid"] in posters]
+    for usable, out in ((has_face, face_out), (has_body, body_out)):
+        found = sorted((f for f in in_videos if usable(f)),
+                       key=lambda f: -((f["size"] or 0) if usable is has_face else f["body_w"] * f["body_h"]))
+        if found:
+            return {**out(found[0], posters[found[0]["asset_uuid"]]), "poster": True}
+    if in_videos:
+        return {"file_hash": posters[in_videos[0]["asset_uuid"]], "center_x": None, "center_y": None,
+                "size": None, "poster": True}
+    return None
 
 
 def asset_table(conn) -> str:
@@ -258,6 +332,12 @@ class PhotoExtractor:
         self._in_backup_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
         # The library's People list with each person's photo uuids, per open backup.
         self._people_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+        # The thumbnails the iPhone's Photos app made, by the photo they're of, and the
+        # originals' paths by file id (an unencrypted backup's file_hash), per open backup.
+        self._iphone_thumbs_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+        self._original_paths_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+        # Every face People counts, by person, for picking the face each one shows.
+        self._faces_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
         # Copies of videos for the computer's video player (get_file_for_app). Made as the
         # engine starts, which is when the copies an earlier engine left behind are removed.
         self._copies = AppCopies("photos")
@@ -414,36 +494,85 @@ class PhotoExtractor:
             out["error"] = result["error"]
         return out
 
+    def _faces_by_person(self, backup) -> Optional[dict]:
+        """{person id: {"key": their key face's Z_PK, "faces": [face rows]}} for every face People
+        counts, read once per backup; None without the People tables or with an older ios-backup-core.
+
+        A face row is a dict: ``face`` (Z_PK), ``asset_uuid``, ``video``, ``center_x``, ``center_y``,
+        ``size`` (Photos' face box) and ``body_x``, ``body_y``, ``body_w``, ``body_h`` (its body box).
+        Groups merged into someone count as them, as list_people counts them.
+        """
+        if backup in self._faces_cache:
+            return self._faces_cache[backup]
+        result = None
+        conn = self._inner._open_photos_db(backup)
+        if conn is not None:
+            try:
+                from ios_backup_core.extractors import photos as core
+
+                cols = core._face_columns(conn)
+                if cols is not None:
+                    people = core._people_rows(conn, cols)
+                    assets = asset_table(conn)
+                    asset_columns = {c[1] for c in conn.execute(f"PRAGMA table_info('{assets}')")}
+                    visible = smart_album_where(asset_columns, None)
+
+                    def column(name: str) -> str:
+                        return f"f.{name}" if name in cols["faces"] else "NULL"
+
+                    where = " AND ".join([f"f.{cols['person']} IS NOT NULL",
+                                          f"f.{cols['asset']} IN (SELECT Z_PK FROM {assets} WHERE {visible})",
+                                          *core._face_conditions(cols)])
+                    result = {}
+                    for row in conn.execute(
+                        f"SELECT f.Z_PK, f.{cols['person']}, a.ZUUID, a.ZKIND, {column('ZCENTERX')}, "
+                        f"{column('ZCENTERY')}, {column('ZSIZE')}, {column('ZBODYCENTERX')}, "
+                        f"{column('ZBODYCENTERY')}, {column('ZBODYWIDTH')}, {column('ZBODYHEIGHT')} "
+                        f"FROM ZDETECTEDFACE f JOIN {assets} a ON a.Z_PK = f.{cols['asset']} WHERE {where}"
+                    ):
+                        target = core._merged_into(people, row[1])
+                        if target not in people:
+                            continue
+                        entry = result.setdefault(str(target), {"key": people[target]["KEYFACE"], "faces": []})
+                        entry["faces"].append({
+                            "face": row[0], "asset_uuid": uuid_text(row[2]) or "", "video": row[3] == 1,
+                            "center_x": row[4], "center_y": row[5], "size": row[6],
+                            "body_x": row[7], "body_y": row[8], "body_w": row[9], "body_h": row[10],
+                        })
+            except (ImportError, AttributeError, sqlite3.Error) as e:
+                print(f"[photos] couldn't read the People faces: {e}", file=sys.stderr, flush=True)
+                result = None
+            finally:
+                conn.close()
+        self._faces_cache[backup] = result
+        return result
+
     def _face_in_backup(self, backup, person: dict, counts: Optional[dict]) -> Optional[dict]:
-        """The person's best face on a still photo the backup has: their key face, else the next best."""
+        """A face to show for the person (see choose_face), or None to show an empty circle."""
         if counts is None:
             return None
-        stills = counts["stills"]
+        faces = (self._faces_by_person(backup) or {}).get(person["id"])
+        if not faces:
+            return None
+        thumbnails = self._iphone_thumbnails(backup)
+        posters = {uuid: thumbnails[path[len("Media/"):]] for uuid, path in counts.get("videos", {}).items()
+                   if path.startswith("Media/") and path[len("Media/"):] in thumbnails}
+        return choose_face(faces["faces"], faces["key"], counts["stills"], posters)
 
-        def usable(face: Optional[dict]) -> Optional[dict]:
-            if not face or face.get("asset_uuid") not in stills or face.get("size") is None:
-                return None
-            return {"file_hash": stills[face["asset_uuid"]], "center_x": face["center_x"],
-                    "center_y": face["center_y"], "size": face["size"]}
+    def get_face_thumbnail(self, backup, file_hash: str, center_x: Optional[float] = None,
+                           center_y: Optional[float] = None, size: Optional[float] = None, px: int = 96,
+                           body: Optional[dict] = None) -> dict:
+        """A square JPEG of someone, from list_photo_people's ``face``: ``{data, mime_type}``.
 
-        found = usable(person.get("key_face"))
-        if found is None:
-            for face in self._inner.list_person_faces(backup, person["id"]).get("faces", []):
-                found = usable(face)
-                if found:
-                    break
-        return found
-
-    def get_face_thumbnail(self, backup, file_hash: str, center_x: float, center_y: float, size: float,
-                           px: int = 96) -> dict:
-        """A square JPEG of one face, cut from its photo around Photos' face box: ``{data, mime_type}``.
-
-        Photos keeps the box's centre as fractions of the photo as it's shown (turned
-        upright), measured from the bottom-left corner, and its size as a fraction of
-        the photo's shorter side; checked against public test backups (iOS 15–17).
-        The crop is twice the box, so the whole head shows, and stays inside the photo.
+        Cut around Photos' face box when there is one (twice the box, so the whole head
+        shows), else around the top of their body box (head and shoulders), else from the
+        middle of the picture. Photos keeps both boxes as fractions of the photo as it's
+        shown (turned upright), measured from the bottom-left corner: the face box's size is
+        a fraction of the shorter side, the body box's width and height of the width and
+        height. Checked against public test backups (iOS 15–17). ``file_hash`` may be the
+        iPhone's own thumbnail of a video (``face.poster``), which has the video's proportions.
         """
-        cache_key = f"face:{file_hash}:{center_x:.4f}:{center_y:.4f}:{size:.4f}:{px}"
+        cache_key = f"face:{file_hash}:{center_x}:{center_y}:{size}:{json.dumps(body, sort_keys=True)}:{px}"
         if cache_key in self._thumb_cache:
             return {"data": self._thumb_cache[cache_key], "mime_type": "image/jpeg", "cached": True}
         if not HAS_PIL:
@@ -455,9 +584,18 @@ class PhotoExtractor:
             from PIL import ImageOps
 
             img = Image.open(file_path)
-            img.draft("RGB", (img.width // 4, img.height // 4))  # a JPEG decodes smaller; others ignore it
+            if min(img.size) > 2000:
+                img.draft("RGB", (img.width // 4, img.height // 4))  # a big JPEG decodes smaller; others ignore it
             img = ImageOps.exif_transpose(img).convert("RGB")
-            box = face_crop_box(img.width, img.height, center_x, center_y, size)
+            if center_x is not None and center_y is not None and (size or 0) >= MIN_FACE_SIZE:
+                box = face_crop_box(img.width, img.height, center_x, center_y, size)
+            elif body and (body.get("width") or 0) > 0 and (body.get("height") or 0) > 0:
+                box = body_crop_box(img.width, img.height, body["center_x"], body["center_y"],
+                                    body["width"], body["height"])
+            else:
+                side = min(img.size)
+                box = ((img.width - side) // 2, (img.height - side) // 2,
+                       (img.width - side) // 2 + side, (img.height - side) // 2 + side)
             face = img.crop(box).resize((px, px), Image.LANCZOS)
             buf = io.BytesIO()
             face.save(buf, format="JPEG", quality=85)
@@ -725,6 +863,7 @@ class PhotoExtractor:
         present_uuids: set = set()
         missing_uuids: set = set()
         stills: dict = {}
+        videos: dict = {}  # uuid -> path, for the iPhone's thumbnail of each video (a face from it)
         for pk, asset_uuid, directory, filename, is_trashed, is_hidden, asset_kind in conn.execute(
             f"SELECT Z_PK, ZUUID, ZDIRECTORY, ZFILENAME, {trashed}, {hidden}, {kind} FROM {assets}"
         ):
@@ -732,6 +871,8 @@ class PhotoExtractor:
                 in_library.add(pk)
             asset_uuid = uuid_text(asset_uuid) or ""
             rel = _build_dcim_path(directory, filename) if directory and filename else None
+            if asset_kind == 1 and rel:
+                videos[asset_uuid] = rel
             file_hash = self._file_hash_for(backup, rel, filename or "")
             if file_hash is not None:
                 present.add(pk)
@@ -763,7 +904,7 @@ class PhotoExtractor:
             lost["smart"][album_id] = sum(1 for pk in pks if pk in missing)
         return {**found, "has_albums": bool(junc_table), "present": frozenset(present), "missing": lost,
                 "present_uuids": frozenset(present_uuids), "missing_uuids": frozenset(missing_uuids),
-                "stills": stills}
+                "stills": stills, "videos": videos}
 
     def _list_photos_from_dcim(self, backup, offset: int, limit: int) -> dict:
         """Fallback: enumerate files directly from DCIM via Manifest.db."""
@@ -826,6 +967,23 @@ class PhotoExtractor:
         if not HAS_PIL:
             print(f"[THUMB] Pillow not installed — cannot generate thumbnail for {file_hash[:12]}", file=sys.stderr, flush=True)
             return {"error": "Pillow not installed"}
+
+        # A video by its name, before anything is read: finding that out from the file meant
+        # copying a whole video out of an encrypted backup first, seconds for a long one, while
+        # every thumbnail after it waited (the engine answers one request at a time).
+        original = self._original_path(backup, file_hash)
+        if original and os.path.splitext(original)[1].lower() in VIDEO_EXTENSIONS | _MORE_VIDEO_EXTENSIONS:
+            return {"error": "video", "is_video": True}
+
+        # The iPhone's own thumbnail when the backup has it: a small JPEG, read in a few
+        # milliseconds, where decoding a full-size HEIC from a recent iPhone takes a few
+        # hundred (one at a time, so a grid of them filled slowly).
+        own = self._iphone_thumbnail(backup, file_hash, size)
+        if own is not None:
+            if len(self._thumb_cache) >= 500:
+                del self._thumb_cache[next(iter(self._thumb_cache))]
+            self._thumb_cache[cache_key] = own["data"]
+            return {**own, "cached": False}
 
         file_path = self._resolve_file(backup, file_hash)
         if not file_path:
@@ -891,6 +1049,76 @@ class PhotoExtractor:
             if fmt == "video":
                 return {"error": "video", "is_video": True}
             return {"error": f"Failed to generate thumbnail: {e}"}
+
+    def _iphone_thumbnails(self, backup) -> dict:
+        """{photo's path under Media/ ("DCIM/100APPLE/IMG_0001.HEIC"): thumbnail key for _resolve_file},
+        for the thumbnails the iPhone's Photos app made, read once per backup.
+
+        Photos keeps them at Media/PhotoData/Thumbnails/V2/<photo's path under Media/>/<n>.JPG
+        (5005.JPG on iOS 17, 480 pixels on the long side, upright; 5003.JPG on iOS 13).
+        Where several are kept for one photo, the highest-numbered. Only files the backup's
+        folder has (OE-102). The key is ``dcim:<path>`` for an encrypted backup, as list_photos
+        gives originals, else the file's id.
+        """
+        cached = self._iphone_thumbs_cache.get(backup)
+        if cached is None:
+            found: dict = {}
+            try:
+                files = backup.list_files(domain="CameraRollDomain", path_like=_IPHONE_THUMBNAILS + "%")
+            except Exception as e:  # noqa: BLE001  no thumbnails is fine: the originals are used
+                print(f"[photos] couldn't list the iPhone's thumbnails: {e}", file=sys.stderr, flush=True)
+                files = []
+            for f in files:
+                photo, _, name = f["path"][len(_IPHONE_THUMBNAILS):].rpartition("/")
+                stem, ext = os.path.splitext(name)
+                if not photo or ext.upper() != ".JPG" or not stem.isdigit() or not backup_files.is_stored(backup, f["hash"]):
+                    continue
+                if photo not in found or int(stem) > found[photo][0]:
+                    found[photo] = (int(stem), f"dcim:{f['path']}" if backup.encrypted else f["hash"])
+            cached = {photo: key for photo, (_, key) in found.items()}
+            self._iphone_thumbs_cache[backup] = cached
+        return cached
+
+    def _original_path(self, backup, file_hash: str) -> Optional[str]:
+        """The CameraRollDomain path of the original list_photos gave ``file_hash`` for, or None if unknown."""
+        if file_hash.startswith("dcim:"):
+            return file_hash[len("dcim:"):]
+        paths = self._original_paths_cache.get(backup)
+        if paths is None:
+            paths = {h: p for p, h in self._original_files(backup)[0].items()}
+            self._original_paths_cache[backup] = paths
+        return paths.get(file_hash)
+
+    def _iphone_thumbnail(self, backup, file_hash: str, size: int) -> Optional[dict]:
+        """get_thumbnail's answer from the iPhone's own thumbnail of a still photo, or None to use the original.
+
+        None too when that thumbnail is smaller than ``size`` or can't be read.
+        """
+        thumbnails = self._iphone_thumbnails(backup)
+        if not thumbnails:
+            return None
+        path = self._original_path(backup, file_hash)
+        if not path or not path.startswith("Media/") or os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS:
+            return None
+        key = thumbnails.get(path[len("Media/"):])
+        thumb_path = key and self._resolve_file(backup, key)
+        if not thumb_path:
+            return None
+        try:
+            from PIL import ImageOps
+
+            img = ImageOps.exif_transpose(Image.open(thumb_path))
+            if max(img.size) < size:
+                return None
+            img.thumbnail((size, size), Image.LANCZOS)
+            img = img.convert("RGB")
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=80, optimize=True)
+            return {"data": base64.b64encode(buf.getvalue()).decode("ascii"), "mime_type": "image/jpeg",
+                    "width": img.width, "height": img.height}
+        except Exception as e:  # noqa: BLE001  the original is used instead
+            print(f"[THUMB] the iPhone's thumbnail of {path} couldn't be read: {e}", file=sys.stderr, flush=True)
+            return None
 
     def get_photo(self, backup, file_hash: str) -> dict:
         """Return full-resolution photo as base64.

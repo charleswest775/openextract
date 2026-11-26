@@ -62,7 +62,7 @@ const thumbnailInflight = new Set<string>();
 
 // Face thumbnails for the People list, by face (photo and box), like the photo thumbnails above.
 const faceDataCache = new Map<string, string>();
-const faceKey = (face: PhotoPersonFace) => `${face.file_hash}:${face.center_x}:${face.center_y}:${face.size}`;
+const faceKey = (face: PhotoPersonFace) => JSON.stringify(face);
 const FACE_PX = 64; // drawn at 28 px; twice that and more for sharp screens
 
 interface Props {
