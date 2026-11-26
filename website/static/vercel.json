@@ -35,6 +35,11 @@
       "permanent": true
     },
     {
+      "source": "/ai/addon/index.json",
+      "destination": "https://github.com/charleswest775/openextract-ai-releases/releases/latest/download/index.json",
+      "permanent": false
+    },
+    {
       "source": "/support/pay",
       "destination": "https://buy.stripe.com/7sY00j9Es3vw0Ad16Q2wU01",
       "permanent": false
