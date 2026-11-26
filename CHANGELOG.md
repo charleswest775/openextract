@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-11-26
+
 Notes now shows every note in the backup. An iPhone that has kept notes since before iOS 9 could show only a few old ones and hide the rest, and a note that's only numbers showed a blank page. A note still in the iPhone's Recently Deleted folder is now marked that way, and the Timeline, Year view and whole-backup search leave it out. Choosing a folder to open a backup from no longer lists the same backup several times, finds backups beside thousands of other folders or in two-letter folders like "de", and on a Mac no longer stops to ask for access to other apps' data.
 
 ### Fixed
