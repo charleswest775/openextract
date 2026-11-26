@@ -54,7 +54,9 @@ isn't one full SHA, or if a workflow gets ios-backup-core any other way than thr
 
 Locally, the engine and the generated backups use your checkout beside this repository
 (`../ios-backup-core`; the corpus also takes `$OPENEXTRACT_IOS_BACKUP_CORE`). Check out the
-pinned commit there to run what CI runs.
+pinned commit there to run what CI runs. Generated backups are kept per ios-backup-core version
+(`<cache>/syn/<key>@<version>/`, corpus/README.md), so test runs with different checkouts can
+run at the same time on one corpus cache.
 
 ## Running them
 

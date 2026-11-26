@@ -31,7 +31,7 @@ Without `-m corpus`, `pytest python/tests/` runs only the corpus tooling's own u
 
 | Variable | Meaning |
 |---|---|
-| `OPENEXTRACT_CORPUS_CACHE` | Cache folder (default `~/.cache/openextract-corpus`). Each item gets `<key>/download/` (the fetched archive), `<key>/backup/` (the unpacked backup) and `<key>/fetch.json`. |
+| `OPENEXTRACT_CORPUS_CACHE` | Cache folder (default `~/.cache/openextract-corpus`). Each item gets `<key>/download/` (the fetched archive), `<key>/backup/` (the unpacked backup) and `<key>/fetch.json`. Generated backups go in `syn/<key>@<version>/`, one folder per ios-backup-core version (the version is the start of a hash of `backupgen` and the persona), so runs with different checkouts can share a cache without deleting each other's backups. Each is generated beside its final folder and renamed into place when complete. Older versions of an item are deleted beyond the newest three, but never one generated or used in the last hour. `syn/<key>/` folders (no `@`) belong to checkouts of this repository from before versions; delete them once none of those run any more. |
 | `OPENEXTRACT_CORPUS_ITEMS` | Comma-separated items to test (default: every fetched item). |
 | `OPENEXTRACT_CORPUS_REQUIRE=1` | Fail, rather than skip, when a named item isn't fetched. The weekly job sets this. |
 | `OPENEXTRACT_SIDECAR` | Test a built sidecar binary instead of `python/main.py`. |
