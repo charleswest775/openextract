@@ -141,7 +141,7 @@ test('browser breakdown with whole-number percentages', () => {
   assert.deepEqual(onlyFirefox.browserBreakdown, [{ browser: 'firefox', count: 1, pct: 100 }]);
 });
 
-test('a big history (60,000 visits) adds up', { skip: childZone && 'not time-zone sensitive' }, () => {
+test('a big history (60,000 visits) adds up', { skip: childZone ? 'not time-zone sensitive' : false }, () => {
   const visits = [];
   for (let i = 0; i < 60_000; i++) {
     visits.push(visit(daysAgo(i % 400, i % 24, i % 60), { domain: `d${i % 250}.com`, browser: i % 5 ? 'safari' : 'firefox' }));

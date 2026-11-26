@@ -364,7 +364,7 @@ test('entry counts are grouped for the locale', { skip: !enUS && 'needs an en-US
 });
 
 // About 40µs per entry per format, nearly all of it toLocaleDateString/toLocaleTimeString
-test('a big Timeline (5,000 entries) exports in every format', { skip: childZone && 'not time-zone sensitive' }, () => {
+test('a big Timeline (5,000 entries) exports in every format', { skip: childZone ? 'not time-zone sensitive' : false }, () => {
   const entries = [];
   for (let i = 0; i < 5_000; i++) entries.push(message(new Date(Date.UTC(2024, 0, 1) + i * 3_600_000), `message ${i}, "quoted"`));
   entries.reverse();
