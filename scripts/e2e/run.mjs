@@ -5,11 +5,16 @@
 //
 //   npm install --no-save playwright-core@1.59.1
 //   python scripts/e2e/backups.py e2e-backups.json          # generates the fictional test backups
-//   node scripts/e2e/run.mjs --backups e2e-backups.json [--app <executable>] [--out <dir>] [--suites a,b]
+//   node scripts/e2e/run.mjs --backups e2e-backups.json [--app <executable>] [--out <dir>] [--suites a,b] [--background | --show]
 //
 // Without --app it runs this checkout's development build: run `npm run build` first. The
 // engine is python/main.py run by $OPENEXTRACT_PYTHON, the .venv at the repository root, or
 // python3/python on PATH. On Linux without a display, wrap it in `xvfb-run -a`.
+//
+// --background runs the development build with its window never shown, so the run doesn't
+// take the screen and keyboard from whatever else you're doing. It's the default on a Mac
+// outside CI (where a window that opens comes to the front); --show opens the window anyway.
+// A packaged build (--app) always shows its window.
 //
 // Writes <out>/results.json and exits 1 if any check failed. Screenshots are only taken of the
 // fictional synthetic backups; third-party corpus backups (Hickman) never leave the temp folder.
@@ -27,6 +32,8 @@ const { values: opts } = parseArgs({
     out: { type: 'string', default: path.join(ROOT, 'e2e-out') },
     suites: { type: 'string' },
     list: { type: 'boolean', default: false },
+    background: { type: 'boolean', default: false },
+    show: { type: 'boolean', default: false },
   },
 });
 
@@ -35,7 +42,7 @@ if (opts.list) {
   process.exit(0);
 }
 if (!opts.backups) {
-  console.error('usage: node scripts/e2e/run.mjs --backups <backups.json> [--app <executable>] [--out <dir>] [--suites a,b] [--list]');
+  console.error('usage: node scripts/e2e/run.mjs --backups <backups.json> [--app <executable>] [--out <dir>] [--suites a,b] [--background | --show] [--list]');
   process.exit(2);
 }
 
@@ -52,6 +59,18 @@ fs.mkdirSync(out, { recursive: true });
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'oe-e2e-scratch-'));
 const target = { app: opts.app ? path.resolve(opts.app) : null, kind: opts.app ? 'packaged' : 'dev' };
 results.target = target;
+
+if (opts.background && opts.show) { console.error('--background and --show: pick one.'); process.exit(2); }
+const background = !opts.show && (opts.background || (process.platform === 'darwin' && !process.env.CI));
+if (background && !target.app) {
+  // Read by electron/main.ts; launch() passes this process's environment to the app.
+  process.env.OPENEXTRACT_E2E_HIDDEN = '1';
+  console.log('Running in the background: the app window stays hidden (--show to watch it).');
+} else {
+  delete process.env.OPENEXTRACT_E2E_HIDDEN;
+  if (opts.background) console.log('--background only works on the development build; the packaged app will show its window.');
+}
+target.background = background && !target.app;
 
 const wanted = opts.suites ? opts.suites.split(',').map(s => s.trim()) : SUITES.filter(s => s.default !== false).map(s => s.name);
 const unknown = wanted.filter(w => !SUITES.some(s => s.name === w));
