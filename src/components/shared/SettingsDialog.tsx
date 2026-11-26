@@ -4,6 +4,7 @@ import { SettingsIcon } from './Icons';
 import { useFeedback } from './Feedback';
 import { showAsk } from '../../lib/payItForward';
 import type { TextSize, UpdateStatus } from '../../types';
+import AskAiSetting from '../ai/AskAiSetting';
 
 const TEXT_SIZES: { id: TextSize; label: string }[] = [
   { id: 'default', label: 'Default' },
@@ -67,6 +68,8 @@ export default function SettingsDialog({ onClose }: Props) {
           ))}
         </div>
         <p className="text-xs text-text-tertiary mb-6">Makes everything in the window bigger, including icons.</p>
+
+        <AskAiSetting />
 
         <div className="hearth-eyebrow mb-2">Updates</div>
         {!state ? (

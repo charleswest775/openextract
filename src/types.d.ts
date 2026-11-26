@@ -105,6 +105,26 @@ declare global {
       };
       /** Copy text to the system clipboard. */
       copyText: (text: string) => Promise<void>;
+      /**
+       * Ask AI (electron/askAi.ts), only in builds made with OPENEXTRACT_AI_INDEX_URL. In every
+       * other build state() is { enabled: false } and the rest answer that it's off.
+       */
+      askAi: {
+        state: () => Promise<import('./lib/askAi').AskAiState>;
+        /** The add-on's `--status`: free questions left, or whose key it has. */
+        status: () => Promise<{ ok: true; status: import('./lib/askAi').AddonStatus } | { ok: false; error: string }>;
+        /** Downloads the add-on, checks it and unpacks it. Progress comes through onProgress. */
+        install: () => Promise<import('./lib/askAi').AskAiResult>;
+        /** Installs if needed, then opens the add-on in Claude (desktop), which asks to install it. */
+        connectClaude: () => Promise<import('./lib/askAi').AskAiResult>;
+        /** Only after the person's OK: installs if needed, then adds the entry to ChatGPT's settings file. */
+        connectChatGpt: (consent: boolean) => Promise<import('./lib/askAi').AskAiResult>;
+        /** "Don't show this again" (true), or Settings turning it back on (false). */
+        setHidden: (hidden: boolean) => Promise<void>;
+        /** The "New" note on Home has done its job. */
+        noteSeen: () => Promise<void>;
+        onProgress: (callback: (progress: import('./lib/askAi').InstallProgress) => void) => () => void;
+      };
     };
   }
 }
