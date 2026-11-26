@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Open a backup folder: the same backup is no longer listed several times when a link in the folder (a symlink, or on Windows a junction such as Documents and Settings) leads back to it, and a MobileSync/Backup that's a link to an external drive is still found. A folder named Backup is looked inside even when thousands of other folders sit beside it, and a backup in a folder of yours with a two-letter name like "de" or "ca" is found. On a Mac, choosing your Library folder no longer stops to ask for access to other apps' data. The message for a folder with no backup says "1 folder" and "1 file" instead of "1 folders" and "1 files"
+
 ## [0.20.0] - 2026-11-25
 
 On Photos you can now pick the photos you want and save just those, narrow the grid to the days they were taken, and see just the photos of the people you pick, from the groups of faces your iPhone's Photos app found. Saving photos into a folder you've used before says how many were already there, and the grid fills much faster. Each PDF of a conversation now holds about half as many photos and pages, so a computer short on memory can print it. Choosing a folder above a backup, such as MobileSync or a drive, now finds the backups inside it, and when a folder has no backup the app says what it does hold. Someone who saves from a sixth different iPhone in a year is asked once whether it's paid work; nothing in the app changes either way.
