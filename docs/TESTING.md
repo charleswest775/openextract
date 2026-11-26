@@ -26,6 +26,36 @@ The workflows: `ci.yml` (every PR), `installers.yml` (weekly, packaging PRs, and
 `release.yml`), `prerelease-check.yml` (called by `release.yml` on the new tag, or by hand), `corpus-weekly.yml`,
 `windows-app-control.yml` (Smart App Control, called by `release.yml`).
 
+## Which ios-backup-core
+
+The engine is built from [ios-backup-core](https://github.com/charleswest775/ios-backup-core),
+and the generated backups come from its `backupgen`. Every workflow uses one commit of it: the
+full SHA in `ios-backup-core.ref` at the root of this repository, not whatever `master` is when
+the job starts. So a merge in ios-backup-core can't turn this repository's PRs red, give two
+systems different commits, or reach a release untested.
+
+To take in ios-backup-core changes, move the pin in a PR:
+
+```bash
+scripts/bump-ios-backup-core.sh               # master as it is now; or a branch, tag or full SHA
+git -C ../ios-backup-core fetch origin && git -C ../ios-backup-core checkout --detach "$(cat ios-backup-core.ref)"
+npm test && pytest python/tests/ && pytest python/tests/corpus -m corpus
+```
+
+then commit `ios-backup-core.ref` and open a PR; CI tests the new commit on all three systems.
+An app change that needs a library change goes in after the library's PR merges, with the
+pin moved in the same PR.
+
+The workflows you run by hand (Release, Pre-release check, Installers, Corpus (weekly)) take
+an `ios_backup_core_ref` input to try another branch, tag or commit; blank means the pinned
+commit. `scripts/ios-backup-core-pin.test.mjs` (in `npm test`) fails if `ios-backup-core.ref`
+isn't one full SHA, or if a workflow gets ios-backup-core any other way than through
+`.github/actions/ios-backup-core` and the pin.
+
+Locally, the engine and the generated backups use your checkout beside this repository
+(`../ios-backup-core`; the corpus also takes `$OPENEXTRACT_IOS_BACKUP_CORE`). Check out the
+pinned commit there to run what CI runs.
+
 ## Running them
 
 From the repository root, with the engine's Python environment set up as in the README:

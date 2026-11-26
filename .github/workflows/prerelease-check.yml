@@ -17,9 +17,9 @@ on:
   workflow_dispatch:
     inputs:
       ios_backup_core_ref:
-        description: 'ios-backup-core branch, tag or full commit SHA to build against'
+        description: 'ios-backup-core branch, tag or full commit SHA to build against (blank = the commit pinned in ios-backup-core.ref)'
         required: false
-        default: 'master'
+        default: ''
       items:
         description: 'Public corpus items to fetch and test (comma-separated)'
         required: false
@@ -32,9 +32,9 @@ on:
         type: string
         default: ''
       ios_backup_core_ref:
-        description: 'ios-backup-core branch, tag or full commit SHA (release.yml passes the commit it builds)'
+        description: 'ios-backup-core branch, tag or full commit SHA (blank = the commit pinned in ios-backup-core.ref; release.yml passes the commit it builds)'
         type: string
-        default: 'master'
+        default: ''
       items:
         type: string
         default: 'pub-hickman-13.3.1,pub-hickman-13.4.1,pub-hickman-15.3.1,pub-hickman-16.1.2,pub-hickman-17.3,pub-fcsc25-16.0'
@@ -59,11 +59,11 @@ jobs:
         id: core
         uses: ./.github/actions/ios-backup-core
         with:
-          ref: ${{ inputs.ios_backup_core_ref || 'master' }}
+          ref: ${{ inputs.ios_backup_core_ref || 'pinned' }}
 
       - name: Record it
         env:
-          REF: ${{ inputs.ios_backup_core_ref || 'master' }}
+          REF: ${{ inputs.ios_backup_core_ref || 'pinned' }}
           SHA: ${{ steps.core.outputs.sha }}
         run: |
           echo "ios-backup-core \`$REF\` is [\`$SHA\`](https://github.com/charleswest775/ios-backup-core/commit/$SHA). All three systems build against that commit." >> "$GITHUB_STEP_SUMMARY"

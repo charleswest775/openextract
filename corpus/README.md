@@ -39,8 +39,10 @@ Without `-m corpus`, `pytest python/tests/` runs only the corpus tooling's own u
 
 ## When it runs
 
+Every run below uses the ios-backup-core commit pinned in [`ios-backup-core.ref`](../ios-backup-core.ref), for the engine and for the generated backups, not whatever ios-backup-core's `master` is at the time. A merge there changes nothing here until a PR moves the pin with `scripts/bump-ios-backup-core.sh` (see [docs/TESTING.md](../docs/TESTING.md#which-ios-backup-core)). Locally, the tests use your checkout beside this repository (`../ios-backup-core`, or `$OPENEXTRACT_IOS_BACKUP_CORE`); check out the pinned commit there to test what CI tests.
+
 - **Every PR** (`ci.yml`): the tooling unit tests and the generated backups in the `pr` tier, on Linux, macOS and Windows. Nothing is downloaded.
-- **Weekly** (`corpus-weekly.yml`): fetches every item in the `weekly` tier and runs all corpus checks. Run it by hand with a different item list, or against an `ios-backup-core` branch, from the Actions tab.
+- **Weekly** (`corpus-weekly.yml`): fetches every item in the `weekly` tier and runs all corpus checks. Run it by hand with a different item list, or against another `ios-backup-core` branch, tag or commit (blank means the pinned one), from the Actions tab.
 - **Every release** (`prerelease-check.yml`, which `release.yml` runs on the new tag before publishing, and which can be run by hand from the Actions tab): on Linux, macOS and Windows, packages the app unsigned, runs the corpus checks on the public items it's given plus every generated backup against the engine inside that build, and drives the build through every end-to-end suite in `scripts/e2e` (see [docs/TESTING.md](../docs/TESTING.md)). Only the end-to-end results for the fictional backups are uploaded. The downloads (about 5 GB) are kept in the repository's Actions cache, one copy shared by all three systems: runs on `main` save it and every run restores it, so a new item, or a changed `fetch` entry for one, makes the next run on `main` download and save a fresh copy.
 
 ## Adding an item

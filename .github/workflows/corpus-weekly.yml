@@ -13,9 +13,9 @@ on:
         required: false
         default: ''
       ios_backup_core_ref:
-        description: 'ios-backup-core branch or tag to test against'
+        description: 'ios-backup-core branch, tag or full commit SHA to test against (blank = the commit pinned in ios-backup-core.ref)'
         required: false
-        default: 'master'
+        default: ''
 
 concurrency:
   group: corpus-weekly
@@ -43,14 +43,11 @@ jobs:
         uses: ./.github/actions/time-zone
 
       # Same sibling layout as ci.yml: python/requirements.txt installs
-      # ios-backup-core from ../../ios-backup-core.
-      - name: Clone ios-backup-core (sibling for editable install)
-        env:
-          REF: ${{ inputs.ios_backup_core_ref || 'master' }}
-        run: |
-          git clone --depth=1 --branch "$REF" \
-            https://github.com/charleswest775/ios-backup-core.git \
-            "$GITHUB_WORKSPACE/../ios-backup-core"
+      # ios-backup-core from ../../ios-backup-core. The scheduled run tests the pinned commit.
+      - name: Check out ios-backup-core (sibling for editable install)
+        uses: ./.github/actions/ios-backup-core
+        with:
+          ref: ${{ inputs.ios_backup_core_ref || 'pinned' }}
 
       - name: Install Python dependencies
         working-directory: python

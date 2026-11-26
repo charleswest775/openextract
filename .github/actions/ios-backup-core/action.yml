@@ -3,11 +3,16 @@ description: >
   Checks out ios-backup-core beside this repo, at ../ios-backup-core, where
   python/requirements.txt's `-e ../../ios-backup-core` expects it, and reports the commit.
   Unlike `git clone --branch`, the ref may be a full commit SHA, which is how release.yml
-  gives every job the same commit.
+  gives every job the same commit. `pinned` means the commit in ios-backup-core.ref at the
+  root of this repo's checkout (so check the repo out first): every workflow builds and tests
+  that commit unless someone running it by hand asks for another.
+  scripts/bump-ios-backup-core.sh moves the pin.
 
 inputs:
   ref:
-    description: A branch, a tag, or a full 40-character commit SHA. Required, so that a missing SHA fails instead of quietly building master.
+    description: >
+      `pinned` (the commit in ios-backup-core.ref), a branch, a tag, or a full 40-character
+      commit SHA. Required, so that a missing SHA fails instead of quietly building something else.
     required: true
 
 outputs:
@@ -21,11 +26,29 @@ runs:
     - id: checkout
       shell: bash
       env:
-        REF: ${{ inputs.ref }}
+        ASKED: ${{ inputs.ref }}
       run: |
+        REF="$ASKED"
         if [ -z "$REF" ]; then
           echo "::error::No ios-backup-core ref given"
           exit 1
+        fi
+        # The pin: one full commit SHA on one line. installers.yml's test job reads it the
+        # same way (written out there, for tags older than this action).
+        # $GITHUB_WORKSPACE, not github.workspace: in a container job only the first is the
+        # path inside the container.
+        if [ "$REF" = pinned ]; then
+          cd "$GITHUB_WORKSPACE"
+          if [ ! -f ios-backup-core.ref ]; then
+            echo "::error::ios-backup-core.ref isn't in this checkout ($GITHUB_WORKSPACE). Check the repository out before this step, or give a branch, tag or commit."
+            exit 1
+          fi
+          REF=$(tr -d '[:space:]' < ios-backup-core.ref)
+          if [[ ! "$REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error file=ios-backup-core.ref::ios-backup-core.ref must hold one full 40-character commit SHA (lowercase hex), but holds '$REF'. scripts/bump-ios-backup-core.sh writes it."
+            exit 1
+          fi
+          echo "Pinned in ios-backup-core.ref: $REF"
         fi
         DEST="$GITHUB_WORKSPACE/../ios-backup-core"
         git init -q "$DEST"
@@ -38,5 +61,5 @@ runs:
           echo "::error::Asked for ios-backup-core $REF but got $SHA"
           exit 1
         fi
-        echo "ios-backup-core: $REF -> $SHA"
+        echo "ios-backup-core: $ASKED -> $SHA"
         echo "sha=$SHA" >> "$GITHUB_OUTPUT"
