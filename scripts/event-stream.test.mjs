@@ -94,8 +94,16 @@ test('no files, no summary', () => {
   assert.equal(attachmentSummary(undefined), '');
 });
 
-test('a file with no type or name is a document, named by what the engine calls it', () => {
-  assert.equal(attachmentSummary([{ transfer_name: '', filename: '', mime_type: null }]), 'Document');
+// A photo or file whose record iOS removed, as ios-backup-core lists it: no id, name or type
+const gone = { attachment_id: null, transfer_name: '', filename: '', mime_type: null, available: false };
+
+test("a file nothing is known about is an attachment, not a guess at its kind", () => {
+  assert.equal(attachmentSummary([gone]), 'Attachment');
+  assert.equal(attachmentSummary([{ transfer_name: null, filename: null, mime_type: null }]), 'Attachment');
+  assert.equal(attachmentSummary([gone, gone]), '2 attachments');
+  assert.equal(attachmentSummary([file('Lease.pdf', 'application/pdf'), gone]), '2 attachments');
+  // A file with a name but no type is still named by it
+  assert.equal(attachmentSummary([{ transfer_name: 'Lease.pdf', filename: '', mime_type: null }]), 'Lease.pdf');
 });
 
 test('attachmentLabels names each file with what it is, for saved text', () => {
@@ -105,6 +113,9 @@ test('attachmentLabels names each file with what it is, for saved text', () => {
   // The engine's label for a file with no name ("Photo") isn't repeated as a name
   assert.deepEqual(attachmentLabels([{ transfer_name: 'Photo', filename: '', mime_type: 'image/jpeg' }]), ['Photo']);
   assert.deepEqual(attachmentLabels(undefined), []);
+  // Nothing known about it: its record is gone, and the file with it
+  assert.deepEqual(attachmentLabels([gone, file('IMG_1.jpeg', 'image/jpeg')]),
+    ['Attachment not in this backup', 'Photo: IMG_1.jpeg']);
 });
 
 rerunInTimeZones(import.meta.url);

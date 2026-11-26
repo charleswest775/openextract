@@ -112,6 +112,15 @@ test('a file that isn\'t in the backup says so, in the engine\'s words when it h
   assert.equal(wa.missingText('document', 'Attachment'), 'Document not in this backup');
   assert.equal(wa.missingText('document', 'Lease.pdf'), 'Document not in this backup');
   assert.equal(wa.missingText('sticker', ''), 'Sticker not in this backup');
+  // A Messages photo or file whose record iOS removed: nothing is known about it, so no guess at its kind
+  const gone = { attachment_id: null, transfer_name: '', filename: '', mime_type: null, available: false };
+  assert.equal(wa.nothingKnown(gone), true);
+  assert.equal(wa.missingLabel(gone, wa.attachmentKind(gone, 'attachment', 'messages')), 'Attachment not in this backup');
+  // Anything known about the file keeps the words it had
+  assert.equal(wa.missingLabel({ ...gone, transfer_name: 'Lease.pdf' }, 'document'), 'Document not in this backup');
+  assert.equal(wa.missingLabel({ ...gone, mime_type: 'image/jpeg' }, 'image'), 'Photo not in this backup');
+  assert.equal(wa.missingLabel({ ...gone, transfer_name: 'Video message' }, 'video'), 'Video message not in this backup');
+  assert.equal(wa.nothingKnown({ ...gone, transfer_name: 'Attachment' }), false);
   assert.equal(wa.kindLabel('gif'), 'GIF');
 
   assert.equal(wa.documentName({ transfer_name: 'Lease.pdf', filename: 'Message/Media/x/Lease.pdf' }), 'Lease.pdf');
