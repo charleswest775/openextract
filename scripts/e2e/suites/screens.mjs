@@ -411,7 +411,9 @@ export default {
         .map(b => b.textContent.trim().match(/^(Messages|WhatsApp|Calls|Photos|Voicemail|Notes|Web)([\d,]+)$/)).filter(Boolean).map(m => [m[1], Number(m[2].replace(/,/g, ''))])));
       const chipTotal = Object.values(chips).reduce((a, n) => a + n, 0);
       check('timeline total is the sum of its type chips', events === chipTotal, { events, chips });
-      check('timeline photos, notes, voicemail and web visits match the answer key', chips.Photos === key.photos.length && chips.Notes === key.notes.length
+      // The Timeline leaves out notes in Recently Deleted (the Notes screen still lists them)
+      const timelineNotes = key.notes.filter(n => !n.deleted).length;
+      check('timeline photos, notes, voicemail and web visits match the answer key', chips.Photos === key.photos.length && chips.Notes === timelineNotes
         && chips.Voicemail === key.voicemails.length && chips.Web === key.browser_history.length && chips.Calls === tiles.Calls, chips);
       check(`timeline has the answer key's ${waTotal} WhatsApp messages`, (chips.WhatsApp ?? 0) === waTotal, chips);
       await app.click(`Photos${chips.Photos}`);
