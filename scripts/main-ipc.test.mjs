@@ -37,7 +37,7 @@ const EXPECTED_CHANNELS = [
   'backup:trashOlder',
   // Ask AI (electron/askAi.ts): registered in every build, answering "off" in most
   'ask-ai:state', 'ask-ai:status', 'ask-ai:install', 'ask-ai:connect-claude', 'ask-ai:connect-chatgpt',
-  'ask-ai:set-hidden', 'ask-ai:note-seen',
+  'ask-ai:set-hidden', 'ask-ai:note-seen', 'ask-ai:open-full-disk-access',
 ];
 
 // Development-only switches in main.ts that a developer's shell might have set.
@@ -1077,12 +1077,15 @@ describe('Ask AI is off unless the build switched it on', () => {
 
   async function everyChannelOff(m) {
     assert.deepEqual(await m.invoke('ask-ai:state'), { enabled: false });
-    for (const channel of ['ask-ai:status', 'ask-ai:install', 'ask-ai:connect-claude']) assert.deepEqual(await m.invoke(channel), OFF, channel);
+    for (const channel of ['ask-ai:status', 'ask-ai:install', 'ask-ai:connect-claude', 'ask-ai:open-full-disk-access']) {
+      assert.deepEqual(await m.invoke(channel), OFF, channel);
+    }
     assert.deepEqual(await m.invoke('ask-ai:connect-chatgpt', true), OFF);
     await m.invoke('ask-ai:set-hidden', true);
     await m.invoke('ask-ai:note-seen');
     assert.deepEqual(m.env.callsTo('net.fetch'), [], 'nothing fetched');
     assert.deepEqual(m.env.callsTo('shell.openPath'), [], 'nothing opened');
+    assert.deepEqual(m.env.callsTo('shell.openExternal'), [], 'no settings opened');
     const saved = fs.existsSync(m.stateFile) ? m.readState() : {};
     assert.ok(!('askAiHidden' in saved) && !('askAiNoteSeen' in saved), 'nothing saved');
   }
@@ -1106,6 +1109,56 @@ describe('Ask AI is off unless the build switched it on', () => {
       assert.deepEqual(await m.invoke('ask-ai:status'), NOT_INSTALLED);
       await m.invoke('ask-ai:set-hidden', true);
       assert.equal(m.readState().askAiHidden, true);
+    });
+  });
+
+  // backups.json: what the engine lists and opens, while the add-on is installed (program/current.json).
+  function engineWithBackups(m, base) {
+    m.sidecar.answer = async (method, params) => {
+      if (method === 'list_backups') {
+        return { backups: [{ udid: 'F1', backup_dir: path.join(base, 'finder', 'F1') }, { udid: 'C1', backup_dir: path.join(base, 'chosen', 'C1') }] };
+      }
+      if (method === 'open_backup') {
+        return params.password === undefined && params.udid === 'LOCKED'
+          ? { status: 'password_required' }
+          : { status: 'open', info: { udid: params.udid, backup_dir: path.join(base, 'chosen', params.udid) } };
+      }
+      return { answered: method };
+    };
+  }
+  function installedAddon() {
+    const home = freshDir('ai-home');
+    fs.mkdirSync(path.join(home, 'program'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'program', 'current.json'), '{"version": "0.2.0", "command": "/nowhere"}');
+    return home;
+  }
+
+  test('on, with the add-on installed: opening a backup writes backups.json from what the engine listed and opened', async () => {
+    const home = installedAddon();
+    const base = freshDir('backups');
+    await withEnv({ OPENEXTRACT_AI_HOME: home }, async () => {
+      const m = await loadMain({ real: true, files: buildInfo('https://dl.test/index.json') });
+      engineWithBackups(m, base);
+      await m.invoke('sidecar:call', 'list_backups', {});
+      assert.equal(fs.existsSync(path.join(home, 'backups.json')), false, 'listing alone writes nothing');
+      await m.invoke('sidecar:call', 'open_backup', { udid: 'LOCKED' });
+      assert.equal(fs.existsSync(path.join(home, 'backups.json')), false, 'a backup waiting for its password isn\'t open');
+      await m.invoke('sidecar:call', 'open_backup', { udid: 'C1', backup_dir: path.join(base, 'chosen', 'C1') });
+      assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home, 'backups.json'), 'utf-8')), {
+        version: 1, open: path.join(base, 'chosen', 'C1'), folders: [path.join(base, 'chosen'), path.join(base, 'finder')],
+      });
+    });
+  });
+
+  test('off, even with the add-on installed: opening backups writes nothing there', async () => {
+    const home = installedAddon();
+    const base = freshDir('backups');
+    await withEnv({ OPENEXTRACT_AI_HOME: home }, async () => {
+      const m = await loadMain({ real: true });
+      engineWithBackups(m, base);
+      await m.invoke('sidecar:call', 'list_backups', {});
+      await m.invoke('sidecar:call', 'open_backup', { udid: 'C1', backup_dir: path.join(base, 'chosen', 'C1') });
+      assert.deepEqual(fs.readdirSync(home), ['program']);
     });
   });
 

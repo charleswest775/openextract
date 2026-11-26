@@ -79,7 +79,7 @@ const OFF = { enabled: false };
 const ON = {
   enabled: true, apps: ['claude', 'chatgpt', 'claude-code'], available: true, hidden: false, noteSeen: false,
   installed: null, claude: { connected: false }, chatgpt: { connected: false, current: false, settingsFile: '~/.codex/config.toml' },
-  claudeCode: { command: null },
+  claudeCode: { command: null }, fullDiskAccess: false,
 };
 const COMMAND = 'claude mcp add --scope user openextract -- "/Users/sam/Library/Application Support/OpenExtract AI/program/0.2.0/openextract-ai"';
 const INSTALLED = { ...ON, noteSeen: true, installed: { version: '0.2.0' }, claudeCode: { command: COMMAND } };
@@ -110,6 +110,7 @@ function bridgeFor(t, state, { askAi = true, results = {} } = {}) {
       connectChatGpt: record('connectChatGpt', () => results.connectChatGpt ?? Promise.resolve({ ok: true })),
       setHidden: record('setHidden', async hidden => { if (current.enabled) current = { ...current, hidden }; }),
       noteSeen: record('noteSeen', async () => { if (current.enabled) current = { ...current, noteSeen: true }; }),
+      openFullDiskAccess: record('openFullDiskAccess', async () => ({ ok: true })),
       onProgress: record('onProgress', cb => { onProgress = cb; return () => { onProgress = null; }; }),
     };
   }
@@ -179,6 +180,19 @@ describe('src/lib/askAi.ts', () => {
     assert.equal(L.appNames(['claude', 'chatgpt', 'claude-code']), 'Claude, ChatGPT and Claude Code');
     assert.equal(L.companiesLine(['claude', 'chatgpt', 'claude-code']), 'Anthropic for Claude and Claude Code, OpenAI for ChatGPT');
     assert.equal(L.companiesLine(['chatgpt']), 'OpenAI for ChatGPT');
+  });
+
+  test('the Full Disk Access step: for Claude and ChatGPT only, when the backup is in Finder\'s folder', () => {
+    const fda = { ...ON, fullDiskAccess: true };
+    assert.deepEqual(L.fullDiskAccessStep('claude', fda), {
+      title: "Claude needs Full Disk Access to read backups in Finder's backup folder.",
+      text: 'This lets Claude read any file on this Mac. In Settings, turn on Claude under Full Disk Access, then quit Claude and open it again. '
+        + "If it's already on, there's nothing to do.",
+    });
+    assert.match(L.fullDiskAccessStep('chatgpt', fda).title, /^ChatGPT needs Full Disk Access/);
+    assert.match(L.fullDiskAccessStep('chatgpt', fda).text, /^This lets ChatGPT read any file on this Mac\./);
+    assert.equal(L.fullDiskAccessStep('claude-code', fda), null);
+    assert.equal(L.fullDiskAccessStep('claude', ON), null);
   });
 
   test('this build\'s price: 3 questions free, then an access key; plain words', () => {
@@ -386,6 +400,25 @@ describe('the Ask AI screen', () => {
     });
     await tick();
     assert.match(r.html(), /2 of 3 free questions left/);
+  });
+
+  test('a backup in Finder\'s folder on a Mac: Claude and ChatGPT show the Full Disk Access step; Open Settings asks main', async t => {
+    const r = await render(t, SCREEN, { ...ON, fullDiskAccess: true }, { props: { onBack: () => {} } });
+    const page = r.html();
+    assert.match(page, /Claude needs Full Disk Access to read backups in Finder's backup folder\./);
+    assert.match(page, /This lets Claude read any file on this Mac\./);
+    assert.match(page, /ChatGPT needs Full Disk Access to read backups in Finder's backup folder\./);
+    assert.match(page, /This lets ChatGPT read any file on this Mac\./);
+    assert.doesNotMatch(page, /Claude Code needs/);
+    assert.doesNotMatch(page, BANNED);
+    const open = buttons(r.out()).filter(b => text(b) === 'Open Settings');
+    assert.equal(open.length, 2);
+    open[0].props.onClick({ target: 'anything the page has' });
+    assert.deepEqual(r.calls('askAi.openFullDiskAccess'), [['askAi.openFullDiskAccess']], 'no address comes from the window');
+
+    const elsewhere = await render(t, SCREEN, ON, { props: { onBack: () => {} } });
+    assert.doesNotMatch(elsewhere.html(), /Full Disk Access/);
+    assert.equal(buttons(elsewhere.out()).filter(b => text(b) === 'Open Settings').length, 0);
   });
 
   test('"Don\'t show this again" hides Ask AI and goes back Home', async t => {

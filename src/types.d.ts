@@ -123,6 +123,8 @@ declare global {
         setHidden: (hidden: boolean) => Promise<void>;
         /** The "New" note on Home has done its job. */
         noteSeen: () => Promise<void>;
+        /** Opens System Settings at Full Disk Access (macOS). Main opens only that fixed address. */
+        openFullDiskAccess: () => Promise<import('./lib/askAi').AskAiResult>;
         onProgress: (callback: (progress: import('./lib/askAi').InstallProgress) => void) => () => void;
       };
     };

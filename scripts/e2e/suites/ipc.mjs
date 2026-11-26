@@ -24,7 +24,7 @@ export const BRIDGE = [
   'trashOlderBackup',
   // Ask AI (electron/askAi.ts): off in every build these suites run
   'askAi.state', 'askAi.status', 'askAi.install', 'askAi.connectClaude', 'askAi.connectChatGpt',
-  'askAi.setHidden', 'askAi.noteSeen', 'askAi.onProgress',
+  'askAi.setHidden', 'askAi.noteSeen', 'askAi.onProgress', 'askAi.openFullDiskAccess',
 ];
 
 export default {
@@ -159,7 +159,7 @@ export default {
       const aiState = await app.api('askAi.state');
       check('askAi.state: off in this build', JSON.stringify(aiState.value) === JSON.stringify({ enabled: false }), aiState);
       const aiCalls = [];
-      for (const [fn, ...args] of [['askAi.status'], ['askAi.install'], ['askAi.connectClaude'], ['askAi.connectChatGpt', true]]) {
+      for (const [fn, ...args] of [['askAi.status'], ['askAi.install'], ['askAi.connectClaude'], ['askAi.connectChatGpt', true], ['askAi.openFullDiskAccess']]) {
         aiCalls.push([fn, (await app.api(fn, ...args)).value]);
       }
       check("askAi: every action answers that it's off", aiCalls.every(([, v]) => v?.ok === false && /isn't part of this copy/.test(v.error ?? '')), aiCalls);

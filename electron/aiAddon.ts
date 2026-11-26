@@ -620,6 +620,73 @@ export function readCurrent(home: string, look: Look = realLook): Installed | nu
   return { version: data.version, command: data.command };
 }
 
+/** The add-on is installed: program/current.json is there (FRIENDS-BUILD.md section 3). */
+export function addonInstalled(home: string): boolean {
+  return fs.existsSync(path.join(programDir(home), 'current.json'));
+}
+
+// ── backups.json: which backup, and where backups are ───────────────────────
+
+/** `<add-on home>/backups.json`, which the add-on reads to find backups outside the usual folders. */
+export interface BackupsFile {
+  version: 1;
+  /** The backup folder open in OpenExtract now, or the last one opened; null if none. */
+  open: string | null;
+  /** Folders known to hold backups: the open backup's parent, then those of the others. */
+  folders: string[];
+}
+
+export const BACKUPS_FILE = 'backups.json';
+
+/**
+ * What backups.json holds: `open`, and the folder each backup is in (the open one's first, then
+ * `others`: the backups OpenExtract found or was pointed at). Absolute paths only, each folder
+ * once (ignoring case on Windows, whose paths don't care about it).
+ */
+export function backupsFile(open: unknown, others: Iterable<unknown>, platform: string): BackupsFile {
+  const usable = (p: unknown): p is string => typeof p === 'string' && p.trim() !== '' && path.isAbsolute(p);
+  const openDir = usable(open) ? path.resolve(open) : null;
+  const folders: string[] = [];
+  const seen = new Set<string>();
+  for (const backup of [openDir, ...others]) {
+    if (!usable(backup)) continue;
+    const dir = path.resolve(backup);
+    const parent = path.dirname(dir);
+    if (parent === dir) continue; // a backup can't be the root of a drive
+    const key = platform === 'win32' ? parent.toLowerCase() : parent;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    folders.push(parent);
+  }
+  return { version: 1, open: openDir, folders };
+}
+
+/** Writes backups.json whole (a temp file renamed over it), so the add-on never reads half of one. */
+export function writeBackupsFile(home: string, file: BackupsFile): void {
+  const target = path.join(home, BACKUPS_FILE);
+  const tmp = `${target}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
+  try {
+    fs.mkdirSync(home, { recursive: true });
+    fs.writeFileSync(tmp, `${JSON.stringify(file, null, 2)}\n`, 'utf-8');
+    fs.renameSync(tmp, target);
+  } catch (err) {
+    try {
+      fs.rmSync(tmp, { force: true });
+    } catch {
+      // nothing to tidy
+    }
+    throw err;
+  }
+}
+
+/** Whether a backup is in Finder's backup folder, which macOS keeps behind Full Disk Access. */
+export function inMobileSync(backupDir: unknown, homedir: string): boolean {
+  if (typeof backupDir !== 'string' || !path.isAbsolute(backupDir)) return false;
+  const mobileSync = path.join(homedir, 'Library', 'Application Support', 'MobileSync');
+  // Macs' disks ignore case unless set up otherwise
+  return isInside(path.resolve(backupDir).toLowerCase(), mobileSync.toLowerCase());
+}
+
 // ── Installing ──────────────────────────────────────────────────────────────
 
 export interface InstallOptions extends Place {

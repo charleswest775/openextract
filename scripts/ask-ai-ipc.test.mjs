@@ -2,8 +2,9 @@
 // without OPENEXTRACT_AI_INDEX_URL), every channel answers that it's off and touches nothing:
 // no place is looked at, nothing is fetched, run, opened or saved. On, the handlers find AI
 // apps, install from a local server, ask the add-on for its --status, open the .mcpb for
-// Claude, change ChatGPT's settings file only with the person's OK, and check what the
-// window sends. Everything happens in temp folders; the real home folder is never used.
+// Claude, change ChatGPT's settings file only with the person's OK, keep the add-on's
+// backups.json, offer the Full Disk Access settings, and check what the window sends.
+// Everything happens in temp folders; the real home folder is never used.
 // (main.ts's wiring of the switch is tested in scripts/main-ipc.test.mjs.)
 // Run with: node --test scripts/ask-ai-ipc.test.mjs
 import { test, describe } from 'node:test';
@@ -19,7 +20,9 @@ import { makeZip } from './test-helpers/zip.mjs';
 const { registerAskAi, ASK_AI_OFF } = loadElectronModule('askAi').module;
 const A = loadElectronModule('aiAddon').module;
 const OFF = { ok: false, error: ASK_AI_OFF };
-const CHANNELS = ['ask-ai:state', 'ask-ai:status', 'ask-ai:install', 'ask-ai:connect-claude', 'ask-ai:connect-chatgpt', 'ask-ai:set-hidden', 'ask-ai:note-seen'];
+const { FULL_DISK_ACCESS_URL } = loadElectronModule('askAi').module;
+const CHANNELS = ['ask-ai:state', 'ask-ai:status', 'ask-ai:install', 'ask-ai:connect-claude', 'ask-ai:connect-chatgpt', 'ask-ai:set-hidden', 'ask-ai:note-seen',
+  'ask-ai:open-full-disk-access'];
 const sha = buf => crypto.createHash('sha256').update(buf).digest('hex');
 const mkdir = dir => {
   fs.mkdirSync(dir, { recursive: true });
@@ -58,17 +61,27 @@ function macLayout(apps = ['claude', 'chatgpt', 'claude-code']) {
   return { base, home, systemApps, aiHome, env: { PATH: bin, OPENEXTRACT_AI_HOME: aiHome } };
 }
 
-function setup({ indexUrl, layout = macLayout(), platform = 'darwin', arch = 'arm64', fetchFn = fetch, look, run = hostRun, statusRunner, openPath } = {}) {
+function setup({ indexUrl, layout = macLayout(), platform = 'darwin', arch = 'arm64', fetchFn = fetch, look, run = hostRun, statusRunner, openPath, sessions } = {}) {
   const electron = createElectron();
   const store = memoryStore();
+  if (sessions) store.data.sessions = sessions;
   const opened = [];
-  const shell = { openPath: async p => { opened.push(p); return openPath ? openPath(p) : ''; } };
-  registerAskAi({
+  const shell = {
+    openPath: async p => { opened.push(p); return openPath ? openPath(p) : ''; },
+    showItemInFolder: p => opened.push(['folder', p]),
+    openExternal: async url => { opened.push(['external', url]); },
+  };
+  const hooks = registerAskAi({
     ipcMain: electron.electron.ipcMain, shell, store, indexUrl, platform, arch, env: layout.env, homedir: layout.home,
     fetch: fetchFn, look, systemApps: layout.systemApps, macBinDirs: [], run, statusRunner,
   });
-  return { invoke: electron.invoke, sent: electron.senderSent, handlers: electron.handlers, store, opened, layout };
+  return { invoke: electron.invoke, sent: electron.senderSent, handlers: electron.handlers, store, opened, layout, hooks };
 }
+
+const backupsJson = layout => {
+  const file = path.join(layout.aiHome, 'backups.json');
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf-8')) : null;
+};
 
 async function serve(routes) {
   const requests = [];
@@ -140,6 +153,9 @@ describe('Ask AI off (a build without OPENEXTRACT_AI_INDEX_URL)', () => {
     assert.deepEqual(await a.invoke('ask-ai:connect-chatgpt', true), OFF);
     assert.equal(await a.invoke('ask-ai:set-hidden', true), undefined);
     assert.equal(await a.invoke('ask-ai:note-seen'), undefined);
+    assert.deepEqual(await a.invoke('ask-ai:open-full-disk-access'), OFF);
+    a.hooks.backupsFound([path.join(layout.base, 'backups', 'A')]);
+    a.hooks.backupOpened(path.join(layout.base, 'backups', 'A'));
 
     assert.deepEqual(touched, [], 'no place looked at');
     assert.deepEqual(calls, { fetch: 0, run: 0, status: 0 });
@@ -149,6 +165,20 @@ describe('Ask AI off (a build without OPENEXTRACT_AI_INDEX_URL)', () => {
     assert.deepEqual(a.store.sets, [], 'no setting saved');
     assert.equal(fs.existsSync(layout.aiHome), false, 'no add-on folder made');
     assert.equal(fs.existsSync(path.join(layout.home, '.codex')), false, 'ChatGPT\'s settings untouched');
+  });
+
+  test('no backups.json, even with the add-on already installed and backups opened', async () => {
+    const layout = macLayout();
+    const current = touch(path.join(layout.aiHome, 'program', 'current.json'), '{"version": "0.2.0", "command": "/x"}');
+    const a = setup({ indexUrl: null, layout, sessions: [{ id: 'A', backupDir: path.join(layout.base, 'old', 'A'), lastOpened: '2026-11-20T00:00:00Z' }] });
+    a.hooks.backupsFound([path.join(layout.base, 'found', 'B')]);
+    a.hooks.backupOpened(path.join(layout.home, 'Library', 'Application Support', 'MobileSync', 'Backup', 'C'));
+    await a.invoke('ask-ai:install');
+    await a.invoke('ask-ai:connect-chatgpt', true);
+    assert.deepEqual(fs.readdirSync(layout.aiHome), ['program']);
+    assert.deepEqual(fs.readdirSync(path.dirname(current)), ['current.json']);
+    assert.deepEqual(a.store.gets, [], 'not even the recent list is read');
+    assert.deepEqual(a.opened, []);
   });
 });
 
@@ -167,6 +197,7 @@ describe('Ask AI on', () => {
       claude: { connected: false },
       chatgpt: { connected: false, current: false, settingsFile: path.join('~', '.codex', 'config.toml') },
       claudeCode: { command: null },
+      fullDiskAccess: false,
     });
     const one = setup({ indexUrl: 'https://dl.test/index.json', layout: macLayout(['claude-code']) });
     const s = await one.invoke('ask-ai:state');
@@ -293,5 +324,126 @@ describe('Ask AI on', () => {
     const state = await a.invoke('ask-ai:state');
     assert.deepEqual([state.hidden, state.noteSeen], [false, true]);
     assert.deepEqual(a.store.sets, [['askAiHidden', true], ['askAiHidden', false], ['askAiNoteSeen', true]]);
+  });
+});
+
+// ── backups.json (FRIENDS-BUILD.md section 3) ───────────────────────────────
+
+describe('backups.json', () => {
+  test('not written while the add-on isn\'t installed; written once it is, then on every backup opened', { skip: !hasHostTool && 'no unzip here' }, async t => {
+    const s = await addonServer(t);
+    const layout = macLayout();
+    const older = path.join(layout.base, 'Volumes', 'Drive', 'Backups', '00008030-OLD');
+    const a = setup({
+      indexUrl: s.url('/index.json'), layout,
+      sessions: [
+        { id: 'X', backupDir: older, lastOpened: '2026-10-01T00:00:00Z' },
+        { id: 'Y', name: 'no folder', lastOpened: '2026-11-01T00:00:00Z' },
+      ],
+    });
+    const finder = path.join(layout.home, 'Library', 'Application Support', 'MobileSync', 'Backup');
+    const chosen = path.join(layout.base, 'iphone-backups');
+    // Home's list of Finder's folder, then a folder the person chose with two backups in it
+    a.hooks.backupsFound([path.join(finder, '00008110-F1'), path.join(finder, '00008120-F2')]);
+    a.hooks.backupsFound([path.join(chosen, '00008140-C1'), path.join(chosen, '00008101-C2'), 'relative', null]);
+    a.hooks.backupOpened(path.join(chosen, '00008140-C1'));
+    assert.equal(backupsJson(layout), null, 'not installed: nothing written');
+
+    assert.deepEqual(await a.invoke('ask-ai:install'), { ok: true });
+    assert.deepEqual(backupsJson(layout), { version: 1, open: path.join(chosen, '00008140-C1'), folders: [chosen, finder, path.dirname(older)] });
+
+    a.hooks.backupOpened(path.join(finder, '00008110-F1'));
+    assert.deepEqual(backupsJson(layout), { version: 1, open: path.join(finder, '00008110-F1'), folders: [finder, chosen, path.dirname(older)] });
+    a.hooks.backupOpened('not/absolute');
+    a.hooks.backupOpened(undefined);
+    assert.equal(backupsJson(layout).open, path.join(finder, '00008110-F1'), 'ignored');
+    assert.deepEqual(fs.readdirSync(layout.aiHome).sort(), ['backups.json', 'downloads', 'program'], 'nothing else written there, no temp file left');
+  });
+
+  test('with no backup opened in this run, open is the last one opened (the newest in the recent list)', { skip: !hasHostTool && 'no unzip here' }, async t => {
+    const s = await addonServer(t);
+    const layout = macLayout();
+    const newer = path.join(layout.base, 'b', 'NEW');
+    const old = path.join(layout.base, 'a', 'OLD');
+    const a = setup({
+      indexUrl: s.url('/index.json'), layout,
+      sessions: [{ id: 'o', backupDir: old, lastOpened: '2026-01-01T00:00:00Z' }, { id: 'n', backupDir: newer, lastOpened: '2026-11-24T00:00:00Z' }],
+    });
+    await a.invoke('ask-ai:connect-claude');
+    assert.deepEqual(backupsJson(layout), { version: 1, open: newer, folders: [path.dirname(newer), path.dirname(old)] });
+  });
+
+  test('nothing known at all: open is null, folders empty', { skip: !hasHostTool && 'no unzip here' }, async t => {
+    const s = await addonServer(t);
+    const layout = macLayout();
+    const a = setup({ indexUrl: s.url('/index.json'), layout });
+    await a.invoke('ask-ai:install');
+    assert.deepEqual(backupsJson(layout), { version: 1, open: null, folders: [] });
+  });
+
+  test('connecting ChatGPT writes it too; a failed install doesn\'t', async t => {
+    const broken = await serve({});
+    t.after(broken.close);
+    const layout = macLayout();
+    const a = setup({ indexUrl: broken.url('/index.json'), layout });
+    a.hooks.backupOpened(path.join(layout.base, 'x', 'A'));
+    assert.equal((await a.invoke('ask-ai:connect-chatgpt', true)).ok, false);
+    assert.equal(backupsJson(layout), null);
+    if (!hasHostTool) return;
+    const s = await addonServer(t);
+    const b = setup({ indexUrl: s.url('/index.json'), layout });
+    b.hooks.backupOpened(path.join(layout.base, 'x', 'A'));
+    assert.deepEqual(await b.invoke('ask-ai:connect-chatgpt', true), { ok: true });
+    assert.deepEqual(backupsJson(layout), { version: 1, open: path.join(layout.base, 'x', 'A'), folders: [path.join(layout.base, 'x')] });
+  });
+
+  test('a backups.json that can\'t be written never gets in the way of opening a backup', () => {
+    const layout = macLayout();
+    touch(path.join(layout.aiHome, 'program', 'current.json'), '{}');
+    mkdir(path.join(layout.aiHome, 'backups.json')); // a folder where the file goes: the rename fails
+    const a = setup({ indexUrl: 'https://dl.test/index.json', layout });
+    const errors = [];
+    const real = console.error;
+    console.error = (...args) => errors.push(args.join(' '));
+    try {
+      assert.doesNotThrow(() => a.hooks.backupOpened(path.join(layout.base, 'x', 'A')));
+    } finally {
+      console.error = real;
+    }
+    assert.match(errors.join('\n'), /backups\.json not written/);
+    assert.deepEqual(fs.readdirSync(layout.aiHome).sort(), ['backups.json', 'program'], 'no temp file left');
+  });
+});
+
+// ── Full Disk Access on a Mac ───────────────────────────────────────────────
+
+describe('Full Disk Access', () => {
+  test('the step shows on a Mac when the open (or last opened) backup is in Finder\'s backup folder', async () => {
+    const layout = macLayout();
+    const finderBackup = path.join(layout.home, 'Library', 'Application Support', 'MobileSync', 'Backup', '00008140-A');
+    const elsewhere = path.join(layout.base, 'iphone-backups', '00008140-B');
+    const a = setup({ indexUrl: 'https://dl.test/index.json', layout });
+    assert.equal((await a.invoke('ask-ai:state')).fullDiskAccess, false, 'nothing opened yet');
+    a.hooks.backupOpened(finderBackup);
+    assert.equal((await a.invoke('ask-ai:state')).fullDiskAccess, true);
+    a.hooks.backupOpened(elsewhere);
+    assert.equal((await a.invoke('ask-ai:state')).fullDiskAccess, false);
+
+    const last = setup({ indexUrl: 'https://dl.test/index.json', layout, sessions: [{ id: 'A', backupDir: finderBackup, lastOpened: '2026-11-24T00:00:00Z' }] });
+    assert.equal((await last.invoke('ask-ai:state')).fullDiskAccess, true, 'the last one opened, from an earlier run');
+
+    const win = setup({ indexUrl: 'https://dl.test/index.json', layout, platform: 'win32', arch: 'x64' });
+    win.hooks.backupOpened(finderBackup);
+    assert.equal((await win.invoke('ask-ai:state')).fullDiskAccess, false, 'never on Windows');
+  });
+
+  test('Open Settings opens only the one fixed address, whatever the window sends, and only on a Mac', async () => {
+    const a = setup({ indexUrl: 'https://dl.test/index.json' });
+    assert.deepEqual(await a.invoke('ask-ai:open-full-disk-access', 'https://evil.test/', 'file:///etc'), { ok: true });
+    assert.deepEqual(a.opened, [['external', FULL_DISK_ACCESS_URL]]);
+    assert.equal(FULL_DISK_ACCESS_URL, 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles');
+    const win = setup({ indexUrl: 'https://dl.test/index.json', platform: 'win32', arch: 'x64' });
+    assert.deepEqual(await win.invoke('ask-ai:open-full-disk-access'), { ok: false, error: 'Full Disk Access is a Mac setting.' });
+    assert.deepEqual(win.opened, []);
   });
 });

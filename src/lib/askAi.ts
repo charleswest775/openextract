@@ -26,6 +26,8 @@ export type AskAiState =
     claude: { connected: boolean } | null;
     chatgpt: { connected: boolean; current: boolean; settingsFile: string } | null;
     claudeCode: { command: string | null } | null;
+    /** macOS, and the open (or last opened) backup is in Finder's backup folder. */
+    fullDiskAccess: boolean;
   };
 
 export type OnState = Extract<AskAiState, { enabled: true }>;
@@ -114,6 +116,20 @@ export function progressLine(progress: InstallProgress | null | undefined): stri
     case 'unpack': return 'Unpacking…';
     default: return 'Getting ready…';
   }
+}
+
+/**
+ * The Full Disk Access step on Claude's and ChatGPT's cards, on a Mac when the backup is in Finder's
+ * backup folder (FRIENDS-BUILD.md section 3). macOS asks it of the app the add-on runs inside.
+ */
+export function fullDiskAccessStep(id: AiAppId, state: OnState): { title: string; text: string } | null {
+  if (!state.fullDiskAccess || (id !== 'claude' && id !== 'chatgpt')) return null;
+  const app = APP_NAMES[id];
+  return {
+    title: `${app} needs Full Disk Access to read backups in Finder's backup folder.`,
+    text: `This lets ${app} read any file on this Mac. In Settings, turn on ${app} under Full Disk Access, `
+      + `then quit ${app} and open it again. If it's already on, there's nothing to do.`,
+  };
 }
 
 /** Each app's state, in a few words. */

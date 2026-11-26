@@ -558,6 +558,71 @@ describe('program/current.json', () => {
   });
 });
 
+// ── backups.json and Finder's backup folder ─────────────────────────────────
+
+describe('backups.json', () => {
+  const base = path.join(path.sep, 'Users', 'sam');
+  const at = (...parts) => path.join(base, ...parts);
+
+  test('open, then each backup\'s folder once: the open one\'s first, absolute paths only', () => {
+    const open = at('iphone-backups', '00008140-AAAA');
+    const file = A.backupsFile(open, [
+      at('Library', 'Application Support', 'MobileSync', 'Backup', '00008110-BBBB'),
+      at('iphone-backups', '00008030-CCCC'), // same folder as the open one
+      path.join(path.sep, 'Volumes', 'Drive', 'Backups', '00008101-DDDD') + path.sep,
+      at('Library', 'Application Support', 'MobileSync', 'Backup', '00008120-EEEE'),
+      'relative/backup', '', null, 42, { dir: '/x' },
+    ], 'darwin');
+    assert.deepEqual(file, {
+      version: 1,
+      open,
+      folders: [at('iphone-backups'), at('Library', 'Application Support', 'MobileSync', 'Backup'), path.join(path.sep, 'Volumes', 'Drive', 'Backups')],
+    });
+  });
+
+  test('nothing open: open is null; nothing known: no folders', () => {
+    assert.deepEqual(A.backupsFile(null, [at('b', 'X')], 'darwin'), { version: 1, open: null, folders: [at('b')] });
+    assert.deepEqual(A.backupsFile(undefined, [], 'darwin'), { version: 1, open: null, folders: [] });
+    assert.deepEqual(A.backupsFile('not/absolute', [], 'darwin'), { version: 1, open: null, folders: [] });
+  });
+
+  test('Windows paths that differ only in case are one folder', () => {
+    const file = A.backupsFile(at('Backups', 'A'), [at('BACKUPS', 'B'), at('backups', 'C')], 'win32');
+    assert.deepEqual(file.folders, [at('Backups')]);
+    assert.equal(A.backupsFile(at('Backups', 'A'), [at('BACKUPS', 'B')], 'darwin').folders.length, 2);
+  });
+
+  test('written whole: replaced by a renamed temp file, none left behind', () => {
+    const home = freshDir('ai-home');
+    A.writeBackupsFile(home, A.backupsFile(at('one', 'A'), [], 'darwin'));
+    A.writeBackupsFile(home, A.backupsFile(at('two', 'B'), [at('one', 'A')], 'darwin'));
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home, 'backups.json'), 'utf-8')),
+      { version: 1, open: at('two', 'B'), folders: [at('two'), at('one')] });
+    assert.deepEqual(fs.readdirSync(home), ['backups.json']);
+    // the folder is made if need be
+    const fresh = path.join(freshDir('parent'), 'OpenExtract AI');
+    A.writeBackupsFile(fresh, A.backupsFile(null, [], 'darwin'));
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(fresh, 'backups.json'), 'utf-8')), { version: 1, open: null, folders: [] });
+  });
+
+  test('installed = program/current.json is there', () => {
+    const home = freshDir('ai-home');
+    assert.equal(A.addonInstalled(home), false);
+    touch(path.join(home, 'program', 'current.json'), '{}');
+    assert.equal(A.addonInstalled(home), true);
+  });
+
+  test('Finder\'s backup folder is ~/Library/Application Support/MobileSync, in any case', () => {
+    assert.equal(A.inMobileSync(at('Library', 'Application Support', 'MobileSync', 'Backup', '00008140-A'), base), true);
+    assert.equal(A.inMobileSync(at('library', 'application support', 'mobilesync', 'Backup', 'X'), base), true);
+    assert.equal(A.inMobileSync(at('Library', 'Application Support', 'MobileSyncOld', 'Backup', 'X'), base), false);
+    assert.equal(A.inMobileSync(at('iphone-backups', '00008140-A'), base), false);
+    assert.equal(A.inMobileSync(path.join(path.sep, 'Users', 'other', 'Library', 'Application Support', 'MobileSync', 'Backup', 'X'), base), false);
+    assert.equal(A.inMobileSync('Library/Application Support/MobileSync/Backup/X', base), false);
+    assert.equal(A.inMobileSync(null, base), false);
+  });
+});
+
 // ── Installing, start to finish ─────────────────────────────────────────────
 
 describe('installAddon', () => {

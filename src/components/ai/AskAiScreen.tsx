@@ -2,10 +2,11 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useAskAi } from '../../hooks/useAskAi';
 import {
   APP_NAMES, EXAMPLE_QUESTION, KEYS_LINE, PRICE_LINE,
-  appNames, appStateLine, askAiShown, companiesLine, markNoteSeen, progressLine, refreshAskAi, setAskAiHidden, statusLine,
+  appNames, appStateLine, askAiShown, companiesLine, fullDiskAccessStep, markNoteSeen, progressLine, refreshAskAi, setAskAiHidden,
+  statusLine,
   type AddonStatus, type AiAppId, type AskAiResult, type InstallProgress,
 } from '../../lib/askAi';
-import { ArrowLeftIcon, AskAiIcon, CheckIcon, CopyIcon } from '../shared/Icons';
+import { ArrowLeftIcon, AskAiIcon, CheckIcon, CopyIcon, LockIcon } from '../shared/Icons';
 
 interface Props {
   onBack: () => void;
@@ -114,6 +115,21 @@ export default function AskAiScreen({ onBack }: Props) {
       {progressLine(progress)}
     </div>
   );
+  // macOS keeps Finder's backup folder behind Full Disk Access, which it asks of the AI app itself.
+  const fullDiskAccessRow = (id: AiAppId) => {
+    const step = fullDiskAccessStep(id, state);
+    if (!step) return null;
+    return (
+      <div className="mt-3 p-3 rounded-lg bg-accent-wash/50 border border-accent-line flex items-start gap-2.5">
+        <LockIcon size={16} className="text-accent flex-shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-text-primary mb-1">{step.title}</p>
+          <p className="text-xs text-text-secondary mb-2.5">{step.text}</p>
+          <button className="hearth-ghost-btn !py-1.5" onClick={() => bridge.openFullDiskAccess()}>Open Settings</button>
+        </div>
+      </div>
+    );
+  };
   const noteRow = (id: AiAppId, extra?: ReactNode) => {
     const note = notes[id];
     if (!note || busy === id) return null;
@@ -137,6 +153,7 @@ export default function AskAiScreen({ onBack }: Props) {
               Install
             </button>
           )}>
+          {fullDiskAccessRow('claude')}
           {progressRow('claude')}
           {noteRow('claude', !connected && (
             <div className="mt-2">
@@ -175,6 +192,7 @@ export default function AskAiScreen({ onBack }: Props) {
               </div>
             </div>
           )}
+          {fullDiskAccessRow('chatgpt')}
           {progressRow('chatgpt')}
           {noteRow('chatgpt')}
         </AppCard>

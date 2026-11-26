@@ -145,6 +145,8 @@ contextBridge.exposeInMainWorld('openextract', {
     connectChatGpt: (consent: boolean) => ipcRenderer.invoke('ask-ai:connect-chatgpt', consent),
     setHidden: (hidden: boolean) => ipcRenderer.invoke('ask-ai:set-hidden', hidden),
     noteSeen: () => ipcRenderer.invoke('ask-ai:note-seen'),
+    // "Open Settings" on the Full Disk Access step (macOS): main opens its one fixed address.
+    openFullDiskAccess: () => ipcRenderer.invoke('ask-ai:open-full-disk-access'),
     onProgress: (callback: (progress: any) => void) => {
       const listener = (_event: any, progress: any) => callback(progress);
       ipcRenderer.on('ask-ai:progress', listener);
