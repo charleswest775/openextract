@@ -44,6 +44,7 @@ from ios_backup_core.extractors.photos import (
     PHOTO_EXTENSIONS,
     VIDEO_EXTENSIONS,
     _build_dcim_path,
+    uuid_text,
 )
 
 try:  # Favorites and Hidden (ios-backup-core from November 2026); without them, only albums.
@@ -92,6 +93,10 @@ print(f"[photos] PIL={HAS_PIL} HEIF={HAS_HEIF}", file=sys.stderr, flush=True)
 # saved on this iPhone, PhotoData/CPLAssets for ones iCloud Photos brought in
 # from other devices.
 _ORIGINALS_PREFIXES = ("Media/DCIM/", "Media/PhotoData/CPLAssets/")
+# Where the iPhone's Photos app keeps the thumbnails it made of each photo (_iphone_thumbnails).
+_IPHONE_THUMBNAILS = "Media/PhotoData/Thumbnails/V2/"
+# Video files get_thumbnail knows by name besides the library's VIDEO_EXTENSIONS (its _VIDEO_EXTS).
+_MORE_VIDEO_EXTENSIONS = {".mkv", ".3gp", ".webm"}
 
 # Photos.sqlite's ZDATECREATED counts seconds from 2001-01-01 UTC, this many seconds after 1970's.
 _APPLE_EPOCH_UNIX = 978307200
@@ -157,6 +162,90 @@ def _selection_count(part: dict, has_albums: bool, album_id: Optional[str]) -> O
         except ValueError:
             return None
     return part["library"]
+
+
+# A face box smaller than this (a fraction of the photo's shorter side) isn't used for a
+# face thumbnail: Photos keeps some faces with no box at all (size 0).
+MIN_FACE_SIZE = 0.01
+# A face thumbnail is cut from at least this many pixels of the photo, so a small face
+# shows with what's around it instead of as a few blurred pixels.
+MIN_FACE_CROP = 96
+
+
+def face_crop_box(width: int, height: int, center_x: float, center_y: float, size: float,
+                  scale: float = 2.0) -> tuple:
+    """(left, top, right, bottom) in pixels: a square ``scale`` times Photos' face box, kept inside the photo.
+
+    Photos measures the box's centre from the photo's bottom-left corner, as fractions
+    of its width and height, and its size as a fraction of the shorter side. The square
+    is at least MIN_FACE_CROP pixels (or the whole shorter side of a smaller photo).
+    """
+    short = min(width, height)
+    side = max(1, min(short, max(MIN_FACE_CROP, round(size * short * scale))))
+    left = min(max(round(center_x * width - side / 2), 0), width - side)
+    top = min(max(round((1 - center_y) * height - side / 2), 0), height - side)
+    return left, top, left + side, top + side
+
+
+# A body box narrower than this (a fraction of the photo's width) isn't used.
+MIN_BODY_WIDTH = 0.02
+
+
+def body_crop_box(width: int, height: int, center_x: float, center_y: float, body_w: float, body_h: float) -> tuple:
+    """(left, top, right, bottom) in pixels: a square over the top of Photos' body box (head and shoulders).
+
+    The body box is measured like the face box, from the bottom-left corner, with its width
+    and height as fractions of the photo's width and height. The square is as wide as the body
+    (at least MIN_FACE_CROP pixels), starts just above its top, and stays inside the photo.
+    """
+    short = min(width, height)
+    side = max(1, min(short, max(MIN_FACE_CROP, round(body_w * width * 1.1))))
+    top_of_body = (1 - center_y - body_h / 2) * height
+    left = min(max(round(center_x * width - side / 2), 0), width - side)
+    top = min(max(round(top_of_body - side * 0.05), 0), height - side)
+    return left, top, left + side, top + side
+
+
+def choose_face(faces: list, key_face, stills: dict, posters: dict) -> Optional[dict]:
+    """The face list_photo_people shows for someone, from their face rows (_faces_by_person), or None.
+
+    In order: Photos' key face, else their biggest face, on a still photo in the backup
+    (``stills``: uuid -> file_hash); else their biggest body box on one (Photos keeps some
+    people's faces with no face box, only a body box: someone seen from the side or behind);
+    else a face or body box, or just the picture, from the iPhone's own thumbnail of a video
+    they're in (``posters``: video uuid -> thumbnail key), since a face can't be cut from the
+    video itself. Faces with no box (centre 0, 0, size 0) came out as a single colour.
+    """
+    def has_face(f):
+        return (f.get("size") or 0) >= MIN_FACE_SIZE and f.get("center_x") is not None and f.get("center_y") is not None
+
+    def has_body(f):
+        return (f.get("body_w") or 0) >= MIN_BODY_WIDTH and (f.get("body_h") or 0) > 0 and f.get("body_x") is not None
+
+    def face_out(f, file_hash):
+        return {"file_hash": file_hash, "center_x": f["center_x"], "center_y": f["center_y"], "size": f["size"]}
+
+    def body_out(f, file_hash):
+        return {"file_hash": file_hash, "center_x": None, "center_y": None, "size": None,
+                "body": {"center_x": f["body_x"], "center_y": f["body_y"], "width": f["body_w"], "height": f["body_h"]}}
+
+    on_stills = [f for f in faces if not f["video"] and f["asset_uuid"] in stills]
+    boxed = sorted((f for f in on_stills if has_face(f)), key=lambda f: (f["face"] != key_face, -f["size"]))
+    if boxed:
+        return face_out(boxed[0], stills[boxed[0]["asset_uuid"]])
+    bodies = sorted((f for f in on_stills if has_body(f)), key=lambda f: -(f["body_w"] * f["body_h"]))
+    if bodies:
+        return body_out(bodies[0], stills[bodies[0]["asset_uuid"]])
+    in_videos = [f for f in faces if f["video"] and f["asset_uuid"] in posters]
+    for usable, out in ((has_face, face_out), (has_body, body_out)):
+        found = sorted((f for f in in_videos if usable(f)),
+                       key=lambda f: -((f["size"] or 0) if usable is has_face else f["body_w"] * f["body_h"]))
+        if found:
+            return {**out(found[0], posters[found[0]["asset_uuid"]]), "poster": True}
+    if in_videos:
+        return {"file_hash": posters[in_videos[0]["asset_uuid"]], "center_x": None, "center_y": None,
+                "size": None, "poster": True}
+    return None
 
 
 def asset_table(conn) -> str:
@@ -249,6 +338,14 @@ class PhotoExtractor:
         self._in_backup_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
         # The date of every photo in each listing a date range has been asked of (_listing_dates).
         self._listing_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+        # The library's People list with each person's photo uuids, per open backup.
+        self._people_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+        # The thumbnails the iPhone's Photos app made, by the photo they're of, and the
+        # originals' paths by file id (an unencrypted backup's file_hash), per open backup.
+        self._iphone_thumbs_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+        self._original_paths_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+        # Every face People counts, by person, for picking the face each one shows.
+        self._faces_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
         # Copies of videos for the computer's video player (get_file_for_app). Made as the
         # engine starts, which is when the copies an earlier engine left behind are removed.
         self._copies = AppCopies("photos")
@@ -273,7 +370,8 @@ class PhotoExtractor:
 
     def list_photos(self, backup, offset: int = 0, limit: int = 100,
                     album_id: Optional[str] = None, date_from: Optional[float] = None,
-                    date_to: Optional[float] = None) -> dict:
+                    date_to: Optional[float] = None, person_ids: Optional[list] = None,
+                    person_match: str = "any") -> dict:
         """List photo assets, post-processed to add file_hash for downstream RPCs.
 
         ``total``, ``offset`` and ``limit`` count rows in the Photos library, so
@@ -287,18 +385,29 @@ class PhotoExtractor:
         the photos taken in that time, and every count is then of those (see
         _list_photos_between). A backup with no Photos library has no dates, so a date
         range finds nothing there; its listing without one says ``source`` "dcim_scan".
+
+        ``person_ids`` (ids from list_photo_people) keeps All Photos' photos with any
+        of those people on, or all of them with ``person_match`` "all".
         """
+        person_ids = [str(p) for p in person_ids or []]
+        if person_ids and not self._has_people():
+            return {"photos": [], "total": 0, "offset": offset, "limit": limit, "source": "unavailable"}
         if date_from is not None or date_to is not None:
-            return self._list_photos_between(backup, offset, limit, album_id, date_from, date_to)
+            return self._list_photos_between(backup, offset, limit, album_id, date_from, date_to,
+                                             person_ids, person_match)
 
         # An older ios-backup-core has no LIBRARY, and its All Photos already holds every photo.
         core_album_id = None if album_id == LIBRARY and _CORE_LIBRARY is None else album_id
-        result = self._inner.list_photos(backup, offset, limit, core_album_id)
+        if person_ids:
+            result = self._inner.list_photos(backup, offset, limit, core_album_id,
+                                             person_ids=person_ids, person_match=person_match)
+        else:
+            result = self._inner.list_photos(backup, offset, limit, core_album_id)
 
         # If the library returned nothing because Photos.sqlite is unavailable
         # (older iOS, corrupted backup), fall back to direct DCIM enumeration.
-        # An empty album is just empty: the DCIM scan can't filter by album.
-        whole_library = not album_id or album_id in ("__all__", LIBRARY)
+        # An empty album is just empty: the DCIM scan can't filter by album, nor by person.
+        whole_library = not person_ids and (not album_id or album_id in ("__all__", LIBRARY))
         if result.get("source") == "unavailable" or (
             whole_library and not result.get("photos") and result.get("total", 0) == 0
         ):
@@ -326,27 +435,34 @@ class PhotoExtractor:
             "limit": result.get("limit", limit),
             "source": result.get("source", "photos_sqlite"),
         }
-        in_backup = self._selection_in_backup(backup, album_id)
+        if person_ids:
+            in_backup, missing = self._people_in_backup(backup, album_id, person_ids, person_match)
+        else:
+            in_backup = self._selection_in_backup(backup, album_id)
+            missing = self._selection_missing(backup, album_id) if in_backup is not None else None
         if in_backup is not None:
-            missing = self._selection_missing(backup, album_id) or 0
+            missing = missing or 0
             out["in_backup"] = in_backup
             out["not_in_backup"] = max(total - in_backup - missing, 0)
             out["missing_from_folder"] = missing
         return out
 
     def _list_photos_between(self, backup, offset: int, limit: int, album_id: Optional[str],
-                             date_from: Optional[float], date_to: Optional[float]) -> dict:
+                             date_from: Optional[float], date_to: Optional[float],
+                             person_ids: Optional[list] = None, person_match: str = "any") -> dict:
         """list_photos for the photos taken from ``date_from`` up to (not including) ``date_to``.
 
         The library lists photos newest first, so the ones in a date range are one run
         of its rows: after the rows newer than the range, as long as the rows in it.
         The library is asked for that run, and ``total`` and ``offset`` count rows in it.
-        Photos with no date are in no range.
+        Photos with no date are in no range. ``person_ids`` narrows the listing first,
+        as list_photos does without dates.
         """
         low = None if date_from is None else float(date_from) - _APPLE_EPOCH_UNIX
         high = None if date_to is None else float(date_to) - _APPLE_EPOCH_UNIX
         out = {"photos": [], "total": 0, "offset": offset, "limit": limit, "source": "photos_sqlite"}
-        rows = self._listing_dates(backup, album_id)
+        people = {"person_ids": person_ids, "person_match": person_match} if person_ids else {}
+        rows = self._listing_dates(backup, album_id, **people)
         if rows is None:
             return {**out, "source": "dcim_scan", "in_backup": 0, "not_in_backup": 0, "missing_from_folder": 0}
 
@@ -359,7 +475,8 @@ class PhotoExtractor:
         total = len(between)
         if offset < total and limit > 0:
             core_album_id = None if album_id == LIBRARY and _CORE_LIBRARY is None else album_id
-            page = self._inner.list_photos(backup, newer + offset, min(limit, total - offset), core_album_id)
+            page = self._inner.list_photos(backup, newer + offset, min(limit, total - offset), core_album_id,
+                                           **people)
             for asset in page.get("photos", []):
                 adapted = self._add_file_hash(asset, backup)
                 if adapted is not None:
@@ -375,17 +492,21 @@ class PhotoExtractor:
             out["missing_from_folder"] = missing
         return out
 
-    def _listing_dates(self, backup, album_id: Optional[str]) -> Optional[list]:
-        """(Z_PK, ZDATECREATED) of each row the library's list_photos(album_id) lists, in no order.
+    def _listing_dates(self, backup, album_id: Optional[str], person_ids: Optional[list] = None,
+                       person_match: str = "any") -> Optional[list]:
+        """(Z_PK, ZDATECREATED) of each row the library's list_photos(album_id, person_ids)
+        lists, in no order.
 
-        The same rows as that listing (an album's, Favorites', Hidden's or All Photos'),
-        so _list_photos_between can find a date range's run in it; the photo counts
-        mirror it the same way (_count_in_backup). Read once per backup and listing.
-        None when the backup has no Photos library to read, or a library from before
-        Favorites and Hidden (whose rows this can't mirror).
+        The same rows as that listing (an album's, Favorites', Hidden's or All Photos',
+        narrowed to some people with the library's own condition for them), so
+        _list_photos_between can find a date range's run in it; the photo counts mirror
+        it the same way (_count_in_backup). Read once per backup and listing. None when
+        the backup has no Photos library to read, or a library from before Favorites and
+        Hidden (whose rows this can't mirror).
         """
         per_backup = self._listing_cache.setdefault(backup, {})
-        key = album_id or ""
+        match = "all" if person_match == "all" else "any"
+        key = (album_id or "", tuple(person_ids or ()), match if person_ids else "")
         if key in per_backup:
             return per_backup[key]
         rows = None
@@ -397,18 +518,20 @@ class PhotoExtractor:
                 core_album_id = None if album_id == LIBRARY and _CORE_LIBRARY is None else album_id
                 where = smart_album_where(columns, core_album_id)
                 junc_table, albums_col, assets_col = self._inner._find_album_junction(conn)
+                params: list = []
                 if where is None and junc_table and albums_col and assets_col:
-                    rows = conn.execute(
-                        f"SELECT a.Z_PK, a.ZDATECREATED FROM {assets} a "
-                        f"JOIN '{junc_table}' j ON j.{assets_col} = a.Z_PK WHERE j.{albums_col} = ?",
-                        (int(album_id),),
-                    ).fetchall()
+                    sql = (f"SELECT a.Z_PK, a.ZDATECREATED FROM {assets} a "
+                           f"JOIN '{junc_table}' j ON j.{assets_col} = a.Z_PK WHERE j.{albums_col} = ?")
+                    params.append(int(album_id))
                 else:
                     # The whole library when the backup's albums can't be read, as the listing does.
-                    rows = conn.execute(
-                        f"SELECT Z_PK, ZDATECREATED FROM {assets} WHERE {where or smart_album_where(columns, None)}"
-                    ).fetchall()
-                rows = [(pk, ts) for pk, ts in rows]
+                    sql = (f"SELECT a.Z_PK, a.ZDATECREATED FROM {assets} a "
+                           f"WHERE {where or smart_album_where(columns, None)}")
+                if person_ids:
+                    people_where, people_params = self._inner._people_condition(conn, list(person_ids), match)
+                    sql += f" AND {people_where}"
+                    params += people_params
+                rows = [(pk, ts) for pk, ts in conn.execute(sql, params).fetchall()]
             except (sqlite3.Error, ValueError) as e:
                 print(f"[photos] couldn't read the dates of {album_id or 'All Photos'}: {e}",
                       file=sys.stderr, flush=True)
@@ -464,6 +587,184 @@ class PhotoExtractor:
             return (taken is not None, taken.timestamp() if taken else 0.0)
 
         return sorted(found.values(), key=newest_first, reverse=True)
+    # ── People: the groups the iPhone's Photos app made of the faces it found ──
+
+    def _has_people(self) -> bool:
+        """Whether this ios-backup-core reads the People album (from November 2026)."""
+        return hasattr(self._inner, "list_people")
+
+    def _people(self, backup) -> dict:
+        """The library's People list (with each person's photo uuids), read once per backup."""
+        cached = self._people_cache.get(backup)
+        if cached is None:
+            cached = (self._inner.list_people(backup, include_assets=True) if self._has_people()
+                      else {"people": [], "source": "unavailable"})
+            self._people_cache[backup] = cached
+        return cached
+
+    def _people_in_backup(self, backup, album_id, person_ids: list, match: str) -> tuple:
+        """(in_backup, missing_from_folder) for list_photos with these people, or (None, None)
+        when that can't be counted: the backup couldn't be, or an album narrows the people."""
+        counts = self._in_backup_counts(backup)
+        if counts is None or (album_id and album_id != "__all__"):
+            return None, None
+        groups = {p["id"]: set(p.get("asset_uuids") or ()) for p in self._people(backup).get("people", [])}
+        chosen = [groups.get(person_id, set()) for person_id in person_ids]
+        selected = set.intersection(*chosen) if match == "all" else set().union(*chosen)
+        return len(selected & counts["present_uuids"]), len(selected & counts["missing_uuids"])
+
+    def list_photo_people(self, backup) -> dict:
+        """The People album for the Photos screen: ``{"people": [...], "source"}``.
+
+        Each person, named or not (most groups are never named): ``id``, ``name``,
+        ``contact_uri``, ``photo_count`` (photos All Photos shows with their face on),
+        ``in_backup`` (how many of those the backup has; the ones list_photos with this
+        person lists), ``not_in_backup`` (only in iCloud), ``missing_from_folder``
+        (OE-102), and ``face``: a face of theirs on a still photo in the backup, as
+        ``{file_hash, center_x, center_y, size}`` for get_face_thumbnail, else None.
+        Most photos in the backup first. Only what the iPhone's Photos app worked
+        out: nothing here compares faces.
+        """
+        result = self._people(backup)
+        counts = self._in_backup_counts(backup)
+        people = []
+        for person in result.get("people", []):
+            uuids = set(person.get("asset_uuids") or ())
+            if counts is None:
+                in_backup, missing = person["photo_count"], 0
+            else:
+                in_backup = len(uuids & counts["present_uuids"])
+                missing = len(uuids & counts["missing_uuids"])
+            people.append({
+                "id": person["id"],
+                "name": person.get("name"),
+                "contact_uri": person.get("contact_uri"),
+                "photo_count": person["photo_count"],
+                "in_backup": in_backup,
+                "not_in_backup": max(person["photo_count"] - in_backup - missing, 0),
+                "missing_from_folder": missing,
+                "face": self._face_in_backup(backup, person, counts),
+            })
+        people.sort(key=lambda p: (-p["in_backup"], -p["photo_count"], p["name"] is None,
+                                   (p["name"] or "").casefold(), p["id"]))
+        out = {"people": people, "source": result.get("source", "unavailable")}
+        if result.get("error"):
+            out["error"] = result["error"]
+        return out
+
+    def _faces_by_person(self, backup) -> Optional[dict]:
+        """{person id: {"key": their key face's Z_PK, "faces": [face rows]}} for every face People
+        counts, read once per backup; None without the People tables or with an older ios-backup-core.
+
+        A face row is a dict: ``face`` (Z_PK), ``asset_uuid``, ``video``, ``center_x``, ``center_y``,
+        ``size`` (Photos' face box) and ``body_x``, ``body_y``, ``body_w``, ``body_h`` (its body box).
+        Groups merged into someone count as them, as list_people counts them.
+        """
+        if backup in self._faces_cache:
+            return self._faces_cache[backup]
+        result = None
+        conn = self._inner._open_photos_db(backup)
+        if conn is not None:
+            try:
+                from ios_backup_core.extractors import photos as core
+
+                cols = core._face_columns(conn)
+                if cols is not None:
+                    people = core._people_rows(conn, cols)
+                    assets = asset_table(conn)
+                    asset_columns = {c[1] for c in conn.execute(f"PRAGMA table_info('{assets}')")}
+                    visible = smart_album_where(asset_columns, None)
+
+                    def column(name: str) -> str:
+                        return f"f.{name}" if name in cols["faces"] else "NULL"
+
+                    where = " AND ".join([f"f.{cols['person']} IS NOT NULL",
+                                          f"f.{cols['asset']} IN (SELECT Z_PK FROM {assets} WHERE {visible})",
+                                          *core._face_conditions(cols)])
+                    result = {}
+                    for row in conn.execute(
+                        f"SELECT f.Z_PK, f.{cols['person']}, a.ZUUID, a.ZKIND, {column('ZCENTERX')}, "
+                        f"{column('ZCENTERY')}, {column('ZSIZE')}, {column('ZBODYCENTERX')}, "
+                        f"{column('ZBODYCENTERY')}, {column('ZBODYWIDTH')}, {column('ZBODYHEIGHT')} "
+                        f"FROM ZDETECTEDFACE f JOIN {assets} a ON a.Z_PK = f.{cols['asset']} WHERE {where}"
+                    ):
+                        target = core._merged_into(people, row[1])
+                        if target not in people:
+                            continue
+                        entry = result.setdefault(str(target), {"key": people[target]["KEYFACE"], "faces": []})
+                        entry["faces"].append({
+                            "face": row[0], "asset_uuid": uuid_text(row[2]) or "", "video": row[3] == 1,
+                            "center_x": row[4], "center_y": row[5], "size": row[6],
+                            "body_x": row[7], "body_y": row[8], "body_w": row[9], "body_h": row[10],
+                        })
+            except (ImportError, AttributeError, sqlite3.Error) as e:
+                print(f"[photos] couldn't read the People faces: {e}", file=sys.stderr, flush=True)
+                result = None
+            finally:
+                conn.close()
+        self._faces_cache[backup] = result
+        return result
+
+    def _face_in_backup(self, backup, person: dict, counts: Optional[dict]) -> Optional[dict]:
+        """A face to show for the person (see choose_face), or None to show an empty circle."""
+        if counts is None:
+            return None
+        faces = (self._faces_by_person(backup) or {}).get(person["id"])
+        if not faces:
+            return None
+        thumbnails = self._iphone_thumbnails(backup)
+        posters = {uuid: thumbnails[path[len("Media/"):]] for uuid, path in counts.get("videos", {}).items()
+                   if path.startswith("Media/") and path[len("Media/"):] in thumbnails}
+        return choose_face(faces["faces"], faces["key"], counts["stills"], posters)
+
+    def get_face_thumbnail(self, backup, file_hash: str, center_x: Optional[float] = None,
+                           center_y: Optional[float] = None, size: Optional[float] = None, px: int = 96,
+                           body: Optional[dict] = None) -> dict:
+        """A square JPEG of someone, from list_photo_people's ``face``: ``{data, mime_type}``.
+
+        Cut around Photos' face box when there is one (twice the box, so the whole head
+        shows), else around the top of their body box (head and shoulders), else from the
+        middle of the picture. Photos keeps both boxes as fractions of the photo as it's
+        shown (turned upright), measured from the bottom-left corner: the face box's size is
+        a fraction of the shorter side, the body box's width and height of the width and
+        height. Checked against public test backups (iOS 15–17). ``file_hash`` may be the
+        iPhone's own thumbnail of a video (``face.poster``), which has the video's proportions.
+        """
+        cache_key = f"face:{file_hash}:{center_x}:{center_y}:{size}:{json.dumps(body, sort_keys=True)}:{px}"
+        if cache_key in self._thumb_cache:
+            return {"data": self._thumb_cache[cache_key], "mime_type": "image/jpeg", "cached": True}
+        if not HAS_PIL:
+            return {"error": "Pillow not installed"}
+        file_path = self._resolve_file(backup, file_hash)
+        if not file_path:
+            return {"error": "Photo not found"}
+        try:
+            from PIL import ImageOps
+
+            img = Image.open(file_path)
+            if min(img.size) > 2000:
+                img.draft("RGB", (img.width // 4, img.height // 4))  # a big JPEG decodes smaller; others ignore it
+            img = ImageOps.exif_transpose(img).convert("RGB")
+            if center_x is not None and center_y is not None and (size or 0) >= MIN_FACE_SIZE:
+                box = face_crop_box(img.width, img.height, center_x, center_y, size)
+            elif body and (body.get("width") or 0) > 0 and (body.get("height") or 0) > 0:
+                box = body_crop_box(img.width, img.height, body["center_x"], body["center_y"],
+                                    body["width"], body["height"])
+            else:
+                side = min(img.size)
+                box = ((img.width - side) // 2, (img.height - side) // 2,
+                       (img.width - side) // 2 + side, (img.height - side) // 2 + side)
+            face = img.crop(box).resize((px, px), Image.LANCZOS)
+            buf = io.BytesIO()
+            face.save(buf, format="JPEG", quality=85)
+            data = base64.b64encode(buf.getvalue()).decode("ascii")
+            if len(self._thumb_cache) >= 500:
+                del self._thumb_cache[next(iter(self._thumb_cache))]
+            self._thumb_cache[cache_key] = data
+            return {"data": data, "mime_type": "image/jpeg", "cached": False}
+        except Exception as e:
+            print(f"[photos] face thumbnail failed for {file_hash[:40]}: {e}", file=sys.stderr, flush=True)
+            return {"error": f"Failed to make the face thumbnail: {e}"}
 
     def library_in_backup(self, backup) -> int:
         """The count the Photos screen shows for All Photos, for the Overview tile.
@@ -711,19 +1012,34 @@ class PhotoExtractor:
         trashed = "ZTRASHEDSTATE" if "ZTRASHEDSTATE" in columns else "0"
         # Only an ios-backup-core whose All Photos leaves hidden photos out (it has LIBRARY).
         hidden = "COALESCE(ZHIDDEN, 0)" if "ZHIDDEN" in columns and _CORE_LIBRARY else "0"
+        kind = "ZKIND" if "ZKIND" in columns else "0"
         present: set = set()
         missing: set = set()  # listed in the backup, but not in its folder (OE-102)
         in_library: set = set()
-        for pk, directory, filename, is_trashed, is_hidden in conn.execute(
-            f"SELECT Z_PK, ZDIRECTORY, ZFILENAME, {trashed}, {hidden} FROM {assets}"
+        # By uuid, for the People list: which photos are in the backup or only listed
+        # there, and the file_hash of each still photo (a face thumbnail can't come from a video).
+        present_uuids: set = set()
+        missing_uuids: set = set()
+        stills: dict = {}
+        videos: dict = {}  # uuid -> path, for the iPhone's thumbnail of each video (a face from it)
+        for pk, asset_uuid, directory, filename, is_trashed, is_hidden, asset_kind in conn.execute(
+            f"SELECT Z_PK, ZUUID, ZDIRECTORY, ZFILENAME, {trashed}, {hidden}, {kind} FROM {assets}"
         ):
             if is_trashed == 0 and is_hidden == 0:
                 in_library.add(pk)
+            asset_uuid = uuid_text(asset_uuid) or ""
             rel = _build_dcim_path(directory, filename) if directory and filename else None
-            if self._file_hash_for(backup, rel, filename or "") is not None:
+            if asset_kind == 1 and rel:
+                videos[asset_uuid] = rel
+            file_hash = self._file_hash_for(backup, rel, filename or "")
+            if file_hash is not None:
                 present.add(pk)
+                present_uuids.add(asset_uuid)
+                if asset_kind != 1:  # ZKIND 1 is a video
+                    stills[asset_uuid] = file_hash
             elif self._missing_from_folder(backup, rel):
                 missing.add(pk)
+                missing_uuids.add(asset_uuid)
 
         def tally(pks: set) -> dict:
             return {"library": len(pks & in_library), "albums": {}, "smart": {}}
@@ -745,7 +1061,9 @@ class PhotoExtractor:
             found["smart"][album_id] = sum(1 for pk in pks if pk in present)
             lost["smart"][album_id] = sum(1 for pk in pks if pk in missing)
         return {**found, "has_albums": bool(junc_table), "present": frozenset(present), "missing": lost,
-                "missing_ids": frozenset(missing)}
+                "missing_ids": frozenset(missing),
+                "present_uuids": frozenset(present_uuids), "missing_uuids": frozenset(missing_uuids),
+                "stills": stills, "videos": videos}
 
     def _list_photos_from_dcim(self, backup, offset: int, limit: int) -> dict:
         """Fallback: enumerate files directly from DCIM via Manifest.db."""
@@ -808,6 +1126,23 @@ class PhotoExtractor:
         if not HAS_PIL:
             print(f"[THUMB] Pillow not installed — cannot generate thumbnail for {file_hash[:12]}", file=sys.stderr, flush=True)
             return {"error": "Pillow not installed"}
+
+        # A video by its name, before anything is read: finding that out from the file meant
+        # copying a whole video out of an encrypted backup first, seconds for a long one, while
+        # every thumbnail after it waited (the engine answers one request at a time).
+        original = self._original_path(backup, file_hash)
+        if original and os.path.splitext(original)[1].lower() in VIDEO_EXTENSIONS | _MORE_VIDEO_EXTENSIONS:
+            return {"error": "video", "is_video": True}
+
+        # The iPhone's own thumbnail when the backup has it: a small JPEG, read in a few
+        # milliseconds, where decoding a full-size HEIC from a recent iPhone takes a few
+        # hundred (one at a time, so a grid of them filled slowly).
+        own = self._iphone_thumbnail(backup, file_hash, size)
+        if own is not None:
+            if len(self._thumb_cache) >= 500:
+                del self._thumb_cache[next(iter(self._thumb_cache))]
+            self._thumb_cache[cache_key] = own["data"]
+            return {**own, "cached": False}
 
         file_path = self._resolve_file(backup, file_hash)
         if not file_path:
@@ -873,6 +1208,76 @@ class PhotoExtractor:
             if fmt == "video":
                 return {"error": "video", "is_video": True}
             return {"error": f"Failed to generate thumbnail: {e}"}
+
+    def _iphone_thumbnails(self, backup) -> dict:
+        """{photo's path under Media/ ("DCIM/100APPLE/IMG_0001.HEIC"): thumbnail key for _resolve_file},
+        for the thumbnails the iPhone's Photos app made, read once per backup.
+
+        Photos keeps them at Media/PhotoData/Thumbnails/V2/<photo's path under Media/>/<n>.JPG
+        (5005.JPG on iOS 17, 480 pixels on the long side, upright; 5003.JPG on iOS 13).
+        Where several are kept for one photo, the highest-numbered. Only files the backup's
+        folder has (OE-102). The key is ``dcim:<path>`` for an encrypted backup, as list_photos
+        gives originals, else the file's id.
+        """
+        cached = self._iphone_thumbs_cache.get(backup)
+        if cached is None:
+            found: dict = {}
+            try:
+                files = backup.list_files(domain="CameraRollDomain", path_like=_IPHONE_THUMBNAILS + "%")
+            except Exception as e:  # noqa: BLE001  no thumbnails is fine: the originals are used
+                print(f"[photos] couldn't list the iPhone's thumbnails: {e}", file=sys.stderr, flush=True)
+                files = []
+            for f in files:
+                photo, _, name = f["path"][len(_IPHONE_THUMBNAILS):].rpartition("/")
+                stem, ext = os.path.splitext(name)
+                if not photo or ext.upper() != ".JPG" or not stem.isdigit() or not backup_files.is_stored(backup, f["hash"]):
+                    continue
+                if photo not in found or int(stem) > found[photo][0]:
+                    found[photo] = (int(stem), f"dcim:{f['path']}" if backup.encrypted else f["hash"])
+            cached = {photo: key for photo, (_, key) in found.items()}
+            self._iphone_thumbs_cache[backup] = cached
+        return cached
+
+    def _original_path(self, backup, file_hash: str) -> Optional[str]:
+        """The CameraRollDomain path of the original list_photos gave ``file_hash`` for, or None if unknown."""
+        if file_hash.startswith("dcim:"):
+            return file_hash[len("dcim:"):]
+        paths = self._original_paths_cache.get(backup)
+        if paths is None:
+            paths = {h: p for p, h in self._original_files(backup)[0].items()}
+            self._original_paths_cache[backup] = paths
+        return paths.get(file_hash)
+
+    def _iphone_thumbnail(self, backup, file_hash: str, size: int) -> Optional[dict]:
+        """get_thumbnail's answer from the iPhone's own thumbnail of a still photo, or None to use the original.
+
+        None too when that thumbnail is smaller than ``size`` or can't be read.
+        """
+        thumbnails = self._iphone_thumbnails(backup)
+        if not thumbnails:
+            return None
+        path = self._original_path(backup, file_hash)
+        if not path or not path.startswith("Media/") or os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS:
+            return None
+        key = thumbnails.get(path[len("Media/"):])
+        thumb_path = key and self._resolve_file(backup, key)
+        if not thumb_path:
+            return None
+        try:
+            from PIL import ImageOps
+
+            img = ImageOps.exif_transpose(Image.open(thumb_path))
+            if max(img.size) < size:
+                return None
+            img.thumbnail((size, size), Image.LANCZOS)
+            img = img.convert("RGB")
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=80, optimize=True)
+            return {"data": base64.b64encode(buf.getvalue()).decode("ascii"), "mime_type": "image/jpeg",
+                    "width": img.width, "height": img.height}
+        except Exception as e:  # noqa: BLE001  the original is used instead
+            print(f"[THUMB] the iPhone's thumbnail of {path} couldn't be read: {e}", file=sys.stderr, flush=True)
+            return None
 
     def get_photo(self, backup, file_hash: str) -> dict:
         """Return full-resolution photo as base64.
@@ -952,10 +1357,12 @@ class PhotoExtractor:
                                               default All Photos, without hidden photos
           date_from, date_to (number)       - only the photos list_photos lists for
                                               these dates (Unix seconds, date_to left out)
+          person_ids (list), person_match   - save what list_photos lists for these people
+                                              ("any", the default, or "all")
           kind (str)                        - only photos of this kind ("video", ...)
-          uuids (list)                      - only these photos, whatever album_id and
-                                              the dates say: the ones someone picked.
-                                              One the backup has no file for is an error
+          uuids (list)                      - only these photos, whatever album_id, the
+                                              people and the dates say: the ones someone
+                                              picked. One the backup has no file for is an error
 
         on_progress(done, total, failed) is told how far the save has got, a few
         times a second at most (see export_progress.py).
@@ -976,6 +1383,8 @@ class PhotoExtractor:
         include_sidecar = options.get("include_metadata_sidecar", False)
         album_id = options.get("album_id") or None
         date_from, date_to = options.get("date_from"), options.get("date_to")
+        person_ids = options.get("person_ids") or None
+        person_match = options.get("person_match") or "any"
         only_kind = options.get("kind") or None
         uuids = options.get("uuids")
 
@@ -991,9 +1400,12 @@ class PhotoExtractor:
             all_photos = []
             offset = 0
             batch = 200
-            dates = {k: v for k, v in (("date_from", date_from), ("date_to", date_to)) if v is not None}
+            # Only the filters that are set, so a list_photos without them still works.
+            narrow = {k: v for k, v in (("date_from", date_from), ("date_to", date_to)) if v is not None}
+            if person_ids:
+                narrow.update(person_ids=person_ids, person_match=person_match)
             while True:
-                result = self.list_photos(backup, offset=offset, limit=batch, album_id=album_id, **dates)
+                result = self.list_photos(backup, offset=offset, limit=batch, album_id=album_id, **narrow)
                 all_photos.extend(result["photos"])
                 if offset + batch >= result["total"]:
                     break
