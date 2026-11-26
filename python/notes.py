@@ -29,6 +29,9 @@ from record_document import (
 FORMATS = ("pdf_source", "html", "txt", "pdf")
 MODES = ("separate", "merged")
 
+# What a saved note in the iPhone's Recently Deleted folder says it is
+RECENTLY_DELETED = "Recently Deleted"
+
 # The one file a merged save writes ("Notes.txt", or "Notes (2).txt" beside an earlier one)
 MERGED_NAME = "Notes"
 
@@ -113,7 +116,8 @@ class NoteExtractor:
         """The plain-text layout every saved note has had (and the app's own
         notes file had): a header, a rule, then the note as written."""
         created, modified = self._dates(note)
-        return (f"Title: {note['title']}\nCreated: {created}\nModified: {modified}\n"
+        folder = f"Folder: {RECENTLY_DELETED}\n" if note.get("is_deleted") else ""
+        return (f"Title: {note['title']}\nCreated: {created}\nModified: {modified}\n{folder}"
                 + "=" * 40 + "\n\n" + (note.get("body") or ""))
 
     def _document(self, notes: list, merged: bool) -> RecordDocument:
@@ -127,7 +131,8 @@ class NoteExtractor:
 
         def dates(note) -> str:
             created, modified = self._dates(note)
-            return f"Created {created} · Edited {modified}"
+            deleted = f" · {RECENTLY_DELETED}" if note.get("is_deleted") else ""
+            return f"Created {created} · Edited {modified}{deleted}"
 
         if not merged:
             note = notes[0]
@@ -156,9 +161,12 @@ class NoteExtractor:
             c.setFont("Helvetica", 10)
             c.drawString(50, height - 70, f"Created: {created}")
             c.drawString(50, height - 85, f"Modified: {modified}")
+            y = height - 120
+            if note.get("is_deleted"):
+                c.drawString(50, height - 100, f"Folder: {RECENTLY_DELETED}")
+                y -= 15
 
             c.setFont("Helvetica", 11)
-            y = height - 120
             for line in (note.get("body") or "").split("\n"):
                 wrapped = [line[i:i + 80] for i in range(0, len(line) or 1, 80)]
                 for wline in wrapped:

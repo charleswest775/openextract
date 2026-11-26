@@ -230,6 +230,8 @@ interface RawNote {
   modified: string;
   /** Who it's shared with, besides the phone's owner; empty or absent when it isn't shared. */
   shared_with?: RawNoteParticipant[];
+  /** In the iPhone's Recently Deleted folder. */
+  is_deleted?: boolean;
 }
 
 // The first `n` characters, counted by code point so an emoji isn't cut in half.
@@ -258,8 +260,14 @@ function normalizeNote(note: RawNote): TimelineEntry {
       body: note.body || '',
       modified: note.modified,
       ...(sharedWith.length > 0 && { sharedWith }),
+      ...(note.is_deleted && { deleted: true }),
     },
   };
+}
+
+/** A note in Recently Deleted: only a person's stream shows one (types/timeline.ts). */
+function deletedNote(e: TimelineEntry): boolean {
+  return e.type === 'note' && !!e.note?.deleted;
 }
 
 interface RawBrowserVisit {
@@ -729,7 +737,7 @@ export function useBackupIndex(udid: string): BackupIndex {
     const c: Record<TimelineEntryType, number> = {
       message: 0, whatsapp: 0, call: 0, photo: 0, voicemail: 0, note: 0, browser: 0,
     };
-    for (const e of rawEntries) c[e.type]++;
+    for (const e of rawEntries) if (!deletedNote(e)) c[e.type]++;
     // When messages are capped, show the real total rather than the loaded subset
     if (messageCap) c.message = messageCap.total;
     if (whatsappCap) c.whatsapp = whatsappCap.total;
@@ -862,7 +870,7 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
     }
 
     const inView = (e: TimelineEntry): boolean => {
-      if (matchesContact && !matchesContact(e)) return false;
+      if (matchesContact ? !matchesContact(e) : deletedNote(e)) return false;
 
       if (fromMs || toMs) {
         if (!e.timestamp) return false; // undated entries can't be placed in a date range
@@ -877,7 +885,7 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
     // Nothing but the kinds chosen: every entry is in view, and the backup's
     // own totals stand (they count capped messages in full).
     if (!matchesContact && !fromMs && !toMs && terms.length === 0) {
-      return { filteredEntries: allEntries.filter(e => types.has(e.type)), counts: totals };
+      return { filteredEntries: allEntries.filter(e => types.has(e.type) && !deletedNote(e)), counts: totals };
     }
 
     // In someone's stream, Photos are the photos sent in your chats with them:

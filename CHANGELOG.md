@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - Notes: every note in the backup now shows. An iPhone that has had notes since before iOS 9 can still keep an old account's notes (often "On My iPhone") in a separate file, and when it did, Notes listed only those old notes and none of the others. Now it lists both. A note whose text is only numbers, such as a code, now shows its text instead of a blank page
+- Notes: a note in the iPhone's Recently Deleted folder is now marked Recently Deleted, in the list and above the open note, instead of looking like any other note. It stays in the list by date, and a saved note says so too. The Timeline, searching the whole backup and the Year view leave these notes out, as they leave out deleted voicemails. On People, a deleted note shared with someone still shows in their history, marked, and Save everything keeps it as a "Shared note (Recently Deleted)"
 
 ## [0.20.0] - 2026-11-25
 

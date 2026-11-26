@@ -23,6 +23,13 @@ interface Note {
   body: string;
   created: string;
   modified: string;
+  /** In the iPhone's Recently Deleted folder (absent from engines before it was told). */
+  is_deleted?: boolean;
+}
+
+/** The tag a note in Recently Deleted has, in the list and above the open note. */
+function DeletedTag() {
+  return <span className="px-2 py-0.5 rounded-full bg-sand text-xs text-text-secondary whitespace-nowrap">Recently Deleted</span>;
 }
 
 interface Props {
@@ -96,7 +103,10 @@ export default function NoteExplorer({ udid, query, openNoteId }: Props) {
               }`}
             >
               <div className="text-sm font-medium text-text-primary truncate"><Highlight text={note.title || 'Untitled'} query={query} /></div>
-              <div className="text-xs text-text-tertiary mt-0.5">{formatDate(note.modified)}</div>
+              <div className="text-xs text-text-tertiary mt-0.5 flex items-center gap-1.5">
+                {formatDate(note.modified)}
+                {note.is_deleted && <DeletedTag />}
+              </div>
               <div className="text-xs text-text-secondary line-clamp-2 mt-0.5"><Highlight text={preview(note)} query={query} around={30} /></div>
             </button>
           ))}
@@ -111,7 +121,15 @@ export default function NoteExplorer({ udid, query, openNoteId }: Props) {
         <div className="flex-1 flex flex-col min-w-0">
           {selected ? (
             <div className="flex-1 overflow-y-auto px-10 py-8">
-              <div className="text-sm text-text-tertiary mb-1">Edited {formatDate(selected.modified)}</div>
+              <div className="text-sm text-text-tertiary mb-1 flex items-center gap-2">
+                Edited {formatDate(selected.modified)}
+                {selected.is_deleted && <DeletedTag />}
+              </div>
+              {selected.is_deleted && (
+                <p className="text-sm text-text-secondary mb-3">
+                  Deleted on the iPhone, but still in its Recently Deleted folder when this backup was made.
+                </p>
+              )}
               <h2 className="text-2xl text-text-primary mb-5"><Highlight text={selected.title || 'Untitled'} query={query} /></h2>
               <div
                 className="whitespace-pre-wrap text-text-primary"

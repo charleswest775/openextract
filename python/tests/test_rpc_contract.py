@@ -750,6 +750,9 @@ def case_list_notes(ctx):
     notes = m.rpc("list_notes")["notes"]
     assert sorted(n["title"] for n in notes) == sorted(n["title"] for n in m.expected["notes"])
     assert len({n["note_id"] for n in notes}) == len(notes)
+    # Notes in Recently Deleted are listed too, and say so
+    deleted = sorted(n["title"] for n in m.expected["notes"] if n.get("deleted"))
+    assert deleted and sorted(n["title"] for n in notes if n["is_deleted"]) == deleted
     for n in notes:
         assert n["body"] and local_day(n["created"]) and local_day(n["modified"])
 

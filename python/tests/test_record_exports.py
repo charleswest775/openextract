@@ -333,6 +333,17 @@ class TestNotesSave(_TempDir):
         self.assertEqual(text.count("\n\n" + "-" * 60 + "\n\n"), 3)
         self.assertTrue(text.startswith("Title: Shopping\nCreated: Jul 5, 2024, 9:10 AM\n"))
 
+    def test_a_note_in_recently_deleted_says_so(self):
+        notes = [dict(_note(5, "Old plan", "Old plan\nMaybe Baker"), is_deleted=True), _note(6, "Kept", "Kept\nstill here")]
+        ext = self._ext(notes)
+        text = _read(ext.export_notes(None, [5], "txt", self.out)["exported"][0])
+        self.assertIn("Modified: Jul 5, 2024, 5:48 PM\nFolder: Recently Deleted\n" + "=" * 40, text)
+        self.assertNotIn("Folder:", _read(ext.export_notes(None, [6], "txt", self.out)["exported"][0]))
+        page = _read(ext.export_notes(None, [5], "html", self.out)["exported"][0])
+        self.assertIn("Created Jul 5, 2024, 9:10 AM · Edited Jul 5, 2024, 5:48 PM · Recently Deleted", page)
+        merged = _read(ext.export_notes(None, None, "html", self.out, "merged")["file"])
+        self.assertEqual(merged.count("Recently Deleted"), 1)
+
     def test_merged_only_the_notes_asked_for(self):
         result = self._ext().export_notes(None, ["x3", 4], "txt", self.out, "merged")
         self.assertEqual(result["count"], 2)

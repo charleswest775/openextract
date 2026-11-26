@@ -700,6 +700,26 @@ test("someone's stream is only what passed between you: chat photos yes, camera 
   assert.deepEqual(filtered(index, { types: new Set(['note', 'browser']) }), ['note:rileys', 'note:ours', 'note:mine', 'browser:news']);
 });
 
+test('a note in Recently Deleted is only in the stream of someone it is shared with, marked', () => {
+  const note = (id, day, over = {}) => normalizeNote({ note_id: id, title: id, body: `${id} tents`, created: engine(local(2024, 3, day, 12)), modified: engine(local(2024, 3, day, 12)), ...over });
+  const withMom = { shared_with: [{ name: 'Mom', email: 'mom@icloud.com', phone: null }] };
+  const gone = note('gone', 4, { ...withMom, is_deleted: true });
+  assert.equal(gone.note.deleted, true);
+  assert.equal('deleted' in note('kept', 1).note, false);
+  assert.equal('deleted' in note('old', 1, { is_deleted: false }).note, false);
+  const { index } = indexOf([note('kept', 1, withMom), note('mine-gone', 2, { is_deleted: true }), gone,
+    normalizeMessage(msg(1, local(2024, 3, 3, 9), 'tents?'), MOM_CHAT)], [{ phones: ['+1 503 555 0123'], emails: ['mom@icloud.com'] }]);
+  // The Timeline and search leave them out, whatever else is chosen
+  assert.deepEqual(filtered(index, {}), ['message:1', 'note:kept']);
+  assert.deepEqual(filtered(index, { types: new Set(['note']) }), ['note:kept']);
+  assert.deepEqual(filtered(index, { searchQuery: 'tents' }), ['message:1', 'note:kept']);
+  assert.deepEqual(filtered(index, { dateFrom: dayKey(2024, 3, 2), dateTo: dayKey(2024, 3, 4) }), ['message:1']);
+  // In her stream (People, and so a person save) the shared one is there, and counted
+  const stream = useTimeline(index, { types: ALL_TYPES, contactIdentifier: '+15035550123' });
+  assert.deepEqual(stream.filteredEntries.map(e => e.id), ['note:gone', 'message:1', 'note:kept']);
+  assert.equal(stream.counts.note, 2);
+});
+
 test('searching for "photo" finds texts with photos', () => {
   const { index } = indexOf([
     normalizeMessage(msg(1, local(2024, 3, 2, 9), null, { message_type: 'attachment', attachments: [smsPhoto(20)] }), MOM_CHAT),
