@@ -168,6 +168,16 @@ test('the buy page and thank-you page aren’t for search engines, and load only
   assert.doesNotMatch(sitemap, /\/ai\//);
 });
 
+test('the buy page has the live payment links, one per price', () => {
+  const html = fs.readFileSync(path.join(root, 'website/static/ai/buy.html'), 'utf-8');
+  const phone = html.match(/data-link-phone="([^"]*)"/)[1];
+  const week = html.match(/data-link-week="([^"]*)"/)[1];
+  assert.match(phone, /^https:\/\/buy\.stripe\.com\/[A-Za-z0-9]+$/);
+  assert.match(week, /^https:\/\/buy\.stripe\.com\/[A-Za-z0-9]+$/);
+  assert.notEqual(phone, week);
+  assert.ok(buy.payLink(phone, '7F3KQ9M2').endsWith('?client_reference_id=7F3KQ9M2'));
+});
+
 test('the buy page says the prices and that each iPhone needs its own key', () => {
   const html = fs.readFileSync(path.join(root, 'website/static/ai/buy.html'), 'utf-8');
   assert.match(html, /\$29 <span>once<\/span>/);

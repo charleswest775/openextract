@@ -32,12 +32,14 @@
   </header>
 
   <!--
-    The Stripe payment links: set data-link-phone and data-link-week to the two links' addresses
-    (https://buy.stripe.com/...). Each link's "after payment" setting sends people to
-    https://www.openextract.app/ai/thanks?session_id={CHECKOUT_SESSION_ID}. Until both are set, the
-    buttons say the keys aren't on sale yet.
+    The Stripe payment links (live, account OpenExtract): data-link-phone is "OpenExtract AI: one iPhone"
+    ($29), data-link-week "OpenExtract AI: one iPhone for 7 days" ($9). Each link's "after payment"
+    setting sends people to https://www.openextract.app/ai/thanks?session_id={CHECKOUT_SESSION_ID}, and
+    /api/ai-key knows them by their price ids (AI_PRICE_PHONE, AI_PRICE_WEEK). Empty both to take the
+    keys off sale: the buttons then say so.
   -->
-  <section class="ai-buy" data-ai-buy data-link-phone="" data-link-week="">
+  <section class="ai-buy" data-ai-buy data-link-phone="https://buy.stripe.com/00w7sL7wk8PQaaNcPy2wU06"
+           data-link-week="https://buy.stripe.com/eVq3cvbMAfee0Ad3eY2wU07">
     <div class="ai-buy__phone">
       <div class="ai-buy__label">For the iPhone with phone code</div>
       <div class="ai-buy__code" data-code-shown>—</div>
