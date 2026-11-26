@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-25
+
 On Photos you can now pick the photos you want and save just those, narrow the grid to the days they were taken, and see just the photos of the people you pick, from the groups of faces your iPhone's Photos app found. Saving photos into a folder you've used before says how many were already there, and the grid fills much faster. Each PDF of a conversation now holds about half as many photos and pages, so a computer short on memory can print it. Choosing a folder above a backup, such as MobileSync or a drive, now finds the backups inside it, and when a folder has no backup the app says what it does hold. Someone who saves from a sixth different iPhone in a year is asked once whether it's paid work; nothing in the app changes either way.
 
 ### Added
