@@ -67,14 +67,17 @@ function transpile(file) {
  * between them resolves), and require `entry` from it. `stubs` maps a request string
  * ('electron', './sidecar', ...) to the exports it should get; the map is read at
  * require time, so a test may add to it later (electron-updater is required lazily).
+ * `files` maps a file name to contents written beside the modules first, as a build puts
+ * dist-electron/build-info.json beside main.js.
  */
-export function loadElectronModule(entry, stubs = {}) {
+export function loadElectronModule(entry, stubs = {}, files = {}) {
   const dir = freshDir('electron');
   fs.writeFileSync(path.join(dir, 'package.json'), '{"type":"commonjs"}\n');
   for (const file of fs.readdirSync(electronDir)) {
     if (!file.endsWith('.ts') || file.endsWith('.d.ts')) continue;
     fs.writeFileSync(path.join(dir, file.replace(/\.ts$/, '.js')), transpile(file));
   }
+  for (const [name, contents] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), contents);
   stubsByDir.set(dir, stubs);
   return { module: require(path.join(dir, `${entry}.js`)), dir };
 }

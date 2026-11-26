@@ -35,10 +35,16 @@ const EXPECTED_CHANNELS = [
   'media:thumbnail',
   // An older backup to the Trash (electron/olderBackups.ts)
   'backup:trashOlder',
+  // Ask AI (electron/askAi.ts): registered in every build, answering "off" in most
+  'ask-ai:state', 'ask-ai:status', 'ask-ai:install', 'ask-ai:connect-claude', 'ask-ai:connect-chatgpt',
+  'ask-ai:set-hidden', 'ask-ai:note-seen',
 ];
 
 // Development-only switches in main.ts that a developer's shell might have set.
-for (const name of ['OPENEXTRACT_E2E', 'OPENEXTRACT_PYTHON', 'OPENEXTRACT_FEEDBACK_SITE']) delete process.env[name];
+// So are Ask AI's switch and the folders it uses.
+for (const name of ['OPENEXTRACT_E2E', 'OPENEXTRACT_PYTHON', 'OPENEXTRACT_FEEDBACK_SITE', 'OPENEXTRACT_AI_INDEX_URL', 'OPENEXTRACT_AI_HOME', 'CODEX_HOME']) {
+  delete process.env[name];
+}
 
 const quiet = quietConsole([
   'Python sidecar started', 'Failed to start Python sidecar', '[shell:openExternal]', 'Sidecar call failed',
@@ -146,9 +152,9 @@ function fakeAutoUpdater() {
  * Load a fresh main.ts and wait for app.whenReady's handler to finish. `state` is
  * written to the state file first (an object as JSON, a string as is). With
  * `real`, the real updater, pdfExport and feedback modules are used (only the
- * engine is faked).
+ * engine is faked). `files` are written beside main.js, as a build writes build-info.json.
  */
-async function loadMain({ userData = freshDir('main-userdata'), state, isPackaged = true, real = false, paths = {}, nativeImage } = {}) {
+async function loadMain({ userData = freshDir('main-userdata'), state, isPackaged = true, real = false, paths = {}, nativeImage, files = {} } = {}) {
   const stateFile = path.join(userData, 'openextract-state.json');
   if (state !== undefined) fs.writeFileSync(stateFile, typeof state === 'string' ? state : JSON.stringify(state));
   const env = createElectron({ paths: { userData, temp: freshDir('main-temp'), ...paths }, isPackaged });
@@ -159,7 +165,7 @@ async function loadMain({ userData = freshDir('main-userdata'), state, isPackage
   Object.assign(stubs, real ? { './sidecar': fakes.stubs['./sidecar'] } : fakes.stubs);
 
   const { timers } = await captureLongTimers(async () => {
-    loadElectronModule('main', stubs);
+    loadElectronModule('main', stubs, files);
     // clipboard:writeText is the last handler main.ts registers.
     await waitFor(() => env.handlers.has('clipboard:writeText'), { what: 'main.ts to finish starting' });
   });
@@ -1042,6 +1048,75 @@ describe('"Using it for paid work?" after saves from many iPhones', () => {
     assert.equal(m.readState().businessUse, null);
     await m.invoke('support:business-answer', 'work');
     assert.equal(m.readState().businessUse, 'work');
+  });
+});
+
+// ── Ask AI: off unless the build switched it on ──────────────────────────────
+// Only a build made with OPENEXTRACT_AI_INDEX_URL has Ask AI (scripts/write-build-info.mjs
+// bakes it into build-info.json). The handlers themselves are tested in
+// scripts/ask-ai-ipc.test.mjs; this checks main.ts reads the switch the right way. ask-ai:state
+// isn't called while it's on: it would look for AI apps in this computer's real folders.
+
+describe('Ask AI is off unless the build switched it on', () => {
+  const OFF = { ok: false, error: "Ask AI isn't part of this copy of OpenExtract." };
+  const NOT_INSTALLED = { ok: false, error: "OpenExtract AI isn't installed yet." };
+  const buildInfo = url => ({ 'build-info.json': `${JSON.stringify({ aiIndexUrl: url })}\n` });
+
+  async function withEnv(vars, fn) {
+    const saved = Object.fromEntries(Object.keys(vars).map(k => [k, process.env[k]]));
+    Object.assign(process.env, vars);
+    try {
+      return await fn();
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  }
+
+  async function everyChannelOff(m) {
+    assert.deepEqual(await m.invoke('ask-ai:state'), { enabled: false });
+    for (const channel of ['ask-ai:status', 'ask-ai:install', 'ask-ai:connect-claude']) assert.deepEqual(await m.invoke(channel), OFF, channel);
+    assert.deepEqual(await m.invoke('ask-ai:connect-chatgpt', true), OFF);
+    await m.invoke('ask-ai:set-hidden', true);
+    await m.invoke('ask-ai:note-seen');
+    assert.deepEqual(m.env.callsTo('net.fetch'), [], 'nothing fetched');
+    assert.deepEqual(m.env.callsTo('shell.openPath'), [], 'nothing opened');
+    const saved = fs.existsSync(m.stateFile) ? m.readState() : {};
+    assert.ok(!('askAiHidden' in saved) && !('askAiNoteSeen' in saved), 'nothing saved');
+  }
+
+  test('a packaged build without build-info.json, or one saying null, is off', async () => {
+    await withEnv({ OPENEXTRACT_AI_HOME: freshDir('ai-home') }, async () => {
+      await everyChannelOff(await loadMain({ real: true }));
+      await everyChannelOff(await loadMain({ real: true, files: buildInfo(null) }));
+    });
+  });
+
+  test('a packaged build ignores OPENEXTRACT_AI_INDEX_URL in its environment', async () => {
+    await withEnv({ OPENEXTRACT_AI_INDEX_URL: 'https://dl.test/index.json', OPENEXTRACT_AI_HOME: freshDir('ai-home') }, async () => {
+      await everyChannelOff(await loadMain({ real: true }));
+    });
+  });
+
+  test('a packaged build made with the URL is on', async () => {
+    await withEnv({ OPENEXTRACT_AI_HOME: freshDir('ai-home') }, async () => {
+      const m = await loadMain({ real: true, files: buildInfo('https://dl.test/index.json') });
+      assert.deepEqual(await m.invoke('ask-ai:status'), NOT_INSTALLED);
+      await m.invoke('ask-ai:set-hidden', true);
+      assert.equal(m.readState().askAiHidden, true);
+    });
+  });
+
+  test('a development build follows OPENEXTRACT_AI_INDEX_URL, never a leftover build-info.json', async () => {
+    await withEnv({ OPENEXTRACT_AI_HOME: freshDir('ai-home') }, async () => {
+      await everyChannelOff(await loadMain({ real: true, isPackaged: false, files: buildInfo('https://dl.test/index.json') }));
+      await withEnv({ OPENEXTRACT_AI_INDEX_URL: 'http://127.0.0.1:9/index.json' }, async () => {
+        const m = await loadMain({ real: true, isPackaged: false });
+        assert.deepEqual(await m.invoke('ask-ai:status'), NOT_INSTALLED);
+      });
+    });
   });
 });
 

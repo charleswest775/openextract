@@ -22,6 +22,9 @@ export const BRIDGE = [
   'mediaThumbnail',
   // Older backups to the Trash (electron/olderBackups.ts)
   'trashOlderBackup',
+  // Ask AI (electron/askAi.ts): off in every build these suites run
+  'askAi.state', 'askAi.status', 'askAi.install', 'askAi.connectClaude', 'askAi.connectChatGpt',
+  'askAi.setHidden', 'askAi.noteSeen', 'askAi.onProgress',
 ];
 
 export default {
@@ -150,6 +153,21 @@ export default {
       const unsubscribed = await app.eval(() => typeof window.openextract.onBusinessCard(() => {}) === 'function');
       const answered = await app.api('support.answerBusiness', 'personal');
       check('onBusinessCard registers; support.answerBusiness goes through', unsubscribed === true && !answered.__missing && !answered.__error, { unsubscribed, answered });
+
+      // Ask AI: only in builds made with OPENEXTRACT_AI_INDEX_URL, and this isn't one (the harness
+      // leaves the variable out). Every call answers that it's off; nothing is downloaded or opened.
+      const aiState = await app.api('askAi.state');
+      check('askAi.state: off in this build', JSON.stringify(aiState.value) === JSON.stringify({ enabled: false }), aiState);
+      const aiCalls = [];
+      for (const [fn, ...args] of [['askAi.status'], ['askAi.install'], ['askAi.connectClaude'], ['askAi.connectChatGpt', true]]) {
+        aiCalls.push([fn, (await app.api(fn, ...args)).value]);
+      }
+      check("askAi: every action answers that it's off", aiCalls.every(([, v]) => v?.ok === false && /isn't part of this copy/.test(v.error ?? '')), aiCalls);
+      await app.api('askAi.setHidden', true);
+      await app.api('askAi.noteSeen');
+      const aiListens = await app.eval(() => typeof window.openextract.askAi.onProgress(() => {}) === 'function');
+      check('askAi.setHidden / noteSeen go through, onProgress registers, nothing is opened', aiListens && (await opened()).length === 0, aiListens);
+      check('no Ask AI on the screen', !(await app.text()).includes('Ask AI'));
 
       // Feedback: diagnostics and the saved email are local; sending is not exercised here
       // (it would reach openextract.app), see scripts/feedback.test.mjs.

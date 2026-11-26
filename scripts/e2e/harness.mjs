@@ -77,6 +77,9 @@ export async function launch(target, { profile, extraArgs = [], env = {} } = {})
   const args = [`--user-data-dir=${userData}`, ...extraArgs];
   if (process.platform === 'linux') args.push('--no-sandbox');
   const options = { args, timeout: 120_000, env: { ...process.env, ...env } };
+  // The suites test the app everyone gets, which has no Ask AI: a development build would turn it
+  // on from this variable (electron/aiAddon.ts), so it's left out unless a suite asks for it.
+  if (!('OPENEXTRACT_AI_INDEX_URL' in env)) delete options.env.OPENEXTRACT_AI_INDEX_URL;
   if (target.app) {
     options.executablePath = target.app;
   } else {

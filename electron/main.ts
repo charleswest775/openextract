@@ -11,6 +11,8 @@ import { FeedbackReports } from './feedbackReports';
 import { installFolderFor, installFolderWarning, isInsideFolder, resolveReal } from './installFolder';
 import { CHECK_OLDER_TIMEOUT_MS, takeMoveLock, trashOlderBackup } from './olderBackups';
 import { isBusinessAnswer, recordSave, shouldAskBusiness } from './businessUse';
+import { aiIndexUrl } from './aiAddon';
+import { registerAskAi } from './askAi';
 // ── Media in the window (videos, posters): only from the engine's copy folders ──
 const os = require('os');
 const { nativeImage } = require('electron');
@@ -802,6 +804,21 @@ app.whenReady().then(async () => {
       event.sender.send('share-prompt:show', exportArea, false);
     }
     return stats.totalExports;
+  });
+
+  // Ask AI (askAi.ts): only in builds made with OPENEXTRACT_AI_INDEX_URL, which a packaged app
+  // reads from build-info.json beside this file. Without it every call answers that it's off.
+  registerAskAi({
+    ipcMain,
+    shell,
+    store,
+    indexUrl: aiIndexUrl({ isPackaged: app.isPackaged, buildInfoDir: __dirname, env: process.env }),
+    platform: process.platform,
+    arch: process.arch,
+    translated: app.runningUnderARM64Translation === true,
+    env: process.env,
+    homedir: os.homedir(),
+    fetch: (url: string, init: any) => net.fetch(url, init),
   });
 
   ipcMain.handle('clipboard:writeText', (_event: any, text: string) => {
