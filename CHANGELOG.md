@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Notes now shows every note in the backup. An iPhone that has kept notes since before iOS 9 could show only a few old ones and hide the rest, and a note that's only numbers showed a blank page. A note still in the iPhone's Recently Deleted folder is now marked that way, and the Timeline, Year view and whole-backup search leave it out. Choosing a folder to open a backup from no longer lists the same backup several times, finds backups beside thousands of other folders or in two-letter folders like "de", and on a Mac no longer stops to ask for access to other apps' data.
+
 ### Fixed
 - Open a backup folder: the same backup is no longer listed several times when a link in the folder (a symlink, or on Windows a junction such as Documents and Settings) leads back to it, and a MobileSync/Backup that's a link to an external drive is still found. A folder named Backup is looked inside even when thousands of other folders sit beside it, and a backup in a folder of yours with a two-letter name like "de" or "ca" is found. On a Mac, choosing your Library folder no longer stops to ask for access to other apps' data. The message for a folder with no backup says "1 folder" and "1 file" instead of "1 folders" and "1 files"
 - Notes: every note in the backup now shows. An iPhone that has had notes since before iOS 9 can still keep an old account's notes (often "On My iPhone") in a separate file, and when it did, Notes listed only those old notes and none of the others. Now it lists both. A note whose text is only numbers, such as a code, now shows its text instead of a blank page
