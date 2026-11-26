@@ -135,6 +135,8 @@ jobs:
       - name: Check the Ask AI switch is on
         run: node -e "const j = require('./dist-electron/build-info.json'); console.log(j); if (j.aiIndexUrl !== process.env.OPENEXTRACT_AI_INDEX_URL) process.exit(1)"
       - name: Package (signed, not published)
+        # bash: PowerShell splits "-c.extraMetadata.version=..." at the first dot
+        shell: bash
         run: npx electron-builder --publish never -c.extraMetadata.version=${{ needs.version.outputs.version }}
         env:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
