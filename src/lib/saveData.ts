@@ -5,7 +5,7 @@
  * Every PDF is printed by Chromium (electron/pdfExport.ts): an engine save asks for its
  * print-ready page through exportMessagesPdf, a page built here goes through exportHtmlPdf.
  */
-import { exportHtmlPdf, exportMessagesPdf, saveFolder, sidecarCall, type PdfExportMethod, type PdfSplit } from './ipc';
+import { exportHtmlPdf, exportMessagesPdf, exportFolder, sidecarCall, type PdfExportMethod, type PdfSplit } from './ipc';
 import { chatName } from './whatsapp';
 import { voiceMemoSaveDetail } from './voiceMemos';
 import { calendarSaveDetail } from './calendar';
@@ -138,7 +138,7 @@ function savedFile(result: any): string | undefined {
 
 /** Save one note into a folder the person picks. */
 export async function saveNote(udid: string, note: { note_id: number | string; title: string }, format: NotesFormat): Promise<SaveResult | null> {
-  const outputDir = await saveFolder();
+  const outputDir = await exportFolder();
   if (!outputDir) return null;
   const result = await exportRecords('export_notes', { udid, note_ids: [note.note_id], output_dir: outputDir }, format);
   return { title: `Saved "${note.title || 'Untitled'}"`, path: savedFile(result) ?? outputDir };
@@ -146,7 +146,7 @@ export async function saveNote(udid: string, note: { note_id: number | string; t
 
 /** Save every note in one file (Notes.pdf, .html or .txt) into a folder the person picks. */
 export async function saveAllNotes(udid: string, format: NotesFormat): Promise<SaveResult | null> {
-  const outputDir = await saveFolder();
+  const outputDir = await exportFolder();
   if (!outputDir) return null;
   const result = await exportRecords('export_notes', { udid, output_dir: outputDir, mode: 'merged' }, format);
   return { title: `Saved ${plural(result?.count ?? 0, 'note')}`, detail: 'In one file', path: savedFile(result) ?? outputDir };
@@ -154,7 +154,7 @@ export async function saveAllNotes(udid: string, format: NotesFormat): Promise<S
 
 /** Save every call into a folder the person picks. */
 export async function saveCalls(udid: string, format: RecordFormat): Promise<SaveResult | null> {
-  const outputDir = await saveFolder();
+  const outputDir = await exportFolder();
   if (!outputDir) return null;
   const result = await exportRecords('export_calls', { udid, output_dir: outputDir }, format);
   return { title: `Saved ${plural(result?.count ?? 0, 'call')}`, path: savedFile(result) ?? outputDir };
@@ -162,7 +162,7 @@ export async function saveCalls(udid: string, format: RecordFormat): Promise<Sav
 
 /** Save every page visit, from every browser, into a folder the person picks. */
 export async function saveBrowserHistory(udid: string, format: RecordFormat): Promise<SaveResult | null> {
-  const outputDir = await saveFolder();
+  const outputDir = await exportFolder();
   if (!outputDir) return null;
   const result = await exportRecords('export_browser_history', { udid, output_dir: outputDir }, format);
   return { title: `Saved ${plural(result?.count ?? 0, 'page visit')}`, path: savedFile(result) ?? outputDir };
@@ -170,7 +170,7 @@ export async function saveBrowserHistory(udid: string, format: RecordFormat): Pr
 
 /** Save every recovered message, in one file, into a folder the person picks. */
 export async function saveRecoveredMessages(udid: string, format: RecordFormat): Promise<SaveResult | null> {
-  const outputDir = await saveFolder();
+  const outputDir = await exportFolder();
   if (!outputDir) return null;
   const result = await exportRecords('export_recovered_messages', { udid, output_dir: outputDir }, format);
   return { title: `Saved ${plural(result?.message_count ?? 0, 'recovered message')}`, path: savedFile(result) ?? outputDir };
@@ -304,7 +304,7 @@ function personSaveDetail(result: any): string {
  * voice message, document and voicemail recording beside it.
  */
 export async function savePerson(udid: string, spec: PersonExportSpec, format: RecordFormat, title: string): Promise<SaveResult | null> {
-  const outputDir = await saveFolder();
+  const outputDir = await exportFolder();
   if (!outputDir) return null;
   const params = { udid, output_dir: outputDir, ...spec };
   const result: any = format === 'pdf'
@@ -430,7 +430,7 @@ function messagesIn(count: number, files: string[], noun = 'message'): string {
 
 /** Save one conversation into a folder the person picks. */
 export async function saveConversation(udid: string, convo: ConversationRef, format: ConversationFormat): Promise<SaveResult | null> {
-  const outputDir = await saveFolder();
+  const outputDir = await exportFolder();
   if (!outputDir) return null;
   const params = { udid, chat_id: convo.chat_id, output_dir: outputDir, display_name: convo.display_name };
   const result = await exportOne(MESSAGES_EXPORT, params, format);
@@ -450,7 +450,7 @@ export async function saveConversations(
   format: ConversationFormat,
   mode: 'separate' | 'merged',
 ): Promise<SaveResult | null> {
-  const outputDir = await saveFolder();
+  const outputDir = await exportFolder();
   if (!outputDir) return null;
   const conversationNames: Record<number, string> = {};
   for (const c of convos) conversationNames[c.chat_id] = c.display_name || c.chat_identifier;
@@ -473,7 +473,7 @@ export async function saveConversations(
 
 /** Save one WhatsApp chat into a folder the person picks. */
 export async function saveWhatsAppChat(udid: string, chat: WhatsAppChatRef, format: ConversationFormat): Promise<SaveResult | null> {
-  const outputDir = await saveFolder();
+  const outputDir = await exportFolder();
   if (!outputDir) return null;
   const params = { udid, chat_id: chat.chat_id, output_dir: outputDir, display_name: chat.display_name };
   const result = await exportOne(WHATSAPP_EXPORT, params, format);
@@ -493,7 +493,7 @@ export async function saveWhatsAppChats(
   format: ConversationFormat,
   mode: 'separate' | 'merged',
 ): Promise<SaveResult | null> {
-  const outputDir = await saveFolder();
+  const outputDir = await exportFolder();
   if (!outputDir) return null;
   const conversationNames: Record<number, string> = {};
   for (const c of chats) conversationNames[c.chat_id] = chatName(c);
@@ -519,7 +519,7 @@ export async function saveWhatsAppChats(
  * one; nothing to save comes back as { error, empty_reason } and is reported.
  */
 export async function savePodcasts(udid: string, format: PodcastSaveFormat): Promise<SaveResult | null> {
-  const outputDir = await saveFolder();
+  const outputDir = await exportFolder();
   if (!outputDir) return null;
   const result = checkEngineResult(await sidecarCall<PodcastExportResult>('export_podcasts', { udid, output_dir: outputDir, format }));
   return {
@@ -544,7 +544,7 @@ export async function saveVoiceMemos(
   format: VoiceMemoSaveFormat,
   opts: { memoIds?: number[]; name?: string } = {},
 ): Promise<SaveResult | null> {
-  const outputDir = await saveFolder();
+  const outputDir = await exportFolder();
   if (!outputDir) return null;
   const params: Record<string, unknown> = { udid, output_dir: outputDir, format };
   if (opts.memoIds) params.memo_ids = opts.memoIds;
@@ -571,7 +571,7 @@ export async function saveCalendar(
   format: CalendarSaveFormat,
   opts: { calendarId?: number } = {},
 ): Promise<SaveResult | null> {
-  const outputDir = await saveFolder();
+  const outputDir = await exportFolder();
   if (!outputDir) return null;
   const params: Record<string, unknown> = { udid, output_dir: outputDir, format };
   if (opts.calendarId != null) params.calendar_id = opts.calendarId;

@@ -10,6 +10,7 @@ import { backupMissingMessage, noBackupsMessage } from './lib/foundBackups';
 import FullDiskAccessDialog, { FULL_DISK_ACCESS_PREFIX } from './components/shared/FullDiskAccessDialog';
 import UpdateNotice from './components/shared/UpdateNotice';
 import PayItForwardPrompt from './components/shared/PayItForwardPrompt';
+import PriceStepHost from './components/shared/PriceStepHost';
 import BusinessUsePrompt from './components/shared/BusinessUsePrompt';
 import ExportCheckPrompt from './components/shared/ExportCheckPrompt';
 import FixedReportNotice from './components/shared/FixedReportNotice';
@@ -192,6 +193,9 @@ export default function App() {
         <FixedReportNotice />
         <UpdateNotice />
       </div>
+
+      {/* "What's this worth to you?" before saves that skip the Save window */}
+      <PriceStepHost />
 
       {openError?.startsWith(FULL_DISK_ACCESS_PREFIX) && (
         <FullDiskAccessDialog message={openError} onClose={() => setOpenError(null)} />

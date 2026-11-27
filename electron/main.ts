@@ -157,7 +157,8 @@ const FEEDBACK_CHECK_DELAY_MS = 15_000;
 
 // The export check shows at most once per run, and never on the same export as the ask.
 let exportCheckShownThisRun = false;
-// The "Pay it forward" card was dismissed (its × or Say thanks): no more asks after exports until the app is opened again.
+// An ask was dismissed (the card's × or Say thanks) or the Save window's price step was shown:
+// no more asks until the app is opened again, the introduction card included.
 let askSnoozedThisRun = false;
 // The iPhone whose backup is open (its ID from the last open_backup that opened), so a save
 // can be counted against it for "Using it for paid work?".
@@ -756,6 +757,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('support:status', () => ({
     paid: store.get('paidItForward', false) === true,
     thanksSent: store.get('thanksSent', false) === true,
+    // The Save window shows its price step only when no ask has come yet in this run.
+    snoozed: askSnoozedThisRun,
   }));
   ipcMain.handle('support:snooze', () => {
     askSnoozedThisRun = true;
@@ -774,7 +777,8 @@ app.whenReady().then(async () => {
     store.set('stats', stats);
     // Every export calls this after it succeeds, so the card after an export starts
     // here, never before or during one. Remembered locally; nothing is sent anywhere.
-    //  - First export: "Pay it forward" with Charles's introduction.
+    //  - First export: "Pay it forward" with Charles's introduction, unless the price step
+    //    in the Save window already asked in this run.
     //  - Once per run: "Did this export come out right?", which catches exports that finish
     //    without an error but come out empty or wrong. "Looks right" leads to the ask.
     //  - Every other export: the shorter ask.
@@ -792,7 +796,7 @@ app.whenReady().then(async () => {
         return stats.totalExports;
       }
     }
-    if (!paid && !store.get('payIntroShown', false)) {
+    if (!paid && !askSnoozedThisRun && !store.get('payIntroShown', false)) {
       store.set('payIntroShown', true);
       event.sender.send('share-prompt:show', exportArea, true);
     } else if (!exportCheckShownThisRun && !store.get('exportCheckOptOut', false)) {

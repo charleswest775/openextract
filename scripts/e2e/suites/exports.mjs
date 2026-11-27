@@ -74,8 +74,9 @@ export default {
       let exportCheckSeen = 0;
       const prompts = async () => {
         const t = await app.text();
-        // The "Pay it forward" card: its buttons, in order. The first time, Say thanks opens the
-        // thank-you note (and, like the ×, quiets the ask for the rest of the run); Escape closes it.
+        // The "Pay it forward" card after an export: its buttons, in order (it shouldn't come in this
+        // run: the price step on the first save is the run's ask). Say thanks opens the thank-you
+        // note (and, like the ×, quiets the ask for the rest of the run); Escape closes it.
         const card = await app.eval(() => {
           const pay = [...document.querySelectorAll('.fixed button')].find(b => b.textContent.trim() === 'Pay $5');
           const box = pay?.closest('[role=status]');
@@ -262,8 +263,25 @@ export default {
         await prompts();
       }
 
-      check('the "Pay it forward" card showed after the first export, with Say thanks and Pay $5', shareSeen?.join() === 'Say thanks,Pay $5', shareSeen);
-      check('Say thanks on that card opens the thank-you note', thanksOpened === 'Say thanks', thanksOpened);
+      // "What's this worth to you?" asks once a run, on the first save, and then no card after exports.
+      check('the price step asked once, on the first save: Pay $25 and save, then Save without paying',
+        app.priceSteps?.length === 1 && app.priceSteps[0].join() === 'Pay $25 and save,Save without paying', app.priceSteps);
+      check('no "Pay it forward" card after exports in a run where the price step asked', shareSeen === null && thanksOpened === null, shareSeen);
+      {
+        // The card itself still opens from the header's Pay it forward button, and Say thanks on it
+        // opens the thank-you note.
+        await app.eval(() => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Pay it forward' && !b.closest('[role=status]'))?.click());
+        const headerCard = await app.waitFor(() => {
+          const pay = [...document.querySelectorAll('.fixed button')].find(b => b.textContent.trim() === 'Pay $5');
+          const box = pay?.closest('[role=status]');
+          return box ? [...box.querySelectorAll('.hearth-ghost-btn, .hearth-primary-btn')].map(b => b.textContent.trim()) : null;
+        }, null, 5_000);
+        await app.eval(() => [...document.querySelectorAll('.fixed button')].find(b => b.textContent.trim() === 'Say thanks')?.click());
+        const thanks = await app.waitFor(() => document.getElementById('feedback-title')?.textContent, null, 5_000);
+        await app.eval(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+        check('the header\'s Pay it forward card has Say thanks and Pay $5, and Say thanks opens the thank-you note',
+          headerCard?.join() === 'Say thanks,Pay $5' && thanks === 'Say thanks', { headerCard, thanks });
+      }
       check('"Did this export come out right?" showed at most once', exportCheckSeen <= 1, exportCheckSeen);
 
       // ── One conversation, every format, and saving twice keeps both files ──
