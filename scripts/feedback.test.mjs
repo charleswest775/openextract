@@ -853,6 +853,20 @@ const REAL_ERRORS = [
     area: 'create_backup',
     errors: [['backup.start', 'Not enough free space for this backup. It needs more than 118 GB free, but the drive you chose has 62 GB free. Free up space or choose a folder on an external drive, then try again.']],
   },
+  // The same with the folder in OneDrive (OE-212). Reports leave out the folder, so up to 0.21.0
+  // only the person's words say so; later versions add electron/syncedFolder.ts's note.
+  {
+    fix: 'backup-folder-in-cloud-storage',
+    os: WINDOWS,
+    area: 'create_backup',
+    details: 'I am trying to backup my phone to my OneDrive, which has 85% of 1 TB available. The backup keeps failing. How do I resolve this?',
+    errors: [['backup.start', 'Not enough free space for this backup. It needs more than 229 GB free, but the drive you chose has 175 GB free. Free up space or choose a folder on an external drive, then try again.']],
+  },
+  {
+    fix: 'backup-folder-in-cloud-storage',
+    area: 'create_backup',
+    errors: [['backup.start', "Not enough free space for this backup. It needs more than 120 GB free, but the drive you chose has 80 GB free. The folder you chose is in iCloud Drive, so the space in your iCloud Drive account doesn't count: the backup is saved on this computer's own drive. Free up space or choose a folder on an external drive, then try again."]],
+  },
   // pymobiledevice3's MissingValueError for an iPhone that never made an encrypted backup (OE-12).
   { fix: 'encrypted-backup-no-such-value', os: WINDOWS, area: 'create_backup', errors: [['backup.start', 'No such value.']] },
   // MBErrorDomain/104 as 0.10.1 showed it (OE-6, OE-8), and as later versions word it.
@@ -1048,6 +1062,18 @@ test('reports about something else get no known fix', async () => {
   for (const version of ['0.14.0', '0.15.1', '0.16.0']) {
     assert.deepEqual(await knownFixesFor({ ...notInstalled, version }), [], version);
   }
+  // OneDrive in the app's own advice isn't the person's OneDrive folder, and OneDrive without a
+  // drive that's too small is something else (OE-212's fix is about space).
+  const noSpace = REAL_ERRORS.find(c => c.fix === 'backup-drive-full');
+  const folderInUse = REAL_ERRORS.filter(c => c.fix === 'backup-folder-access-denied').at(-1).errors[0];
+  assert.deepEqual(await knownFixesFor({ ...noSpace, errors: [...noSpace.errors, folderInUse] }),
+    ['backup-drive-full', 'backup-folder-access-denied']);
+  assert.deepEqual(await knownFixesFor({ ...noSpace, details: 'Some of that backup is only online, for example in OneDrive or iCloud Drive' }),
+    ['backup-drive-full']);
+  assert.deepEqual(await knownFixesFor({ area: 'create_backup', details: 'Can I back up straight to my OneDrive?' }), []);
+  // People who count their iCloud storage get it too.
+  assert.deepEqual(await knownFixesFor({ ...noSpace, details: 'I pay for 2 TB of iCloud storage, why is there not enough space?' }),
+    ['backup-folder-in-cloud-storage']);
   // A Mac without usbmuxd needs a restart, not Apple Devices.
   assert.deepEqual(await knownFixesFor({
     errors: [['backup.list_devices', "DEVICE_SERVICE_REQUIRED: OpenExtract can't reach the part of macOS that talks to iPhones (usbmuxd). Restart your Mac, then search again."]],

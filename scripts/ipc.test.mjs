@@ -109,6 +109,23 @@ test('folder pickers pass the chosen folder through, or null when cancelled', as
   assert.equal(await ipc.saveFolder(), null);
 });
 
+test('syncedFolder passes the answer through', async t => {
+  const asked = [];
+  const { ipc } = loadWith(t, { syncedFolder: async folder => { asked.push(folder); return 'OneDrive'; } });
+  assert.equal(await ipc.syncedFolder('C:\\Users\\Ana\\OneDrive\\iPhone'), 'OneDrive');
+  assert.deepEqual(asked, ['C:\\Users\\Ana\\OneDrive\\iPhone']);
+});
+
+// Only a warning: an error, or a bridge without it, never stops a backup.
+test('syncedFolder is null when the check fails', async t => {
+  const { ipc } = loadWith(t, { syncedFolder: async () => { throw new Error('no handler'); } });
+  assert.equal(await ipc.syncedFolder('/x'), null);
+});
+
+test('syncedFolder is null when the bridge has no such function', async t => {
+  assert.equal(await loadWith(t, {}).ipc.syncedFolder('/x'), null);
+});
+
 test('outside Electron, calls fail with how to start the app, and pickers give null', async t => {
   const warn = t.mock.method(console, 'warn', () => {});
   const loaded = [];
@@ -125,6 +142,7 @@ test('outside Electron, calls fail with how to start the app, and pickers give n
     await assert.rejects(ipc.exportHtmlPdf('<p>x</p>', '/out', 'x'), { message: 'Not running in Electron. Start with: npm run dev' });
     assert.equal(await ipc.selectFolder(), null);
     assert.equal(await ipc.saveFolder(), null);
+    assert.equal(await ipc.syncedFolder('/x'), null);
   }
   assert.equal(warn.mock.callCount(), 2);
   assert.match(warn.mock.calls[0].arguments[0], /sidecar\.list_backups/);
