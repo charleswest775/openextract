@@ -327,15 +327,30 @@ def test_contacts_match_address_book(ctx):
 
 def test_every_note_listed_with_its_dates(ctx):
     ctx.require_open()
+    listed = ctx.notes_result.get("notes", [])
+    notes = {n["note_id"]: n for n in listed}
+    assert len(notes) == len(listed), "two notes share an id"
+    expected = ctx.item.expected() if hasattr(ctx.item, "expected") else None
+    keyed = expected is not None and (not expected["notes"] or any("note_id" in n for n in expected["notes"]))
+    if keyed:
+        # A generated backup's answer key says how many notes there are and which, all stores counted. The raw
+        # check below only says which titled NoteStore rows must be listed: it can't see something listed that
+        # shouldn't be (a placeholder awaiting iCloud, a deleted note in the old notes.sqlite) or count notes.sqlite.
+        assert all("note_id" in n for n in expected["notes"]), "some answer-key notes have no note_id"
+        want = {n["note_id"] for n in expected["notes"]}
+        assert len(listed) == len(want), f"{len(listed)} notes listed, the answer key has {len(want)}"
+        assert set(notes) == want, f"missing {_sample(sorted(want - set(notes), key=str))}, " \
+                                   f"unexpected {_sample(sorted(set(notes) - want, key=str))}"
     conn = ctx.raw.connect(*NOTE_STORE)
     if conn is None:
+        if keyed:
+            return  # the answer key's count was checked; there's no NoteStore to read
         pytest.skip("no NoteStore.sqlite in this backup")
     columns = ctx.raw.columns(conn, "ZICCLOUDSYNCINGOBJECT")
     created_cols = [c for c in ("ZCREATIONDATE3", "ZCREATIONDATE2", "ZCREATIONDATE1", "ZCREATIONDATE") if c in columns]
     created = f"COALESCE({', '.join(created_cols)})" if created_cols else "NULL"
     rows = conn.execute(f"SELECT Z_PK, {created} AS created FROM ZICCLOUDSYNCINGOBJECT WHERE ZTITLE1 IS NOT NULL").fetchall()
     conn.close()
-    notes = {n["note_id"]: n for n in ctx.notes_result.get("notes", [])}
     missing = [r["Z_PK"] for r in rows if r["Z_PK"] not in notes]
     assert not missing, f"notes missing from list_notes: {_sample(missing)}"
     undated = [r["Z_PK"] for r in rows if r["created"] and not notes[r["Z_PK"]].get("created")]

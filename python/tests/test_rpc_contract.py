@@ -82,6 +82,7 @@ from rpc_contract_support import (  # noqa: E402
     same_path,
 )
 from bundle_schema import check_bundle, read_lines  # noqa: E402
+from raw_backup import RawBackup  # noqa: E402  (python/tests/corpus, on the path via rpc_contract_support)
 from corpus.synthetic import WHATSAPP_APP, whatsapp_empty_reason  # noqa: E402
 import whatsapp_backup as wb  # noqa: E402
 import podcasts_backup as pb  # noqa: E402
@@ -2323,6 +2324,20 @@ def empty_list_calls(e, out):
 @empty_state("list_notes")
 def empty_list_notes(e, out):
     assert e.rpc("list_notes")["notes"] == []
+    # Einstein never used his phone's Notes app. By his iOS 26 backup iCloud had set Notes up: a NoteStore whose
+    # only note is a placeholder for one still to download (Notes there, nothing to show). His iOS 17 backup has
+    # no NoteStore (not in this backup). The two Einstein backups here are one of each.
+    raw = RawBackup(e.backup_dir, e.password)
+    try:
+        notes = raw.query("AppDomainGroup-group.com.apple.notes", "NoteStore.sqlite",
+                          "SELECT o.ZTITLE1, o.ZNEEDSINITIALFETCHFROMCLOUD FROM ZICCLOUDSYNCINGOBJECT o "
+                          "JOIN Z_PRIMARYKEY e ON e.Z_ENT = o.Z_ENT WHERE e.Z_NAME = 'ICNote'")
+    finally:
+        raw.close()
+    if e.expected["snapshot"] == "ios26":
+        assert notes is not None and [tuple(r) for r in notes] == [(None, 1)]
+    else:
+        assert notes is None
 
 
 @empty_state("has_browser_history")
