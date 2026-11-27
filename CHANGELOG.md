@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Saving now asks, once each time you open OpenExtract, what it's worth to you: $5, $25, $100 or any amount, with Save without paying right beside it. Calls no longer shows changes to a group chat (someone added or removed, a new name) as FaceTime calls, and Messages now says "Attachment not in this backup", instead of "Conversation update", when the iPhone removed a photo or file from a message.
+
 ### Added
 - Saving: the first save each time you open OpenExtract asks "What's this worth to you?" before it saves, with $5, $25 (suggested), $100 or any amount. Paying opens the payment page in your browser and the save goes ahead at once. Save without paying saves straight away, Can't pay? Say thanks saves and opens the thank-you note, and Already paid? Don't ask again stops the question for good. It asks once each time the app is opened, before saves from the Save window and before saves that skip it (photos, voicemail audio), and in that run the "Pay it forward" card no longer comes after exports. Nothing is sent from the app
 
