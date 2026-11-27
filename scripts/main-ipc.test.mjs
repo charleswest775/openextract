@@ -929,12 +929,30 @@ describe('after an export: "Pay it forward" and the export check', () => {
     assert.deepEqual(run2.env.senderSent, [['export-check:show', 'calls', true], ['share-prompt:show', 'notes', false]]);
   });
 
+  test('the Save window\'s price step is the run\'s one ask: no introduction or ask after exports in that run', async () => {
+    const userData = freshDir('main-userdata');
+    const run1 = await loadMain({ userData });
+    assert.equal((await run1.invoke('support:status')).snoozed, false, 'a fresh run: the step may ask');
+    // SaveDialog snoozes when it shows the step, before the save runs.
+    await run1.invoke('support:snooze');
+    assert.equal((await run1.invoke('support:status')).snoozed, true, 'later saves in this run skip the step');
+    await run1.invoke('increment-export-count', 'messages');
+    await run1.invoke('increment-export-count', 'calls');
+    await run1.invoke('increment-export-count', 'notes');
+    assert.deepEqual(run1.env.senderSent, [['export-check:show', 'messages', false]], 'no introduction, and "Looks right" won\'t ask');
+    assert.equal(run1.readState().payIntroShown, false, 'the introduction is still owed to a run with no step');
+
+    // Next run: the step may ask again.
+    const run2 = await loadMain({ userData });
+    assert.equal((await run2.invoke('support:status')).snoozed, false);
+  });
+
   test('"I\'ve paid" ends the ask for good; the export check stays', async () => {
     const userData = freshDir('main-userdata');
     const run1 = await loadMain({ userData });
-    assert.deepEqual(await run1.invoke('support:status'), { paid: false, thanksSent: false });
+    assert.deepEqual(await run1.invoke('support:status'), { paid: false, thanksSent: false, snoozed: false });
     await run1.invoke('support:paid');
-    assert.deepEqual(await run1.invoke('support:status'), { paid: true, thanksSent: false });
+    assert.deepEqual(await run1.invoke('support:status'), { paid: true, thanksSent: false, snoozed: false });
     await run1.invoke('increment-export-count', 'messages');
     await run1.invoke('increment-export-count', 'calls');
     assert.deepEqual(run1.env.senderSent, [['export-check:show', 'messages', false]]);
@@ -948,7 +966,7 @@ describe('after an export: "Pay it forward" and the export check', () => {
   test('people who saw the older Say thanks card, or already sent thanks, get the introduction once', async () => {
     const userData = freshDir('main-userdata');
     const run1 = await loadMain({ userData, state: { thanksCardShown: true, thanksFollowUpShown: true, thanksSent: true, stats: { totalExports: 12 } } });
-    assert.deepEqual(await run1.invoke('support:status'), { paid: false, thanksSent: true });
+    assert.deepEqual(await run1.invoke('support:status'), { paid: false, thanksSent: true, snoozed: false });
     await run1.invoke('increment-export-count', 'calls');
     assert.deepEqual(run1.env.senderSent, [['share-prompt:show', 'calls', true]]);
 

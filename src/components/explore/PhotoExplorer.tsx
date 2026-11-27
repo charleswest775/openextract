@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { sidecarCall, saveFolder } from '../../lib/ipc';
+import { sidecarCall, exportFolder } from '../../lib/ipc';
 import { CameraIcon, CheckIcon, ChevronRightIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
 import {
@@ -366,7 +366,7 @@ export default function PhotoExplorer({ udid, open }: Props) {
     const match = personMatch;
     const whose = personIds.map(id => people.find(p => p.id === id) ?? { name: null });
     run(async () => {
-      const outputDir = await saveFolder();
+      const outputDir = await exportFolder();
       if (!outputDir) return null;
       const only = chosen.length > 0
         ? { uuids: chosen.map(p => p.uuid) }

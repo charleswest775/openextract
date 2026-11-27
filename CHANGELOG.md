@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Saving: the first save each time you open OpenExtract asks "What's this worth to you?" before it saves, with $5, $25 (suggested), $100 or any amount. Paying opens the payment page in your browser and the save goes ahead at once. Save without paying saves straight away, Can't pay? Say thanks saves and opens the thank-you note, and Already paid? Don't ask again stops the question for good. It asks once each time the app is opened, before saves from the Save window and before saves that skip it (photos, voicemail audio), and in that run the "Pay it forward" card no longer comes after exports. Nothing is sent from the app
+
 ### Fixed
 - Calls: changes to a group chat no longer show up as FaceTime calls. Each time someone was added to or removed from a group, or a group was renamed, Calls listed an answered FaceTime call that lasted no time, from whoever made the change (even in groups deleted long ago), and People, the Timeline, the Year view and saved call lists all counted it. Calls now come only from the iPhone's call history and voicemail, where FaceTime calls are listed with how long they lasted. A backup that isn't encrypted, and so has no call history, again says so on Calls instead of showing a few of these
 - Messages: a photo or file the iPhone removed from a message while keeping the message now says "Attachment not in this backup" instead of "Conversation update", in the conversation, on the Timeline and People, and in every save of the conversation

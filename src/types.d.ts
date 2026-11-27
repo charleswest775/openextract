@@ -73,9 +73,10 @@ declare global {
       onSharePrompt: (callback: (area?: string, intro?: boolean) => void) => () => void;
       /** The "Pay it forward" ask. Kept on this computer; the app never sees payments. */
       support: {
-        /** `paid`: the person said they paid. `thanksSent`: a thank-you went out from this computer. */
-        status: () => Promise<{ paid: boolean; thanksSent: boolean }>;
-        /** The card was dismissed (its × or Say thanks): no more asks after exports until the app is opened again. */
+        /** `paid`: the person said they paid. `thanksSent`: a thank-you went out from this computer.
+         *  `snoozed`: an ask was already shown or dismissed in this run (the price step or the card). */
+        status: () => Promise<{ paid: boolean; thanksSent: boolean; snoozed: boolean }>;
+        /** An ask was dismissed (the card's × or Say thanks) or the Save window's price step was shown: no more asks until the app is opened again. */
         snooze: () => Promise<void>;
         /** "I've paid" / "Already paid? Stop asking": no more asks after exports, ever. */
         markPaid: () => Promise<void>;

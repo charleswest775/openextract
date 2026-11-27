@@ -80,3 +80,21 @@ test('every page with the top bar has "Pay it forward" in it, next to GitHub', (
     assert.match(html, /<a class="nav__pay" href="\/support" aria-label="[^"]+"><svg[^>]*aria-hidden="true">.*?<\/svg><span class="nav__pay-label">[^<]+<\/span><\/a>\s*<a class="nav__gh"/, `${f} top bar`);
   }
 });
+
+test('the app\'s price step pays through its own /support/pay/app/... redirects, tagged so its payments can be told apart', () => {
+  // src/lib/payItForward.ts: PRICE_STEP_AMOUNTS and priceStepUrl. Each goes to the same Stripe link
+  // as the support page's amount, with client_reference_id=app_save_step (a fixed tag, the same for
+  // everyone: nothing about the person). "any" opens the pay-what-you-want link.
+  const src = read('src/lib/payItForward.ts');
+  const ids = [...src.slice(src.indexOf('PRICE_STEP_AMOUNTS'), src.indexOf('] as const')).matchAll(/id: '([^']+)'/g)].map(m => m[1]);
+  assert.deepEqual(ids, ['5', '25', '100', 'any']);
+  const { redirects } = JSON.parse(read(`${site}/vercel.json`));
+  const dest = p => redirects.find(x => x.source === p)?.destination;
+  const same = { 5: '/support/pay/5', 25: '/support/pay/25', 100: '/support/pay/100', any: '/support/pay' };
+  for (const id of ids) {
+    const r = redirects.find(x => x.source === `/support/pay/app/${id}`);
+    assert.ok(r, `vercel.json has a /support/pay/app/${id} redirect`);
+    assert.equal(r.permanent, false, `/support/pay/app/${id} is temporary`);
+    assert.equal(r.destination, `${dest(same[id])}?client_reference_id=app_save_step`, `/support/pay/app/${id} → ${r.destination}`);
+  }
+});
