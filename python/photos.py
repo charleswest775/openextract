@@ -1293,6 +1293,7 @@ class PhotoExtractor:
             return {"error": "Photo not found"}
 
         try:
+            unreadable = "Pillow not installed"
             if HAS_PIL:
                 try:
                     img = Image.open(file_path)
@@ -1307,8 +1308,9 @@ class PhotoExtractor:
                         "filename": file_hash[:12] + ".jpg",
                         "converted": True,
                     }
-                except Exception:
-                    pass  # Not an image PIL recognises (e.g. video) — fall through
+                except Exception as e:
+                    # Not an image PIL recognises (a video), or one it couldn't decode
+                    unreadable = f"{type(e).__name__}: {e}"
 
             with open(file_path, "rb") as f:
                 raw = f.read()
@@ -1330,6 +1332,13 @@ class PhotoExtractor:
                 mime_type = "video/mp4"
             else:
                 mime_type = "application/octet-stream"
+
+            if mime_type == "image/heic":
+                # The viewer can't show HEIC: handed the raw file, it stayed blank and said
+                # nothing (OE-206). Say so instead; saving still copies the original.
+                print(f"[photos] get_photo: can't decode HEIC {file_hash[:12]} "
+                      f"(PIL={HAS_PIL} HEIF={HAS_HEIF}): {unreadable}", file=sys.stderr, flush=True)
+                return {"error": "This photo couldn't be shown here. Save still copies the original photo."}
 
             return {
                 "data": base64.b64encode(raw).decode("ascii"),

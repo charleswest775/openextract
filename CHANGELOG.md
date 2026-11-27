@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Photos: a photo that can't be shown full size now says "This photo couldn't be shown here. Save still copies the original photo." instead of leaving a blank space. When an iPhone photo (HEIC) couldn't be turned into a picture the window can draw, the photo opened to nothing, with no message
+
 ## [0.21.0] - 2026-11-26
 
 Saving now asks, once each time you open OpenExtract, what it's worth to you: $5, $25, $100 or any amount, with Save without paying right beside it. Calls no longer shows changes to a group chat (someone added or removed, a new name) as FaceTime calls, and Messages now says "Attachment not in this backup", instead of "Conversation update", when the iPhone removed a photo or file from a message.
