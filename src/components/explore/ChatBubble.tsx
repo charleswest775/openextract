@@ -11,6 +11,11 @@ import Highlight from '../shared/Highlight';
 
 /** An attachment as Messages lists it; WhatsApp's carry the optional extras. */
 export interface BubbleAttachment {
+  /**
+   * The file's id in its database. Null (despite the type) for a Messages photo or
+   * file whose record iOS removed: that one is always available: false, so it's
+   * never asked for, and lists key it by its place instead.
+   */
   attachment_id: number;
   filename: string;
   mime_type: string;
@@ -281,9 +286,9 @@ export default function ChatBubble({
   ) : null;
   const files = attachments.length > 0 ? (
     <div className={bare || (wa && !message.quoted) ? '' : 'mt-1 space-y-1'}>
-      {attachments.map((a) => (
+      {attachments.map((a, i) => (
         // Outside a bubble a file sits on the page, not on the bubble's colour
-        <Attachment key={a.attachment_id} udid={udid} attachment={a} isMine={isMine && !bare} messageType={type} />
+        <Attachment key={a.attachment_id ?? `gone-${i}`} udid={udid} attachment={a} isMine={isMine && !bare} messageType={type} />
       ))}
     </div>
   ) : null;

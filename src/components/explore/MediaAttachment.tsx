@@ -3,12 +3,12 @@ import {
   type KeyboardEvent as ReactKeyboardEvent, type ReactElement, type ReactNode, type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { ExternalLink, FileText, ImageOff, Mic, Music, Play, X } from 'lucide-react';
+import { ExternalLink, FileText, ImageOff, Mic, Music, Paperclip, Play, X } from 'lucide-react';
 import { sidecarCall } from '../../lib/ipc';
 import { localMediaUrl } from '../../lib/openFile';
 import {
-  attachmentKind, documentName, durationText, fileTypeLabel, fitBox, formatBytes, handOver, kindLabel, missingText,
-  playsInApp, splitExtension, type AttachmentKind, type MediaSource,
+  attachmentKind, documentName, durationText, fileTypeLabel, fitBox, formatBytes, handOver, kindLabel, missingLabel,
+  missingText, nothingKnown, playsInApp, splitExtension, type AttachmentKind, type MediaSource,
 } from '../../lib/whatsapp';
 import { useInView } from '../../hooks/useNearScreen';
 import type { AttachmentResult } from '../../types/whatsapp';
@@ -390,8 +390,9 @@ function Missing({ kind, attachment, onColour, tile = false }: {
   kind: AttachmentKind; attachment: AttachmentProps['attachment']; onColour: boolean; tile?: boolean;
 }) {
   const name = kind === 'document' ? documentName(attachment) : '';
-  const Glyph = glyphFor(kind);
-  const text = missingText(kind, attachment.transfer_name);
+  // Nothing known about it (a photo or file whose record iOS removed): a paperclip, not a document
+  const Glyph = nothingKnown(attachment) ? Paperclip : glyphFor(kind);
+  const text = missingLabel(attachment, kind);
   if (tile) {
     return (
       <span

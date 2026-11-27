@@ -53,9 +53,9 @@ function AttachmentTiles({ attachments, source, udid, isMine, messageType, onMor
   return (
     // A tile's own clicks (and its viewer's) are its own, not the card's
     <div className="flex flex-wrap items-center gap-2 mt-2" onClick={e => e.stopPropagation()}>
-      {shown.map(a => (
+      {shown.map((a, i) => (
         <MediaAttachment
-          key={a.attachment_id}
+          key={a.attachment_id ?? `gone-${i}`}
           udid={udid}
           attachment={a as BubbleAttachment}
           isMine={isMine}
@@ -279,9 +279,9 @@ function MessageViewerModal({
           {displayText}
           {attachments && attachments.length > 0 && source && udid && (
             <div className="flex flex-wrap gap-3 mt-3 not-italic">
-              {attachments.map(a => (
+              {attachments.map((a, i) => (
                 <MediaAttachment
-                  key={a.attachment_id}
+                  key={a.attachment_id ?? `gone-${i}`}
                   udid={udid}
                   attachment={a as BubbleAttachment}
                   isMine={false}

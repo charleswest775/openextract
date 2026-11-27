@@ -246,6 +246,15 @@ def _attachment_rowid(value) -> Optional[int]:
     return None
 
 
+def _nothing_known(att: dict) -> bool:
+    """No type and no name: a photo or file whose record iOS removed, keeping the
+    message. ios-backup-core lists each one with no id and available False, so
+    it's an "Attachment not in this backup" in every save, as on screen
+    (src/lib/whatsapp.ts nothingKnown)."""
+    return not (att.get("mime_type") or _visible(att.get("transfer_name") or "").strip()
+                or _visible(att.get("filename") or "").strip())
+
+
 def _att_key(att: dict):
     """What a save's writer remembers an attachment by: its id, or the attachment itself without one."""
     att_id = att.get("attachment_id")
@@ -682,6 +691,9 @@ class MessageExtractor:
             return "[Attachment]"
         parts = []
         for a in attachments:
+            if _nothing_known(a):
+                parts.append("[Attachment not in this backup]")
+                continue
             name = _visible(a.get("transfer_name") or a.get("filename") or "")
             mime = a.get("mime_type") or ""
             if mime.startswith("image/"):
@@ -1159,6 +1171,9 @@ class _PrintAttachmentWriter:
             kind = "Video"
         elif mime.startswith("audio/"):
             kind = "Audio"
+        elif _nothing_known(att):
+            kind = "Attachment"
+            missing = True  # its record is gone, and its file with it
         else:
             kind = "File"
         if problem:

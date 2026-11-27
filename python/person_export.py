@@ -61,6 +61,7 @@ from messages import (
     _FILE_NAME_UNSAFE,
     _HtmlAttachmentWriter,
     _PrintAttachmentWriter,
+    _nothing_known,
     _visible,
     _without_lone_surrogates,
 )
@@ -267,6 +268,8 @@ def _messages_kind(att: dict) -> str:
         return "Video"
     if mime.startswith("audio/"):
         return "Audio"
+    if _nothing_known(att):
+        return "Attachment"  # a photo or file whose record iOS removed
     return "File"
 
 
