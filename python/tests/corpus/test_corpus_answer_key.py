@@ -10,6 +10,7 @@ from collections import Counter
 import pytest
 
 from corpus.facts import parse_iso
+from corpus.synthetic import whatsapp_empty_reason
 
 pytestmark = pytest.mark.corpus
 
@@ -488,9 +489,11 @@ def test_absent_data_types_come_back_empty(ctx):
         for total in totals:
             assert overview[total] == 0, f"{data_type}: {total}"
     if "whatsapp" in absent:
-        # Most iPhones have no WhatsApp: that's "not in this backup", never an error.
-        assert ctx.whatsapp_result == {"conversations": [], "empty_reason": "not_in_backup"}
-        assert overview["whatsapp_status"] == "not_in_backup"
+        # Most iPhones have no WhatsApp: that's "not in this backup", never an error. One with the app
+        # installed (the answer key's "apps") whose chats aren't in the backup says that instead.
+        reason = whatsapp_empty_reason(expected)
+        assert ctx.whatsapp_result == {"conversations": [], "empty_reason": reason}
+        assert overview["whatsapp_status"] == reason
     if "calendar" in absent:
         assert ctx.calendars_result == {"calendars": [], "empty_reason": "not_in_backup"}
         assert ctx.calendar_events_result == {"events": [], "empty_reason": "not_in_backup"}
