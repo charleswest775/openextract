@@ -29,7 +29,7 @@ on:
         required: false
         default: ''
       ios_backup_core_ref:
-        description: 'ios-backup-core branch, tag or full commit SHA to build and make the test backups with (blank = the commit pinned in ios-backup-core.ref of the branch or tag tested). To test what a release shipped, or a tag from before the pin, give the commit named at the foot of its release notes (v0.16.0 on)'
+        description: 'ios-backup-core branch, tag or full commit SHA to build and make the test backups with (blank = the commit pinned in ios-backup-core.ref of the branch or tag tested). To test what a release shipped, or a tag from before the pin, give the full 40-character SHA that the link at the foot of its release notes points to (v0.16.0 on; the link text is only the first 12 characters)'
         required: false
         default: ''
   schedule:
@@ -279,7 +279,7 @@ jobs:
         run: |
           if [ -z "$CORE_REF" ]; then
             if [ ! -f ios-backup-core.ref ]; then
-              echo "::error::This checkout (${TAG:-$GITHUB_REF_NAME}) has no ios-backup-core.ref: it's older than the pin. Run again with ios_backup_core_ref set to the commit named at the foot of that release's notes (\"Built with ios-backup-core ...\", from v0.16.0 on)."
+              echo "::error::This checkout (${TAG:-$GITHUB_REF_NAME}) has no ios-backup-core.ref: it's older than the pin. Run again with ios_backup_core_ref set to the full 40-character SHA that the link at the foot of that release's notes points to (\"Built with ios-backup-core ...\", from v0.16.0 on; the link text is only the first 12 characters, which git can't fetch)."
               exit 1
             fi
             CORE_REF=$(tr -d '[:space:]' < ios-backup-core.ref)

@@ -59,12 +59,14 @@ merged there first meets this repository's tests in the PR that moves the pin.
 `scripts/ios-backup-core-pin.test.mjs` (in `npm test`) fails if `ios-backup-core.ref` isn't one
 full SHA, or if a workflow or action names ios-backup-core's repository (a git or pip URL,
 `owner/ios-backup-core`, a `repository:` or `gh repo clone` line) anywhere but in a link to a
-commit, comparison, PR or issue, or uses `.github/actions/ios-backup-core` with a ref other
-than the pin, the run's input falling back to the pin, or a commit an earlier job resolved
-through the action. Only two steps may fetch ios-backup-core themselves: the action, and its
-copy in `installers.yml`'s test job (for tags older than the action). The test runs both with
-bash and a stand-in `git` to check they fetch the pinned commit. It reads the workflow files as
-text, so a fetch spelled some other way (a URL built from pieces, say) would get past it.
+commit, comparison, PR or issue (and not one that downloads, with `?raw=`, `.diff` or
+`.patch`), or uses `.github/actions/ios-backup-core` with a ref other than the pin, the run's
+input falling back to the pin, or a commit an earlier job resolved through the action. Only two
+steps may fetch ios-backup-core themselves: the action, and its copy in `installers.yml`'s test
+job (for tags older than the action). The test runs both with bash and a stand-in `git` to
+check they fetch the pinned commit, and checks that their `env:` hands them the ref exactly as
+`PIN_READERS` in the test says (no `|| 'master'` there). It reads the workflow files as text,
+so a fetch spelled some other way (a URL built from pieces, say) would get past it.
 
 Locally, the engine and the generated backups use your checkout beside this repository
 (`../ios-backup-core`; the corpus also takes `$OPENEXTRACT_IOS_BACKUP_CORE`). Check out the

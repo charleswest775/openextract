@@ -14,12 +14,15 @@ set -euo pipefail
 
 URL=https://github.com/charleswest775/ios-backup-core.git
 REF=${1:-master}
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
+ROOT=$(cd -- "$(dirname -- "$0")/.." >/dev/null && pwd)
 PIN="$ROOT/ios-backup-core.ref"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
+# NAME is set only for a branch or tag (the check below skips master): cleared first, so a NAME
+# in the environment never counts.
+NAME=""
 if [[ "$REF" =~ ^[0-9a-f]{40}$ ]]; then
   SHA=$REF
   # ls-remote lists only branches and tags; fetching the commit (no files) checks GitHub has it.
@@ -47,7 +50,7 @@ fi
 # A commit that isn't on master yet (a library PR's branch) can be pinned to try it, but the
 # library PR should merge first: a squash or rebase merge puts a different commit on master.
 NOT_ON_MASTER=""
-if [ "${NAME:-}" != master ]; then
+if [ "$NAME" != master ]; then
   git init -q "$TMP/master"
   # master's history without its files: enough to ask whether the commit is on it.
   if git -C "$TMP/master" fetch -q --filter=tree:0 "$URL" master 2>/dev/null; then
@@ -76,7 +79,7 @@ fi
 printf '%s\n' "$SHA" > "$PIN"
 
 echo "ios-backup-core.ref: ${OLD:-(none)} -> $SHA ($REF)"
-if [ -n "$OLD" ]; then
+if [[ "$OLD" =~ ^[0-9a-f]{40}$ ]]; then
   echo "What changed: https://github.com/charleswest775/ios-backup-core/compare/$OLD...$SHA"
 fi
 warn_not_on_master

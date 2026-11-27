@@ -4,10 +4,12 @@
 //   - ios-backup-core.ref isn't one full 40-character commit SHA on one line;
 //   - a workflow or action names ios-backup-core's repository anywhere but in a link to a
 //     commit, comparison, PR or issue (a git or pip URL, `owner/ios-backup-core`, a
-//     `repository:` or `gh repo clone` line), except in the two steps that read the pin: the
-//     composite action .github/actions/ios-backup-core, and the copy of its fetch written out
-//     in installers.yml's test job for tags older than the action. Those two are run here
-//     with bash and a stand-in git, to check that they fetch the pinned commit;
+//     `repository:` or `gh repo clone` line, or such a link that downloads, with `?raw=`,
+//     `.diff` or `.patch`), except in the two steps that read the pin: the composite action
+//     .github/actions/ios-backup-core, and the copy of its fetch written out in
+//     installers.yml's test job for tags older than the action. Those two are run here with
+//     bash and a stand-in git, to check that they fetch the pinned commit, and their `env:`
+//     must hand them the ref exactly as PIN_READERS says;
 //   - a step uses that action, however its path is spelled, with a ref other than `pinned`,
 //     the run's own ios_backup_core_ref input falling back to `pinned`, or a commit an earlier
 //     job of the same workflow resolved through the action;
@@ -26,11 +28,13 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ACTION = './.github/actions/ios-backup-core';
 
 // The steps allowed to fetch ios-backup-core themselves, because they read the pin. Each is run
-// below to check it fetches the pinned commit; `input` is the env var its ref arrives in, and
-// `blank` the value that means "the pin".
+// below to check it fetches the pinned commit; `input` is the env var its ref arrives in, `env`
+// the expression its `env:` sets that var to (the run fills it in, so it's checked as text: a
+// fallback such as `|| 'master'` there would build master whenever the ref came through blank),
+// and `blank` the value that means "the pin".
 export const PIN_READERS = [
-  { file: '.github/actions/ios-backup-core/action.yml', job: null, step: 'id: checkout', input: 'ASKED', blank: 'pinned' },
-  { file: '.github/workflows/installers.yml', job: 'test', step: 'name: Check out ios-backup-core (sibling for editable install)', input: 'CORE_REF', blank: '' },
+  { file: '.github/actions/ios-backup-core/action.yml', job: null, step: 'id: checkout', input: 'ASKED', env: '${{ inputs.ref }}', blank: 'pinned' },
+  { file: '.github/workflows/installers.yml', job: 'test', step: 'name: Check out ios-backup-core (sibling for editable install)', input: 'CORE_REF', env: '${{ needs.ios_backup_core.outputs.sha || inputs.ios_backup_core_ref }}', blank: '' },
 ];
 
 /** Problems with the pin file's text. */
@@ -84,6 +88,8 @@ function pinReaderAt(name, lines, s) {
 const REPO = /(?<!\.\.)(?<!\.github\/actions)\/ios-backup-core(?![\w-])(?!\.ref\b)(?!\/(?:commit|compare|pull|issues|blob|tree)\/)(?!#\d)/;
 const FETCH = [
   REPO,
+  // One of those links that downloads: a file view's ?raw=true, a commit, PR or comparison as a .diff or .patch.
+  /\/ios-backup-core\/(?:commit|compare|pull|issues|blob|tree)\/\S*?(?:[?&]raw=|\.diff\b|\.patch\b)/,
   /ios-backup-core\.git\b/,
   /^\s*(?:- )?repository:.*ios-backup-core/,
   /\bgh\s+repo\s+clone\b.*ios-backup-core/,
@@ -179,12 +185,36 @@ export function workflowProblems(name, text) {
 /** True if the file checks ios-backup-core out through the action somewhere. */
 const usesAction = text => text.split(/\r?\n/).some(l => !/^\s*#/.test(l) && usesValue(l) !== undefined && isAction(usesValue(l)));
 
+/** [start, end) of a PIN_READERS step's lines in that file's text, or null if the step is gone. */
+function pinReaderStep(reader, lines) {
+  const s = lines.findIndex((l, k) => /^\s*- /.test(l) && pinReaderAt(reader.file, lines, k) === reader);
+  return s < 0 ? null : stepAround(lines, s);
+}
+
+/** The values a PIN_READERS step's `env:` gives its input var (one, unless the step is broken). */
+export function pinReaderEnv(reader, text) {
+  const lines = text.split(/\r?\n/);
+  const step = pinReaderStep(reader, lines);
+  if (!step) return null;
+  const [s, e] = step;
+  const envAt = lines.slice(s, e).findIndex(l => /^\s*(?:- )?env:\s*(#.*)?$/.test(l));
+  if (envAt < 0) return [];
+  const envLine = s + envAt;
+  const own = indent(lines[envLine].replace(/^(\s*)- /, '$1  '));
+  const values = [];
+  for (let k = envLine + 1; k < e && (!lines[k].trim() || indent(lines[k]) > own); k++) {
+    const m = lines[k].match(new RegExp(`^\\s*['"]?${reader.input}['"]?:\\s*(.*)$`));
+    if (m) values.push(unquote(m[1]));
+  }
+  return values;
+}
+
 /** The `run: |` script of a PIN_READERS step in that file's text, or null if the step is gone. */
 export function pinReaderScript(reader, text) {
   const lines = text.split(/\r?\n/);
-  const s = lines.findIndex((l, k) => /^\s*- /.test(l) && pinReaderAt(reader.file, lines, k) === reader);
-  if (s < 0) return null;
-  const [, e] = stepAround(lines, s);
+  const step = pinReaderStep(reader, lines);
+  if (!step) return null;
+  const [s, e] = step;
   const r = lines.slice(s, e).findIndex(l => /^\s*(?:- )?run:\s*\|[-+]?\s*$/.test(l));
   if (r < 0) return null;
   const body = [];
@@ -283,6 +313,14 @@ function runPinReader(reader, script, { pin, ref }) {
   }
 }
 
+test('the steps that read the pin get their ref the way PIN_READERS says', () => {
+  for (const reader of PIN_READERS) {
+    const values = pinReaderEnv(reader, fs.readFileSync(path.join(root, reader.file), 'utf-8'));
+    assert.ok(values, `${reader.file}: no step "${reader.step}"${reader.job ? ` in job ${reader.job}` : ''}. If it moved or was renamed, update PIN_READERS`);
+    assert.deepEqual(values, [reader.env], `${reader.file}: the step "${reader.step}" should set ${reader.input}: ${reader.env} in its env:, once, but sets ${JSON.stringify(values)}. A fallback there (\`|| 'master'\`) builds that whenever the ref comes through blank. If the change is meant, update ${reader.input}'s env in PIN_READERS (scripts/ios-backup-core-pin.test.mjs) on purpose`);
+  }
+});
+
 test('the steps that read the pin fetch the pinned commit', { skip: process.platform === 'win32' ? 'runs the steps with bash and a stand-in git, which needs a POSIX shell' : false }, () => {
   const sha = '0d56074c355d62506db39276d94164ecfd0c688d';
   for (const reader of PIN_READERS) {
@@ -301,6 +339,15 @@ test('the steps that read the pin fetch the pinned commit', { skip: process.plat
     const branch = runPinReader(reader, script, { pin: `${sha}\n`, ref: 'some-branch' });
     assert.equal(branch.status, 0, branch.said);
     assert.deepEqual(branch.fetched, ['some-branch'], `${reader.file} should fetch the ref it's given instead of the pin`);
+
+    // Where blank isn't the pin (the action, whose ref is required), a blank ref is a mistake
+    // upstream, such as a job output that came through empty: it must fail, not fall back.
+    if (reader.blank !== '') {
+      const none = runPinReader(reader, script, { pin: `${sha}\n`, ref: '' });
+      assert.notEqual(none.status, 0, `${reader.file} should fail when ${reader.input} is blank`);
+      assert.match(none.said, /::error/);
+      assert.deepEqual(none.fetched, [], `${reader.file} fetched with ${reader.input} blank`);
+    }
 
     for (const pin of [undefined, 'master\n', `${sha.slice(0, 12)}\n`]) {
       const r = runPinReader(reader, script, { pin, ref: reader.blank });
@@ -343,6 +390,10 @@ test('the guard catches a bad pin and every way around it', () => {
     `      - run: git clone "$GITHUB_SERVER_URL/charleswest775/ios-backup-core" ../ios-backup-core\n`,
     `      - run: curl -L https://api.github.com/repos/charleswest775/ios-backup-core/tarball/master | tar xz\n`,
     `      - run: curl -LO https://raw.githubusercontent.com/charleswest775/ios-backup-core/master/backupgen/generate.py\n`,
+    `      - run: curl -LO "https://github.com/charleswest775/ios-backup-core/blob/master/backupgen/generate.py?raw=true"\n`,
+    `      - run: curl -L https://github.com/charleswest775/ios-backup-core/pull/42.diff | git apply\n`,
+    `      - run: curl -L https://github.com/charleswest775/ios-backup-core/commit/$SHA.patch | git am\n`,
+    `      - run: curl -L "https://github.com/charleswest775/ios-backup-core/compare/master...fix.diff" | git apply\n`,
     `      - env:\n          CORE: charleswest775/ios-backup-core\n        run: git clone "https://github.com/$CORE" ../ios-backup-core\n`,
     `      - uses: ${ACTION}\n        with:\n          ref: master\n`,
     `      - uses: "${ACTION}"\n        with:\n          ref: master\n`,
