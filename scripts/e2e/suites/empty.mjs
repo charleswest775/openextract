@@ -156,6 +156,10 @@ export default {
         const waEnc = (await app.api('call', 'list_whatsapp_chats', { udid: enc.expected.udid })).value?.data;
         check('it has no WhatsApp either, and says so calmly', !enc.expected.whatsapp && !('WhatsApp' in t2)
           && waEnc?.empty_reason === 'not_in_backup' && !waEnc?.error, waEnc);
+        // This phone never had WhatsApp (no "apps" in its answer key), so home doesn't list it as missing either.
+        const waShownEnc = await app.eval(() => [...document.querySelectorAll('span')].some(s => s.textContent.trim() === 'WhatsApp'));
+        check('it has no WhatsApp tile, and doesn\'t list it as missing', !(enc.expected.apps ?? []).includes('net.whatsapp.WhatsApp')
+          && !('WhatsApp' in t2) && !waShownEnc);
       }
     } finally {
       await app.close();
