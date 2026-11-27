@@ -4,8 +4,8 @@
  * (components/ai/AskAiScreen.tsx), the "New" note on Home and the header entry share:
  * the words, when they show, and the state the main process reports.
  *
- * Only builds made with OPENEXTRACT_AI_INDEX_URL have it (electron/askAi.ts). Everywhere
- * else the main process says { enabled: false } and none of it shows.
+ * Only builds made with OPENEXTRACT_AI_INDEX_URL, or carrying the add-on, have it
+ * (electron/askAi.ts). Everywhere else the main process says { enabled: false } and none of it shows.
  *
  * The app holds no counting or key checks: the add-on does all of that, and the screen
  * only shows what the add-on says about itself (its --status).
@@ -28,6 +28,8 @@ export type AskAiState =
     claudeCode: { command: string | null } | null;
     /** macOS, and the open (or last opened) backup is in Finder's backup folder. */
     fullDiskAccess: boolean;
+    /** 'unrestricted': this app carries the friends-and-family edition (no limit, no keys). */
+    edition: 'unrestricted' | null;
   };
 
 export type OnState = Extract<AskAiState, { enabled: true }>;
@@ -57,6 +59,12 @@ export const COMPANIES: Record<AiAppId, string> = { claude: 'Anthropic', chatgpt
 export const PRICE_LINE = "3 questions free, then you'll need an access key.";
 export const KEYS_LINE = 'OpenExtract AI is being tested with a few people right now, so keys come from Charles West, who makes OpenExtract.';
 export const EXAMPLE_QUESTION = 'When did Sam and I first talk about moving to Denver?';
+// Said after PRICE_LINE and KEYS_LINE by a copy carrying the unrestricted edition: the person sees how
+// OpenExtract AI will be sold, and that theirs needs none of it.
+export const UNRESTRICTED_LINE = "Your copy is the friends-and-family edition: your questions are unlimited and you won't need a key.";
+export const UNRESTRICTED_STATUS = 'Unlimited questions: the friends-and-family edition';
+/** The same, shorter, after PRICE_LINE in the "New" note on Home. */
+export const UNRESTRICTED_NOTE = 'Your copy is the friends-and-family edition, with no limit and no key.';
 
 /** "Claude", "Claude and ChatGPT", "Claude, ChatGPT and Claude Code". */
 export function listOf(names: string[]): string {
@@ -97,6 +105,7 @@ export function keyLabel(name: string): string {
 
 /** What the add-on says about itself, in a line. */
 export function statusLine(status: AddonStatus): string {
+  if (status.key?.kind === 'unrestricted') return UNRESTRICTED_STATUS;
   if (status.key) return keyLabel(status.key.name);
   const { freeQuestions: total, freeQuestionsLeft: left } = status;
   if (left > 0) return `${left} of ${total} free ${total === 1 ? 'question' : 'questions'} left`;

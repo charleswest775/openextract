@@ -1,5 +1,5 @@
 import { useAskAi } from '../../hooks/useAskAi';
-import { appNames, markNoteSeen, newNoteShown, openAskAi, PRICE_LINE, setAskAiHidden } from '../../lib/askAi';
+import { appNames, markNoteSeen, newNoteShown, openAskAi, PRICE_LINE, setAskAiHidden, UNRESTRICTED_NOTE } from '../../lib/askAi';
 import { AskAiIcon } from '../shared/Icons';
 
 /**
@@ -27,6 +27,7 @@ export default function AskAiNote() {
         <p className="text-sm text-text-secondary leading-relaxed">
           {names} {are} on this computer. With the OpenExtract AI add-on, {state.apps.length > 1 ? 'they' : 'it'} can
           read your backups and answer questions about them. {PRICE_LINE}
+          {state.edition === 'unrestricted' && <> <span className="text-text-primary">{UNRESTRICTED_NOTE}</span></>}
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
           <button className="hearth-primary-btn !py-1.5" onClick={() => { markNoteSeen(); openAskAi(); }}>

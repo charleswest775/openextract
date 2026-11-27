@@ -1,6 +1,7 @@
 node_modules/
 dist/
 release/
+release-friends/
 python/dist/
 python/build/
 python/__pycache__/

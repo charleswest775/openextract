@@ -198,6 +198,7 @@ describe('Ask AI on', () => {
       chatgpt: { connected: false, current: false, settingsFile: path.join('~', '.codex', 'config.toml') },
       claudeCode: { command: null },
       fullDiskAccess: false,
+      edition: null,
     });
     const one = setup({ indexUrl: 'https://dl.test/index.json', layout: macLayout(['claude-code']) });
     const s = await one.invoke('ask-ai:state');

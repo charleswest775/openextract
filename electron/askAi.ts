@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-  type AiAppId, type Fetch, type InstallResult, type Look, type Run, type StatusRunner,
+  type AiAppId, type BundledAddon, type Edition, type Fetch, type InstallResult, type Look, type Run, type StatusRunner,
   addonHome, addonInstalled, addonStatus, backupsFile, claudeCodeCommand, claudeHasAddon, codexConfigPath, codexEntry,
   connectCodex, detectAiApps, inMobileSync, installAddon, platformKey, readCurrent, realLook, writeBackupsFile,
 } from './aiAddon';
@@ -17,8 +17,8 @@ import {
  * folder. main.ts tells it what the engine found and opened (the hooks registerAskAi returns).
  *
  * Ask AI is off unless the build was made with OPENEXTRACT_AI_INDEX_URL (aiIndexUrl in
- * aiAddon.ts). Off, the handlers are still registered, so the window's bridge is the same
- * in every build, but each answers that it's off and touches nothing: no folder is
+ * aiAddon.ts) or carries the add-on (OPENEXTRACT_AI_BUNDLED_MCPB, bundledAddon). Off, the
+ * handlers are still registered, so the window's bridge is the same in every build, but each answers that it's off and touches nothing: no folder is
  * looked at, nothing is downloaded or run, and nothing is saved, backups.json included.
  */
 
@@ -31,8 +31,10 @@ export interface AskAiOptions {
   ipcMain: { handle(channel: string, listener: (event: any, ...args: any[]) => any): void };
   shell: { openPath(file: string): Promise<string>; showItemInFolder?(file: string): void; openExternal(url: string): Promise<void> };
   store: Store;
-  /** index.json, or null when Ask AI is off. */
+  /** index.json, or null. */
   indexUrl: string | null;
+  /** The add-on this app carries, or null. With one, Install uses it instead of index.json. */
+  bundled?: BundledAddon | null;
   platform: string;
   arch: string;
   translated?: boolean;
@@ -74,6 +76,8 @@ export type AskAiState =
      * need Full Disk Access to read it.
      */
     fullDiskAccess: boolean;
+    /** 'unrestricted' when this app carries the friends-and-family edition (no limit, no keys). */
+    edition: Edition;
   };
 
 export type AskAiResult = { ok: true; message?: string } | { ok: false; error: string };
@@ -102,7 +106,9 @@ function shown(file: string, homedir: string, platform: string): string {
 
 export function registerAskAi(o: AskAiOptions): AskAiHooks {
   const { ipcMain } = o;
-  const on = o.indexUrl !== null;
+  const bundled = o.bundled ?? null;
+  const on = o.indexUrl !== null || bundled !== null;
+  const edition: Edition = bundled?.edition ?? null;
   const off: AskAiResult = { ok: false, error: ASK_AI_OFF };
   const look = o.look ?? realLook;
   const place = { platform: o.platform, env: o.env, homedir: o.homedir };
@@ -140,7 +146,8 @@ export function registerAskAi(o: AskAiOptions): AskAiHooks {
     if (!installing) {
       installing = installAddon({
         ...place,
-        indexUrl: o.indexUrl!,
+        indexUrl: o.indexUrl,
+        bundled,
         arch: o.arch,
         translated: o.translated,
         fetch: o.fetch,
@@ -184,16 +191,18 @@ export function registerAskAi(o: AskAiOptions): AskAiHooks {
     return {
       enabled: true,
       apps,
-      available: platformKey(o.platform, o.arch, o.translated) !== null,
+      available: bundled ? platformKey(o.platform, o.arch, o.translated) === bundled.platform
+        : platformKey(o.platform, o.arch, o.translated) !== null,
       hidden: o.store.get('askAiHidden', false) === true,
       noteSeen: o.store.get('askAiNoteSeen', false) === true,
       installed: installed ? { version: installed.version } : null,
-      claude: apps.includes('claude') ? { connected: claudeHasAddon(place, look) } : null,
+      claude: apps.includes('claude') ? { connected: claudeHasAddon(place, look, edition) } : null,
       chatgpt,
       claudeCode: apps.includes('claude-code')
         ? { command: installed ? claudeCodeCommand(installed.command, o.platform) : null }
         : null,
       fullDiskAccess: o.platform === 'darwin' && inMobileSync(openOrLast(), o.homedir),
+      edition,
     };
   }
 

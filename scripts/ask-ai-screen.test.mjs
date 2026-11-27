@@ -79,7 +79,7 @@ const OFF = { enabled: false };
 const ON = {
   enabled: true, apps: ['claude', 'chatgpt', 'claude-code'], available: true, hidden: false, noteSeen: false,
   installed: null, claude: { connected: false }, chatgpt: { connected: false, current: false, settingsFile: '~/.codex/config.toml' },
-  claudeCode: { command: null }, fullDiskAccess: false,
+  claudeCode: { command: null }, fullDiskAccess: false, edition: null,
 };
 const COMMAND = 'claude mcp add --scope user openextract -- "/Users/sam/Library/Application Support/OpenExtract AI/program/0.2.0/openextract-ai"';
 const INSTALLED = { ...ON, noteSeen: true, installed: { version: '0.2.0' }, claudeCode: { command: COMMAND } };
@@ -163,6 +163,9 @@ describe('src/lib/askAi.ts', () => {
     assert.equal(L.statusLine(s(1)), '1 of 3 free questions left');
     assert.equal(L.statusLine(s(0)), "The 3 free questions have been used. To keep asking, you'll need an access key.");
     assert.equal(L.statusLine(s(0, { name: 'Sarah', kind: 'friends', until: '2027-03-31' })), "Unlimited: Sarah's key");
+    // The unrestricted edition reports itself as a key of its own kind (openextract-ai's access.py).
+    assert.equal(L.statusLine(s(3, { name: 'Friends and family', kind: 'unrestricted', until: null })),
+      'Unlimited questions: the friends-and-family edition');
   });
 
   test('what an install is doing', () => {
@@ -197,7 +200,9 @@ describe('src/lib/askAi.ts', () => {
 
   test('this build\'s price: 3 questions free, then an access key; plain words', () => {
     assert.equal(L.PRICE_LINE, "3 questions free, then you'll need an access key.");
-    for (const line of [L.PRICE_LINE, L.KEYS_LINE, L.EXAMPLE_QUESTION]) assert.doesNotMatch(line, BANNED);
+    for (const line of [L.PRICE_LINE, L.KEYS_LINE, L.EXAMPLE_QUESTION, L.UNRESTRICTED_LINE, L.UNRESTRICTED_STATUS, L.UNRESTRICTED_NOTE]) {
+      assert.doesNotMatch(line, BANNED);
+    }
   });
 
   test('one shared state: asked for once, and hiding or seeing the note goes to the main process', async t => {
@@ -267,12 +272,19 @@ describe('the header entry, the note on Home, and Settings', () => {
     assert.match(page, />New</);
     assert.match(page, /Claude and ChatGPT are on this computer\. With the OpenExtract AI add-on, they can read your backups and answer questions about them\./);
     assert.match(page, /3 questions free, then you'll need an access key\./);
+    assert.doesNotMatch(page, /friends-and-family/);
     assert.doesNotMatch(page, BANNED);
     button(r.out(), 'See how it works').props.onClick();
     await tick();
     assert.equal(r.calls('askAi.noteSeen').length, 1);
     assert.deepEqual(r.opened, ['openextract:ask-ai']);
     assert.equal(r.probe.rerender(), null);
+  });
+
+  test('a copy carrying the unrestricted edition says so in the note, after the price', async t => {
+    const page = (await render(t, 'src/components/ai/AskAiNote.tsx', { ...ON, edition: 'unrestricted' })).html();
+    assert.match(page, /3 questions free, then you'll need an access key\. <span[^>]*>Your copy is the friends-and-family edition, with no limit and no key\.<\/span>/);
+    assert.doesNotMatch(page, BANNED);
   });
 
   test('the note\'s × puts it away for good; "Don\'t show this again" hides Ask AI', async t => {
@@ -324,6 +336,14 @@ describe('the Ask AI screen', () => {
     // Opening it puts the note away; nothing is installed, connected or run by opening it.
     assert.equal(r.calls('askAi.noteSeen').length, 1);
     for (const name of ['install', 'connectClaude', 'connectChatGpt', 'status']) assert.deepEqual(r.calls(`askAi.${name}`), [], name);
+  });
+
+  test('a copy carrying the unrestricted edition still shows the price, then says theirs needs none of it', async t => {
+    const page = (await render(t, SCREEN, { ...ON, edition: 'unrestricted' }, { props: { onBack: () => {} } })).html();
+    assert.match(page, /3 questions free, then you'll need an access key\..*keys come from Charles West, who makes OpenExtract\..*Your copy is the friends-and-family edition: your questions are unlimited and you won't need a key\./s);
+    assert.doesNotMatch(page, BANNED);
+    const usual = (await render(t, SCREEN, ON, { props: { onBack: () => {} } })).html();
+    assert.doesNotMatch(usual, /friends-and-family edition/);
   });
 
   test('Claude: Install shows progress, then says to click Install in Claude\'s own window', async t => {

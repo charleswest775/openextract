@@ -67,6 +67,7 @@ describe('off unless the build sets OPENEXTRACT_AI_INDEX_URL', () => {
     const out = freshDir('dist-electron');
     const clean = { ...process.env };
     delete clean.OPENEXTRACT_AI_INDEX_URL;
+    delete clean.OPENEXTRACT_AI_BUNDLED_MCPB;
     const r = spawnSync(process.execPath, [path.join(root, 'scripts', 'write-build-info.mjs'), '--out', out], { env: { ...clean, ...env }, encoding: 'utf-8' });
     return { r, out, file: path.join(out, 'build-info.json') };
   }
@@ -74,13 +75,13 @@ describe('off unless the build sets OPENEXTRACT_AI_INDEX_URL', () => {
   test('scripts/write-build-info.mjs bakes the URL in, and a packaged app reads it back', () => {
     const on = writeBuildInfo({ OPENEXTRACT_AI_INDEX_URL: 'https://dl.test/ai/index.json' });
     assert.equal(on.r.status, 0, on.r.stderr);
-    assert.deepEqual(JSON.parse(fs.readFileSync(on.file, 'utf-8')), { aiIndexUrl: 'https://dl.test/ai/index.json' });
+    assert.deepEqual(JSON.parse(fs.readFileSync(on.file, 'utf-8')), { aiIndexUrl: 'https://dl.test/ai/index.json', aiAddon: null });
     assert.equal(A.aiIndexUrl({ isPackaged: true, buildInfoDir: on.out, env: {} }), 'https://dl.test/ai/index.json');
 
     // Without it (every public build) the file is still written, saying null, so a leftover can't switch it on.
     const off = writeBuildInfo({});
     assert.equal(off.r.status, 0, off.r.stderr);
-    assert.deepEqual(JSON.parse(fs.readFileSync(off.file, 'utf-8')), { aiIndexUrl: null });
+    assert.deepEqual(JSON.parse(fs.readFileSync(off.file, 'utf-8')), { aiIndexUrl: null, aiAddon: null });
     assert.equal(A.aiIndexUrl({ isPackaged: true, buildInfoDir: off.out, env: {} }), null);
   });
 

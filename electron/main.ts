@@ -11,7 +11,7 @@ import { FeedbackReports } from './feedbackReports';
 import { installFolderFor, installFolderWarning, isInsideFolder, resolveReal } from './installFolder';
 import { CHECK_OLDER_TIMEOUT_MS, takeMoveLock, trashOlderBackup } from './olderBackups';
 import { isBusinessAnswer, recordSave, shouldAskBusiness } from './businessUse';
-import { aiIndexUrl } from './aiAddon';
+import { aiIndexUrl, bundledAddon } from './aiAddon';
 import { registerAskAi } from './askAi';
 // ── Media in the window (videos, posters): only from the engine's copy folders ──
 const os = require('os');
@@ -446,14 +446,15 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('app:get-version', () => app.getVersion());
 
-  // Ask AI (askAi.ts): only in builds made with OPENEXTRACT_AI_INDEX_URL, which a packaged app
-  // reads from build-info.json beside this file. Without it every call answers that it's off, and
+  // Ask AI (askAi.ts): only in builds made with OPENEXTRACT_AI_INDEX_URL, or carrying the add-on
+  // (OPENEXTRACT_AI_BUNDLED_MCPB), which a packaged app reads from build-info.json beside this file. Without it every call answers that it's off, and
   // the hooks below (what the engine found and opened, for the add-on's backups.json) do nothing.
   const askAi = registerAskAi({
     ipcMain,
     shell,
     store,
     indexUrl: aiIndexUrl({ isPackaged: app.isPackaged, buildInfoDir: __dirname, env: process.env }),
+    bundled: bundledAddon({ isPackaged: app.isPackaged, buildInfoDir: __dirname, resourcesPath: (process as any).resourcesPath, env: process.env }),
     platform: process.platform,
     arch: process.arch,
     translated: app.runningUnderARM64Translation === true,

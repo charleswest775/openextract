@@ -10,11 +10,12 @@ import { execFile } from 'child_process';
  * questions or checks access keys lives in the add-on, never here: the free app holds
  * no such code.
  *
- * Off unless switched on: only builds made with OPENEXTRACT_AI_INDEX_URL set have the
- * screen (aiIndexUrl below). Without it nothing here runs.
+ * Off unless switched on: only builds made with OPENEXTRACT_AI_INDEX_URL set (aiIndexUrl
+ * below), or carrying the add-on inside the app (OPENEXTRACT_AI_BUNDLED_MCPB, bundledAddon
+ * below), have the screen. Without either nothing here runs.
  *
  * Nothing in this file touches the network except installAddon, which runs only when the
- * person clicks Install or Connect. AI apps are found by looking at a few fixed places
+ * person clicks Install or Connect, and not even then when the app carries the add-on. AI apps are found by looking at a few fixed places
  * (detectAiApps), never by searching the disk, and what's found is never sent anywhere.
  */
 
@@ -67,6 +68,81 @@ export function aiIndexUrl({ isPackaged, buildInfoDir, env }: {
   const raw = isPackaged ? readJson(path.join(buildInfoDir, BUILD_INFO_FILE))?.aiIndexUrl : env[AI_INDEX_URL_ENV];
   const value = typeof raw === 'string' ? raw.trim() : '';
   return isAllowedUrl(value) ? value : null;
+}
+
+// ── An add-on carried inside the app ────────────────────────────────────────
+
+/**
+ * The friends-and-family build carries the add-on inside the app instead of downloading it:
+ * scripts/package-friends.mjs builds the app with OPENEXTRACT_AI_BUNDLED_MCPB set to a .mcpb,
+ * scripts/write-build-info.mjs records its name, size and SHA-256 in build-info.json, and
+ * electron-builder copies it into the app's resources/ai-addon/. Install then checks it and
+ * unpacks it, with nothing downloaded.
+ */
+export const BUNDLED_MCPB_ENV = 'OPENEXTRACT_AI_BUNDLED_MCPB';
+/** Its folder inside a packaged app's resources (process.resourcesPath). */
+export const BUNDLED_DIR = 'ai-addon';
+
+/** 'unrestricted': the friends-and-family edition, with no question limit and no keys (openextract-ai's
+ * packaging/build.py --unrestricted). null: the usual one. */
+export type Edition = 'unrestricted' | null;
+
+export interface BundledAddon {
+  /** The .mcpb, inside the app. */
+  file: string;
+  /** The add-on's version, with "-unrestricted" for that edition, so it unpacks into a folder of its own. */
+  version: string;
+  platform: PlatformKey;
+  sha256: string;
+  size: number;
+  edition: Edition;
+}
+
+const MCPB_NAME = /^openextract-ai-(\d{1,4}\.\d{1,4}\.\d{1,6})(-unrestricted)?-(mac-arm64|win-x64)\.mcpb$/;
+
+/** openextract-ai-0.2.3-unrestricted-mac-arm64.mcpb (as packaging/build.py names it): its version, edition
+ * and computer, or null for any other name. */
+export function parseMcpbName(name: unknown): { version: string; platform: PlatformKey; edition: Edition } | null {
+  const m = typeof name === 'string' ? MCPB_NAME.exec(name) : null;
+  if (!m) return null;
+  const edition: Edition = m[2] ? 'unrestricted' : null;
+  return { version: edition ? `${m[1]}-unrestricted` : m[1], platform: m[3] as PlatformKey, edition };
+}
+
+/** build-info.json's aiAddon, checked field by field: the add-on in `dir`, or null. */
+export function bundledFrom(info: any, dir: string): BundledAddon | null {
+  if (!info || typeof info !== 'object') return null;
+  const named = parseMcpbName(info.file);
+  if (!named || typeof info.sha256 !== 'string' || !/^[0-9a-f]{64}$/i.test(info.sha256)
+    || !Number.isSafeInteger(info.size) || info.size <= 0 || info.size > MAX_DOWNLOAD_BYTES) return null;
+  return { file: path.join(dir, info.file), ...named, sha256: info.sha256.toLowerCase(), size: info.size };
+}
+
+/**
+ * The add-on this app carries, or null. A packaged app takes it only from build-info.json, baked in at build
+ * time, and finds the file in its resources; a development build reads OPENEXTRACT_AI_BUNDLED_MCPB (a path to
+ * a .mcpb named as packaging/build.py names it) and checks it as it is now.
+ */
+export function bundledAddon({ isPackaged, buildInfoDir, resourcesPath, env }: {
+  isPackaged: boolean;
+  buildInfoDir: string;
+  /** process.resourcesPath (undefined outside Electron). */
+  resourcesPath: string | undefined;
+  env: Record<string, string | undefined>;
+}): BundledAddon | null {
+  if (isPackaged) {
+    const info = readJson(path.join(buildInfoDir, BUILD_INFO_FILE))?.aiAddon;
+    return info && resourcesPath ? bundledFrom(info, path.join(resourcesPath, BUNDLED_DIR)) : null;
+  }
+  const file = env[BUNDLED_MCPB_ENV]?.trim();
+  if (!file) return null;
+  try {
+    const bytes = fs.readFileSync(file);
+    return bundledFrom({ file: path.basename(file), size: bytes.length, sha256: crypto.createHash('sha256').update(bytes).digest('hex') },
+      path.dirname(path.resolve(file)));
+  } catch {
+    return null;
+  }
 }
 
 // ── Where the add-on lives ──────────────────────────────────────────────────
@@ -219,10 +295,21 @@ export function claudePackageExtensionsDirs({ platform, env, homedir }: Place, l
     .map(name => path.join(packages, name, 'LocalCache', 'Roaming', 'Claude', 'Claude Extensions'));
 }
 
-/** Connected to Claude (desktop) = one of its extensions folders holds the add-on (named after its manifest). */
-export function claudeHasAddon(place: Place, look: Look = realLook): boolean {
+/** The unrestricted edition's manifest says so in its display name (openextract-ai's packaging/build.py). */
+export function isUnrestrictedExtension(dir: string): boolean {
+  const name = readJson(path.join(dir, 'manifest.json'))?.display_name;
+  return typeof name === 'string' && /\(unrestricted\)\s*$/i.test(name);
+}
+
+/**
+ * Connected to Claude (desktop) = one of its extensions folders holds the add-on (named after its manifest).
+ * An app carrying the unrestricted edition counts only that edition, so someone who has the usual one in
+ * Claude is offered Install, which replaces it.
+ */
+export function claudeHasAddon(place: Place, look: Look = realLook, edition: Edition = null): boolean {
   const dirs = [claudeExtensionsDir(place), ...claudePackageExtensionsDirs(place, look)];
-  return dirs.some(dir => dir !== null && look.list(dir).some(name => /openextract/i.test(name)));
+  return dirs.some(dir => dir !== null && look.list(dir).some(name => /openextract/i.test(name)
+    && (edition !== 'unrestricted' || isUnrestrictedExtension(path.join(dir, name)))));
 }
 
 // ── index.json ──────────────────────────────────────────────────────────────
@@ -250,6 +337,7 @@ export const ERRORS = {
   diskFull: "There isn't enough free space on this computer for OpenExtract AI.",
   cantSave: (detail: string) => `OpenExtract couldn't save the download: ${detail}`,
   cantUnpack: "OpenExtract couldn't unpack the download. Try again.",
+  bundledDamaged: 'The copy of OpenExtract AI inside this app is damaged. Download this app again.',
   noProgram: "The download didn't have the OpenExtract AI program in it.",
   inUse: 'OpenExtract AI is in use. Quit the AI apps that use it, then try again.',
 };
@@ -690,7 +778,10 @@ export function inMobileSync(backupDir: unknown, homedir: string): boolean {
 // ── Installing ──────────────────────────────────────────────────────────────
 
 export interface InstallOptions extends Place {
-  indexUrl: string;
+  /** index.json, when the add-on is downloaded. */
+  indexUrl?: string | null;
+  /** The add-on this app carries: used instead of index.json when there is one. */
+  bundled?: BundledAddon | null;
   arch: string;
   translated?: boolean;
   fetch: Fetch;
@@ -702,13 +793,58 @@ export interface InstallOptions extends Place {
 export type InstallResult = { ok: true; installed: Installed; mcpb: string } | { ok: false; error: string };
 
 /**
+ * The add-on this app carries, copied into downloads/ (where Claude opens it from, as it would a
+ * download), checked against build-info.json's size and SHA-256 before and after. A good copy already
+ * there is kept.
+ */
+async function copyBundled(bundled: BundledAddon, dest: string): Promise<void> {
+  if (await alreadyDownloaded(dest, bundled.size, bundled.sha256)) return;
+  if (!(await alreadyDownloaded(bundled.file, bundled.size, bundled.sha256))) throw new PlainError(ERRORS.bundledDamaged);
+  const part = `${dest}.part`;
+  try {
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(bundled.file, part);
+    fs.renameSync(part, dest);
+  } catch (err) {
+    try {
+      fs.rmSync(part, { force: true });
+    } catch {
+      // nothing to tidy
+    }
+    throw diskError(err);
+  }
+  if (!(await alreadyDownloaded(dest, bundled.size, bundled.sha256))) {
+    fs.rmSync(dest, { force: true });
+    throw new PlainError(ERRORS.corrupt);
+  }
+}
+
+/**
  * Only when the person clicks: index.json, then this computer's .mcpb into downloads/
  * (size and SHA-256 checked), then server/ into program/<version>/ and program/current.json.
+ * An app carrying the add-on copies its own .mcpb into downloads/ instead, with nothing downloaded.
  */
 export async function installAddon(options: InstallOptions): Promise<InstallResult> {
   const key = platformKey(options.platform, options.arch, options.translated);
   if (!key) return { ok: false, error: ERRORS.notForThisComputer };
   const home = addonHome(options);
+  const { bundled } = options;
+  if (bundled) {
+    if (bundled.platform !== key) return { ok: false, error: ERRORS.notForThisComputer };
+    try {
+      options.onProgress?.({ step: 'verify' });
+      const mcpb = path.join(home, 'downloads', `openextract-ai-${bundled.version}-${key}.mcpb`);
+      await copyBundled(bundled, mcpb);
+      options.onProgress?.({ step: 'unpack' });
+      const command = await unpackServer({ mcpb, programDir: programDir(home), version: bundled.version, platform: options.platform, env: options.env, run: options.run });
+      const installed = { version: bundled.version, command };
+      writeCurrent(home, installed);
+      return { ok: true, installed, mcpb };
+    } catch (err: any) {
+      return { ok: false, error: err instanceof PlainError ? err.message : ERRORS.cantSave(String(err?.message ?? err)) };
+    }
+  }
+  if (!options.indexUrl) return { ok: false, error: ERRORS.notForThisComputer };
   try {
     options.onProgress?.({ step: 'index' });
     const parsed = parseIndex(await fetchIndex(options.indexUrl, options.fetch), key);

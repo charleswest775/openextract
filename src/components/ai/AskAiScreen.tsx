@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useAskAi } from '../../hooks/useAskAi';
 import {
-  APP_NAMES, EXAMPLE_QUESTION, KEYS_LINE, PRICE_LINE,
+  APP_NAMES, EXAMPLE_QUESTION, KEYS_LINE, PRICE_LINE, UNRESTRICTED_LINE,
   appNames, appStateLine, askAiShown, companiesLine, fullDiskAccessStep, markNoteSeen, progressLine, refreshAskAi, setAskAiHidden,
   statusLine,
   type AddonStatus, type AiAppId, type AskAiResult, type InstallProgress,
@@ -249,6 +249,9 @@ export default function AskAiScreen({ onBack }: Props) {
               <li>
                 <span className="text-text-primary font-medium">{PRICE_LINE}</span> {KEYS_LINE}
               </li>
+              {state.edition === 'unrestricted' && (
+                <li><span className="text-text-primary font-medium">{UNRESTRICTED_LINE}</span></li>
+              )}
               <li>What the AI reads goes to that AI's company: {companiesLine(state.apps)}.</li>
               <li>It only reads your backups. It never changes them.</li>
               <li>Passwords never go to the AI.</li>
