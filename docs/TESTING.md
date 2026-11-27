@@ -18,9 +18,9 @@ backup, and never put one in a screenshot, issue or log.
 | Engine | parsing, exports, error handling | `python/tests/test_*.py` | every PR, 3 OSes |
 | Backing up an iPhone | the whole backup path (the engine, pymobiledevice3's MobileBackup2 and DeviceLink, files on disk) against a scripted fake iPhone: dropped and reset connections, unplugging, slow and full disks, folders in use, the iPhone's own errors, passcode waits, replayed traces; backups cut off partway and then opened; searching for iPhones and asking one to trust this computer, including an iPhone that never answers | `python/tests/test_fake_iphone_backup.py`, `python/tests/test_fake_iphone_search.py`, `python/tests/test_unfinished_backup.py`, `python/tests/fake_iphone` | every PR, 3 OSes |
 | Engine contract | every JSON-RPC method over stdin/stdout on generated backups, empty states, malformed requests, speed limits | `python/tests/test_rpc_contract.py` | every PR, 3 OSes |
-| Corpus | generated backups against their answer keys; real public backups weekly | `python/tests/corpus` | every PR (generated), weekly (public) |
+| Corpus | generated backups against their answer keys; real public backups weekly | `python/tests/corpus` | every PR (generated), weekly and on PRs that move the ios-backup-core pin (public) |
 | End to end | the real app window: every screen, every export and format, the IPC bridge, recents, passwords, empty states, performance budgets, no network traffic | `scripts/e2e` | every PR on a development build, 3 OSes; before a release on the packaged app |
-| Installers | dmg and zip, NSIS installer, deb and AppImage: install, layout, signatures, launch, upgrade, uninstall, update metadata, old Linux distros | `scripts/installers` | weekly, on PRs that touch packaging, and on every release's draft before it's published |
+| Installers | dmg and zip, NSIS installer, deb and AppImage: install, layout, signatures, launch, upgrade, uninstall, update metadata, old Linux distros | `scripts/installers` | weekly, on PRs that touch packaging or move the ios-backup-core pin, and on every release's draft before it's published |
 
 The workflows: `ci.yml` (every PR), `installers.yml` (weekly, packaging PRs, and called by
 `release.yml`), `prerelease-check.yml` (called by `release.yml` on the new tag, or by hand), `corpus-weekly.yml`,
@@ -42,15 +42,29 @@ git -C ../ios-backup-core fetch origin && git -C ../ios-backup-core checkout --d
 npm test && pytest python/tests/ && pytest python/tests/corpus -m corpus
 ```
 
-then commit `ios-backup-core.ref` and open a PR; CI tests the new commit on all three systems.
-An app change that needs a library change goes in after the library's PR merges, with the
-pin moved in the same PR.
+then commit `ios-backup-core.ref` and open a PR. Because the PR changes `ios-backup-core.ref`,
+it runs CI (unit tests and the generated backups on Linux, macOS and Windows), Installers (the
+engine bundled with PyInstaller, installed and smoke-tested on all three) and Corpus (weekly)
+(the real public backups). Only the Pre-release check, which runs the packaged app through every
+end-to-end suite, isn't started by the PR: for a big bump, run it by hand on the PR's branch
+with **ios_backup_core_ref** blank, which reads that branch's pin. An app change that needs a
+library change goes in after the library's PR merges, with the pin moved in the same PR; the
+bump script warns when the commit isn't on ios-backup-core's `master` yet.
 
 The workflows you run by hand (Release, Pre-release check, Installers, Corpus (weekly)) take
 an `ios_backup_core_ref` input to try another branch, tag or commit; blank means the pinned
-commit. `scripts/ios-backup-core-pin.test.mjs` (in `npm test`) fails if `ios-backup-core.ref`
-isn't one full SHA, or if a workflow gets ios-backup-core any other way than through
-`.github/actions/ios-backup-core` and the pin.
+commit. No workflow here runs ios-backup-core's `master` on a schedule any more: a change
+merged there first meets this repository's tests in the PR that moves the pin.
+
+`scripts/ios-backup-core-pin.test.mjs` (in `npm test`) fails if `ios-backup-core.ref` isn't one
+full SHA, or if a workflow or action names ios-backup-core's repository (a git or pip URL,
+`owner/ios-backup-core`, a `repository:` or `gh repo clone` line) anywhere but in a link to a
+commit, comparison, PR or issue, or uses `.github/actions/ios-backup-core` with a ref other
+than the pin, the run's input falling back to the pin, or a commit an earlier job resolved
+through the action. Only two steps may fetch ios-backup-core themselves: the action, and its
+copy in `installers.yml`'s test job (for tags older than the action). The test runs both with
+bash and a stand-in `git` to check they fetch the pinned commit. It reads the workflow files as
+text, so a fetch spelled some other way (a URL built from pieces, say) would get past it.
 
 Locally, the engine and the generated backups use your checkout beside this repository
 (`../ios-backup-core`; the corpus also takes `$OPENEXTRACT_IOS_BACKUP_CORE`). Check out the

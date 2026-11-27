@@ -31,7 +31,7 @@ from rpc_contract_support import load_engine_module  # noqa: E402
 SidecarServer = load_engine_module().SidecarServer
 
 # ios-backup-core keeps a deleted spam voicemail's spam mark from charleswest775/ios-backup-core#36 on;
-# before that only the list it's in is known. CI tests against ios-backup-core's master.
+# before that only the list it's in is known. CI tests against the commit pinned in ios-backup-core.ref.
 from ios_backup_core.extractors import voicemail as _core_voicemail  # noqa: E402
 SPAM_MARK = hasattr(_core_voicemail, "is_spam")
 

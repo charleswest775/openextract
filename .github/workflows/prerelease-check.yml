@@ -52,8 +52,11 @@ jobs:
     outputs:
       sha: ${{ steps.core.outputs.sha }}
     steps:
+      # The commit under test, as the packaged job checks out: its pin is the one to read.
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || '' }}
 
       - name: Resolve ios-backup-core
         id: core
