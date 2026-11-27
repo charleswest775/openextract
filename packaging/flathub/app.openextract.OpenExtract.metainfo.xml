@@ -65,6 +65,12 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.21.0" date="2026-11-26">
+      <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.21.0</url>
+      <description>
+        <p>Saving now asks, once each time you open OpenExtract, what it's worth to you: $5, $25, $100 or any amount, with Save without paying right beside it. Calls no longer shows changes to a group chat (someone added or removed, a new name) as FaceTime calls, and Messages now says &quot;Attachment not in this backup&quot;, instead of &quot;Conversation update&quot;, when the iPhone removed a photo or file from a message.</p>
+      </description>
+    </release>
     <release version="0.20.1" date="2026-11-26">
       <url type="details">https://github.com/charleswest775/openextract/releases/tag/v0.20.1</url>
       <description>
