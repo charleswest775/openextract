@@ -66,9 +66,9 @@ def messages_db(tmp_path) -> bytes:
     return path.read_bytes()
 
 
-def make(tmp_path, dest, when, *, udid=UDID, by_openextract=False, seed=1):
+def make(tmp_path, dest, when, *, udid=UDID, by_openextract=False, seed=1, host="finder"):
     made = make_encrypted_backup(tmp_path / f"made-{dest.name}-{seed}", udid, seed=seed, when=when,
-                                 text=messages_db(tmp_path))
+                                 text=messages_db(tmp_path), host=host)
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(made), str(dest))
     # Written when it was made, by this computer's clock too.
@@ -168,6 +168,25 @@ def test_the_older_backup_is_offered_and_asking_changes_nothing(manager, out, ol
     assert found["older"]["bytes"] == sum(p.stat().st_size for p in own_files(old))
     assert found["older"]["last_backup"] < found["newer"]["last_backup"]
     assert snapshot(out) == before
+
+
+def test_one_made_as_openextract_makes_them_is_newest_and_the_older_one_is_offered(manager, tmp_path, out, old):
+    """#317: pymobiledevice3 writes no "Last Backup Date" in Info.plist, so the backup OpenExtract had just
+    made sorted last and couldn't be told from older ones. Its last Status.plist, the iPhone's, dates it."""
+    made = make(tmp_path, out / f"{UDID}-20240615-120000", LATER, by_openextract=True, seed=2, host="pymobiledevice3")
+    info = plistlib.loads((made / "Info.plist").read_bytes())
+    assert "Last Backup Date" not in info and isinstance(info["GUID"], bytes)
+    listed = manager.list_backups(str(out))["backups"]
+    assert [Path(b["backup_dir"]) for b in listed] == [made, old]
+    assert listed[0]["last_backup"] == LATER.isoformat() and listed[1]["last_backup"] == MADE.isoformat()
+    kept = opened(manager, made)
+    assert offered(manager, kept) == [old]
+    found = ask(manager, kept, old)
+    assert found["allowed"] is True and found["older"]["last_backup"] < found["newer"]["last_backup"]
+    # And from the other side, the one OpenExtract made is never offered: it's the newest
+    kept = opened(manager, old)
+    assert offered(manager, kept) == []
+    refused(manager, kept, made)
 
 
 def test_several_are_listed_newest_first(manager, tmp_path, out, old, new):
