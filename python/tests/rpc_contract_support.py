@@ -32,6 +32,7 @@ import shutil
 import sqlite3
 import sys
 import time
+import urllib.error
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import cached_property
@@ -48,6 +49,7 @@ for _path in (REPO_ROOT, HERE / "corpus", PYTHON_DIR):
         sys.path.insert(0, str(_path))
 
 from corpus.synthetic import (  # noqa: E402
+    CacheError,
     SyntheticItem,
     backupgen_root,
     ensure_generated,
@@ -165,6 +167,14 @@ _generated: dict[str, tuple[SyntheticItem, Path]] = {}
 _generation_errors: dict[str, str] = {}
 
 
+def _download_failed(e: Exception) -> bool:
+    """True if generating failed on a download: backupgen's MediaError, or the network itself."""
+    media = sys.modules.get("backupgen.media")  # imported with backupgen.generate; absent, backupgen never ran
+    media_error = getattr(media, "MediaError", None)
+    return ((isinstance(media_error, type) and isinstance(e, media_error))
+            or isinstance(e, (urllib.error.URLError, ConnectionError)))
+
+
 def generated_backup(key: str) -> tuple[SyntheticItem, Path]:
     """The item and its backup folder, generated into the corpus cache if needed; skips (or fails) if it can't be."""
     if key in _generated:
@@ -185,10 +195,14 @@ def generated_backup(key: str) -> tuple[SyntheticItem, Path]:
         try:
             with _exclusive(item.item_dir().parent / f"{key}.lock"):
                 backup_dir = ensure_generated(item)
+        except CacheError:
+            raise  # backupgen edited mid-run, a folder that can't be replaced: a skip would hide it
         except Exception as e:  # e.g. backupgen.media.MediaError
-            reason = (f"{key} couldn't be generated: {type(e).__name__}: {e}. Maren's photos are downloaded "
-                      "from Wikimedia Commons the first time (into ~/.cache/backupgen/media, or "
-                      "$BACKUPGEN_MEDIA_CACHE), so the first run needs a network connection")
+            reason = f"{key} couldn't be generated: {type(e).__name__}: {str(e).rstrip('.')}"
+            if _download_failed(e):
+                reason += (". Maren's photos are downloaded from Wikimedia Commons the first time (into "
+                           "~/.cache/backupgen/media, or $BACKUPGEN_MEDIA_CACHE), so the first run needs a "
+                           "network connection")
         else:
             if backup_dir is None:
                 reason = f"{key} can't be generated: backupgen wrote no backup folder"

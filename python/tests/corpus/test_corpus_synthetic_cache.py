@@ -9,8 +9,10 @@ network.
 import os
 import plistlib
 import re
+import sys
 import time
 import types
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -239,6 +241,86 @@ def test_a_version_moved_away_after_the_check_is_made_again(core, monkeypatch):
     assert backup is not None and backup == ITEM.backup_dir() and len(core.calls) == calls + 1
 
 
+def test_a_version_moved_away_while_its_backup_is_looked_for_is_made_again(core, monkeypatch):
+    # Another run's _prune renames the folder after _backup_folder found its expected.json but
+    # before it listed the folder: as if it had gone a moment earlier.
+    folder = ensure_generated(ITEM).parent
+    calls = len(core.calls)
+    real_iterdir = Path.iterdir
+    listings = []
+
+    def lose_it_on_listing(n):
+        def iterdir(self):
+            if self == folder:
+                listings.append(self)
+                if len(listings) == n:
+                    synthetic._remove(self)
+            return real_iterdir(self)
+        return iterdir
+
+    monkeypatch.setattr(Path, "iterdir", lose_it_on_listing(1))
+    assert ITEM.backup_dir() is None
+
+    ensure_generated(ITEM)  # put it back
+    calls = len(core.calls)
+    listings.clear()
+    # ensure_generated lists it twice: checking it's complete, then finding the backup after _prune.
+    monkeypatch.setattr(Path, "iterdir", lose_it_on_listing(2))
+    backup = ensure_generated(ITEM)
+    assert len(listings) >= 2 and len(core.calls) == calls + 1
+    monkeypatch.setattr(Path, "iterdir", real_iterdir)
+    assert backup is not None and backup == ITEM.backup_dir()
+
+
+def test_the_engine_contract_tests_stop_on_a_cache_error_and_skip_on_others(core, monkeypatch):
+    # rpc_contract_support.generated_backup skips a backup that can't be generated (locally; CI
+    # sets OPENEXTRACT_REQUIRE_GENERATED to fail instead), but a CacheError isn't that: a skip
+    # would hide that this run's backupgen was edited under it.
+    tests_dir = str(Path(__file__).resolve().parents[1])
+    if tests_dir not in sys.path:
+        monkeypatch.syspath_prepend(tests_dir)
+    import rpc_contract_support as support
+
+    monkeypatch.delenv(support.REQUIRE_ENV, raising=False)
+    monkeypatch.setattr(support, "load_synthetic", lambda: {ITEM.key: ITEM, OTHER.key: OTHER})
+    monkeypatch.setattr(support, "_generated", {})
+    monkeypatch.setattr(support, "_generation_errors", {})
+
+    def outcome():
+        try:
+            support.generated_backup(ITEM.key)
+        except (Exception, pytest.skip.Exception) as e:  # a skip is a BaseException: catch it to check it
+            return e
+        return None
+
+    monkeypatch.setattr(synthetic, "_imported", (core.root.resolve(), synthetic._code_hash(core.root)))
+    core.set_version("2")
+    for _ in range(2):  # not remembered as a reason to skip
+        stopped = outcome()
+        assert isinstance(stopped, synthetic.CacheError) and "changed while this run was going" in str(stopped), repr(stopped)
+    monkeypatch.setattr(synthetic, "_imported", None)
+
+    def fail_with(error):
+        def during(out_dir):
+            raise error
+        core.during = during
+
+    fail_with(ValueError("this persona is broken."))
+    skipped = outcome()
+    assert isinstance(skipped, pytest.skip.Exception), repr(skipped)
+    assert skipped.msg == f"{ITEM.key} couldn't be generated: ValueError: this persona is broken"
+
+    class MediaError(RuntimeError):
+        pass
+
+    monkeypatch.setitem(sys.modules, "backupgen.media", types.SimpleNamespace(MediaError=MediaError))
+    for error in (MediaError("couldn't download https://upload.wikimedia.org/x.jpg"), urllib.error.URLError("no route")):
+        support._generation_errors.clear()
+        fail_with(error)
+        skipped = outcome()
+        assert isinstance(skipped, pytest.skip.Exception) and "needs a network connection" in skipped.msg, repr(skipped)
+
+
 def test_a_broken_folder_another_run_replaced_first_is_used(core, monkeypatch):
     folder = ITEM.item_dir()
     folder.mkdir(parents=True)
@@ -263,7 +345,7 @@ def test_a_broken_folder_that_cant_be_moved_says_so(core, monkeypatch):
     folder.mkdir(parents=True)
     (folder / "junk.txt").write_text("left by hand")
     monkeypatch.setattr(synthetic, "_remove", lambda path: None)
-    with pytest.raises(RuntimeError, match="couldn't be replaced"):
+    with pytest.raises(synthetic.CacheError, match="couldn't be replaced"):
         ensure_generated(ITEM)
     assert (folder / "junk.txt").exists()
     assert [p.name for p in syn_root(core).iterdir()] == [folder.name]  # no temporary folder left
@@ -276,7 +358,7 @@ def test_backupgen_edited_during_a_run_isnt_filed_under_the_new_version(core, mo
     monkeypatch.setattr(synthetic, "_imported", version_1)
     first = ensure_generated(ITEM)
     core.set_version("2")
-    with pytest.raises(RuntimeError, match="changed while this run was going"):
+    with pytest.raises(synthetic.CacheError, match="changed while this run was going"):
         ensure_generated(OTHER)
     assert OTHER.backup_dir() is None and (first / "Manifest.db").read_text() == "version 1"
 
@@ -289,7 +371,7 @@ def test_backupgen_edited_during_a_run_isnt_filed_under_the_new_version(core, mo
 
 def test_backupgen_from_another_checkout_isnt_used(core, monkeypatch, tmp_path):
     monkeypatch.setattr(synthetic, "_imported", (tmp_path / "elsewhere", "0" * 64))
-    with pytest.raises(RuntimeError, match="imported from"):
+    with pytest.raises(synthetic.CacheError, match="imported from"):
         ensure_generated(ITEM)
 
 

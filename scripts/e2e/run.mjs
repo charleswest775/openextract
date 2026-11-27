@@ -47,12 +47,20 @@ if (!opts.backups) {
 }
 
 const backups = JSON.parse(fs.readFileSync(opts.backups, 'utf-8'));
+
+const wanted = opts.suites ? opts.suites.split(',').map(s => s.trim()) : SUITES.filter(s => s.default !== false).map(s => s.name);
+const unknown = wanted.filter(w => !SUITES.some(s => s.name === w));
+if (unknown.length) { console.error(`Unknown suite(s): ${unknown.join(', ')}. Use --list.`); process.exit(2); }
+
 // Generated backups are kept per ios-backup-core version, and versions unused for a day get
 // deleted (corpus/synthetic.py), so a backups file written a while ago can point at nothing.
-const gone = Object.entries(backups).filter(([, b]) => !fs.existsSync(path.join(b.dir, 'Manifest.plist')));
+// Only the backups the chosen suites need count.
+const needed = new Set(SUITES.filter(s => wanted.includes(s.name)).flatMap(s => s.needs));
+const gone = Object.entries(backups).filter(([key, b]) => needed.has(key) && !fs.existsSync(path.join(b.dir, 'Manifest.plist')));
 if (gone.length) {
   for (const [key, b] of gone) console.error(`${key}: there's no backup at ${b.dir} any more.`);
-  console.error(`Write the backups file again: python scripts/e2e/backups.py ${opts.backups}`);
+  // backups.py adds hickman only when asked: ask again, or the hickman suite quietly stops running.
+  console.error(`Write the backups file again: python scripts/e2e/backups.py ${opts.backups}${backups.hickman ? ' --hickman' : ''}`);
   process.exit(2);
 }
 for (const [key, b] of Object.entries(backups)) {
@@ -84,10 +92,6 @@ if (background && !target.app) {
   if (opts.background) console.log('--background only works on the development build; the packaged app will show its window.');
 }
 target.background = background && !target.app;
-
-const wanted = opts.suites ? opts.suites.split(',').map(s => s.trim()) : SUITES.filter(s => s.default !== false).map(s => s.name);
-const unknown = wanted.filter(w => !SUITES.some(s => s.name === w));
-if (unknown.length) { console.error(`Unknown suite(s): ${unknown.join(', ')}. Use --list.`); process.exit(2); }
 
 const tempBefore = fs.readdirSync(os.tmpdir()).filter(n => n.startsWith('openextract-pdf-'));
 

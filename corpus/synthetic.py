@@ -49,6 +49,11 @@ KEEP_VERSIONS = 3  # an item's newest generated versions, never deleted
 KEEP_RECENT_SECONDS = 24 * 3600
 
 
+class CacheError(RuntimeError):
+    """The cache or this run's backupgen is in a state generating can't fix (code edited mid-run, a
+    folder that can't be replaced). Not a missing prerequisite, so tests stop on it, never skip."""
+
+
 def backupgen_root() -> Optional[Path]:
     """The ios-backup-core checkout that holds ``backupgen/``, or None."""
     candidates = []
@@ -99,11 +104,11 @@ def _check_imported_code(root: Path) -> None:
         return
     module_root, at_import = _imported
     if module_root != root.resolve():
-        raise RuntimeError(f"backupgen was imported from {module_root}, but this run now uses the one in {root}. "
-                           "Start the run again.")
+        raise CacheError(f"backupgen was imported from {module_root}, but this run now uses the one in {root}. "
+                         "Start the run again.")
     if _code_hash(module_root) != at_import:
-        raise RuntimeError(f"backupgen's code in {module_root} changed while this run was going, so what it would "
-                           "generate wouldn't match the version it's filed under. Start the run again.")
+        raise CacheError(f"backupgen's code in {module_root} changed while this run was going, so what it would "
+                         "generate wouldn't match the version it's filed under. Start the run again.")
 
 
 @dataclass(frozen=True)
@@ -252,7 +257,10 @@ def _backup_folder(folder: Path) -> Optional[Path]:
     """The backup inside a generated folder, once it's complete (it has expected.json)."""
     if not (folder / "expected.json").is_file():
         return None
-    return next((p for p in folder.iterdir() if (p / "Manifest.plist").is_file()), None)
+    try:
+        return next((p for p in folder.iterdir() if (p / "Manifest.plist").is_file()), None)
+    except FileNotFoundError:
+        return None  # moved away since the line above (by another run's _prune): as if never there
 
 
 def mark_used(folder: Optional[Path]) -> None:
@@ -333,9 +341,9 @@ def _generate(backupgen, item: SyntheticItem, folder: Path, fingerprint: str) ->
                     # Another run may have just done the same; if not, the old folder couldn't be
                     # moved (open in another program on Windows, say).
                     if not _is_complete(folder, fingerprint):
-                        raise RuntimeError(f"{folder} holds an incomplete or different backup that couldn't be "
-                                           f"replaced ({type(e).__name__}: {e}). Close whatever has it open, "
-                                           "or delete it, and run again.") from e
+                        raise CacheError(f"{folder} holds an incomplete or different backup that couldn't be "
+                                         f"replaced ({type(e).__name__}: {e}). Close whatever has it open, "
+                                         "or delete it, and run again.") from e
             # else another run finished this version first; use theirs.
     finally:
         if temp.exists():
