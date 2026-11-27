@@ -12,7 +12,7 @@ import pytest
 
 from corpus.facts import ExtractedData
 from corpus.manifest import Item, load_manifest
-from corpus.synthetic import SyntheticItem, ensure_generated, load_synthetic, persona_available
+from corpus.synthetic import SyntheticItem, ensure_generated, load_synthetic, mark_used, persona_available
 from raw_backup import RawBackup
 from sidecar_client import SidecarClient, SidecarError
 
@@ -298,7 +298,10 @@ class CorpusRuntime:
             except Exception as e:
                 self._failures[key] = f"{type(e).__name__}: {e}"
                 raise
-        return self._contexts[key]
+        ctx = self._contexts[key]
+        if isinstance(ctx.item, SyntheticItem):
+            mark_used(ctx.backup_dir.parent)  # still in use, so other runs' pruning leaves it alone
+        return ctx
 
     def close(self) -> None:
         for ctx in self._contexts.values():

@@ -47,10 +47,23 @@ if (!opts.backups) {
 }
 
 const backups = JSON.parse(fs.readFileSync(opts.backups, 'utf-8'));
+// Generated backups are kept per ios-backup-core version, and versions unused for a day get
+// deleted (corpus/synthetic.py), so a backups file written a while ago can point at nothing.
+const gone = Object.entries(backups).filter(([, b]) => !fs.existsSync(path.join(b.dir, 'Manifest.plist')));
+if (gone.length) {
+  for (const [key, b] of gone) console.error(`${key}: there's no backup at ${b.dir} any more.`);
+  console.error(`Write the backups file again: python scripts/e2e/backups.py ${opts.backups}`);
+  process.exit(2);
+}
 for (const [key, b] of Object.entries(backups)) {
   const expectedFile = path.join(path.dirname(b.dir), 'expected.json');
   b.expected = fs.existsSync(expectedFile) ? JSON.parse(fs.readFileSync(expectedFile, 'utf-8')) : null;
   b.key = key;
+  // A generated backup's version folder: mark it in use for this run, as corpus/synthetic.py's
+  // mark_used does, so a test run with another ios-backup-core checkout doesn't delete it.
+  if (b.expected) {
+    try { const now = new Date(); fs.utimesSync(path.dirname(b.dir), now, now); } catch { /* read-only: fine */ }
+  }
 }
 
 const out = path.resolve(opts.out);

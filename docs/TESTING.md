@@ -70,7 +70,11 @@ Locally, the engine and the generated backups use your checkout beside this repo
 (`../ios-backup-core`; the corpus also takes `$OPENEXTRACT_IOS_BACKUP_CORE`). Check out the
 pinned commit there to run what CI runs. Generated backups are kept per ios-backup-core version
 (`<cache>/syn/<key>@<version>/`, corpus/README.md), so test runs with different checkouts can
-run at the same time on one corpus cache.
+run at the same time on one corpus cache. A version nobody has used for a day may be deleted the
+next time its item is generated, so an `e2e-backups.json` written earlier can go stale:
+`scripts/e2e/run.mjs` then says to write it again with `scripts/e2e/backups.py`. Don't edit
+`backupgen` under a test run that's still going: it stops with an error the next time it needs
+to generate.
 
 ## Running them
 

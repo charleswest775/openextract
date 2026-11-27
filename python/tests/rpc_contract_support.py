@@ -52,6 +52,7 @@ from corpus.synthetic import (  # noqa: E402
     backupgen_root,
     ensure_generated,
     load_synthetic,
+    mark_used,
     persona_available,
 )
 from sidecar_client import ProtocolError, SidecarClient, SidecarError  # noqa: E402
@@ -167,6 +168,7 @@ _generation_errors: dict[str, str] = {}
 def generated_backup(key: str) -> tuple[SyntheticItem, Path]:
     """The item and its backup folder, generated into the corpus cache if needed; skips (or fails) if it can't be."""
     if key in _generated:
+        mark_used(_generated[key][1].parent)  # still in use: other runs' pruning leaves it alone
         return _generated[key]
     if key in _generation_errors:
         skip_or_fail(_generation_errors[key])
