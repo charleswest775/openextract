@@ -2,6 +2,10 @@ name: Corpus (weekly)
 
 # Runs the backup corpus tests (python/tests/corpus) against real public iPhone
 # backups. See docs/BACKUP_TEST_CORPUS_PLAN.md and corpus/README.md.
+#
+# It also runs on a PR that moves the ios-backup-core pin (ios-backup-core.ref): ci.yml only
+# runs the generated backups, and a new ios-backup-core commit should meet the real ones
+# before it merges, not at the next Monday run.
 
 on:
   schedule:
@@ -13,13 +17,17 @@ on:
         required: false
         default: ''
       ios_backup_core_ref:
-        description: 'ios-backup-core branch or tag to test against'
+        description: 'ios-backup-core branch, tag or full commit SHA to test against (blank = the commit pinned in ios-backup-core.ref)'
         required: false
-        default: 'master'
+        default: ''
+  pull_request:
+    paths:
+      - 'ios-backup-core.ref'
+      - '.github/workflows/corpus-weekly.yml'
 
 concurrency:
-  group: corpus-weekly
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('corpus-weekly-{0}', github.ref) || 'corpus-weekly' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   corpus:
@@ -43,14 +51,12 @@ jobs:
         uses: ./.github/actions/time-zone
 
       # Same sibling layout as ci.yml: python/requirements.txt installs
-      # ios-backup-core from ../../ios-backup-core.
-      - name: Clone ios-backup-core (sibling for editable install)
-        env:
-          REF: ${{ inputs.ios_backup_core_ref || 'master' }}
-        run: |
-          git clone --depth=1 --branch "$REF" \
-            https://github.com/charleswest775/ios-backup-core.git \
-            "$GITHUB_WORKSPACE/../ios-backup-core"
+      # ios-backup-core from ../../ios-backup-core. The scheduled run tests the pinned commit,
+      # and a PR the commit it pins.
+      - name: Check out ios-backup-core (sibling for editable install)
+        uses: ./.github/actions/ios-backup-core
+        with:
+          ref: ${{ inputs.ios_backup_core_ref || 'pinned' }}
 
       - name: Install Python dependencies
         working-directory: python

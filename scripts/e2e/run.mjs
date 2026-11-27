@@ -47,10 +47,31 @@ if (!opts.backups) {
 }
 
 const backups = JSON.parse(fs.readFileSync(opts.backups, 'utf-8'));
+
+const wanted = opts.suites ? opts.suites.split(',').map(s => s.trim()) : SUITES.filter(s => s.default !== false).map(s => s.name);
+const unknown = wanted.filter(w => !SUITES.some(s => s.name === w));
+if (unknown.length) { console.error(`Unknown suite(s): ${unknown.join(', ')}. Use --list.`); process.exit(2); }
+
+// Generated backups are kept per ios-backup-core version, and versions unused for a day get
+// deleted (corpus/synthetic.py), so a backups file written a while ago can point at nothing.
+// Only the backups the chosen suites need count.
+const needed = new Set(SUITES.filter(s => wanted.includes(s.name)).flatMap(s => s.needs));
+const gone = Object.entries(backups).filter(([key, b]) => needed.has(key) && !fs.existsSync(path.join(b.dir, 'Manifest.plist')));
+if (gone.length) {
+  for (const [key, b] of gone) console.error(`${key}: there's no backup at ${b.dir} any more.`);
+  // backups.py adds hickman only when asked: ask again, or the hickman suite quietly stops running.
+  console.error(`Write the backups file again: python scripts/e2e/backups.py ${opts.backups}${backups.hickman ? ' --hickman' : ''}`);
+  process.exit(2);
+}
 for (const [key, b] of Object.entries(backups)) {
   const expectedFile = path.join(path.dirname(b.dir), 'expected.json');
   b.expected = fs.existsSync(expectedFile) ? JSON.parse(fs.readFileSync(expectedFile, 'utf-8')) : null;
   b.key = key;
+  // A generated backup's version folder: mark it in use for this run, as corpus/synthetic.py's
+  // mark_used does, so a test run with another ios-backup-core checkout doesn't delete it.
+  if (b.expected) {
+    try { const now = new Date(); fs.utimesSync(path.dirname(b.dir), now, now); } catch { /* read-only: fine */ }
+  }
 }
 
 const out = path.resolve(opts.out);
@@ -71,10 +92,6 @@ if (background && !target.app) {
   if (opts.background) console.log('--background only works on the development build; the packaged app will show its window.');
 }
 target.background = background && !target.app;
-
-const wanted = opts.suites ? opts.suites.split(',').map(s => s.trim()) : SUITES.filter(s => s.default !== false).map(s => s.name);
-const unknown = wanted.filter(w => !SUITES.some(s => s.name === w));
-if (unknown.length) { console.error(`Unknown suite(s): ${unknown.join(', ')}. Use --list.`); process.exit(2); }
 
 const tempBefore = fs.readdirSync(os.tmpdir()).filter(n => n.startsWith('openextract-pdf-'));
 

@@ -59,6 +59,9 @@ A few more asks:
   backup, and redact screenshots and logs too.
 - The parsing engine lives in [ios-backup-core](https://github.com/charleswest775/ios-backup-core).
   If a bug is in how a database is read (calls, contacts, voicemail and so on), the fix may belong there.
+  CI here builds the ios-backup-core commit pinned in `ios-backup-core.ref`: once the library fix
+  has merged, move the pin with `scripts/bump-ios-backup-core.sh` in the app's PR
+  ([docs/TESTING.md](docs/TESTING.md#which-ios-backup-core)).
 
 ## Questions and Ideas
 

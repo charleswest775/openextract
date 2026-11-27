@@ -18,7 +18,7 @@ on:
         required: false
         default: ''
       ios_backup_core_ref:
-        description: 'ios-backup-core branch, tag or full commit SHA to build and make the test backups with (blank = master). release.yml passes the commit it built.'
+        description: 'ios-backup-core branch, tag or full commit SHA to build and make the test backups with (blank = the commit pinned in ios-backup-core.ref). release.yml passes the commit it built.'
         type: string
         required: false
         default: ''
@@ -26,6 +26,10 @@ on:
     inputs:
       tag:
         description: 'Release tag to test (blank = build unsigned packages from this branch)'
+        required: false
+        default: ''
+      ios_backup_core_ref:
+        description: 'ios-backup-core branch, tag or full commit SHA to build and make the test backups with (blank = the commit pinned in ios-backup-core.ref of the branch or tag tested). To test what a release shipped, or a tag from before the pin, give the full 40-character SHA that the link at the foot of its release notes points to (v0.16.0 on; the link text is only the first 12 characters)'
         required: false
         default: ''
   schedule:
@@ -37,6 +41,8 @@ on:
       - 'build/**'
       - 'electron/main.ts'
       - 'python/requirements.txt'
+      # Moving the pin changes the engine that gets bundled, like a dependency bump.
+      - 'ios-backup-core.ref'
       - 'scripts/bundle-engine.mjs'
       - 'scripts/installers/**'
       - 'scripts/update-feed.mjs'
@@ -50,7 +56,28 @@ permissions:
   contents: read
 
 jobs:
+  # One ios-backup-core commit for the build and the test jobs, resolved once, so a branch given
+  # by hand can't move between them. With a tag nothing is built, and the test job reads the
+  # tag's pin (or uses the commit given) itself.
+  ios_backup_core:
+    if: ${{ !inputs.tag }}
+    name: ios-backup-core commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.core.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve ios-backup-core
+        id: core
+        uses: ./.github/actions/ios-backup-core
+        with:
+          ref: ${{ inputs.ios_backup_core_ref || 'pinned' }}
+
   build:
+    needs: ios_backup_core
     if: ${{ !inputs.tag }}
     name: build (${{ matrix.os }})
     strategy:
@@ -104,7 +131,7 @@ jobs:
       - name: Check out ios-backup-core (sibling for editable install)
         uses: ./.github/actions/ios-backup-core
         with:
-          ref: ${{ inputs.ios_backup_core_ref || 'master' }}
+          ref: ${{ needs.ios_backup_core.outputs.sha }}
 
       - name: Install Python dependencies and PyInstaller
         working-directory: python
@@ -181,7 +208,7 @@ jobs:
         with: { name: packages-Linux, path: packages/Linux, retention-days: 3, if-no-files-found: error }
 
   test:
-    needs: [build, fetch]
+    needs: [ios_backup_core, build, fetch]
     if: ${{ !cancelled() && (needs.build.result == 'success' || needs.fetch.result == 'success') }}
     name: install (${{ matrix.os }})
     strategy:
@@ -242,11 +269,25 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends desktop-file-utils xvfb
 
       # The same fetch as .github/actions/ios-backup-core, written out because this job
-      # checks out the tag under test, and an older tag doesn't have that action.
+      # checks out the tag under test, and an older tag doesn't have that action. Without a tag
+      # it gets the commit the ios_backup_core job resolved (the one the packages were built
+      # with). With a tag, blank means the commit pinned in the tag's ios-backup-core.ref, read
+      # as the action does. scripts/ios-backup-core-pin.test.mjs runs this script.
       - name: Check out ios-backup-core (sibling for editable install)
         env:
-          CORE_REF: ${{ inputs.ios_backup_core_ref || 'master' }}
+          CORE_REF: ${{ needs.ios_backup_core.outputs.sha || inputs.ios_backup_core_ref }}
         run: |
+          if [ -z "$CORE_REF" ]; then
+            if [ ! -f ios-backup-core.ref ]; then
+              echo "::error::This checkout (${TAG:-$GITHUB_REF_NAME}) has no ios-backup-core.ref: it's older than the pin. Run again with ios_backup_core_ref set to the full 40-character SHA that the link at the foot of that release's notes points to (\"Built with ios-backup-core ...\", from v0.16.0 on; the link text is only the first 12 characters, which git can't fetch)."
+              exit 1
+            fi
+            CORE_REF=$(tr -d '[:space:]' < ios-backup-core.ref)
+            if [[ ! "$CORE_REF" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error file=ios-backup-core.ref::ios-backup-core.ref must hold one full 40-character commit SHA (lowercase hex), but holds '$CORE_REF'. scripts/bump-ios-backup-core.sh writes it."
+              exit 1
+            fi
+          fi
           core="$GITHUB_WORKSPACE/../ios-backup-core"
           git init -q "$core"
           git -C "$core" fetch -q --depth=1 --no-tags https://github.com/charleswest775/ios-backup-core.git "$CORE_REF"
