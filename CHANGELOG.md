@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-26
+
 Saving now asks, once each time you open OpenExtract, what it's worth to you: $5, $25, $100 or any amount, with Save without paying right beside it. Calls no longer shows changes to a group chat (someone added or removed, a new name) as FaceTime calls, and Messages now says "Attachment not in this backup", instead of "Conversation update", when the iPhone removed a photo or file from a message.
 
 ### Added
