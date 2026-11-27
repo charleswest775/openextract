@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { saveFolder, sidecarCall } from '../../lib/ipc';
+import { saveFolder, sidecarCall, syncedFolder } from '../../lib/ipc';
 import { canBackUp, deviceDetail, markNotAnswering, notAnsweringMessages, searchFailedMessage, type DeviceInfo } from '../../lib/deviceSearch';
 import { ArrowLeftIcon, PhoneIcon, FolderIcon, LockIcon, DownloadIcon } from '../shared/Icons';
 import { ReportProblemButton } from '../shared/Feedback';
@@ -140,6 +140,8 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
 
   const [selectedDevice, setSelectedDevice] = useState<DeviceInfo | null>(null);
   const [outputDir, setOutputDir] = useState('');
+  // "OneDrive" etc. when the chosen folder is synced to one, which the backup doesn't suit (OE-212).
+  const [synced, setSynced] = useState<string | null>(null);
   const [useEncryption, setUseEncryption] = useState(false);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -226,9 +228,15 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
   // The iPhone already has a backup password, so the backup uses it, asked to encrypt or not.
   const existingPassword = selectedDevice?.encrypts_backups === true;
 
+  const chosenDir = useRef('');
   const handleChooseDir = async () => {
     const folder = await saveFolder();
-    if (folder) setOutputDir(folder);
+    if (!folder) return;
+    chosenDir.current = folder;
+    setOutputDir(folder);
+    setSynced(null);
+    const service = await syncedFolder(folder);
+    if (chosenDir.current === folder) setSynced(service); // not one chosen before it
   };
 
   const handleStartBackup = async () => {
@@ -423,6 +431,18 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                 Choose...
               </button>
             </div>
+            {synced && (
+              // A warning, not a block: a synced folder on a big enough drive can work, and the
+              // folder name alone can be wrong. The space error says it again (electron/main.ts).
+              <div role="status" className="mt-2 px-3 py-2.5 rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-800">
+                <p className="font-medium text-amber-900 mb-0.5">This folder is in {synced}</p>
+                <p>
+                  A backup here still takes up space on this computer's own drive: the space in your {synced} account
+                  doesn't count. {synced} also uploads each file while the backup is being saved, which can make the
+                  backup fail. Choose a folder that isn't in {synced}, such as one on an external drive.
+                </p>
+              </div>
+            )}
           </section>
 
           {/* Step 3: Encryption */}

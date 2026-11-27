@@ -35,6 +35,8 @@ const EXPECTED_CHANNELS = [
   'media:thumbnail',
   // An older backup to the Trash (electron/olderBackups.ts)
   'backup:trashOlder',
+  // Whether a chosen backup folder is in OneDrive or the like (electron/syncedFolder.ts)
+  'folder:syncedService',
 ];
 
 // Development-only switches in main.ts that a developer's shell might have set.
@@ -1214,6 +1216,36 @@ describe('backups keep the computer awake', () => {
     m.env.powerMonitor.emit('suspend');
     full.finish().reject(new Error('Not enough free space for this backup.'));
     assert.equal((await full.result).error, 'Not enough free space for this backup.');
+  });
+});
+
+describe('synced folders (electron/syncedFolder.ts)', () => {
+  const NO_SPACE = 'Not enough free space for this backup. It needs more than 229 GB free, but the drive you chose has '
+    + '175 GB free. Free up space or choose a folder on an external drive, then try again.';
+
+  test('folder:syncedService names the app that syncs a folder, and is null for others', async () => {
+    const m = await loadMain();
+    const synced = path.join(freshDir('synced'), 'OneDrive', 'iPhone');
+    fs.mkdirSync(synced, { recursive: true });
+    assert.equal(await m.invoke('folder:syncedService', synced), 'OneDrive');
+    assert.equal(await m.invoke('folder:syncedService', freshDir('plain')), null);
+    assert.equal(await m.invoke('folder:syncedService', 42), null);
+  });
+
+  test('a backup.start with no room says the account\'s space doesn\'t count, and the report gets it too', async () => {
+    const m = await loadMain();
+    m.sidecar.answer = method => (method === 'backup.start' ? Promise.reject(new Error(NO_SPACE)) : Promise.resolve({}));
+    const synced = path.join(freshDir('synced'), 'OneDrive', 'iPhone');
+    fs.mkdirSync(synced, { recursive: true });
+    const { error } = await m.invoke('sidecar:call', 'backup.start', { udid: 'U1', output_dir: synced });
+    assert.match(error, /175 GB free\. The folder you chose is in OneDrive, so the space in your OneDrive account doesn't count: the backup is saved on this computer's own drive\. Free up space/);
+    assert.equal(m.recorder.recorded.at(-1).outcome.error, error);
+
+    // A folder that isn't synced, and another call's error, keep the engine's words.
+    const plain = await m.invoke('sidecar:call', 'backup.start', { udid: 'U1', output_dir: freshDir('plain') });
+    assert.equal(plain.error, NO_SPACE);
+    m.sidecar.answer = () => Promise.reject(new Error(NO_SPACE));
+    assert.equal((await m.invoke('sidecar:call', 'export_photos', { output_dir: synced })).error, NO_SPACE);
   });
 });
 
