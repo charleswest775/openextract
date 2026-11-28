@@ -23,7 +23,8 @@
   <url><loc>https://www.openextract.app/about</loc><lastmod>2026-11-11</lastmod></url>
   <url><loc>https://www.openextract.app/what-people-say</loc><lastmod>2026-11-11</lastmod></url>
   <url><loc>https://www.openextract.app/support</loc><lastmod>2026-11-15</lastmod></url>
-  <url><loc>https://www.openextract.app/privacy</loc><lastmod>2026-11-15</lastmod></url>
+  <url><loc>https://www.openextract.app/privacy</loc><lastmod>2026-11-28</lastmod></url>
+  <url><loc>https://www.openextract.app/ai</loc><lastmod>2026-11-28</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/free-imazing-alternative</loc><lastmod>2026-11-22</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/export-iphone-messages</loc><lastmod>2026-11-11</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/export-iphone-data</loc><lastmod>2026-11-23</lastmod></url>
@@ -47,7 +48,8 @@
   <url><loc>https://www.openextract.app/use-cases/export-notes-from-iphone-backup</loc><lastmod>2026-11-13</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/export-safari-history-from-iphone-backup</loc><lastmod>2026-11-16</lastmod></url>
   <url><loc>https://www.openextract.app/use-cases/check-iphone-for-spyware</loc><lastmod>2026-11-23</lastmod></url>
-  <url><loc>https://www.openextract.app/guides</loc><lastmod>2026-11-23</lastmod></url>
+  <url><loc>https://www.openextract.app/use-cases/ask-claude-about-your-iphone-backup</loc><lastmod>2026-11-28</lastmod></url>
+  <url><loc>https://www.openextract.app/guides</loc><lastmod>2026-11-28</lastmod></url>
   <url><loc>https://www.openextract.app/fixes</loc><lastmod>2026-11-15</lastmod></url>
   <url><loc>https://www.openextract.app/backup-files</loc><lastmod>2026-11-19</lastmod></url>
   <url><loc>https://www.openextract.app/backup-files/sms-db</loc><lastmod>2026-11-19</lastmod></url>
@@ -70,11 +72,12 @@
   <url><loc>https://www.openextract.app/backup-files/firefox-places-db</loc><lastmod>2026-11-19</lastmod></url>
   <url><loc>https://www.openextract.app/backup-files/healthdb-secure-sqlite</loc><lastmod>2026-11-19</lastmod></url>
   <url><loc>https://www.openextract.app/ios-updates</loc><lastmod>2026-11-22</lastmod></url>
-  <url><loc>https://www.openextract.app/blog</loc><lastmod>2026-11-11</lastmod></url>
+  <url><loc>https://www.openextract.app/blog</loc><lastmod>2026-11-28</lastmod></url>
   <url><loc>https://www.openextract.app/blog/what-is-in-an-iphone-backup</loc><lastmod>2026-11-22</lastmod></url>
   <url><loc>https://www.openextract.app/blog/encrypted-backups-are-better</loc><lastmod>2026-11-22</lastmod></url>
   <url><loc>https://www.openextract.app/blog/recovering-voicemails-from-loved-ones</loc><lastmod>2026-11-02</lastmod></url>
   <url><loc>https://www.openextract.app/blog/switching-to-android-with-your-data</loc><lastmod>2026-11-07</lastmod></url>
   <url><loc>https://www.openextract.app/blog/open-source-trust-model</loc><lastmod>2026-11-11</lastmod></url>
   <url><loc>https://www.openextract.app/blog/the-journal-you-never-meant-to-keep</loc><lastmod>2026-11-11</lastmod></url>
+  <url><loc>https://www.openextract.app/blog/introducing-openextract-ai</loc><lastmod>2026-11-28</lastmod></url>
 </urlset>

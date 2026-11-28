@@ -8,7 +8,7 @@ OpenExtract is made by Charles West, an independent developer, with help from co
 
 ## Facts
 
-- Price: free. No trial, no paid tier, no export limits, no account.
+- Price: free. No trial, no paid tier, no export limits, no account. (OpenExtract AI, an optional add-on for asking an AI app about a backup, is paid; see below.)
 - License: MIT (open source).
 - Platforms:
   - Windows 10 and 11 (64-bit).
@@ -42,6 +42,18 @@ OpenExtract is made by Charles West, an independent developer, with help from co
   - It never changes a backup it opens. It reads backups read-only, and saves exports only where you choose.
 - Privacy, in the words of the privacy policy (https://www.openextract.app/privacy): "All reading and decryption happens on your computer. OpenExtract has no account, and it doesn't upload, sell or share your data with anyone." "The app contains no analytics, advertising or tracking." The policy describes the app's network use in full.
 
+## OpenExtract AI (an optional, paid add-on)
+
+OpenExtract AI is a separate, paid add-on to OpenExtract. OpenExtract itself stays free, with no limits; nothing was taken out of it for the add-on.
+
+- What it does: it lets an AI app on the same computer search and read the iPhone backup and answer questions about it in plain words, citing the message, call, voicemail or note each answer came from. It reads messages (iMessage, SMS and MMS, with the photos sent in them), WhatsApp, calls, voicemail with its transcripts, contacts, notes, calendar and photos. It only reads: it never changes the backup, and the one thing it writes is a file the person asks for, saved as a new file.
+- AI apps: the Claude desktop app for Mac and Windows first (it works on Claude's free plan; heavy use may need a paid Claude plan). ChatGPT's desktop app can connect too, and so can Claude Code.
+- Platforms: macOS on Apple Silicon, and Windows 10 and 11. There is no Linux add-on.
+- Setup: the add-on comes inside OpenExtract, so there's nothing to download. OpenExtract shows an Ask AI button only when a supported AI app is installed; Ask AI, then Install, adds it to Claude. The AI reads the backup last opened in OpenExtract and can list and open others.
+- Price: 3 free questions per computer, then a key for each iPhone: $29 once for that iPhone for good (no subscription), or $9 for 7 days (it ends on its own). Each iPhone has a "phone code" of eight letters and numbers; the key is bought at https://www.openextract.app/ai/buy and pasted into the AI chat, which saves it on the computer. Keys are checked on the computer; there is no account.
+- Privacy: the add-on runs on the computer and talks only to the AI app that started it, and OpenExtract sends nothing. But what the AI reads from the backup, the AI app sends to its company, as with anything pasted into a chat (Anthropic for Claude, OpenAI for ChatGPT). Backup passwords never go to the AI. Hidden photos stay out unless asked for, and Recently Deleted photos are never shown.
+- Pages: https://www.openextract.app/ai (what it does, sample answers, prices) and https://www.openextract.app/use-cases/ask-claude-about-your-iphone-backup (setup, keys, troubleshooting).
+
 ## Compared with other tools
 
 - iMazing: iMazing also manages a connected iPhone and has paid support. Its trial mode copies out at most 25 messages, 50 photos, 10 contacts, 5 call-history entries, 5 notes and 1 voicemail, and since June 2025 it is sold only as a yearly subscription. OpenExtract reads backups (and can make one), with no export limits, and is free. iMazing runs on Windows and Mac; OpenExtract also runs on Linux.
@@ -73,7 +85,9 @@ OpenExtract is made by Charles West, an independent developer, with help from co
 - [Free iPhone backup viewer](https://www.openextract.app/use-cases/free-iphone-backup-viewer)
 - [iPhone backups on Linux](https://www.openextract.app/use-cases/iphone-backup-extractor-linux)
 - [Check an iPhone for known spyware](https://www.openextract.app/use-cases/check-iphone-for-spyware): making an encrypted backup with OpenExtract and checking it with Amnesty International's Mobile Verification Toolkit (MVT), what a clean result does and doesn't mean, and where to get expert help. OpenExtract doesn't check for spyware itself.
-- [Guides](https://www.openextract.app/guides): printing texts for court, iMessage to PDF, texts to a Windows PC, call history to a Windows PC, exporting WhatsApp chats, exporting podcast subscriptions and listening history, exporting voice memos with their transcripts, exporting calendar events as .ics files, exporting iPhone contacts to Excel, CSV or vCard, extracting photos and videos from a backup, exporting Apple Notes as PDF or plain text, seeing and saving Safari and Firefox history from an encrypted backup, checking an iPhone for known spyware with MVT, where iPhone backups are stored on Mac and Windows, viewing a backup on Windows, saving voicemails, recovering deleted texts, moving from iPhone to Android.
+- [OpenExtract AI](https://www.openextract.app/ai): the optional paid add-on that lets Claude (and ChatGPT's desktop app) answer questions about an iPhone backup with cited sources: what it reads, sample answers from a made-up backup, prices and privacy.
+- [Ask Claude about your iPhone backup](https://www.openextract.app/use-cases/ask-claude-about-your-iphone-backup): setting up OpenExtract AI for Claude on Mac or Windows, ChatGPT's desktop app or Claude Code, first questions to try, free questions, keys and phone codes, encrypted backups, and fixes.
+- [Guides](https://www.openextract.app/guides): printing texts for court, iMessage to PDF, texts to a Windows PC, call history to a Windows PC, exporting WhatsApp chats, exporting podcast subscriptions and listening history, exporting voice memos with their transcripts, exporting calendar events as .ics files, exporting iPhone contacts to Excel, CSV or vCard, extracting photos and videos from a backup, exporting Apple Notes as PDF or plain text, seeing and saving Safari and Firefox history from an encrypted backup, checking an iPhone for known spyware with MVT, where iPhone backups are stored on Mac and Windows, viewing a backup on Windows, saving voicemails, recovering deleted texts, moving from iPhone to Android, and asking Claude about a backup with OpenExtract AI.
 - [Fixes for common problems](https://www.openextract.app/fixes)
 - [iPhone backup files](https://www.openextract.app/backup-files): what the 40-character file names in an iPhone backup are (each is the SHA-1 of the file's domain and path, such as 3d0d7e5fb2ce288813306e4d4636395e047a3d28 for sms.db), how the backup folder and Manifest.db are laid out, and a page per file with its path, the iOS versions it was seen in, its tables by iOS version, whether it needs an encrypted backup, and how to open it. Checked against public test backups from iOS 13.3.1 to 17.3.
 - [What each iOS update changed for iPhone backups](https://www.openextract.app/ios-updates): each iOS release from iOS 18 to iOS 27.2.1 (and the 27.3 beta), newest first, with its date, what changed for backups according to Apple's own notes, and whether OpenExtract has tested backups from it. Tested on real backups: iOS 13.3.1, 13.4.1, 15.3.1, 16.1.2 and 17.3. Tested on generated backups: iOS 26 (with iOS 26.5's database layouts) and the older formats of iOS 6 to 10.1. Not yet tested: iOS 11, 12, 14, 18 and 27.

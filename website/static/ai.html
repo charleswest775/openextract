@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>OpenExtract AI: ask Claude about your iPhone backup</title>
+  <meta name="description" content="An add-on to the free OpenExtract app: Claude searches and reads the iPhone backup on your computer and cites the message each answer came from." />
+  <link rel="canonical" href="https://www.openextract.app/ai" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.openextract.app/ai" />
+  <meta property="og:title" content="OpenExtract AI: ask Claude about your iPhone backup" />
+  <meta property="og:description" content="Ask about years of messages, calls, voicemail, notes and photos in plain words. Each answer points to the message it came from. 3 free questions, then $29 per iPhone." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <!-- Rule: only people who already use an AI app are offered AI, so nothing on the home page, the
+       download pages or the main nav links here. The app's Ask AI screen, the guide and the blog do. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "OpenExtract AI",
+    "description": "An add-on to OpenExtract that lets an AI app on the same computer, Claude first, search and read an iPhone backup and answer questions about it, citing the message, call, voicemail or note each answer came from.",
+    "url": "https://www.openextract.app/ai",
+    "applicationCategory": "UtilityApplication",
+    "operatingSystem": "macOS (Apple Silicon), Windows 10, Windows 11",
+    "isPartOf": { "@type": "SoftwareApplication", "name": "OpenExtract", "url": "https://www.openextract.app/" },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": { "@type": "ImageObject", "url": "https://www.openextract.app/img/logo.png" }
+    },
+    "offers": [
+      { "@type": "Offer", "name": "One iPhone, for good", "price": "29", "priceCurrency": "USD", "url": "https://www.openextract.app/ai/buy" },
+      { "@type": "Offer", "name": "One iPhone for 7 days", "price": "9", "priceCurrency": "USD", "url": "https://www.openextract.app/ai/buy" }
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Does it work on Claude's free plan?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. Claude's free plan includes desktop extensions, which is how OpenExtract AI is added to Claude. A long question can read a lot of your backup, so heavy use may need a paid Claude plan. That's Claude's limit, not OpenExtract AI's, and OpenExtract AI's price is the same either way." }
+      },
+      {
+        "@type": "Question",
+        "name": "Which AI apps does it work with?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Claude's desktop app for Mac and Windows, first: that's what OpenExtract AI is built and tested with. ChatGPT's desktop app can connect too, and so can Claude Code. OpenExtract shows its Ask AI button only when one of them is installed." }
+      },
+      {
+        "@type": "Question",
+        "name": "Mac, Windows or Linux?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Macs with Apple Silicon, and Windows 10 and 11. There's no Linux add-on; OpenExtract itself still runs on Linux, free as always." }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it work with encrypted backups?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes, and the password never goes to the AI. On a Mac, a password box from your Mac, not from Claude, asks for it, and Claude never sees what you type. On Windows the add-on can't show a password box yet; the setup guide says what works there. Never paste a backup password into a chat." }
+      },
+      {
+        "@type": "Question",
+        "name": "What counts as a question?",
+        "acceptedAnswer": { "@type": "Answer", "text": "OpenExtract AI can't see what you type to the AI, only the lookups the AI makes in your backup. So it counts lookups that come within two minutes of each other as one question; a pause of more than two minutes starts the next one. Opening a backup and checking what's in it don't count. The three free questions allow up to 75 lookups in all." }
+      },
+      {
+        "@type": "Question",
+        "name": "Which backup does it read?",
+        "acceptedAnswer": { "@type": "Answer", "text": "The one you last opened in OpenExtract. The AI can also list the other backups on your computer and open one when you ask." }
+      },
+      {
+        "@type": "Question",
+        "name": "Is OpenExtract still free?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. OpenExtract stays free and open source, with no limits, whether or not you use OpenExtract AI. Nothing was taken out of it to make the add-on." }
+      },
+      {
+        "@type": "Question",
+        "name": "Can it be wrong?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. It's set up to point to the message, call or note each answer rests on, to say when an answer rests on one message, and to keep plans apart from things that happened. Check anything that matters against the messages it points to." }
+      },
+      {
+        "@type": "Question",
+        "name": "What if it doesn't work for me?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Try the three free questions first. They run the same add-on a key unlocks, on your own backup, so you'll know before you pay. If something goes wrong, report it from OpenExtract's feedback form or on GitHub." }
+      }
+    ]
+  }
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+  <link rel="stylesheet" href="/css/ai.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__pay" href="/support" aria-label="Pay it forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C1 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.2 4.4 2.5h2c.7-1.3 2.2-2.5 4.4-2.5 3.7 0 5.6 3.9 4.2 7.1C19.5 16.4 12 21 12 21z"/></svg><span class="nav__pay-label">Pay it forward</span></a>
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">OpenExtract AI · An add-on</div>
+    <h1>Ask Claude about<br /><span class="it">your iPhone backup.</span></h1>
+    <p class="page-head__lede">OpenExtract AI lets Claude, on your computer, search and read the iPhone backup there: years of messages, calls, voicemail, notes and photos. Ask in plain words. Each answer points to the message, call or note it came from, so you can check it.</p>
+    <div class="ai-head__actions">
+      <a class="btn btn--primary" href="/use-cases/ask-claude-about-your-iphone-backup">How to set it up</a>
+      <a class="btn" href="#price">What it costs</a>
+    </div>
+    <p class="ai-head__note">Works with Claude for Mac and Windows, on Claude's free plan. ChatGPT's desktop app can connect too. OpenExtract itself stays free.</p>
+  </header>
+
+  <section class="ai-section" aria-labelledby="asks">
+    <h2 id="asks">What people ask</h2>
+    <p class="ai-section__lede">These answers come from a sample backup of made-up people: Maren, her family and friends, who also appear in OpenExtract's screenshots. The dates, quotes and refs are what OpenExtract AI returned when asked. The wording is the kind of answer Claude gives.</p>
+    <div class="ai-asks">
+      <article class="ai-ask">
+        <h3 class="ai-ask__q">“When is Erik's wedding, and what did I say I'd do for it?”</h3>
+        <p class="ai-ask__a">September 19, 2027, outside Boise by the river. Erik told the family chat on June 13, 2026, and two minutes later you wrote “Put me on flowers!!” The next day he asked whether you'd design the flowers for the whole wedding, and you said “I'd LOVE to. Native Idaho stuff in September... rabbitbrush, asters, some grasses.” Your note “Erik + Jess wedding flowers” has the start of a plan. It ends: “Mom wants to help. Say yes.”</p>
+        <p class="ai-ask__refs">msg:7:1358 · msg:7:1359 · msg:6:1364 · msg:6:1365 · note:29</p>
+      </article>
+      <article class="ai-ask">
+        <h3 class="ai-ask__q">“How have Mom and I kept in touch since the start of 2025?”</h3>
+        <p class="ai-ask__a">You and Karin (“Mom” on her contact card) were in touch on 44 days: 78 messages, 43 of them yours, and 23 calls, 7 of them FaceTime, 620 minutes in all. You talked every month except April 2026. The longest quiet stretch was 40 days, March 31 to May 9, 2026. The busiest month was August 2025, around your Yellowstone trip, when she wrote “Thank you for stopping both ways. It was the best week.” The last contact was June 21, a week before the backup.</p>
+        <p class="ai-ask__refs">contact:7 · chat:12 · msg:12:862</p>
+      </article>
+      <article class="ai-ask">
+        <h3 class="ai-ask__q">“Find Grandma's voicemails.”</h3>
+        <p class="ai-ask__a">Grandma is Ingrid Lindqvist (her card's nickname is Grandma), and she left one voicemail: 41 seconds, at 8:15 am on October 22, 2024. That was your birthday; your mom's text that morning says “32 years ago today.” You missed Grandma's call at 8:15 and called her back at 12:05, for 9 minutes. The backup has the recording but no transcript of it. Want me to save it to a folder, with everything else from her?</p>
+        <p class="ai-ask__refs">contact:11 · vm:2 · call:30 · call:31 · msg:12:256</p>
+      </article>
+      <article class="ai-ask">
+        <h3 class="ai-ask__q">“Show me my Crater Lake photos. Which did I favorite?”</h3>
+        <p class="ai-ask__a">15 photos, from Saturday, September 20, 2025 at 11:30 am to Sunday at 1:00 pm, all in your Crater Lake 2025 album. Two are favorites, and both are in Best of PNW too: Wizard Island from the rim on a clear afternoon, the water deep blue (Saturday, 3:05 pm), and Sunday's sunrise at 6:45, the sky pink and orange over the rim and the island dark against the lake. That night you texted your mom: “Crater Lake. It's really this blue.”</p>
+        <p class="ai-ask__refs">photo:EA0F1B70… · photo:5E4F937E… · msg:12:925</p>
+      </article>
+      <article class="ai-ask">
+        <h3 class="ai-ask__q">“Did Kenji ever bring me those rice crackers?”</h3>
+        <p class="ai-ask__a">He offered on December 19, 2025, before his trip home: “I'll bring you back the good rice crackers from Osaka.” That's the only time crackers or Osaka come up in the backup. Your next texts with him, on March 23 and May 28, 2026, are about a day at the coast and the Linden plant palette. So the backup shows the promise, not whether he kept it. If he handed them over in person, there'd be no text about it.</p>
+        <p class="ai-ask__refs">msg:9:1062 · msg:9:1216 · msg:9:1330</p>
+      </article>
+      <article class="ai-ask">
+        <h3 class="ai-ask__q">“Give me my 2025 in review.”</h3>
+        <p class="ai-ask__a">Most in touch: Theo (130 messages, 7 calls), Leah (80, 4), your mom (59, 16), Rosa (37) and Erik (19, 4), of 40 people in all. Three trips, each with photos and texts about it: Olympic in May (20 photos; “still snow on the Olympics”), Yellowstone in August (45 photos; “Lamar Valley at sunrise... Bison everywhere”) and Crater Lake in September (15 photos). Your “Climbing 2025” note is a list of goals. One has a text to back it: a V4 on March 4 (“Hoy yo escalé un V4”). I found nothing that says whether you reached the others.</p>
+        <p class="ai-ask__refs">msg:8:701 · msg:5:837 · msg:12:925 · note:17 · msg:16:532</p>
+      </article>
+    </div>
+    <p class="ai-section__more">More to try: “When did Dana text me the gate code?”, “What did I promise to do for the move?”, “Who have I drifted apart from?”, “Which services have my phone number?” The <a href="/use-cases/ask-claude-about-your-iphone-backup#first-questions">setup guide</a> has a longer list.</p>
+  </section>
+
+  <section class="ai-section" aria-labelledby="reads">
+    <h2 id="reads">What it reads</h2>
+    <p class="ai-section__lede">Everything below, from the iPhone backup on your computer, the same backup OpenExtract opens.</p>
+    <ul class="ai-reads">
+      <li><strong>Messages</strong>iMessage, SMS and MMS, group chats too, and the photos sent in them.</li>
+      <li><strong>WhatsApp</strong>Chats and groups that WhatsApp kept in the iPhone's backup.</li>
+      <li><strong>Calls</strong>Who, when and for how long. Apple keeps call history only in encrypted backups.</li>
+      <li><strong>Voicemail</strong>With the transcripts the iPhone made, when it made them.</li>
+      <li><strong>Contacts</strong>Each person's numbers and emails, merged into one person.</li>
+      <li><strong>Notes</strong>Apple Notes, whole.</li>
+      <li><strong>Calendar</strong>Events, past and coming, with yearly ones like birthdays.</li>
+      <li><strong>Photos</strong>Dates, places and albums. Claude can look at a photo to describe it.</li>
+    </ul>
+    <p class="ai-section__more"><strong>It only reads.</strong> It never changes your backup. The one thing it writes is a file you ask for, saved in a new folder. Every answer can cite refs, short labels like <code>msg:12:925</code> or <code>call:31</code> for the exact message, call, voicemail or note.</p>
+  </section>
+
+  <section class="ai-section" aria-labelledby="get">
+    <h2 id="get">How you get it</h2>
+    <ol class="ai-steps">
+      <li><strong>Open your backup in OpenExtract.</strong> It's free for Mac and Windows. No backup yet? Its Back up my iPhone button makes one.</li>
+      <li><strong>Click Ask AI, then Install for Claude.</strong> Ask AI is in OpenExtract's top bar when a supported AI app is installed. The add-on comes inside OpenExtract, so there's nothing to download.</li>
+      <li><strong>Start a new chat in Claude and ask.</strong> Your first three questions are free. Step-by-step help, for ChatGPT and Claude Code too, is in the <a href="/use-cases/ask-claude-about-your-iphone-backup">setup guide</a>.</li>
+    </ol>
+  </section>
+
+  <section class="ai-section" id="price" aria-labelledby="price-head">
+    <h2 id="price-head">What it costs</h2>
+    <p class="ai-section__lede">Try it free on your own backup. After that, a key for each iPhone.</p>
+    <div class="ai-price">
+      <div class="ai-price__option ai-price__option--free">
+        <div class="ai-price__price">Free <span>3 questions</span></div>
+        <p>On each computer, to see what it finds in your backup before you pay anything.</p>
+      </div>
+      <div class="ai-price__option">
+        <div class="ai-price__price">$29 <span>once</span></div>
+        <p>This iPhone, for good. No subscription.</p>
+      </div>
+      <div class="ai-price__option">
+        <div class="ai-price__price">$9 <span>for 7 days</span></div>
+        <p>This iPhone, for a week. It ends on its own; nothing renews.</p>
+      </div>
+    </div>
+    <p class="ai-price__more">Each iPhone has a phone code, eight letters and numbers like <code>7F3K-Q9M2</code>. When your free questions run out, Claude gives you yours with a link to buy a key for it, or ask Claude “What's my OpenExtract phone code?” The key shows on the page right after you pay. Paste it into the chat and it's saved on your computer. One key works for every backup of that iPhone, on all your computers. A new iPhone needs its own key.</p>
+    <div class="ai-price__actions">
+      <a class="btn btn--primary" href="/ai/buy">Buy a key</a>
+      <a class="btn" href="/use-cases/ask-claude-about-your-iphone-backup#keys">How keys work</a>
+    </div>
+    <p class="ai-price__more">OpenExtract itself stays free, with no limits.</p>
+  </section>
+
+  <section class="privacy ai-privacy" aria-labelledby="where">
+    <div class="privacy__inner">
+      <div>
+        <div class="privacy__eyebrow">What goes where</div>
+        <h3 id="where">Your backup stays on your computer. What the AI reads goes to the AI company.</h3>
+        <p class="privacy__body">OpenExtract AI runs on your computer and talks only to the AI app that started it. OpenExtract sends nothing anywhere.</p>
+        <p class="privacy__body">But whatever the AI reads from your backup, the AI app sends to the company that runs it, as it does with anything you paste into a chat: Anthropic for Claude, OpenAI for ChatGPT. Ask about things you'd be comfortable sharing that way. More in the <a href="/privacy#ai">privacy policy</a>.</p>
+      </div>
+      <div class="privacy__readout" aria-label="What goes where">
+        <div class="privacy__readout-row"><div class="privacy__readout-k">OpenExtract</div><div class="privacy__readout-v">Sends nothing</div></div>
+        <div class="privacy__readout-row"><div class="privacy__readout-k">OpenExtract AI</div><div class="privacy__readout-v">Runs on your computer, talks only to your AI app</div></div>
+        <div class="privacy__readout-row"><div class="privacy__readout-k">Your AI app</div><div class="privacy__readout-v">Sends what it reads to Anthropic or OpenAI</div></div>
+        <div class="privacy__readout-row"><div class="privacy__readout-k">Backup password</div><div class="privacy__readout-v">Never goes to the AI</div></div>
+        <div class="privacy__readout-row"><div class="privacy__readout-k">Hidden photos</div><div class="privacy__readout-v">Left out unless you ask for them</div></div>
+        <div class="privacy__readout-row"><div class="privacy__readout-k">Recently Deleted photos</div><div class="privacy__readout-v">Never shown</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="snags ai-faq" aria-labelledby="faq">
+    <h2 id="faq">Questions</h2>
+    <details class="qa">
+      <summary>Does it work on Claude's free plan?</summary>
+      <p>Yes. Claude's free plan includes desktop extensions, which is how OpenExtract AI is added to Claude. A long question can read a lot of your backup, so heavy use may need a paid Claude plan. That's Claude's limit, not OpenExtract AI's, and OpenExtract AI's price is the same either way.</p>
+    </details>
+    <details class="qa">
+      <summary>Which AI apps does it work with?</summary>
+      <p>Claude's desktop app for Mac and Windows, first: that's what OpenExtract AI is built and tested with. ChatGPT's desktop app can connect too, and so can Claude Code. OpenExtract shows its Ask AI button only when one of them is installed.</p>
+    </details>
+    <details class="qa">
+      <summary>Mac, Windows or Linux?</summary>
+      <p>Macs with Apple Silicon, and Windows 10 and 11. There's no Linux add-on; OpenExtract itself still runs on Linux, free as always.</p>
+    </details>
+    <details class="qa">
+      <summary>Does it work with encrypted backups?</summary>
+      <p>Yes, and the password never goes to the AI. On a Mac, a password box from your Mac, not from Claude, asks for it, and Claude never sees what you type. On Windows the add-on can't show a password box yet; the <a href="/use-cases/ask-claude-about-your-iphone-backup#encrypted">setup guide</a> says what works there. Never paste a backup password into a chat.</p>
+    </details>
+    <details class="qa">
+      <summary>What counts as a question?</summary>
+      <p>OpenExtract AI can't see what you type to the AI, only the lookups the AI makes in your backup. So it counts lookups that come within two minutes of each other as one question; a pause of more than two minutes starts the next one. Opening a backup and checking what's in it don't count. The three free questions allow up to 75 lookups in all.</p>
+    </details>
+    <details class="qa">
+      <summary>Which backup does it read?</summary>
+      <p>The one you last opened in OpenExtract. The AI can also list the other backups on your computer and open one when you ask.</p>
+    </details>
+    <details class="qa">
+      <summary>Is OpenExtract still free?</summary>
+      <p>Yes. OpenExtract stays free and open source, with no limits, whether or not you use OpenExtract AI. Nothing was taken out of it to make the add-on.</p>
+    </details>
+    <details class="qa">
+      <summary>Can it be wrong?</summary>
+      <p>Yes. It's set up to point to the message, call or note each answer rests on, to say when an answer rests on one message, and to keep plans apart from things that happened. Check anything that matters against the messages it points to.</p>
+    </details>
+    <details class="qa">
+      <summary>What if it doesn't work for me?</summary>
+      <p>Try the three free questions first. They run the same add-on a key unlocks, on your own backup, so you'll know before you pay. If something goes wrong, report it from OpenExtract's feedback form or on <a href="https://github.com/charleswest775/openextract/issues">GitHub</a>.</p>
+    </details>
+    <details class="qa">
+      <summary>Who makes it?</summary>
+      <p>The same people as OpenExtract: Charles West, an independent developer, with help from contributors. More on the <a href="/about">About</a> page.</p>
+    </details>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Have OpenExtract? Open it and click Ask AI.</div>
+        <div class="cta-strip__sub">Not yet? It's free for Mac and Windows. Read the <a href="/blog/introducing-openextract-ai">launch post</a>.</div>
+      </div>
+      <a class="cta-strip__btn" href="/use-cases/ask-claude-about-your-iphone-backup">Set it up →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/support">Pay it forward</a></li>
+        <li><a href="/what-people-say">What people say</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
