@@ -28,8 +28,8 @@ modules:
     buildsystem: simple
     sources:
       - type: file
-        url: https://github.com/charleswest775/openextract/releases/download/v0.21.0/openextract_0.21.0_amd64.deb
-        sha256: 00c29601340d671c9473bd66e33521e148eb07b2758e8ba83295a7c28aa2fbb3
+        url: https://github.com/charleswest775/openextract/releases/download/v0.22.0/openextract_0.22.0_amd64.deb
+        sha256: e955ca1586ddcd8383f02d61102ab4f72c95edf2c0fa1f346a79fca434012438
         dest-filename: openextract.deb
         only-arches:
           - x86_64
