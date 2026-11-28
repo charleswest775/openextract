@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-28
+
 A backup deleted from the computer no longer stays in Your backups, and on Mac and Windows each backup there now has a ⋯ menu to show it in Finder or File Explorer, move it to the Trash or Recycle Bin, or take it off the list. Back up my iPhone warns when the chosen folder is in OneDrive, iCloud Drive, Dropbox or Google Drive. Saving photos from an encrypted backup no longer needs the whole library's size free on this computer's own drive, a photo that can't be shown now says so, and attachments saved with a Messages webpage keep their message's date.
 
 ### Added
