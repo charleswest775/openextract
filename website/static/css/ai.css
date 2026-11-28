@@ -1,4 +1,4 @@
-/* OpenExtract AI's buy and thank-you pages (/ai/buy, /ai/thanks). On top of site.css. */
+/* OpenExtract AI's pages: the product page (/ai), the buy and thank-you pages (/ai/buy, /ai/thanks). On top of site.css. */
 /* Lined up with .page-head above (980px wide with 56px sides) */
 .ai-buy, .ai-key { max-width: 980px; margin: 0 auto 96px; padding: 0 56px; box-sizing: border-box; }
 .ai-buy [hidden], .ai-key [hidden] { display: none !important; }
@@ -30,3 +30,63 @@
 @media (max-width: 520px) { .ai-buy__code { font-size: 30px; } }
 /* The second button is outlined, so it reads as a button on the white card */
 .ai-buy__option .btn:not(.btn--primary), .ai-key__actions .btn:not(.btn--primary) { border: 1px solid var(--ink, #1f1d1a); }
+.ai-buy__facts a { color: var(--coral); }
+.ai-buy__facts a:hover { text-decoration: underline; }
+
+/* ── The OpenExtract AI page (/ai) ───────────────────────────────────────── */
+.ai-head__actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 28px; }
+.ai-head__actions .btn:not(.btn--primary), .ai-price__actions .btn:not(.btn--primary) { border: 1px solid var(--ink); }
+.ai-head__note { font-size: 15px; color: var(--ink-dim); margin: 18px 0 0; max-width: 720px; line-height: 1.5; }
+/* Lined up with .page-head above (980px wide with 56px sides), as the buy page is */
+.ai-section, .snags.ai-faq { max-width: 980px; margin: 0 auto; padding: 32px 56px 48px; box-sizing: border-box; }
+.ai-section > h2 { font-size: 44px; letter-spacing: -0.02em; font-weight: 500; line-height: 1.02; margin: 0 0 14px; }
+.ai-section__lede { font-size: 17px; color: var(--ink-soft); line-height: 1.6; max-width: 760px; margin: 0 0 28px; }
+.ai-section__lede a, .ai-section__more a, .ai-price__more a, .ai-steps a { color: var(--coral); }
+.ai-section__lede a:hover, .ai-section__more a:hover, .ai-price__more a:hover, .ai-steps a:hover { text-decoration: underline; }
+.ai-section__more { font-size: 16px; color: var(--ink-soft); margin: 24px 0 0; line-height: 1.6; max-width: 760px; }
+
+/* What people ask: the question, the answer, and the refs it rests on */
+.ai-asks { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.ai-ask { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ai-ask__q { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: 24px; line-height: 1.2; letter-spacing: -0.01em; margin: 0; }
+.ai-ask__a { font-size: 15px; color: var(--ink-soft); line-height: 1.6; margin: 0; }
+.ai-ask__refs { margin: auto 0 0; padding-top: 10px; border-top: 1px solid var(--line-soft); font-family: var(--mono); font-size: 12px; color: var(--ink-dim); overflow-wrap: anywhere; }
+
+/* What it reads */
+.ai-reads { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.ai-section code, .ai-price__more code { font-family: var(--mono); background: var(--line-soft); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; overflow-wrap: anywhere; }
+.ai-reads li { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; font-size: 15px; color: var(--ink-soft); line-height: 1.5; background: rgba(255,255,255,0.5); }
+.ai-reads li strong { display: block; color: var(--ink); font-size: 16px; font-weight: 600; margin-bottom: 2px; }
+
+/* How to get it: three short steps */
+.ai-steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; counter-reset: ai-step; }
+.ai-steps li { counter-increment: ai-step; border-top: 1px solid var(--line); padding-top: 16px; font-size: 16px; color: var(--ink-soft); line-height: 1.6; }
+.ai-steps li::before { content: "0" counter(ai-step); display: block; font-family: var(--serif); font-style: italic; font-size: 44px; line-height: 1; color: var(--coral); margin-bottom: 10px; }
+.ai-steps li strong { color: var(--ink); }
+
+/* The price box */
+.ai-price { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.ai-price__option { border: 1px solid var(--line); border-radius: 16px; padding: 22px; background: #fff; display: flex; flex-direction: column; gap: 8px; }
+.ai-price__option--free { background: transparent; border-style: dashed; }
+.ai-price__price { font-size: 34px; font-weight: 600; letter-spacing: -0.01em; }
+.ai-price__price span { font-size: 15px; font-weight: 400; color: var(--ink-dim); }
+.ai-price__option p { margin: 0; color: var(--ink-soft); font-size: 15px; line-height: 1.5; }
+.ai-price__actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 24px; }
+.ai-price__more { font-size: 16px; color: var(--ink-soft); line-height: 1.6; max-width: 760px; margin: 20px 0 0; }
+
+/* The privacy band reuses site.css's .privacy; here its readout values are short sentences */
+.ai-privacy .privacy__readout-v { line-height: 1.45; display: block; }
+.ai-privacy .privacy__body + .privacy__body { margin-top: 14px; }
+.ai-privacy .privacy__body a { text-decoration: underline; text-underline-offset: 3px; }
+
+@media (max-width: 1024px) {
+  .ai-price { grid-template-columns: 1fr; }
+  .ai-reads { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .ai-section, .snags.ai-faq { padding: 24px 24px 40px; }
+  .ai-section > h2 { font-size: 32px; }
+  .ai-asks, .ai-reads { grid-template-columns: 1fr; }
+  .ai-reads li { padding: 12px 16px; }
+  .ai-ask__q { font-size: 21px; }
+}

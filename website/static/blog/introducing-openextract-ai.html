@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Ask your iPhone backup a question — OpenExtract Blog</title>
+  <meta name="description" content="OpenExtract AI, a paid add-on, lets Claude read your iPhone backup and cite its sources. Why it exists, what it costs, and why OpenExtract stays free." />
+  <link rel="canonical" href="https://www.openextract.app/blog/introducing-openextract-ai" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://www.openextract.app/blog/introducing-openextract-ai" />
+  <meta property="og:title" content="OpenExtract AI: ask your iPhone backup a question" />
+  <meta property="og:description" content="A paid add-on that lets Claude read your iPhone backup and cite its sources. $29 per iPhone, three questions free. OpenExtract itself stays free." />
+  <meta property="og:image" content="https://www.openextract.app/img/og-image.png" />
+  <meta property="article:published_time" content="2026-11-28" />
+  <meta property="article:modified_time" content="2026-11-28" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "OpenExtract AI: ask your iPhone backup a question",
+    "description": "OpenExtract AI, a paid add-on, lets Claude read your iPhone backup and cite its sources. Why it exists, what it costs, and why OpenExtract stays free.",
+    "url": "https://www.openextract.app/blog/introducing-openextract-ai",
+    "mainEntityOfPage": "https://www.openextract.app/blog/introducing-openextract-ai",
+    "datePublished": "2026-11-28",
+    "dateModified": "2026-11-28",
+    "image": "https://www.openextract.app/img/og-image.png",
+    "author": {
+      "@type": "Person",
+      "name": "Charles West",
+      "url": "https://www.openextract.app/about"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OpenExtract",
+      "url": "https://www.openextract.app/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.openextract.app/img/logo.png"
+      }
+    }
+  }
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+    <div class="nav__links">
+      <a href="/how-it-works">How it works</a>
+      <a href="/vs-imazing">vs iMazing</a>
+      <a href="/blog" class="is-current">Blog</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav__right">
+      <a class="nav__pay" href="/support" aria-label="Pay it forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.4C1 8.4 2.9 4.5 6.6 4.5c2.2 0 3.7 1.2 4.4 2.5h2c.7-1.3 2.2-2.5 4.4-2.5 3.7 0 5.6 3.9 4.2 7.1C19.5 16.4 12 21 12 21z"/></svg><span class="nav__pay-label">Pay it forward</span></a>
+      <a class="nav__gh" href="https://github.com/charleswest775/openextract">GitHub ↗</a>
+      <a class="nav__cta" href="/#download">Get it free</a>
+    </div>
+  </nav>
+
+  <header class="post-header">
+    <a class="post-back" href="/blog">← Blog</a>
+    <div class="post-meta">
+      <span class="blog-cat blog-cat--technical">News</span>
+      <span class="blog-date"><time datetime="2026-11-28">2026-11-28</time> · 5 min read</span>
+    </div>
+    <h1>Ask your iPhone backup<br /><span class="it">a question</span>.</h1>
+    <p class="post-header__lede">OpenExtract AI is a paid add-on that lets Claude read your iPhone backup and answer questions about it, with the message each answer came from. OpenExtract itself stays free.</p>
+  </header>
+
+  <article class="post-body">
+    <p>People don't open an old iPhone backup to scroll. They open it to find something: the gate code a friend texted two summers ago, the last voicemail from a parent, when they last really talked to an old friend, what they promised to bring to a wedding.</p>
+
+    <p>OpenExtract is good at showing you everything in a backup, and saving it. But a list of forty thousand messages doesn't answer "when did we last talk?" Search helps if you remember the exact words. Often you don't.</p>
+
+    <p>So I made OpenExtract AI. It lets Claude, on your own computer, search and read the backup and answer the question you actually have.</p>
+
+    <h2>What it does</h2>
+
+    <p>OpenExtract AI is an add-on that comes inside OpenExtract. An AI app on your computer, Claude first, starts it and asks it to look things up in your backup: messages, WhatsApp, calls, voicemail and its transcripts, contacts, notes, calendar and photos, including the photos people sent you in messages. You ask in plain words. Claude does the looking and writes the answer.</p>
+
+    <p>Every answer can point to the exact message, call, voicemail or note it rests on, so you can check it. It's told to say when an answer rests on a single message, and to keep plans apart from things that happened: "I'm going to learn to surf" isn't proof anyone surfed. People use a backup to recall what they've forgotten, so a confident wrong detail is worse than a gap.</p>
+
+    <p>Here's one answer from the made-up sample backup used for OpenExtract's screenshots. Asked "Did Kenji ever bring me those rice crackers?", it found Kenji's message from December 19, 2025, "I'll bring you back the good rice crackers from Osaka", saw that crackers and Osaka never come up again, and said so: the backup shows the promise, not whether he kept it. <a href="/ai#asks">More sample answers are here</a>.</p>
+
+    <p>It only reads. It never changes your backup. The one thing it writes is a file you ask for, such as everything with one person, saved as a new file.</p>
+
+    <h2>How you get it</h2>
+
+    <p>Open your backup in OpenExtract, click <strong>Ask AI</strong>, then <strong>Install</strong> next to Claude. Claude shows its own Install window; click Install, start a new chat and ask. There's nothing to download, because the add-on is already inside OpenExtract. ChatGPT's desktop app can connect too, and so can Claude Code. The <a href="/use-cases/ask-claude-about-your-iphone-backup">setup guide</a> has every step, for Mac and Windows.</p>
+
+    <p>Ask AI only appears if you already have one of those AI apps on your computer. If you don't use AI, you won't see it, and nothing about OpenExtract changes for you.</p>
+
+    <h2>What it costs, and why per iPhone</h2>
+
+    <p>The first three questions on each computer are free, so you can see what it finds in your own backup before you pay. After that, a key for the iPhone you're asking about costs <strong>$29 once</strong>, for good, or <strong>$9 for 7 days</strong>, which ends on its own.</p>
+
+    <p>A key belongs to an iPhone, not to an account. There is no account: you don't sign up or sign in, and the key is checked on your own computer. It works on every computer you use, and for every backup that iPhone ever made. A different iPhone needs its own key.</p>
+
+    <p>There's no subscription because there's nothing to rent. Your old backups don't change. If you have one job to do, like pulling together everything with one person for a dispute, a week is $9 and it stops by itself.</p>
+
+    <h2>What goes where</h2>
+
+    <p>This part matters, so here it is plainly.</p>
+
+    <ul>
+      <li><strong>Your backup stays on your computer.</strong> OpenExtract AI runs there and talks only to the AI app that started it. OpenExtract sends nothing.</li>
+      <li><strong>What the AI reads goes to the AI company.</strong> Whatever Claude reads from your backup, the Claude app sends to Anthropic, as it does with anything you paste into a chat. With ChatGPT, it goes to OpenAI. Ask about things you'd be comfortable sharing that way.</li>
+      <li><strong>Your backup password never goes to the AI.</strong> On a Mac, a password box from your Mac, not from Claude, asks for it.</li>
+      <li><strong>Hidden photos stay out</strong> unless you ask for them, and photos in Recently Deleted are never shown, as on the iPhone.</li>
+    </ul>
+
+    <h2>OpenExtract stays free</h2>
+
+    <p>Nothing was taken out of OpenExtract to make this. It still opens and saves everything, with no trial, no limits and no account, and it's still open source. OpenExtract AI is a separate add-on for people who want to ask questions, and it's how the project pays its way without charging for the free app.</p>
+
+    <h2>What it can't do yet</h2>
+
+    <ul>
+      <li>It reads one backup at a time, so it can't compare two backups of the same iPhone.</li>
+      <li>Voice memos, Safari history and podcasts aren't part of it yet, and it can't watch videos.</li>
+      <li>Search matches words, not meaning. Claude tries several wordings, but it can still miss something said in words you didn't expect.</li>
+      <li>On Windows, it can't ask for an encrypted backup's password yet. The guide says what works there.</li>
+      <li>There's no Linux version. OpenExtract itself still runs on Linux.</li>
+    </ul>
+
+    <p>OpenExtract AI is made the same way OpenExtract is: by me, an independent developer, with help from contributors. If you try it, I'd like to hear what you asked and where it got something wrong. OpenExtract's feedback form reaches me directly.</p>
+
+    <p class="post-body__sig">— Charles West</p>
+  </article>
+
+  <section class="post-more">
+    <div class="post-more__inner">
+      <div class="post-more__head">Keep reading</div>
+      <div class="post-more__grid">
+        <a class="post-more__link" href="/ai">What OpenExtract AI does, with sample answers →</a>
+        <a class="post-more__link" href="/use-cases/ask-claude-about-your-iphone-backup">Set it up, step by step →</a>
+        <a class="post-more__link" href="/blog/the-journal-you-never-meant-to-keep">The journal you never meant to keep →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-strip">
+    <div class="cta-strip__inner">
+      <div>
+        <div class="cta-strip__label">Have OpenExtract? Open it and click Ask AI.</div>
+        <div class="cta-strip__sub">Three questions free on each computer. OpenExtract itself is free for Mac, Windows and Linux.</div>
+      </div>
+      <a class="cta-strip__btn" href="/use-cases/ask-claude-about-your-iphone-backup">Set it up →</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>
+      <div class="footer__brand">
+        <div class="footer__logo" aria-hidden="true">o</div>
+        <span class="footer__wordmark">OpenExtract</span>
+      </div>
+      <p class="footer__blurb">An open-source iPhone backup extractor. MIT licensed. Made because no one else would.</p>
+    </div>
+    <div>
+      <div class="footer__col-head">Product</div>
+      <ul class="footer__list">
+        <li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/screenshots">Screenshots</a></li>
+        <li><a href="/#download">Download</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Use cases</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/export-iphone-messages">Get texts off iPhone</a></li>
+        <li><a href="/use-cases/export-iphone-data">Export iPhone data</a></li>
+        <li><a href="/use-cases/free-imazing-alternative">Free iMazing alternative</a></li>
+        <li><a href="/use-cases/free-iphone-backup-viewer">iPhone backup viewer</a></li>
+        <li><a href="/use-cases/iphone-backup-extractor-linux">iPhone backups on Linux</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Guides</div>
+      <ul class="footer__list">
+        <li><a href="/use-cases/print-text-messages-for-court">Print texts for court</a></li>
+        <li><a href="/use-cases/export-imessage-to-pdf">iMessage to PDF</a></li>
+        <li><a href="/use-cases/save-iphone-texts-to-windows-pc">Texts to a Windows PC</a></li>
+        <li><a href="/use-cases/view-iphone-backup-on-windows">View a backup on Windows</a></li>
+        <li><a href="/use-cases/save-voicemails-from-iphone-backup">Save voicemails</a></li>
+        <li><a href="/use-cases/recover-deleted-text-messages-iphone">Recover deleted texts</a></li>
+        <li><a href="/use-cases/keep-messages-iphone-to-android">iPhone to Android</a></li>
+        <li><a href="/guides">All guides</a></li>
+        <li><a href="/fixes">Fixes for common problems</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Compare</div>
+      <ul class="footer__list">
+        <li><a href="/vs-imazing">vs iMazing</a></li>
+        <li><a href="/vs-iexplorer">vs iExplorer</a></li>
+        <li><a href="/vs-ibackup-viewer">vs iBackup Viewer</a></li>
+        <li><a href="/vs-reincubate">vs Reincubate</a></li>
+        <li><a href="/imazing-alternatives">All iMazing alternatives</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer__col-head">Project</div>
+      <ul class="footer__list">
+        <li><a href="/about">About</a></li>
+        <li><a href="/support">Pay it forward</a></li>
+        <li><a href="/what-people-say">What people say</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/privacy">Privacy</a></li>
+        <li><a href="https://github.com/charleswest775/openextract">GitHub</a></li>
+        <li><a href="https://github.com/charleswest775/openextract/blob/main/LICENSE">License (MIT)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
