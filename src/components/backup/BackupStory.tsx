@@ -143,33 +143,25 @@ function chapters(): Chapter[] {
       body: [
         "Here's what people are saying. Every week, someone writes to tell me what OpenExtract got back for them.",
       ],
-      // From the site's published thank-yous (openextract.app/api/thanks, 2026-11-27), typos and
-      // all; "…" where a sentence is cut. Shown three at a time, in this order.
+      // The most heartfelt of the site's published thank-yous (openextract.app/api/thanks,
+      // 2026-11-28), typos and all; "…" where words are cut. Three screens of three, back to back,
+      // in this order; the chapter stays up until the last screen has been read (readingTime).
       media: {
         kind: 'quotes',
         quotes: [
+          'My mother passed away last December and I am downloading the text conversations we had with her the previous year. Its a keepsake… This is something I can share with my family.',
           'Recovered sentimental voicemails from my passed Dad. Thank you so much, this means a lot…',
-          "Made a backup, and thanks to OpenExtract I could retrieve it easily. Otherwise years of photo's would've been gone :)",
-          "Thanks. If this works out i'll buy you a beverage of your choice",
-
-          "I just recovered thousands of messages from my dad's 14-year-old iPhone 4S (running iOS 9.3.6).",
-          'OpenExtract is exactly the feature WhatsApp was missing!',
           'i am crying - thank you so much',
 
-          'OpenExtract gave me an incredible peace of mind, and sense of safety today. Very, very, very grateful.',
-          '…with your application it worked, by the first try... thanks you are a great human.',
-          'This program was a lifesaver, thank you so much!',
-
-          'My mother passed away last December and I am downloading the text conversations we had with her the previous year. Its a keepsake.',
-          "I grabbed contacts from a backup of a currently inoperable phone and OpenExtract didn't charge me like iMazing wanted to do.",
-          'This worked PERFECTLY!',
-
+          "I just recovered thousands of messages from my dad's 14-year-old iPhone 4S… These are precious family memories from when my dad was 40 and I was just a kid.",
           'Thanks for your help ! I wanted to keep my messages from a friend who passed away recently !',
+          'OpenExtract gave me an incredible peace of mind, and sense of safety today. Very, very, very grateful.',
+
+          'it saved the memory of my messages from my dad. Thank you !!!!!!!!',
           "So so so thankful for this. I had an update go wrong on my Iphone 14 Pro Max and thought I'd lost some very important informaton in my Notes. Bless you for this",
-          'thanks man you save me',
+          "Made a backup, and thanks to OpenExtract I could retrieve it easily. Otherwise years of photo's would've been gone :)",
         ],
       },
-      minMs: 18000,
     },
     {
       id: 'who-pays',
@@ -215,10 +207,21 @@ function chapters(): Chapter[] {
   ];
 }
 
-// Long enough to read at a relaxed pace: about 0.28 s a word, 8 to 16 seconds.
+const QUOTES_PER_SET = 3;
+const QUOTE_SET_MS = 8000;
+
+function quoteSets(quotes: string[]): string[][] {
+  const sets: string[][] = [];
+  for (let i = 0; i < quotes.length; i += QUOTES_PER_SET) sets.push(quotes.slice(i, i + QUOTES_PER_SET));
+  return sets;
+}
+
+// Long enough to read at a relaxed pace: about 0.28 s a word, 8 to 16 seconds. The thank-yous
+// chapter stays up until every screen of them has shown.
 function readingTime(c: Chapter): number {
   const words = [c.title, ...c.body, ...(c.list ?? []), c.outro ?? ''].join(' ').split(/\s+/).length;
-  return Math.max(c.minMs ?? 0, Math.min(16000, Math.max(8000, 3000 + words * 280)));
+  const quotesMs = c.media.kind === 'quotes' ? quoteSets(c.media.quotes).length * QUOTE_SET_MS : 0;
+  return Math.max(c.minMs ?? 0, quotesMs, Math.min(16000, Math.max(8000, 3000 + words * 280)));
 }
 
 /** One good day's bits, each from a different app. Made up: no real person or event. */
@@ -294,41 +297,19 @@ function ChainPanel({ active }: { active: boolean }) {
   );
 }
 
-const QUOTES_PER_SET = 3;
-const QUOTE_SET_MS = 6000;
+const QUOTE_FADE_MS = 350;
 
 /**
- * Published thank-yous, three at a time. While the chapter is up and the story is playing, the
- * next three fade in every few seconds; the panel stays mounted, so the next pass through the
- * story picks up where this one stopped.
+ * Published thank-yous, three at a time, one screen after another. The screen follows the
+ * chapter's own clock (elapsed), so every time the chapter comes up it starts at the first
+ * screen, shows each in turn, and moves on after the last; pausing the story holds the screen.
+ * Each screen fades out in its last moment, except the last, which the chapter fade takes away.
  */
-function QuotesPanel({ quotes, playing }: { quotes: string[]; playing: boolean }) {
-  const sets: string[][] = [];
-  for (let i = 0; i < quotes.length; i += QUOTES_PER_SET) sets.push(quotes.slice(i, i + QUOTES_PER_SET));
-  const [n, setN] = useState(0);
-  const [visible, setVisible] = useState(true);
-  useEffect(() => {
-    if (!playing || sets.length < 2) return;
-    let swap: number | undefined;
-    const timer = window.setInterval(() => {
-      setVisible(false);
-      swap = window.setTimeout(() => {
-        swap = undefined;
-        setN((x) => (x + 1) % sets.length);
-        setVisible(true);
-      }, 350);
-    }, QUOTE_SET_MS);
-    return () => {
-      window.clearInterval(timer);
-      // Paused mid-fade: finish the swap so the panel is never left blank.
-      if (swap !== undefined) {
-        window.clearTimeout(swap);
-        setN((x) => (x + 1) % sets.length);
-        setVisible(true);
-      }
-    };
-  }, [playing, sets.length]);
-  const set = sets[n % sets.length] ?? [];
+function QuotesPanel({ quotes, elapsed }: { quotes: string[]; elapsed: number }) {
+  const sets = quoteSets(quotes);
+  const n = Math.min(sets.length - 1, Math.max(0, Math.floor(elapsed / QUOTE_SET_MS)));
+  const visible = n === sets.length - 1 || elapsed - n * QUOTE_SET_MS < QUOTE_SET_MS - QUOTE_FADE_MS;
+  const set = sets[n] ?? [];
   return (
     <div className="relative h-full rounded-xl bg-sand border border-rule">
       <div className={`h-full flex flex-col justify-center gap-3 px-7 pb-6 transition-opacity duration-300 motion-reduce:transition-none ${visible ? 'opacity-100' : 'opacity-0'}`}>
@@ -345,7 +326,7 @@ function QuotesPanel({ quotes, playing }: { quotes: string[]; playing: boolean }
         <span>From Say thanks notes people said were OK to share</span>
         <span className="flex gap-1.5" aria-hidden="true">
           {sets.map((_, i) => (
-            <span key={i} className={`w-1.5 h-1.5 rounded-full ${i === n % sets.length ? 'bg-accent' : 'bg-gray-300'}`} />
+            <span key={i} className={`w-1.5 h-1.5 rounded-full ${i === n ? 'bg-accent' : 'bg-gray-300'}`} />
           ))}
         </span>
       </div>
@@ -353,7 +334,7 @@ function QuotesPanel({ quotes, playing }: { quotes: string[]; playing: boolean }
   );
 }
 
-function MediaPanel({ media, active, playing }: { media: Media; active: boolean; playing: boolean }) {
+function MediaPanel({ media, active, elapsed }: { media: Media; active: boolean; elapsed: number }) {
   if (media.kind === 'chain') return <ChainPanel active={active} />;
   if (media.kind === 'shot') {
     return (
@@ -385,7 +366,7 @@ function MediaPanel({ media, active, playing }: { media: Media; active: boolean;
       </div>
     );
   }
-  if (media.kind === 'quotes') return <QuotesPanel quotes={media.quotes} playing={playing} />;
+  if (media.kind === 'quotes') return <QuotesPanel quotes={media.quotes} elapsed={elapsed} />;
   if (media.kind === 'free') {
     // A made-up, generic "upgrade to export" dialog (no real product's look or price), with
     // OpenExtract's answer on top of it.
@@ -570,7 +551,7 @@ export default function BackupStory() {
               data-chapter={c.id}
             >
               <div className="w-[56%] flex-shrink-0">
-                <MediaPanel media={c.media} active={i === index && !hidden} playing={i === index && !hidden && !paused} />
+                <MediaPanel media={c.media} active={i === index && !hidden} elapsed={i === index ? elapsed : 0} />
               </div>
               <div className="flex-1 min-w-0 flex flex-col py-2">
                 <p className="text-[11px] font-medium uppercase tracking-wider text-accent">
