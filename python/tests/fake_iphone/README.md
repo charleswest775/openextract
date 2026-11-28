@@ -41,8 +41,8 @@ A plan is a list of DeviceLink steps ([`plan.py`](plan.py) lists them all):
 ```
 
 `synthetic_backup()` makes a first full backup of a fictional iPhone: about 120 small files and
-three big "videos" (14 MB in all, made up as they're sent), and a real `Manifest.db`. Its order
-follows a trace of a real one (an iPhone 17 on iOS 27.2, 47,277 files):
+three big "videos" (14 MB in all, made up as they're sent), and a real `Manifest.db`, in
+MobileBackup2's order:
 1. The iPhone reads `Status.plist`, asks for free space, and creates `<xx>` and `Snapshot/<xx>`
    for all 256 `<xx>`.
 2. It sends every file to `Snapshot/<xx>/<fileID>`, up to 128 files per message, then
@@ -51,7 +51,7 @@ follows a trace of a real one (an iPhone 17 on iOS 27.2, 47,277 files):
 4. It removes `Snapshot`, reads the three metadata files back, and lists every folder.
 5. `Status.plist` is written in place four times along the way.
 
-A second backup into the same folder hasn't been traced.
+A second backup into the same folder isn't modelled.
 
 ## Adding a scenario
 
@@ -101,5 +101,5 @@ afterwards.
 
 A trace in [`traces/`](traces) is replayed by `test_replay_trace` on every run.
 `FakeIPhone(plan, pace=1)` replays one at its recorded speed. `FakeIPhone(plan, size_cap=1024)`
-sends at most 1 KiB of each file, so a 68 GB trace replays in seconds.
+sends at most 1 KiB of each file, so a trace of a big backup replays in seconds.
 `traces/synthetic-small-backup.jsonl` was recorded from the fake iPhone itself, to show the format.

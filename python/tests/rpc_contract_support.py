@@ -733,7 +733,7 @@ def _voicemail_db(rows: list[tuple]) -> bytes:
                      "trashed_date INTEGER, flags INTEGER, receiver TEXT, label TEXT)")
         for rowid, iso, sender, seconds in rows:
             conn.execute("INSERT INTO voicemail (ROWID, date, sender, duration, flags, trashed_date) "
-                         "VALUES (?, ?, ?, ?, ?, 0)", (rowid, _iso_seconds(iso), sender, seconds, 0x3))
+                         "VALUES (?, ?, ?, ?, ?, 0)", (rowid, _iso_seconds(iso), sender, seconds, 0x200001))
     return _sqlite_bytes(build)
 
 
@@ -777,7 +777,7 @@ def make_person_copy(source: Path, dest: Path, scenario) -> PersonPlan:
     voicemail_audio = {1: AMR_BYTES + b"\x01", 2: None}
     files[("HomeDomain", "Library/Voicemail/voicemail.db")] = _voicemail_db([
         (1, "2024-03-04T10:00:00", PERSON_NUMBER, 23),
-        (2, "2024-03-05T10:00:00", PERSON_NUMBER, 8),
+        (2, "2024-03-05T10:00:00", PERSON_NUMBER, 61),
     ])
     files[("HomeDomain", "Library/Voicemail/1.amr")] = voicemail_audio[1]
     files[("HomeDomain", "Library/Voicemail/1.transcript")] = plistlib.dumps(

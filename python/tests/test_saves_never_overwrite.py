@@ -268,7 +268,7 @@ class TestVoicemail(_InATempFolder):
     def save(self, audio: bytes, folder: str = "voicemail", transcript: str = "Call me") -> dict:
         source = _write(os.path.join(self.tmp, "backup", "1.amr"), audio)
         vm = {"id": 1, "folder": folder, "date_received": "2024-07-05T12:00:00+00:00", "contact_name": "Mum",
-              "phone_number": "+15550000001", "duration": 9, "is_read": True, "transcript": transcript}
+              "phone_number": "+15550000001", "duration": 76, "is_read": True, "transcript": transcript}
         extractor = VoicemailExtractor()
         extractor.local_tz = timezone.utc
         extractor._inner = mock.Mock(**{"list_voicemails.return_value": {"voicemails": [vm]},

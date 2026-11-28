@@ -12,7 +12,7 @@ replayed here as it is. Each op is a dict with an "op" key:
         {"path": "{udid}/Snapshot/3d/3d0d7e5f...", "device_name": "/var/mobile/...", "size": 52133,
          "domain": "HomeDomain", "relative_path": "Library/SMS/sms.db",  # optional, for Manifest.db
          "error": "..."}]}                        # optional: the iPhone couldn't read this file
-    {"op": "MoveItems", "items": {"{udid}/Snapshot/3d/3d0d7e5f...": "{udid}/3d/3d0d7e5f..."}, "progress": 99}
+    {"op": "MoveItems", "items": {"{udid}/Snapshot/3d/3d0d7e5f...": "{udid}/3d/3d0d7e5f..."}, "progress": 91.5}
     {"op": "RemoveItems", "paths": ["{udid}/Snapshot"], "progress": 100}
     {"op": "CopyItem", "src": "...", "dst": "..."}
     {"op": "ContentsOfDirectory", "path": "{udid}"}
@@ -25,13 +25,12 @@ replayed here as it is. Each op is a dict with an "op" key:
 "{udid}" stands for the iPhone's UDID. A recorded op may also carry "t", the seconds since the
 backup started; replay ignores it unless asked to keep the pacing (FakeIPhone(pace=...)).
 
-synthetic_backup() follows a trace of a real first full backup (an iPhone 17 on iOS 27.2 into an
-empty folder, 2026-11-10; 47,277 files, 68 GB): it creates <udid>/<xx> and <udid>/Snapshot/<xx>
-for all 256 <xx>, sends every file to Snapshot/<xx>/<fileID> in batches of up to 128, moves
-them ONE FILE AT A TIME (128 per message) to <xx>/<fileID>, then Manifest.plist and Manifest.db,
-removes Snapshot, reads Status.plist, Manifest.plist and Manifest.db back, and lists every
-folder. Status.plist is written in place four times. A second backup into the same folder
-hasn't been traced.
+synthetic_backup() is a first full backup into an empty folder, in MobileBackup2's order: it
+creates <udid>/<xx> and <udid>/Snapshot/<xx> for all 256 <xx>, sends every file to
+Snapshot/<xx>/<fileID> in batches of up to 128, moves them ONE FILE AT A TIME (128 per message)
+to <xx>/<fileID>, then Manifest.plist and Manifest.db, removes Snapshot, reads Status.plist,
+Manifest.plist and Manifest.db back, and lists every folder. Status.plist is written in place
+four times. A second backup into the same folder isn't modelled.
 """
 
 from __future__ import annotations
@@ -106,9 +105,8 @@ def synthetic_backup(
     batch_size: int = 128,
 ) -> list[dict]:
     """
-    A first full backup of a fictional iPhone, in the order a real one sends it (see the module's
-    docstring). Large files are generated as they're sent, so a "video" costs nothing until the
-    computer writes it.
+    A first full backup of a fictional iPhone, in the order the module's docstring gives. Large
+    files are generated as they're sent, so a "video" costs nothing until the computer writes it.
     """
     u, snapshot = UDID_PLACEHOLDER, f"{UDID_PLACEHOLDER}/Snapshot"
     files = _sample_files(file_count, large_files)
@@ -118,34 +116,34 @@ def synthetic_backup(
 
     ops: list[dict] = [
         # The last backup's Status.plist (pymobiledevice3 has just written one), then a pause while
-        # the iPhone prepares (22 s in the trace).
+        # the iPhone prepares.
         {"op": "DownloadFiles", "paths": [f"{u}/Status.plist"], "progress": 0},
         {"op": "GetFreeDiskSpace"},
         {"op": "CreateDirectory", "path": u},
         *({"op": "CreateDirectory", "path": f"{u}/{xx}"} for xx in ALL_PREFIXES),
         {"op": "CreateDirectory", "path": snapshot},
         *({"op": "CreateDirectory", "path": f"{snapshot}/{xx}"} for xx in ALL_PREFIXES),
-        _status_upload(0.08),
+        _status_upload(0.5),
     ]
     batches = [files[i:i + batch_size] for i in range(0, len(files), batch_size)]
     for i, batch in enumerate(batches):
-        ops.append({"op": "UploadFiles", "progress": round(0.08 + 98.8 * (i + 1) / len(batches), 3), "files": batch})
+        ops.append({"op": "UploadFiles", "progress": round(0.5 + 87.0 * (i + 1) / len(batches), 3), "files": batch})
     for name, kind in (("Manifest.plist", "manifest_plist"), ("Manifest.db", "manifest_db")):
-        ops.append({"op": "UploadFiles", "progress": 98.9, "files": [
+        ops.append({"op": "UploadFiles", "progress": 88.25, "files": [
             {"path": f"{snapshot}/{name}", "device_name": name, "size": 0, "generate": kind}]})
-    ops.append(_status_upload(98.9))
+    ops.append(_status_upload(88.25))
 
     moves = [(f["path"], f"{u}/{f['path'][len(snapshot) + 1:]}") for f in files]
     chunks = [moves[i:i + MOVES_PER_MESSAGE] for i in range(0, len(moves), MOVES_PER_MESSAGE)]
     for i, chunk in enumerate(chunks):
-        ops.append({"op": "MoveItems", "items": dict(chunk), "progress": round(98.9 + 1.09 * (i + 1) / len(chunks), 4)})
+        ops.append({"op": "MoveItems", "items": dict(chunk), "progress": round(88.25 + 6.5 * (i + 1) / len(chunks), 4)})
     for name in ("Manifest.plist", "Manifest.db"):
-        ops.append({"op": "MoveItems", "items": {f"{snapshot}/{name}": f"{u}/{name}"}, "progress": 99.999})
+        ops.append({"op": "MoveItems", "items": {f"{snapshot}/{name}": f"{u}/{name}"}, "progress": 95.5})
 
     ops += [
-        _status_upload(99.999),
-        {"op": "RemoveItems", "paths": [snapshot], "progress": 99.9996},
-        {"op": "RemoveItems", "paths": [f"{u}/Manifest.mbdx"], "progress": 99.9998},
+        _status_upload(95.5),
+        {"op": "RemoveItems", "paths": [snapshot], "progress": 96.75},
+        {"op": "RemoveItems", "paths": [f"{u}/Manifest.mbdx"], "progress": 98.25},
         _status_upload(100.0),
         *({"op": "DownloadFiles", "paths": [f"{u}/{name}"], "progress": 100.0}
           for name in ("Status.plist", "Manifest.plist", "Manifest.db")),
@@ -258,8 +256,9 @@ def manifest_plist(values: dict) -> bytes:
 
 
 def status_plist(state: str = "finished") -> bytes:
-    """The iPhone's Status.plist. A step can give its "state": "finished" is the only one a real
-    backup's last Status.plist has; what it writes before that isn't in the trace (names only)."""
+    """The iPhone's Status.plist. A step can give its "state": "finished" is the only one a
+    backup's last Status.plist has; a trace keeps names and sizes only, never what the earlier
+    ones say."""
     return plistlib.dumps({
         "BackupState": "new",
         "Date": datetime.now(timezone.utc).replace(tzinfo=None),

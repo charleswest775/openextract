@@ -10,7 +10,7 @@ name: Pre-release check
 #   - drives the packaged app through every end-to-end suite in scripts/e2e (docs/TESTING.md).
 #
 # Third-party backups (Hickman, FCSC) may not be screenshotted or redistributed, so the
-# only artifacts uploaded are the e2e results for the fictional maren backups.
+# only artifacts uploaded are the e2e results for the generated backups.
 # Linux here builds on the runner's own OS; release.yml builds Linux in an older distro.
 
 on:
@@ -233,9 +233,9 @@ jobs:
                 --suites first-run,open,screens,search,exports,empty,ipc,network,hickman,smoke)
           if [ "$RUNNER_OS" = Linux ]; then env -u PYTHONUTF8 xvfb-run -a -s '-screen 0 1600x1000x24' node "${args[@]}"; else env -u PYTHONUTF8 node "${args[@]}"; fi
 
-      # Maren and einstein are fictional; the hickman suite keeps every Hickman screenshot and
+      # The generated backups are fictional; the hickman suite keeps every Hickman screenshot and
       # export out of e2e-out.
-      - name: Upload end-to-end results (maren only)
+      - name: Upload end-to-end results (generated backups only)
         if: ${{ !cancelled() && (steps.e2e.outcome == 'success' || steps.e2e.outcome == 'failure') }}
         uses: actions/upload-artifact@v4
         with:

@@ -713,14 +713,14 @@ test("personExportSpec: whole chats per source, each once, and calls and voicema
     // A WhatsApp chat whose id is the same number as a Messages chat: never mixed up
     waEntry(9, 17, 'Theo (WhatsApp)'), waEntry(10, 17, 'Theo (WhatsApp)'),
     simple('call', 12), simple('call', 'ft_3'), simple('call', 12),
-    simple('voicemail', 7), simple('voicemail', 'A-0D1F2E3C-4B5A-6978-8796-A5B4C3D2E1F0.7'),
+    simple('voicemail', 52), simple('voicemail', 'A-0D1F2E3C-4B5A-6978-8796-A5B4C3D2E1F0.38'),
   ]);
   assert.deepEqual(spec, {
     display_name: 'Theo Navarro',
     chat_ids: [17, 21], conversation_names: { 17: 'Theo Navarro', 21: 'theo@icloud.com' },
     whatsapp_chat_ids: [17], whatsapp_names: { 17: 'Theo (WhatsApp)' },
     call_ids: ['12', 'ft_3'],
-    voicemail_ids: ['7', 'A-0D1F2E3C-4B5A-6978-8796-A5B4C3D2E1F0.7'],
+    voicemail_ids: ['52', 'A-0D1F2E3C-4B5A-6978-8796-A5B4C3D2E1F0.38'],
     note_ids: [],
   });
   assert.deepEqual(personExportSpec('Nobody', []), {

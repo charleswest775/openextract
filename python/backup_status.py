@@ -4,8 +4,8 @@ Whether a backup folder holds a backup that finished.
 A backup that stops partway leaves a folder that looks like a backup. OE-31: a backup cut off at
 61% was opened as if it were complete, and Calls then failed with "file is not a database".
 
-How an iPhone backup is written (a trace of a real first backup, an iPhone 17 on iOS 27.2,
-2026-11-10, and pymobiledevice3 11.x's Mobilebackup2Service.backup()):
+How an iPhone backup is written (MobileBackup2, as pymobiledevice3 11.x's
+Mobilebackup2Service.backup() drives it):
 
   1. The computer writes <udid>/Info.plist. pymobiledevice3 also writes a Status.plist that says
      SnapshotState "finished" and replaces Manifest.plist with an empty file, all before the

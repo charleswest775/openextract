@@ -37,7 +37,7 @@ def _dev_log(msg: str) -> None:
 # macOS daemons (AMPDevicesAgent, SecureBackupDaemon) can briefly hold the
 # device's backup lock right after the user enters their passcode, which
 # surfaces from pymobiledevice3's device-link loop as ErrorCode 208 ("Device
-# locked"). Windows sees it too, right after the passcode prompt (2026-11-03).
+# locked"). Windows sees it too, right after the passcode prompt.
 # pymobiledevice3 11.26 words it "Device link error: …", later 11.x releases
 # "The device reported an error: …".
 _BACKUP_LOCK_ERROR_RE = re.compile(r"(?:Device link error|The device reported an error):.*'ErrorCode': 208\b")
@@ -266,8 +266,8 @@ def _device_code_import_error(e: ImportError) -> RuntimeError:
 # "Trust This Computer?" Every pairing request carries a newly generated certificate chain,
 # and the iPhone asks again for each new one. pymobiledevice3 pairs as a side effect of
 # connecting and gives up as soon as the iPhone is locked or asking for its passcode, so
-# each search started a new request and the user tapped Trust once per search (three
-# times on Windows, 2026-11-03). Searching now never pairs. pair_device sends one request
+# each search started a new request and the user tapped Trust once per search.
+# Searching now never pairs. pair_device sends one request
 # per iPhone and resends that same request until the user has answered it.
 async def _new_pair_request(lockdown) -> dict:
     """The Pair request pymobiledevice3's LockdownClient.pair() would send, kept for reuse."""
@@ -298,9 +298,9 @@ async def _new_pair_request(lockdown) -> dict:
 
 class _BackupPasscodeWatcher(logging.Handler):
     """
-    Calls on_prompt when the iPhone asks for its passcode to allow the backup (it did before
-    each encrypted backup on iOS 27). pymobiledevice3 only logs that notification (NP_LOCAL_AUTH_PRESENTED),
-    so we listen for its log line and the app can say why the backup is waiting.
+    Calls on_prompt when the iPhone asks for its passcode to allow the backup. pymobiledevice3
+    only logs that notification (NP_LOCAL_AUTH_PRESENTED), so we listen for its log line and the
+    app can say why the backup is waiting.
     """
 
     def __init__(self, on_prompt: Callable[[], None]):

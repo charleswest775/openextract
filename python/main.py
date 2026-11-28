@@ -661,7 +661,7 @@ class SidecarServer:
         params: output_dir; format ("html", "pdf_source", "csv" or "txt"); display_name;
         chat_ids (sms.db chats) with conversation_names; whatsapp_chat_ids (ChatStorage chats,
         never mixed with sms.db's: the ids overlap) with whatsapp_names; call_ids (as list_calls
-        gives them: 12, "ft_3", "vm_9"); voicemail_ids; note_ids (shared notes); message_ids and
+        gives them: 12, "ft_3", "vm_74"); voicemail_ids; note_ids (shared notes); message_ids and
         whatsapp_message_ids (when given, only those messages of the chats; absent, whole chats);
         media_dir (pdf_source: the folder the PDF goes in, which also gets the originals).
         Progress goes out as export.progress with kind "person". Returns { file, message_count, counts, media, errors, media_folder? }.

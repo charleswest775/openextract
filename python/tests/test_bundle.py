@@ -38,8 +38,8 @@ SPAM_MARK = hasattr(_core_voicemail, "is_spam")
 UDID = "00008030-0000000000000002"
 ACCOUNT = "A-0B1C2D3E-4F50-4A6B-8C7D-9E0F1A2B3C4D"
 AMR = b"#!AMR\n" + bytes(32)
-# Made-up flag words: known bits (0x1 heard, 0x8 deleted, 0x80 spam, 0x2) beside one the reader ignores (0x40000)
-LIVE, SPAM, TRASHED, DELETED_LONG_AGO, SPAM_THEN_DELETED = 0x40003, 0x40082, 0x4000A, 0x4000B, 0x4008A
+# Made-up flag words: known bits (0x1 heard, 0x8 deleted, 0x80 spam) beside two the reader ignores (0x40000, 0x200000)
+LIVE, SPAM, TRASHED, DELETED_LONG_AGO, SPAM_THEN_DELETED = 0x240001, 0x240080, 0x240008, 0x240009, 0x240088
 
 
 def _voicemail_db(rows) -> bytes:
@@ -63,8 +63,8 @@ def _voicemail_db(rows) -> bytes:
 def _make_backup(backup_dir: str, files: dict) -> None:
     os.makedirs(backup_dir)
     with open(os.path.join(backup_dir, "Info.plist"), "wb") as f:
-        plistlib.dump({"Unique Identifier": UDID, "Device Name": "Test: iPhone?", "Product Type": "iPhone17,1",
-                       "Product Version": "26.1"}, f)
+        plistlib.dump({"Unique Identifier": UDID, "Device Name": "Test: iPhone?", "Product Type": "iPhone12,1",
+                       "Product Version": "17.3"}, f)
     with open(os.path.join(backup_dir, "Manifest.plist"), "wb") as f:
         plistlib.dump({"IsEncrypted": False}, f)
     manifest = sqlite3.connect(os.path.join(backup_dir, "Manifest.db"))
@@ -86,18 +86,18 @@ class BundleTest(unittest.TestCase):
         backup_dir = os.path.join(self.tmp.name, UDID)
         _make_backup(backup_dir, {
             "Library/Voicemail/voicemail.db": _voicemail_db([
-                (1, 1_700_000_000, "+15550000001", 20, LIVE, 0),
-                (2, 1_710_000_000, "+15550000002", 30, SPAM, 0),
-                (3, 1_720_000_000, "+15550000003", 40, TRASHED, 1_720_000_100),
-                (4, 1_600_000_000, "+15550000004", 50, DELETED_LONG_AGO, 0),
-                (5, 1_725_000_000, "+15550000005", 12, SPAM_THEN_DELETED, 1_725_000_100),
-                (6, 1_726_000_000, "+15550000001", 8, LIVE, 0),  # no audio in the backup
+                (1, 1_700_000_000, "+15550000001", 78, LIVE, 0),
+                (2, 1_712_000_000, "+15550000002", 73, SPAM, 0),
+                (3, 1_720_000_000, "+15550000003", 67, TRASHED, 1_720_000_100),
+                (4, 1_600_000_000, "+15550000004", 65, DELETED_LONG_AGO, 0),
+                (5, 1_725_000_000, "+15550000005", 69, SPAM_THEN_DELETED, 1_725_000_100),
+                (6, 1_726_000_000, "+15550000001", 62, LIVE, 0),  # no audio in the backup
             ]),
             f"Library/Voicemail/{ACCOUNT}/voicemail.db": _voicemail_db([
-                (27, 1_730_000_000, "+15550000007", 60, 0x3, 0),  # only in the account store
+                (418, 1_730_000_000, "+15550000291", 60, 0x200001, 0),  # only in the account store
             ]),
             **{f"Library/Voicemail/{n}.amr": AMR + bytes([n]) for n in (1, 2, 3, 4, 5)},
-            f"Library/Voicemail/{ACCOUNT}/27.amr": AMR,
+            f"Library/Voicemail/{ACCOUNT}/418.amr": AMR,
         })
         self.server = SidecarServer()
         self.notifications = []
@@ -133,7 +133,7 @@ class BundleTest(unittest.TestCase):
         self.assertEqual((manifest["format"], manifest["experimental"], manifest["time_zone_used"]),
                          ("openextract-bundle", True, "UTC"))
         self.assertEqual(manifest["computer_time_zone"], "Europe/London")
-        self.assertEqual(manifest["backup"]["ios_version"], "26.1")
+        self.assertEqual(manifest["backup"]["ios_version"], "17.3")
         self.assertEqual(manifest["backup"]["device_name"], "Test: iPhone?")
         self.assertEqual(manifest["backup"]["udid_sha256"], hashlib.sha256(UDID.encode()).hexdigest())
         self.assertEqual(manifest["app"]["version"], build_info.app_version())
@@ -147,7 +147,7 @@ class BundleTest(unittest.TestCase):
             {i: (v["folder"], v["is_spam"], v["is_deleted"]) for i, v in rows.items()},
             {"1": ("voicemail", False, False), "2": ("spam", True, False), "3": ("deleted", False, True),
              "4": ("deleted", False, True), "5": ("deleted", True, True), "6": ("voicemail", False, False),
-             f"{ACCOUNT}.27": ("voicemail", False, False)},
+             f"{ACCOUNT}.418": ("voicemail", False, False)},
         )
         self.assertEqual(rows["2"]["phone_number"], "+15550000002")
         self.assertEqual(rows["1"]["date_utc"], "2023-11-14T22:13:20Z")
@@ -315,7 +315,7 @@ class SchemaFilesTest(unittest.TestCase):
     def test_the_checker_catches_a_bad_record(self):
         schema = load_schema("0.1", "voicemail.schema.json")
         good = {"id": "1", "date_utc": "2024-07-05T16:10:00Z", "phone_number": "+15550000001", "contact_name": None,
-                "duration": 3, "is_read": True, "folder": "spam", "is_spam": True, "is_deleted": False,
+                "duration": 95, "is_read": True, "folder": "spam", "is_spam": True, "is_deleted": False,
                 "transcript": None, "audio_path": "voicemail/1.amr", "audio_sha256": "0" * 64}
         self.assertEqual(errors(schema, good), [])
         self.assertTrue(errors(schema, {**good, "folder": "trash"}))

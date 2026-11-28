@@ -233,9 +233,9 @@ def test_connection_reset_partway(out):
 
 
 def test_drop_before_any_progress_keeps_the_trust_advice(out):
-    # While the iPhone is still making folders it hasn't reported any progress (a real one first
-    # does with Status.plist, just before its files), so the app can't say "partway through" and
-    # keeps the Trust and cable advice.
+    # While the iPhone is still making folders it hasn't reported any progress (the plan's first
+    # figure comes with Status.plist, just before its files), so the app can't say "partway
+    # through" and keeps the Trust and cable advice.
     ops = plans.synthetic_backup()
     plan = ops[:next(i for i, op in enumerate(ops) if op["op"] == "UploadFiles")] + [{"op": "Drop"}]
     run = run_backup(FakeIPhone(plan), out)
@@ -271,8 +271,8 @@ def _longest_run_at_one_percent(reports):
 
 def test_iphone_gives_up_when_the_computer_stalls(out, monkeypatch):
     # The computer stops reading for longer than the iPhone waits (a drive spinning up, antivirus
-    # holding a new file): the iPhone closes the connection. How long a real iPhone waits is
-    # unknown; this checks what the user is told when it happens.
+    # holding a new file): the iPhone closes the connection. The fake's wait is made up; this
+    # checks what the user is told when it happens.
     stalling_disk(monkeypatch, after_bytes=4 * MiB, seconds=2.0)
     phone = FakeIPhone(stall_timeout=0.5)
     run = run_backup(phone, out)
@@ -455,7 +455,7 @@ def _a_week_later():
 def test_a_second_backup_into_the_same_folder(out):
     # Backing up the same iPhone again into the same folder (or Retry after a backup that got as
     # far as moving files). It goes beside the last backup, which stays
-    # (backup_beside.py), so to the iPhone it's a first backup, the kind that has been traced.
+    # (backup_beside.py), so to the iPhone it's a first backup, the kind synthetic_backup() plays.
     first = run_backup(FakeIPhone(), out)
     assert first.error is None
     run = run_backup(FakeIPhone(_a_week_later()), out)
@@ -466,7 +466,7 @@ def test_a_second_backup_into_the_same_folder(out):
 
 def test_a_second_backup_moves_files_without_copying_them(out, monkeypatch):
     # DeviceLink.move_items() uses shutil.move(), which on Windows copies rather than renames onto
-    # an existing file. A second backup used to copy every file again at ~99% there. In a folder
+    # an existing file. A second backup used to copy every file again during the moves. In a folder
     # of its own there's nothing to land on (backup_beside.py).
     run_backup(FakeIPhone(), out)
     failed_renames = []
@@ -488,9 +488,9 @@ def test_a_second_backup_moves_files_without_copying_them(out, monkeypatch):
 
 
 @pytest.mark.xfail(strict=True, reason=(
-    "Latent, not seen from a real iPhone: pymobiledevice3 DeviceLink.move_items() uses "
-    "shutil.move(), which moves a folder INTO an existing one instead of replacing it. The traced "
-    "iPhone moves files, not folders (draft upstream issue in the PR that added this test)."))
+    "Latent: pymobiledevice3 DeviceLink.move_items() uses shutil.move(), which moves a folder "
+    "INTO an existing one instead of replacing it. synthetic_backup() moves files, not folders "
+    "(draft upstream issue in the PR that added this test)."))
 def test_moving_a_folder_onto_an_existing_one_replaces_it(out):
     # A plan that moves whole folders, as an iPhone might: Snapshot/<xx> onto an existing <xx>.
     ops = plans.synthetic_backup()
@@ -498,7 +498,7 @@ def test_moving_a_folder_onto_an_existing_one_replaces_it(out):
     first = ops.index(moves[0])
     for op in moves:
         ops.remove(op)
-    ops.insert(first, {"op": "MoveItems", "progress": 99.5,
+    ops.insert(first, {"op": "MoveItems", "progress": 91.5,
                        "items": {f"{{udid}}/Snapshot/{xx}": f"{{udid}}/{xx}" for xx in plans.ALL_PREFIXES}})
     run = run_backup(FakeIPhone(ops), out)  # the <xx> folders exist: the iPhone made them first
 

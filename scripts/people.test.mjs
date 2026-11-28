@@ -439,8 +439,8 @@ test('a call with only a name is the person the address book calls that, never o
 
 test('a voicemail with no number is no one\'s, though the engine names it "Unknown" (#310)', () => {
   // As normalizeVoicemail makes it from { phone_number: '', contact_name: 'Unknown' }
-  const vm = { id: 'voicemail:6', type: 'voicemail', timestamp: at(4), contactName: 'Unknown', contactIdentifier: '',
-    voicemail: { voicemailId: 6, duration: 12, transcript: '', phoneNumber: '' } };
+  const vm = { id: 'voicemail:563', type: 'voicemail', timestamp: at(4), contactName: 'Unknown', contactIdentifier: '',
+    voicemail: { voicemailId: 563, duration: 58, transcript: '', phoneNumber: '' } };
   const noNumberCall = { ...call('Unknown', '', 3), call: { direction: 'incoming', status: 'missed', duration: 0, app: 'Phone' } };
   const people = gatherPeople([sms('Riley Okafor', '+15035550142', 7, { chatId: 7 }), vm, noNumberCall]);
   assert.deepEqual(people.map(p => [p.name, p.total]), [['Riley Okafor', 1]]);
