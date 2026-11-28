@@ -3,7 +3,6 @@ import { saveFolder, sidecarCall, syncedFolder } from '../../lib/ipc';
 import { canBackUp, deviceDetail, markNotAnswering, notAnsweringMessages, searchFailedMessage, type DeviceInfo } from '../../lib/deviceSearch';
 import { ArrowLeftIcon, PhoneIcon, FolderIcon, LockIcon, DownloadIcon } from '../shared/Icons';
 import { ReportProblemButton } from '../shared/Feedback';
-import BackupStory from './BackupStory';
 
 // backup.pair_device: 'locked' also covers the iPhone asking for its passcode after Trust.
 // 'not_answering' comes with a message: the iPhone stopped answering partway.
@@ -331,8 +330,7 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
       </div>
 
       <div className="flex-1 overflow-y-auto px-7 py-6">
-        <div className={status === 'running' ? 'max-w-[980px]' : 'max-w-xl'}>
-          {(status as BackupStatus) !== 'running' && (<>
+        <div className="max-w-xl">
           {/* Step 1: Device selection */}
           <section className="mb-6">
             <div className="flex items-center justify-between mb-2">
@@ -488,27 +486,6 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
               </div>
             )}
           </section>
-          </>)}
-
-          {/* While it runs, the three steps fold into one line */}
-          {status === 'running' && selectedDevice && (
-            <div className="mb-3 flex items-center gap-x-5 gap-y-1 flex-wrap text-sm text-text-secondary" data-backup-summary>
-              <span className="flex items-center gap-1.5">
-                <PhoneIcon size={16} className="text-accent" />
-                <span className="text-text-primary">{selectedDevice.name}</span>
-              </span>
-              <span className="flex items-center gap-1.5 min-w-0">
-                <FolderIcon size={16} className="text-text-tertiary" />
-                <span className="truncate" data-backup-dest>{outputDir}</span>
-              </span>
-              {(useEncryption || existingPassword) && (
-                <span className="flex items-center gap-1.5">
-                  <LockIcon size={16} className="text-text-tertiary" />
-                  Encrypted
-                </span>
-              )}
-            </div>
-          )}
 
           {/* Progress */}
           {status === 'running' && progress && (
@@ -535,11 +512,6 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                   : 'Keep your device connected and unlocked.'}
               </p>
             </div>
-          )}
-
-          {/* Charles's story while the backup copies (not while the iPhone waits for its passcode) */}
-          {status === 'running' && (progress?.phase === 'backing_up' || progress?.phase === 'finalizing') && (
-            <BackupStory />
           )}
 
           {/* Success */}
@@ -592,6 +564,11 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                 className="px-5 py-2.5 bg-accent text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
               >
                 Start Backup
+              </button>
+            )}
+            {status === 'running' && (
+              <button disabled className="px-5 py-2.5 bg-accent text-white rounded-lg text-sm font-medium opacity-60 cursor-not-allowed">
+                Backing up...
               </button>
             )}
             {status === 'success' && earlierBackup && backupPath && (
