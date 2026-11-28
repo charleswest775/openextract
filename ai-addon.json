@@ -1,0 +1,15 @@
+{
+  "version": "0.2.4",
+  "files": {
+    "mac-arm64": {
+      "file": "openextract-ai-0.2.4-mac-arm64.mcpb",
+      "size": 28137880,
+      "sha256": "6482eafbfc82c2029a77aa532e9b292d37c74d36a9c61915ec264698b0b03070"
+    },
+    "win-x64": {
+      "file": "openextract-ai-0.2.4-win-x64.mcpb",
+      "size": 29995088,
+      "sha256": "2e6e1f794c9acb35b122c7cdc0a3e90e3623304dd9e0e4fcf6988e4437dbae26"
+    }
+  }
+}

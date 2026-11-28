@@ -1,26 +1,30 @@
-# The experimental build: the app as it is on an experimental/* branch, with the Ask AI screen
-# switched on (OPENEXTRACT_AI_INDEX_URL), signed and notarized like a release, and kept only as
-# this run's artifacts. Nothing is published: no release, no tag, no update feed, no store. It's for
-# the friends-and-family test of OpenExtract AI; Charles shares the files by private link.
+# A test build: the app as it is on a branch, signed and notarized like a release, carrying the
+# pinned OpenExtract AI add-on (ai-addon.json) as a release does, and kept only as this run's
+# artifacts. Nothing is published: no release, no tag, no update feed, no store. Run it from the
+# Actions tab on any branch (or push to experimental/*) to try a change on a real Mac or PC before
+# it ships; Charles shares the files by private link.
 #
-# Its version is <next patch>-ai.<run number> (only inside the packaged app, package.json is
-# unchanged), so it tells itself apart in feedback reports, isn't offered the release it's built
-# from, and is offered the next real release like everyone else.
-name: Experimental build
+# Its version is <next patch>-test.<run number> unless one is given (only inside the packaged app,
+# package.json is unchanged), so it tells itself apart in feedback reports, isn't offered the
+# release it's built from, and is offered the next real release like everyone else.
+name: Test build
 
 on:
   push:
     branches: ['experimental/**']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version inside the app (blank = <next patch>-test.<run number>)'
+        required: false
+        default: ''
 
 concurrency:
-  group: experimental-${{ github.ref }}
+  group: test-build-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
-
-env:
-  OPENEXTRACT_AI_INDEX_URL: https://www.openextract.app/ai/addon/index.json
 
 jobs:
   version:
@@ -30,11 +34,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - id: v
+        env:
+          GIVEN: ${{ inputs.version }}
         run: |
           BASE=$(node -p "require('./package.json').version")
           NEXT=$(node -p "const [a,b,c]=process.argv[1].split('.').map(Number); [a,b,c+1].join('.')" "$BASE")
-          echo "version=$NEXT-ai.$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
-          echo "Experimental build $NEXT-ai.$GITHUB_RUN_NUMBER (from $BASE)"
+          VERSION="${GIVEN:-$NEXT-test.$GITHUB_RUN_NUMBER}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then echo "::error::Bad version $VERSION"; exit 1; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Test build $VERSION (from $BASE)"
 
   build-macos:
     needs: version
@@ -54,15 +62,19 @@ jobs:
       - name: Check out ios-backup-core (sibling for editable install)
         uses: ./.github/actions/ios-backup-core
         with:
-          ref: master
+          ref: pinned
       - name: Install Python dependencies and PyInstaller
         working-directory: python
         run: pip install pyinstaller -r requirements.txt
       - run: npm run python:bundle
-      - name: Build Electron app (with the Ask AI screen on)
+      - name: Fetch the OpenExtract AI add-on
+        shell: bash
+        run: |
+          set -euo pipefail
+          MCPB="$(node scripts/ai-addon-pin.mjs fetch)"
+          echo "OPENEXTRACT_AI_BUNDLED_MCPB=$MCPB" >> "$GITHUB_ENV"
+      - name: Build Electron app
         run: npm run build
-      - name: Check the Ask AI switch is on
-        run: node -e "const j = require('./dist-electron/build-info.json'); console.log(j); if (j.aiIndexUrl !== process.env.OPENEXTRACT_AI_INDEX_URL) process.exit(1)"
       - name: Import signing certificate
         env:
           MAC_CERTIFICATE_P12: ${{ secrets.MAC_CERTIFICATE_P12 }}
@@ -99,6 +111,8 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Check the app carries the add-on
+        run: node scripts/ai-addon-pin.mjs check release/mac-arm64/OpenExtract.app/Contents/Resources
       - name: Remove signing keychain
         if: always()
         run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
@@ -125,15 +139,19 @@ jobs:
       - name: Check out ios-backup-core (sibling for editable install)
         uses: ./.github/actions/ios-backup-core
         with:
-          ref: master
+          ref: pinned
       - name: Install Python dependencies and PyInstaller
         working-directory: python
         run: pip install pyinstaller -r requirements.txt
       - run: npm run python:bundle
-      - name: Build Electron app (with the Ask AI screen on)
+      - name: Fetch the OpenExtract AI add-on
+        shell: bash
+        run: |
+          set -euo pipefail
+          MCPB="$(node scripts/ai-addon-pin.mjs fetch)"
+          echo "OPENEXTRACT_AI_BUNDLED_MCPB=$MCPB" >> "$GITHUB_ENV"
+      - name: Build Electron app
         run: npm run build
-      - name: Check the Ask AI switch is on
-        run: node -e "const j = require('./dist-electron/build-info.json'); console.log(j); if (j.aiIndexUrl !== process.env.OPENEXTRACT_AI_INDEX_URL) process.exit(1)"
       - name: Package (signed, not published)
         # bash: PowerShell splits "-c.extraMetadata.version=..." at the first dot
         shell: bash
@@ -142,6 +160,8 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      - name: Check the app carries the add-on
+        run: node scripts/ai-addon-pin.mjs check release/win-unpacked/resources
       - name: Verify Authenticode signatures
         shell: pwsh
         run: |

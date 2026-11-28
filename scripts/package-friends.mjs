@@ -1,16 +1,19 @@
-// Packages the friends-and-family OpenExtract on this computer: the app with the Ask AI screen,
-// carrying the OpenExtract AI add-on inside it (resources/ai-addon/) so Install needs no download,
-// signed, and notarized when a notarytool profile is named. Nothing is published: the installer
-// lands in release-friends/ for Charles to hand out himself.
+// Packages OpenExtract on this computer, carrying a given OpenExtract AI add-on inside it
+// (resources/ai-addon/, as a release carries the pinned one), signed, and notarized when a
+// notarytool profile is named. Nothing is published: the installer lands in release-friends/ for
+// Charles to test or hand out himself. Two uses:
+//  - a test build with an add-on that isn't published yet (a release candidate);
+//  - the friends-and-family build, carrying the unrestricted edition (no question limit, no keys).
 //
 //   npm run python:bundle            (the engine, once per engine change)
-//   node scripts/package-friends.mjs --mcpb <openextract-ai-…-unrestricted-mac-arm64.mcpb> [--notarize openextract-notary] [--version X]
+//   node scripts/package-friends.mjs --mcpb <openextract-ai-….mcpb> [--notarize openextract-notary] [--version X]
 //
 // The .mcpb comes from the openextract-ai repository (packaging/build.py, --unrestricted for the
-// edition with no question limit and no keys). Its name says its version, edition and computer,
-// and it must be for this computer. The app's version defaults to <next patch>-ai.friends, which
-// tells it apart in feedback reports, isn't offered the release it's built from, and is offered
-// the next real release like everyone else (as the experimental build's is).
+// friends' edition). Its name says its version, edition and computer, and it must be for this
+// computer. It's staged in build/ai-addon/, the folder package.json's extraResources carries.
+// The app's version defaults to <next patch>-ai.friends, which tells it apart in feedback
+// reports, isn't offered the release it's built from, and is offered the next real release like
+// everyone else.
 //
 // --notarize PROFILE: a keychain profile made once with
 //   xcrun notarytool store-credentials PROFILE --apple-id <Apple ID> --team-id 6UBFPH2JZ7
@@ -37,17 +40,24 @@ export function hostKey(platform = process.platform, arch = process.arch) {
   return null;
 }
 
-/** package.json's build, carrying `mcpb` as resources/ai-addon/<its name>, out to release-friends/. */
-export function friendsConfig(build, mcpb, version) {
-  const name = path.basename(mcpb);
+/** package.json's build, out to release-friends/ (the add-on comes from build/ai-addon/, as in a release). */
+export function friendsConfig(build, version) {
   const mac = build.mac ? { ...build.mac, target: ['dmg'] } : undefined;
   return {
     ...build,
     directories: { ...build.directories, output: OUT },
     extraMetadata: { ...build.extraMetadata, version },
-    extraResources: [...(build.extraResources ?? []), { from: path.resolve(mcpb), to: `ai-addon/${name}` }],
     ...(mac ? { mac } : {}),
   };
+}
+
+/** build/ai-addon/ holding only `mcpb`; returns the staged copy's path. */
+export function stageAddon(mcpb, stageDir = path.join(root, 'build', 'ai-addon')) {
+  fs.rmSync(stageDir, { recursive: true, force: true });
+  fs.mkdirSync(stageDir, { recursive: true });
+  const dest = path.join(stageDir, path.basename(mcpb));
+  fs.copyFileSync(mcpb, dest);
+  return dest;
 }
 
 function args(argv) {
@@ -90,7 +100,8 @@ function main() {
 
   // A stale tsbuildinfo can make tsc skip writing dist-electron (it's tracked in git): start clean.
   fs.rmSync(path.join(root, 'tsconfig.electron.tsbuildinfo'), { force: true });
-  const env = { ...process.env, OPENEXTRACT_AI_BUNDLED_MCPB: mcpb };
+  const staged = stageAddon(mcpb);
+  const env = { ...process.env, OPENEXTRACT_AI_BUNDLED_MCPB: staged };
   delete env.OPENEXTRACT_AI_INDEX_URL;
   run('npm', ['run', 'build'], env);
   const info = JSON.parse(fs.readFileSync(path.join(root, 'dist-electron', 'build-info.json'), 'utf-8'));
@@ -98,7 +109,7 @@ function main() {
 
   const config = path.join(root, OUT, 'electron-builder.friends.json');
   fs.mkdirSync(path.dirname(config), { recursive: true });
-  fs.writeFileSync(config, `${JSON.stringify(friendsConfig(pkg.build, mcpb, version), null, 2)}\n`);
+  fs.writeFileSync(config, `${JSON.stringify(friendsConfig(pkg.build, version), null, 2)}\n`);
   const builderEnv = { ...env };
   delete builderEnv.APPLE_ID;
   delete builderEnv.APPLE_APP_SPECIFIC_PASSWORD;
@@ -114,6 +125,8 @@ function main() {
     : path.join(appDir, 'resources');
   const carried = path.join(resources, 'ai-addon', name);
   if (!fs.existsSync(carried) || sha256(carried) !== sha256(mcpb)) throw new Error(`The app doesn't carry ${name}`);
+  const others = fs.readdirSync(path.join(resources, 'ai-addon')).filter(f => f !== name);
+  if (others.length) throw new Error(`The app carries other files beside ${name}: ${others.join(', ')}`);
   if (!fs.existsSync(path.join(resources, 'app.asar'))) throw new Error('No app.asar in the app');
   const installers = fs.readdirSync(path.join(root, OUT)).filter(f => /\.(dmg|exe)$/.test(f) && f.includes(version));
   console.log(`\nBuilt ${installers.map(f => path.join(OUT, f)).join(', ')}`);

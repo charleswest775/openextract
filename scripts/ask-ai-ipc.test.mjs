@@ -194,7 +194,8 @@ describe('Ask AI on', () => {
       hidden: false,
       noteSeen: false,
       installed: null,
-      claude: { connected: false },
+      update: null,
+      claude: { connected: false, version: null, outdated: false },
       chatgpt: { connected: false, current: false, settingsFile: path.join('~', '.codex', 'config.toml') },
       claudeCode: { command: null },
       fullDiskAccess: false,
@@ -249,7 +250,14 @@ describe('Ask AI on', () => {
     assert.deepEqual(runs, []);
     await a.invoke('ask-ai:install');
     assert.deepEqual(await a.invoke('ask-ai:status'), {
-      ok: true, status: { version: '0.2.0', key: { name: 'Sarah', kind: 'friends', until: '2027-03-31' }, freeQuestions: 3, freeQuestionsLeft: 1 },
+      ok: true,
+      status: {
+        version: '0.2.0',
+        key: { name: 'Sarah', kind: 'friends', until: '2027-03-31', phone: null },
+        keys: [{ name: 'Sarah', kind: 'friends', until: '2027-03-31', phone: null }],
+        freeQuestions: 3,
+        freeQuestionsLeft: 1,
+      },
     });
     assert.deepEqual(runs, [[path.join(a.layout.aiHome, 'program', '0.2.0', 'openextract-ai'), ['--status'], A.STATUS_TIMEOUT_MS]]);
   });
@@ -260,9 +268,9 @@ describe('Ask AI on', () => {
     assert.deepEqual(await a.invoke('ask-ai:connect-claude'), { ok: true });
     const mcpb = path.join(a.layout.aiHome, 'downloads', 'openextract-ai-0.2.0-mac-arm64.mcpb');
     assert.deepEqual(a.opened, [mcpb]);
-    assert.deepEqual((await a.invoke('ask-ai:state')).claude, { connected: false });
+    assert.deepEqual((await a.invoke('ask-ai:state')).claude, { connected: false, version: null, outdated: false });
     mkdir(path.join(a.layout.home, 'Library', 'Application Support', 'Claude', 'Claude Extensions', 'local.mcpb.charles-west.openextract-ai'));
-    assert.deepEqual((await a.invoke('ask-ai:state')).claude, { connected: true });
+    assert.deepEqual((await a.invoke('ask-ai:state')).claude, { connected: true, version: null, outdated: false });
   });
 
   test('Claude: if it doesn\'t open the file, the screen says where the file is', { skip: !hasHostTool && 'no unzip here' }, async t => {

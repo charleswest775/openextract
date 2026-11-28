@@ -299,6 +299,17 @@ jobs:
       - name: Build Python sidecar
         run: npm run python:bundle
 
+      # OpenExtract AI rides inside the app, so Ask AI's Install needs no download. ai-addon.json
+      # pins the add-on published on openextract-ai-releases (publish it there first: RELEASING.md,
+      # "OpenExtract AI"); the file is checked against the pin, and write-build-info.mjs (in
+      # `npm run build`) records it for the app.
+      - name: Fetch the OpenExtract AI add-on
+        shell: bash
+        run: |
+          set -euo pipefail
+          MCPB="$(node scripts/ai-addon-pin.mjs fetch)"
+          echo "OPENEXTRACT_AI_BUNDLED_MCPB=$MCPB" >> "$GITHUB_ENV"
+
       - name: Build Electron app
         run: npm run build
 
@@ -359,6 +370,9 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+      - name: Check the app carries the add-on
+        run: node scripts/ai-addon-pin.mjs check release/mac-arm64/OpenExtract.app/Contents/Resources
+
       - name: Remove signing keychain
         if: always()
         run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
@@ -403,6 +417,17 @@ jobs:
       - name: Build Python sidecar
         run: npm run python:bundle
 
+      # OpenExtract AI rides inside the app, so Ask AI's Install needs no download. ai-addon.json
+      # pins the add-on published on openextract-ai-releases (publish it there first: RELEASING.md,
+      # "OpenExtract AI"); the file is checked against the pin, and write-build-info.mjs (in
+      # `npm run build`) records it for the app.
+      - name: Fetch the OpenExtract AI add-on
+        shell: bash
+        run: |
+          set -euo pipefail
+          MCPB="$(node scripts/ai-addon-pin.mjs fetch)"
+          echo "OPENEXTRACT_AI_BUNDLED_MCPB=$MCPB" >> "$GITHUB_ENV"
+
       - name: Build Electron app
         run: npm run build
 
@@ -413,6 +438,9 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: Check the app carries the add-on
+        run: node scripts/ai-addon-pin.mjs check release/win-unpacked/resources
 
       # build/sign-windows.js (afterPack) signs every DLL, .pyd and other non-.exe PE file in
       # the packed app in one batch; electron-builder signs the .exe files, the installer

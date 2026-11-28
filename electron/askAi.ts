@@ -2,8 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
   type AiAppId, type BundledAddon, type Edition, type Fetch, type InstallResult, type Look, type Run, type StatusRunner,
-  addonHome, addonInstalled, addonStatus, backupsFile, claudeCodeCommand, claudeHasAddon, codexConfigPath, codexEntry,
-  connectCodex, detectAiApps, inMobileSync, installAddon, platformKey, readCurrent, realLook, writeBackupsFile,
+  addonHome, addonInstalled, addonStatus, backupsFile, claudeAddonVersion, claudeCodeCommand, claudeHasAddon, codexConfigPath, codexEntry,
+  connectCodex, detectAiApps, inMobileSync, installAddon, newerVersion, platformKey, readCurrent, realLook, writeBackupsFile,
 } from './aiAddon';
 
 /**
@@ -66,7 +66,13 @@ export type AskAiState =
     /** The "New" note on Home has been seen (closed, or Ask AI opened). */
     noteSeen: boolean;
     installed: { version: string } | null;
-    claude: { connected: boolean } | null;
+    /**
+     * The add-on this copy of OpenExtract carries, when it's newer than the one installed: Install
+     * again puts it in place (the older one stays, for anything still pointing at it).
+     */
+    update: { version: string } | null;
+    /** `outdated`: Claude has an older version than this app carries, so Install there updates it. */
+    claude: { connected: boolean; version: string | null; outdated: boolean } | null;
     /** `current`: the entry runs the installed program (not an older one). */
     chatgpt: { connected: boolean; current: boolean; settingsFile: string } | null;
     /** The command to paste, once the add-on is installed. */
@@ -170,6 +176,12 @@ export function registerAskAi(o: AskAiOptions): AskAiHooks {
     return installing;
   }
 
+  function claudeState() {
+    const connected = claudeHasAddon(place, look, edition);
+    const version = connected ? claudeAddonVersion(place, look, edition) : null;
+    return { connected, version, outdated: !!bundled && version !== null && newerVersion(bundled.version, version) };
+  }
+
   function state(): AskAiState {
     const apps = detect();
     const installed = readCurrent(addonHome(place), look);
@@ -196,7 +208,8 @@ export function registerAskAi(o: AskAiOptions): AskAiHooks {
       hidden: o.store.get('askAiHidden', false) === true,
       noteSeen: o.store.get('askAiNoteSeen', false) === true,
       installed: installed ? { version: installed.version } : null,
-      claude: apps.includes('claude') ? { connected: claudeHasAddon(place, look, edition) } : null,
+      update: bundled && installed && newerVersion(bundled.version, installed.version) ? { version: bundled.version } : null,
+      claude: apps.includes('claude') ? claudeState() : null,
       chatgpt,
       claudeCode: apps.includes('claude-code')
         ? { command: installed ? claudeCodeCommand(installed.command, o.platform) : null }

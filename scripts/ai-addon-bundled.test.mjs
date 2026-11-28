@@ -1,9 +1,10 @@
-// The friends-and-family build: an app that carries the OpenExtract AI add-on (a .mcpb) inside
-// itself instead of downloading it (electron/aiAddon.ts bundledAddon, scripts/write-build-info.mjs,
-// scripts/package-friends.mjs). Its name says its version, edition and computer; build-info.json
-// records its size and SHA-256; Install copies and checks it and unpacks it with nothing fetched;
-// the unrestricted edition unpacks beside the usual one, and Claude counts as connected only
-// when it has that edition.
+// An app that carries the OpenExtract AI add-on (a .mcpb) inside itself instead of downloading it:
+// every Mac and Windows release (ai-addon.json) and the friends-and-family build
+// (electron/aiAddon.ts bundledAddon, scripts/write-build-info.mjs, scripts/package-friends.mjs). Its
+// name says its version, edition and computer; build-info.json records its size and SHA-256;
+// Install copies and checks it and unpacks it with nothing fetched; the unrestricted edition
+// unpacks beside the usual one, and Claude counts as connected only when it has that edition.
+// When the app carries a newer add-on than the one installed, or than Claude has, it says so.
 // Everything happens in temp folders; nothing touches the network or the real home folder.
 // Run with: node --test scripts/ai-addon-bundled.test.mjs
 import { test, describe } from 'node:test';
@@ -234,13 +235,14 @@ describe('the Ask AI channels with a carried add-on and no index.json', () => {
     assert.equal(state.enabled, true);
     assert.equal(state.edition, 'unrestricted');
     assert.equal(state.available, true);
-    assert.deepEqual(state.claude, { connected: false });
+    assert.deepEqual(state.claude, { connected: false, version: null, outdated: false });
+    assert.equal(state.update, null);
     assert.equal((await setup({ platform: 'win32', arch: 'x64' }).invoke('ask-ai:state')).available, false, 'a Mac add-on on Windows');
   });
 
   test('the usual add-on in Claude still offers Install; the unrestricted one counts as connected', async () => {
-    assert.deepEqual((await setup({ claude: 'OpenExtract AI' }).invoke('ask-ai:state')).claude, { connected: false });
-    assert.deepEqual((await setup({ claude: 'OpenExtract AI (unrestricted)' }).invoke('ask-ai:state')).claude, { connected: true });
+    assert.deepEqual((await setup({ claude: 'OpenExtract AI' }).invoke('ask-ai:state')).claude, { connected: false, version: null, outdated: false });
+    assert.deepEqual((await setup({ claude: 'OpenExtract AI (unrestricted)' }).invoke('ask-ai:state')).claude, { connected: true, version: null, outdated: false });
   });
 
   test('Install in Claude\'s card opens the copy in downloads/, with nothing fetched', { skip: !hasHostTool && 'no unzip here' }, async () => {
@@ -248,5 +250,104 @@ describe('the Ask AI channels with a carried add-on and no index.json', () => {
     assert.deepEqual(await a.invoke('ask-ai:connect-claude'), { ok: true });
     assert.deepEqual(a.opened, [path.join(a.base, 'ai-home', 'downloads', NAME)]);
     assert.deepEqual((await a.invoke('ask-ai:state')).installed, { version: '0.2.3-unrestricted' });
+  });
+});
+
+describe('versions: what Claude has, and whether this app carries a newer one', () => {
+  test('newerVersion compares the numbers only', () => {
+    assert.equal(A.newerVersion('0.3.0', '0.2.4'), true);
+    assert.equal(A.newerVersion('0.10.0', '0.9.9'), true);
+    assert.equal(A.newerVersion('1.0.0', '0.99.99'), true);
+    assert.equal(A.newerVersion('0.2.4', '0.2.4'), false);
+    assert.equal(A.newerVersion('0.2.4', '0.3.0'), false);
+    assert.equal(A.newerVersion('0.2.3-unrestricted', '0.2.3'), false);
+    assert.equal(A.newerVersion('0.2.4', '0.2.3-unrestricted'), true);
+    assert.equal(A.newerVersion('nonsense', '0.2.3'), false);
+  });
+
+  test('claudeAddonVersion reads the newest manifest version among Claude\'s copies', () => {
+    const home = freshDir('claude-versions');
+    const exts = path.join(home, 'Library', 'Application Support', 'Claude', 'Claude Extensions');
+    const place = { platform: 'darwin', env: {}, homedir: home };
+    assert.equal(A.claudeAddonVersion(place), null, 'no Claude extensions folder');
+    touch(path.join(exts, 'local.mcpb.charles-west.openextract-ai', 'manifest.json'), JSON.stringify({ version: '0.2.4' }));
+    assert.equal(A.claudeAddonVersion(place), '0.2.4');
+    touch(path.join(exts, 'local.mcpb.someone.openextract-ai', 'manifest.json'), JSON.stringify({ version: '0.10.1' }));
+    touch(path.join(exts, 'local.mcpb.other.weather', 'manifest.json'), JSON.stringify({ version: '9.9.9' }));
+    assert.equal(A.claudeAddonVersion(place), '0.10.1', 'the newest OpenExtract one; other extensions ignored');
+    touch(path.join(exts, 'local.mcpb.x.openextract-ai-broken', 'manifest.json'), JSON.stringify({ version: '../../../9.9.9' }));
+    assert.equal(A.claudeAddonVersion(place), '0.10.1', 'a version that isn\'t one is ignored');
+  });
+});
+
+describe('a release carrying the usual add-on, over an older one', () => {
+  const USUAL = 'openextract-ai-0.3.0-mac-arm64.mcpb';
+  function usualZip() {
+    return makeZip([
+      { name: 'manifest.json', data: '{"name": "openextract-ai", "display_name": "OpenExtract AI", "version": "0.3.0"}' },
+      { name: 'server/', dir: true },
+      { name: 'server/openextract-ai', data: '#!/bin/sh\necho usual\n', mode: 0o644 },
+    ]);
+  }
+  function setup({ claudeVersion = null, installedVersion = null } = {}) {
+    const base = freshDir('ask-ai-release');
+    const home = mkdir(path.join(base, 'Users', 'sam'));
+    const systemApps = mkdir(path.join(base, 'Applications'));
+    mkdir(path.join(systemApps, 'Claude.app'));
+    if (claudeVersion) {
+      touch(path.join(home, 'Library', 'Application Support', 'Claude', 'Claude Extensions', 'local.mcpb.charles-west.openextract-ai', 'manifest.json'),
+        JSON.stringify({ display_name: 'OpenExtract AI', version: claudeVersion }));
+    }
+    const aiHome = path.join(base, 'ai-home');
+    if (installedVersion) {
+      const exe = touch(path.join(aiHome, 'program', installedVersion, 'openextract-ai'), '#!/bin/sh\n');
+      fs.chmodSync(exe, 0o755);
+      A.writeCurrent(aiHome, { version: installedVersion, command: exe });
+    }
+    const zip = usualZip();
+    const file = touch(path.join(base, 'resources', A.BUNDLED_DIR, USUAL), zip);
+    const bundled = { file, version: '0.3.0', platform: 'mac-arm64', sha256: sha(zip), size: zip.length, edition: null };
+    const electron = createElectron();
+    const opened = [];
+    const data = {};
+    registerAskAi({
+      ipcMain: electron.electron.ipcMain,
+      shell: { openPath: async p => { opened.push(p); return ''; }, showItemInFolder: () => {}, openExternal: async () => {} },
+      store: { get: (k, f) => (k in data ? data[k] : f), set: (k, v) => { data[k] = v; } },
+      indexUrl: null, bundled, platform: 'darwin', arch: 'arm64', env: { PATH: mkdir(path.join(base, 'bin')), OPENEXTRACT_AI_HOME: aiHome },
+      homedir: home, fetch: noFetch, systemApps, macBinDirs: [], run: hostRun,
+    });
+    return { invoke: electron.invoke, opened, base };
+  }
+
+  test('nothing installed yet: Install, no update', async () => {
+    const state = await setup().invoke('ask-ai:state');
+    assert.equal(state.edition, null);
+    assert.equal(state.update, null);
+    assert.deepEqual(state.claude, { connected: false, version: null, outdated: false });
+  });
+
+  test('Claude has 0.2.4: connected, but outdated, so the card offers Update', async () => {
+    const state = await setup({ claudeVersion: '0.2.4' }).invoke('ask-ai:state');
+    assert.deepEqual(state.claude, { connected: true, version: '0.2.4', outdated: true });
+    const same = await setup({ claudeVersion: '0.3.0' }).invoke('ask-ai:state');
+    assert.deepEqual(same.claude, { connected: true, version: '0.3.0', outdated: false });
+  });
+
+  test('0.2.4 installed: update 0.3.0 is offered, and Install puts it in place beside the old one', { skip: !hasHostTool && 'no unzip here' }, async () => {
+    const a = setup({ installedVersion: '0.2.4' });
+    const before = await a.invoke('ask-ai:state');
+    assert.deepEqual(before.installed, { version: '0.2.4' });
+    assert.deepEqual(before.update, { version: '0.3.0' });
+    assert.deepEqual(await a.invoke('ask-ai:install'), { ok: true });
+    const after = await a.invoke('ask-ai:state');
+    assert.deepEqual(after.installed, { version: '0.3.0' });
+    assert.equal(after.update, null);
+    assert.ok(fs.existsSync(path.join(a.base, 'ai-home', 'program', '0.2.4', 'openextract-ai')), 'the old one stays');
+  });
+
+  test('a newer add-on already installed (from a later download) isn\'t "updated" back', async () => {
+    const state = await setup({ installedVersion: '0.4.0' }).invoke('ask-ai:state');
+    assert.equal(state.update, null);
   });
 });

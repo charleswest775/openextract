@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useAskAi } from '../../hooks/useAskAi';
 import {
-  APP_NAMES, EXAMPLE_QUESTION, KEYS_LINE, PRICE_LINE, UNRESTRICTED_LINE,
-  appNames, appStateLine, askAiShown, companiesLine, fullDiskAccessStep, markNoteSeen, progressLine, refreshAskAi, setAskAiHidden,
-  statusLine,
+  AI_BUY_URL, AI_GUIDE_URL, AI_PAGE_URL, APP_NAMES, EXAMPLES, KEYS_LINE, PRICE_LINE, READS_LINE, UNRESTRICTED_LINE,
+  appNames, appStateLine, askAiShown, companiesLine, fullDiskAccessStep, howToSteps, markNoteSeen, needsKey, progressLine, refreshAskAi,
+  setAskAiHidden, statusLines,
   type AddonStatus, type AiAppId, type AskAiResult, type InstallProgress,
 } from '../../lib/askAi';
 import { ArrowLeftIcon, AskAiIcon, CheckIcon, CopyIcon, LockIcon } from '../shared/Icons';
@@ -13,6 +13,8 @@ interface Props {
 }
 
 type Note = { kind: 'error' | 'done'; text: string };
+/** What's busy or has a note: an app's card, or the installed add-on's own row (its Update). */
+type Place = AiAppId | 'addon';
 
 /** The settings file's backup, beside it (electron/aiAddon.ts CODEX_BACKUP). */
 const CODEX_BACKUP = 'config.toml.openextract-backup';
@@ -20,16 +22,18 @@ const CODEX_BACKUP = 'config.toml.openextract-backup';
 /**
  * Ask AI: what OpenExtract AI does and costs, said before anything installs, then one card
  * per AI app found: Install (Claude), Connect (ChatGPT, after the person's OK to change its
- * settings file) or the command to copy (Claude Code). Nothing downloads until one of those
- * is clicked. Once installed, the add-on's own --status says how many free questions are
- * left, or whose key it has: the app itself counts nothing.
+ * settings file) or the command to copy (Claude Code), then how to ask once it's connected.
+ * Nothing is installed until one of those is clicked. Once installed, the add-on's own
+ * --status says how many free questions are left, or which iPhones have keys: the app itself
+ * counts nothing. When this copy of OpenExtract carries a newer add-on than the one installed,
+ * or than Claude has, the screen offers Update.
  */
 export default function AskAiScreen({ onBack }: Props) {
   const state = useAskAi();
   const bridge = window.openextract?.askAi;
-  const [busy, setBusy] = useState<AiAppId | null>(null);
+  const [busy, setBusy] = useState<Place | null>(null);
   const [progress, setProgress] = useState<InstallProgress | null>(null);
-  const [notes, setNotes] = useState<Partial<Record<AiAppId, Note>>>({});
+  const [notes, setNotes] = useState<Partial<Record<Place, Note>>>({});
   const [askingChatGpt, setAskingChatGpt] = useState(false);
   const [copied, setCopied] = useState(false);
   const [status, setStatus] = useState<AddonStatus | null>(null);
@@ -64,7 +68,7 @@ export default function AskAiScreen({ onBack }: Props) {
     return () => { current = false; };
   }, [version]);
 
-  async function act(id: AiAppId, action: () => Promise<AskAiResult>, done: string) {
+  async function act(id: Place, action: () => Promise<AskAiResult>, done: string) {
     setBusy(id);
     setProgress(null);
     setNotes(n => ({ ...n, [id]: undefined }));
@@ -84,6 +88,10 @@ export default function AskAiScreen({ onBack }: Props) {
     await window.openextract.copyText(command);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  function open(url: string) {
+    window.openextract.openExternal(url);
   }
 
   function hide() {
@@ -109,7 +117,7 @@ export default function AskAiScreen({ onBack }: Props) {
   const names = appNames(state.apps);
   const them = state.apps.length > 1 ? 'them' : 'it';
 
-  const progressRow = (id: AiAppId) => busy === id && (
+  const progressRow = (id: Place) => busy === id && (
     <div className="mt-3 flex items-center gap-2 text-sm text-text-secondary" role="status">
       <div className="w-4 h-4 border-2 border-accent-line border-t-accent rounded-full animate-spin flex-shrink-0" />
       {progressLine(progress)}
@@ -130,7 +138,7 @@ export default function AskAiScreen({ onBack }: Props) {
       </div>
     );
   };
-  const noteRow = (id: AiAppId, extra?: ReactNode) => {
+  const noteRow = (id: Place, extra?: ReactNode) => {
     const note = notes[id];
     if (!note || busy === id) return null;
     return (
@@ -144,13 +152,15 @@ export default function AskAiScreen({ onBack }: Props) {
   const cards: Record<AiAppId, ReactNode> = {
     claude: (() => {
       const connected = !!state.claude?.connected;
+      const outdated = connected && !!state.claude?.outdated;
       return (
-        <AppCard key="claude" name={APP_NAMES.claude} line={appStateLine('claude', state)} connected={connected}
-          action={!connected && (
+        <AppCard key="claude" name={APP_NAMES.claude} line={appStateLine('claude', state)} connected={connected && !outdated}
+          action={(!connected || outdated) && (
             <button className="hearth-primary-btn" disabled={busy !== null}
-              onClick={() => act('claude', () => bridge.connectClaude(),
-                "Claude is showing its own Install window. Click Install there, then come back here.")}>
-              Install
+              onClick={() => act('claude', () => bridge.connectClaude(), outdated
+                ? 'Claude is showing its own Install window. Click Install there to update OpenExtract AI, then start a new chat.'
+                : 'Claude is showing its own Install window. Click Install there, then come back here.')}>
+              {outdated ? 'Update' : 'Install'}
             </button>
           )}>
           {fullDiskAccessRow('claude')}
@@ -202,10 +212,11 @@ export default function AskAiScreen({ onBack }: Props) {
       const command = state.claudeCode?.command ?? null;
       return (
         <AppCard key="claude-code" name={APP_NAMES['claude-code']} line={appStateLine('claude-code', state)} connected={false}
-          action={!command && (
+          action={(!command || !!state.update) && (
             <button className="hearth-primary-btn" disabled={busy !== null}
-              onClick={() => act('claude-code', () => bridge.install(), 'Installed.')}>
-              Install
+              onClick={() => act('claude-code', () => bridge.install(),
+                command ? 'Updated. Paste the new command into a terminal to use it in Claude Code.' : 'Installed.')}>
+              {command ? 'Update' : 'Install'}
             </button>
           )}>
           {command && (
@@ -236,14 +247,27 @@ export default function AskAiScreen({ onBack }: Props) {
             <h2 className="text-4xl text-text-primary mb-3">Ask questions about your backups</h2>
             <p className="text-base text-text-secondary leading-relaxed">
               OpenExtract AI is an add-on for {names}. It lets {them} read your iPhone backups on this computer
-              and answer your questions about them.
+              ({READS_LINE}) and answer your questions about them, pointing to what it used.
             </p>
-            <p className="mt-3 text-base text-text-primary">
-              For example: <span className="font-serif-italic">“{EXAMPLE_QUESTION}”</span>
-            </p>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              <button className="text-accent hover:underline" onClick={() => open(AI_GUIDE_URL)}>How to set it up and use it</button>
+              <button className="text-accent hover:underline" onClick={() => open(AI_PAGE_URL)}>About OpenExtract AI</button>
+            </div>
           </section>
 
-          <section className="hearth-card p-5">
+          <section className="hearth-card p-5" aria-label="What you can ask">
+            <h3 className="text-base font-semibold text-text-primary mb-3">What you can ask</h3>
+            <ul className="flex flex-col gap-3">
+              {EXAMPLES.map(example => (
+                <li key={example.ask}>
+                  <div className="text-xs text-text-tertiary">{example.what}</div>
+                  <div className="text-[15px] text-text-primary font-serif-italic">“{example.ask}”</div>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="hearth-card p-5" aria-label="Before you install">
             <h3 className="text-base font-semibold text-text-primary mb-3">Before you install</h3>
             <ul className="flex flex-col gap-2.5 text-sm text-text-secondary leading-relaxed list-disc pl-5">
               <li>
@@ -259,12 +283,26 @@ export default function AskAiScreen({ onBack }: Props) {
           </section>
 
           {state.installed && (
-            <section className="hearth-card px-5 py-4 flex items-center gap-3" aria-label="OpenExtract AI">
-              <AskAiIcon size={22} className="text-accent flex-shrink-0" />
-              <div className="text-sm">
+            <section className="hearth-card px-5 py-4 flex items-start gap-3" aria-label="OpenExtract AI">
+              <AskAiIcon size={22} className="text-accent flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0 text-sm">
                 <div className="text-text-primary font-medium">OpenExtract AI {state.installed.version} is installed</div>
-                {status && <div className="text-text-secondary">{statusLine(status)}</div>}
+                {status && statusLines(status).map(line => <div key={line} className="text-text-secondary">{line}</div>)}
                 {statusError && <div className="text-apple-error">{statusError}</div>}
+                {needsKey(status) && state.edition !== 'unrestricted' && (
+                  <button className="mt-1.5 text-accent hover:underline" onClick={() => open(AI_BUY_URL)}>Buy a key</button>
+                )}
+                {state.update && (
+                  <div className="mt-2.5 flex flex-wrap items-center gap-3">
+                    <span className="text-text-secondary">OpenExtract AI {state.update.version} came with this version of OpenExtract.</span>
+                    <button className="hearth-ghost-btn !py-1.5" disabled={busy !== null}
+                      onClick={() => act('addon', () => bridge.install(), 'Updated. Each app below says if it needs a step too.')}>
+                      Update
+                    </button>
+                  </div>
+                )}
+                {progressRow('addon')}
+                {noteRow('addon')}
               </div>
             </section>
           )}
@@ -272,6 +310,13 @@ export default function AskAiScreen({ onBack }: Props) {
           <section className="flex flex-col gap-3">
             <h3 className="text-base font-semibold text-text-primary">Connect an AI app</h3>
             {state.apps.map(id => cards[id])}
+          </section>
+
+          <section className="hearth-card p-5" aria-label="Once it's connected">
+            <h3 className="text-base font-semibold text-text-primary mb-3">Once it's connected</h3>
+            <ol className="flex flex-col gap-2.5 text-sm text-text-secondary leading-relaxed list-decimal pl-5">
+              {howToSteps(state.apps).map(step => <li key={step}>{step}</li>)}
+            </ol>
           </section>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pb-4">

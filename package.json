@@ -62,6 +62,13 @@
       {
         "from": "python/dist/openextract-engine",
         "to": "python"
+      },
+      {
+        "from": "build/ai-addon",
+        "to": "ai-addon",
+        "filter": [
+          "*.mcpb"
+        ]
       }
     ],
     "publish": {

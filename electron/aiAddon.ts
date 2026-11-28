@@ -307,9 +307,37 @@ export function isUnrestrictedExtension(dir: string): boolean {
  * Claude is offered Install, which replaces it.
  */
 export function claudeHasAddon(place: Place, look: Look = realLook, edition: Edition = null): boolean {
+  return claudeAddonDirs(place, look, edition).length > 0;
+}
+
+/** The add-on's folders in Claude's extensions folders (normally one), as claudeHasAddon counts them. */
+function claudeAddonDirs(place: Place, look: Look, edition: Edition): string[] {
   const dirs = [claudeExtensionsDir(place), ...claudePackageExtensionsDirs(place, look)];
-  return dirs.some(dir => dir !== null && look.list(dir).some(name => /openextract/i.test(name)
-    && (edition !== 'unrestricted' || isUnrestrictedExtension(path.join(dir, name)))));
+  return dirs.flatMap(dir => dir === null ? [] : look.list(dir)
+    .filter(name => /openextract/i.test(name) && (edition !== 'unrestricted' || isUnrestrictedExtension(path.join(dir, name))))
+    .map(name => path.join(dir, name)));
+}
+
+/**
+ * The newest version of the add-on Claude (desktop) has, from its manifest.json, or null when Claude doesn't
+ * have it or its manifest can't be read. Compared with what this app carries, to offer an update.
+ */
+export function claudeAddonVersion(place: Place, look: Look = realLook, edition: Edition = null): string | null {
+  let newest: string | null = null;
+  for (const dir of claudeAddonDirs(place, look, edition)) {
+    const version = readJson(path.join(dir, 'manifest.json'))?.version;
+    if (typeof version === 'string' && VERSION.test(version) && (newest === null || newerVersion(version, newest))) newest = version;
+  }
+  return newest;
+}
+
+/** 0.3.0 is newer than 0.2.4 (and 0.10.0 than 0.9.9). Only the numbers count: 0.2.3-unrestricted is 0.2.3. */
+export function newerVersion(a: string, b: string): boolean {
+  const parts = (v: string) => (/^(\d+)\.(\d+)\.(\d+)/.exec(v) ?? []).slice(1).map(Number);
+  const [x, y] = [parts(a), parts(b)];
+  if (x.length !== 3 || y.length !== 3) return false;
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
+  return false;
 }
 
 // ── index.json ──────────────────────────────────────────────────────────────
@@ -864,9 +892,21 @@ export async function installAddon(options: InstallOptions): Promise<InstallResu
 
 // ── --status ────────────────────────────────────────────────────────────────
 
+export interface AddonKey {
+  name: string;
+  kind: string;
+  /** Its last day (a week's key), or null for no end. */
+  until: string | null;
+  /** The phone code of the one iPhone it's for (a bought key), or null for any iPhone. */
+  phone: string | null;
+}
+
 export interface AddonStatus {
   version: string;
-  key: { name: string; kind: string; until: string | null } | null;
+  /** The first good key (as the add-on's `key`), or null. */
+  key: AddonKey | null;
+  /** Every good key on this computer (0.2.4 on; older add-ons give only `key`). */
+  keys: AddonKey[];
   freeQuestions: number;
   freeQuestionsLeft: number;
 }
@@ -896,18 +936,28 @@ export function parseStatus(stdout: string): AddonStatus | null {
     }
     const count = (n: unknown) => typeof n === 'number' && Number.isInteger(n) && n >= 0;
     if (typeof data?.version !== 'string' || !count(data.free_questions) || !count(data.free_questions_left)) return null;
-    let key: AddonStatus['key'] = null;
-    if (data.key !== null && data.key !== undefined) {
-      if (typeof data.key !== 'object' || typeof data.key.name !== 'string' || !data.key.name.trim()) return null;
-      key = {
-        name: data.key.name.trim().slice(0, 80),
-        kind: typeof data.key.kind === 'string' ? data.key.kind : '',
-        until: typeof data.key.until === 'string' ? data.key.until : null,
+    const keyFrom = (k: any): AddonKey | null | undefined => {
+      if (k === null || k === undefined) return null;
+      if (typeof k !== 'object' || typeof k.name !== 'string' || !k.name.trim()) return undefined;
+      return {
+        name: k.name.trim().slice(0, 80),
+        kind: typeof k.kind === 'string' ? k.kind : '',
+        until: typeof k.until === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k.until) ? k.until : null,
+        phone: typeof k.phone === 'string' && /^[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(k.phone) ? k.phone : null,
       };
+    };
+    const key = keyFrom(data.key);
+    if (key === undefined) return null;
+    let keys: AddonKey[] = key ? [key] : [];
+    if (Array.isArray(data.keys)) {
+      const listed = data.keys.slice(0, 50).map(keyFrom);
+      if (listed.some((k: AddonKey | null | undefined) => !k)) return null;
+      keys = listed as AddonKey[];
     }
     return {
       version: data.version,
       key,
+      keys,
       freeQuestions: data.free_questions,
       freeQuestionsLeft: Math.min(data.free_questions_left, data.free_questions),
     };

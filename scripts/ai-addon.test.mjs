@@ -702,15 +702,27 @@ describe('the add-on\'s --status', () => {
 
   test('free questions left, or whose key it has, checked field by field', () => {
     assert.deepEqual(A.parseStatus(line({ version: '0.2.0', key: null, free_questions: 3, free_questions_left: 1 })),
-      { version: '0.2.0', key: null, freeQuestions: 3, freeQuestionsLeft: 1 });
+      { version: '0.2.0', key: null, keys: [], freeQuestions: 3, freeQuestionsLeft: 1 });
+    const sarah = { name: 'Sarah', kind: 'friends', until: '2027-03-31', phone: null };
     assert.deepEqual(A.parseStatus(`starting\n${line({ version: '0.2.0', key: { name: ' Sarah ', kind: 'friends', until: '2027-03-31' }, free_questions: 3, free_questions_left: 0 })}\r\n`),
-      { version: '0.2.0', key: { name: 'Sarah', kind: 'friends', until: '2027-03-31' }, freeQuestions: 3, freeQuestionsLeft: 0 });
+      { version: '0.2.0', key: sarah, keys: [sarah], freeQuestions: 3, freeQuestionsLeft: 0 });
     assert.equal(A.parseStatus(line({ version: '0.2.0', key: { name: 'Al', kind: 'dev', until: null }, free_questions: 3, free_questions_left: 9 })).freeQuestionsLeft, 3);
     for (const bad of ['', 'not json', line({ version: 2, key: null, free_questions: 3, free_questions_left: 1 }),
       line({ version: '0.2.0', key: null, free_questions: -1, free_questions_left: 1 }), line({ version: '0.2.0', key: { name: '' }, free_questions: 3, free_questions_left: 1 }),
-      line({ version: '0.2.0', key: 'Sarah', free_questions: 3, free_questions_left: 1 })]) {
+      line({ version: '0.2.0', key: 'Sarah', free_questions: 3, free_questions_left: 1 }),
+      line({ version: '0.2.4', key: null, keys: [{ name: '' }], free_questions: 3, free_questions_left: 1 })]) {
       assert.equal(A.parseStatus(bad), null, bad);
     }
+  });
+
+  test('0.2.4 on: every key, each with the iPhone it\'s for and its last day', () => {
+    const phone = { name: 'Sam Lee', kind: 'phone', until: null, phone: 'JN35-Q4HN' };
+    const week = { name: 'Sam Lee', kind: 'week', until: '2026-12-04', phone: 'PJAF-B2TD' };
+    const status = A.parseStatus(line({ version: '0.2.4', key: phone, keys: [phone, week], free_questions: 3, free_questions_left: 2 }));
+    assert.deepEqual(status, { version: '0.2.4', key: phone, keys: [phone, week], freeQuestions: 3, freeQuestionsLeft: 2 });
+    // A phone code or a day in another shape is dropped, not shown.
+    const odd = A.parseStatus(line({ version: '0.2.4', key: null, keys: [{ name: 'X', kind: 'week', until: 'soon', phone: 'jn35q4hn' }], free_questions: 3, free_questions_left: 0 }));
+    assert.deepEqual(odd.keys, [{ name: 'X', kind: 'week', until: null, phone: null }]);
   });
 
   function fakeProgram(script) {
@@ -721,7 +733,8 @@ describe('the add-on\'s --status', () => {
 
   test('runs the program with --status and reads its one line', { skip: !posix && 'a shell script stands in for the program' }, async () => {
     const exe = fakeProgram(`if [ "$1" = "--status" ]; then echo '${line({ version: '0.2.0', key: { name: 'Sarah', kind: 'friends', until: '2027-03-31' }, free_questions: 3, free_questions_left: 3 })}'; exit 0; fi\nexit 3`);
-    assert.deepEqual(await A.addonStatus(exe), { ok: true, status: { version: '0.2.0', key: { name: 'Sarah', kind: 'friends', until: '2027-03-31' }, freeQuestions: 3, freeQuestionsLeft: 3 } });
+    const sarah = { name: 'Sarah', kind: 'friends', until: '2027-03-31', phone: null };
+    assert.deepEqual(await A.addonStatus(exe), { ok: true, status: { version: '0.2.0', key: sarah, keys: [sarah], freeQuestions: 3, freeQuestionsLeft: 3 } });
   });
 
   test('a program that hangs is stopped at the time limit; one that fails or mumbles says so', { skip: !posix && 'a shell script stands in for the program' }, async () => {

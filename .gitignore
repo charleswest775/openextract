@@ -2,6 +2,8 @@ node_modules/
 dist/
 release/
 release-friends/
+# The OpenExtract AI add-on a build carries (scripts/ai-addon-pin.mjs fetch)
+build/ai-addon/
 python/dist/
 python/build/
 python/__pycache__/

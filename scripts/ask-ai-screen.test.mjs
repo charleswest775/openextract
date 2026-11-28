@@ -78,7 +78,8 @@ const BANNED = /AI-powered|powered by|smart|magic|unlock|revolution|seamless|eff
 const OFF = { enabled: false };
 const ON = {
   enabled: true, apps: ['claude', 'chatgpt', 'claude-code'], available: true, hidden: false, noteSeen: false,
-  installed: null, claude: { connected: false }, chatgpt: { connected: false, current: false, settingsFile: '~/.codex/config.toml' },
+  installed: null, update: null, claude: { connected: false, version: null, outdated: false },
+  chatgpt: { connected: false, current: false, settingsFile: '~/.codex/config.toml' },
   claudeCode: { command: null }, fullDiskAccess: false, edition: null,
 };
 const COMMAND = 'claude mcp add --scope user openextract -- "/Users/sam/Library/Application Support/OpenExtract AI/program/0.2.0/openextract-ai"';
@@ -91,7 +92,7 @@ const INSTALLED = { ...ON, noteSeen: true, installed: { version: '0.2.0' }, clau
 function bridgeFor(t, state, { askAi = true, results = {} } = {}) {
   let current = state;
   let onProgress = null;
-  const handlers = { copyText: async () => {} };
+  const handlers = { copyText: async () => {}, openExternal: () => {} };
   const bridge = fakeBridge(handlers);
   const events = new EventTarget();
   const opened = [];
@@ -158,14 +159,49 @@ describe('src/lib/askAi.ts', () => {
   });
 
   test('the add-on\'s --status in words', () => {
-    const s = (left, key = null) => ({ version: '0.2.0', key, freeQuestions: 3, freeQuestionsLeft: left });
+    const s = (left, keys = []) => ({ version: '0.2.4', key: keys[0] ?? null, keys, freeQuestions: 3, freeQuestionsLeft: left });
     assert.equal(L.statusLine(s(3)), '3 of 3 free questions left');
     assert.equal(L.statusLine(s(1)), '1 of 3 free questions left');
-    assert.equal(L.statusLine(s(0)), "The 3 free questions have been used. To keep asking, you'll need an access key.");
-    assert.equal(L.statusLine(s(0, { name: 'Sarah', kind: 'friends', until: '2027-03-31' })), "Unlimited: Sarah's key");
+    assert.equal(L.statusLine(s(0)), "The 3 free questions have been used. To keep asking about an iPhone, you'll need a key for it.");
+    assert.deepEqual(L.statusLines(s(0, [{ name: 'Sarah', kind: 'friends', until: '2027-03-31', phone: null }])), ["Unlimited: Sarah's key"]);
     // The unrestricted edition reports itself as a key of its own kind (openextract-ai's access.py).
-    assert.equal(L.statusLine(s(3, { name: 'Friends and family', kind: 'unrestricted', until: null })),
+    assert.equal(L.statusLine(s(3, [{ name: 'Friends and family', kind: 'unrestricted', until: null, phone: null }])),
       'Unlimited questions: the friends-and-family edition');
+    // Bought keys name their iPhone; a week's says its last day; other iPhones still count free questions.
+    const phone = { name: 'Sam Lee', kind: 'phone', until: null, phone: 'JN35-Q4HN' };
+    const week = { name: 'Sam Lee', kind: 'week', until: '2026-12-04', phone: 'PJAF-B2TD' };
+    const lines = L.statusLines(s(2, [phone, week]));
+    assert.equal(lines[0], 'Unlimited questions about the iPhone with phone code JN35-Q4HN');
+    assert.match(lines[1], /^Unlimited questions about the iPhone with phone code PJAF-B2TD, through December 4$/);
+    assert.equal(lines[2], 'Other iPhones: 2 of 3 free questions left');
+    assert.equal(L.statusLines(s(0, [phone]))[1], "Other iPhones: the 3 free questions have been used. To keep asking about an iPhone, you'll need a key for it.");
+    // An older add-on (before 0.2.4) gives only `key`.
+    assert.deepEqual(L.statusLines({ version: '0.2.0', key: phone, keys: [], freeQuestions: 3, freeQuestionsLeft: 3 })[0],
+      'Unlimited questions about the iPhone with phone code JN35-Q4HN');
+  });
+
+  test('needsKey: no free questions left and no key for any iPhone', () => {
+    const s = (left, keys = []) => ({ version: '0.2.4', key: keys[0] ?? null, keys, freeQuestions: 3, freeQuestionsLeft: left });
+    assert.equal(L.needsKey(null), false);
+    assert.equal(L.needsKey(s(1)), false);
+    assert.equal(L.needsKey(s(0)), true);
+    assert.equal(L.needsKey(s(0, [{ name: 'S', kind: 'phone', until: null, phone: 'JN35-Q4HN' }])), true, 'other iPhones still need one');
+    assert.equal(L.needsKey(s(0, [{ name: 'Sarah', kind: 'friends', until: null, phone: null }])), false);
+  });
+
+  test('how to ask, once connected: names the chat apps found', () => {
+    assert.equal(L.howToSteps(['claude'])[0], 'Open Claude and start a new chat.');
+    assert.equal(L.howToSteps(['claude', 'chatgpt'])[0], 'Open Claude or ChatGPT and start a new chat.');
+    assert.equal(L.howToSteps(['claude', 'chatgpt', 'claude-code'])[0], 'Open Claude or ChatGPT and start a new chat (or a new Claude Code session).');
+    assert.equal(L.howToSteps(['claude-code'])[0], 'Start a new Claude Code session.');
+    assert.match(L.howToSteps(['claude'])[2], /the backup you last opened in OpenExtract/);
+    for (const step of L.howToSteps(['claude', 'chatgpt', 'claude-code'])) assert.doesNotMatch(step, BANNED);
+  });
+
+  test('the pages it links to are on openextract.app, and the site has them', () => {
+    for (const url of [L.AI_PAGE_URL, L.AI_GUIDE_URL, L.AI_BUY_URL]) assert.match(url, /^https:\/\/www\.openextract\.app\/[a-z/-]+$/);
+    assert.equal(L.AI_BUY_URL, 'https://www.openextract.app/ai/buy');
+    assert.ok(fs.existsSync(path.join(root, 'website', 'static', 'ai', 'buy.html')));
   });
 
   test('what an install is doing', () => {
@@ -198,9 +234,14 @@ describe('src/lib/askAi.ts', () => {
     assert.equal(L.fullDiskAccessStep('claude', ON), null);
   });
 
-  test('this build\'s price: 3 questions free, then an access key; plain words', () => {
-    assert.equal(L.PRICE_LINE, "3 questions free, then you'll need an access key.");
-    for (const line of [L.PRICE_LINE, L.KEYS_LINE, L.EXAMPLE_QUESTION, L.UNRESTRICTED_LINE, L.UNRESTRICTED_STATUS, L.UNRESTRICTED_NOTE]) {
+  test('the price: 3 questions free, then $29 per iPhone or $9 a week, as the site says; plain words', () => {
+    assert.equal(L.PRICE_LINE, '3 questions free. After that, a key for each iPhone: $29 for good, or $9 for a week.');
+    // The store's page sells the same two.
+    const buy = fs.readFileSync(path.join(root, 'website', 'static', 'ai', 'buy.html'), 'utf-8');
+    assert.match(buy, /\$29 <span>once<\/span>/);
+    assert.match(buy, /\$9 <span>for 7 days<\/span>/);
+    for (const line of [L.PRICE_LINE, L.KEYS_LINE, L.EXAMPLE_QUESTION, L.UNRESTRICTED_LINE, L.UNRESTRICTED_STATUS, L.UNRESTRICTED_NOTE,
+      ...L.EXAMPLES.flatMap(e => [e.what, e.ask])]) {
       assert.doesNotMatch(line, BANNED);
     }
   });
@@ -271,7 +312,7 @@ describe('the header entry, the note on Home, and Settings', () => {
     const page = r.html();
     assert.match(page, />New</);
     assert.match(page, /Claude and ChatGPT are on this computer\. With the OpenExtract AI add-on, they can read your backups and answer questions about them\./);
-    assert.match(page, /3 questions free, then you'll need an access key\./);
+    assert.match(page, /3 questions free\. After that, a key for each iPhone: \$29 for good, or \$9 for a week\./);
     assert.doesNotMatch(page, /friends-and-family/);
     assert.doesNotMatch(page, BANNED);
     button(r.out(), 'See how it works').props.onClick();
@@ -283,7 +324,7 @@ describe('the header entry, the note on Home, and Settings', () => {
 
   test('a copy carrying the unrestricted edition says so in the note, after the price', async t => {
     const page = (await render(t, 'src/components/ai/AskAiNote.tsx', { ...ON, edition: 'unrestricted' })).html();
-    assert.match(page, /3 questions free, then you'll need an access key\. <span[^>]*>Your copy is the friends-and-family edition, with no limit and no key\.<\/span>/);
+    assert.match(page, /3 questions free\. After that, a key for each iPhone: \$29 for good, or \$9 for a week\. <span[^>]*>Your copy is the friends-and-family edition, with no limit and no key\.<\/span>/);
     assert.doesNotMatch(page, BANNED);
   });
 
@@ -318,16 +359,22 @@ describe('the header entry, the note on Home, and Settings', () => {
 describe('the Ask AI screen', () => {
   const SCREEN = 'src/components/ai/AskAiScreen.tsx';
 
-  test('before anything installs: what it does with an example, the price, where the data goes, read-only, no passwords', async t => {
+  test('before anything installs: what it does, what you can ask, the price, where the data goes, read-only, no passwords', async t => {
     const r = await render(t, SCREEN, ON, { props: { onBack: () => {} } });
     const page = r.html();
-    assert.match(page, /It lets them read your iPhone backups on this computer\s+and answer your questions about them\./);
-    assert.match(page, /For example: .*“When did Sam and I first talk about moving to Denver\?”/);
-    assert.match(page, /3 questions free, then you'll need an access key\./);
-    assert.match(page, /keys come from Charles West, who makes OpenExtract\./);
+    assert.match(page, /It lets them read your iPhone backups on this computer\s+\(messages, WhatsApp, calls, voicemail, contacts, notes, calendar and photos\) and answer your questions about them, pointing to what it used\./);
+    assert.match(page, /What you can ask/);
+    assert.match(page, /“What was the gate code Dana texted me last summer\?”/);
+    assert.match(page, /“Show me the photos from the day Leo learned to ride his bike\.”/);
+    assert.match(page, /3 questions free\. After that, a key for each iPhone: \$29 for good, or \$9 for a week\./);
+    assert.match(page, /When the free questions run out, the AI gives you a link to buy a key for the iPhone you asked about\. OpenExtract itself stays free, with no limits\./);
+    assert.doesNotMatch(page, /Charles West/, 'keys come from the store now, not by hand');
     assert.match(page, /What the AI reads goes to that AI's company: Anthropic for Claude and Claude Code, OpenAI for ChatGPT\./);
     assert.match(page, /It only reads your backups\. It never changes them\./);
     assert.match(page, /Passwords never go to the AI\./);
+    assert.match(page, /Once it's connected/);
+    assert.match(page, /Open Claude or ChatGPT and start a new chat \(or a new Claude Code session\)\./);
+    assert.match(page, /It reads the backup you last opened in OpenExtract\./);
     assert.doesNotMatch(page, BANNED);
     // One card per app, each with its own action and state
     assert.deepEqual(buttons(r.out()).map(text).filter(l => ['Install', 'Connect'].includes(l)), ['Install', 'Connect', 'Install']);
@@ -340,7 +387,7 @@ describe('the Ask AI screen', () => {
 
   test('a copy carrying the unrestricted edition still shows the price, then says theirs needs none of it', async t => {
     const page = (await render(t, SCREEN, { ...ON, edition: 'unrestricted' }, { props: { onBack: () => {} } })).html();
-    assert.match(page, /3 questions free, then you'll need an access key\..*keys come from Charles West, who makes OpenExtract\..*Your copy is the friends-and-family edition: your questions are unlimited and you won't need a key\./s);
+    assert.match(page, /3 questions free\. After that, a key for each iPhone: \$29 for good, or \$9 for a week\..*OpenExtract itself stays free, with no limits\..*Your copy is the friends-and-family edition: your questions are unlimited and you won't need a key\./s);
     assert.doesNotMatch(page, BANNED);
     const usual = (await render(t, SCREEN, ON, { props: { onBack: () => {} } })).html();
     assert.doesNotMatch(usual, /friends-and-family edition/);
@@ -396,9 +443,10 @@ describe('the Ask AI screen', () => {
   });
 
   test('installed: the add-on\'s own count, and Claude Code\'s command to copy', async t => {
-    const r = await render(t, SCREEN, { ...INSTALLED, claude: { connected: true } }, {
+    const sarah = { name: 'Sarah', kind: 'friends', until: '2027-03-31', phone: null };
+    const r = await render(t, SCREEN, { ...INSTALLED, claude: { connected: true, version: '0.2.0', outdated: false } }, {
       props: { onBack: () => {} },
-      results: { status: { ok: true, status: { version: '0.2.0', key: { name: 'Sarah', kind: 'friends', until: '2027-03-31' }, freeQuestions: 3, freeQuestionsLeft: 0 } } },
+      results: { status: { ok: true, status: { version: '0.2.0', key: sarah, keys: [sarah], freeQuestions: 3, freeQuestionsLeft: 0 } } },
     });
     await tick();
     const page = r.html();
@@ -416,10 +464,52 @@ describe('the Ask AI screen', () => {
   test('free questions left, from the add-on', async t => {
     const r = await render(t, SCREEN, INSTALLED, {
       props: { onBack: () => {} },
-      results: { status: { ok: true, status: { version: '0.2.0', key: null, freeQuestions: 3, freeQuestionsLeft: 2 } } },
+      results: { status: { ok: true, status: { version: '0.2.0', key: null, keys: [], freeQuestions: 3, freeQuestionsLeft: 2 } } },
     });
     await tick();
     assert.match(r.html(), /2 of 3 free questions left/);
+    assert.equal(button(r.out(), 'Buy a key'), undefined, 'nothing to buy while free questions are left');
+  });
+
+  test('free questions used up: "Buy a key" opens the store in the browser', async t => {
+    const r = await render(t, SCREEN, INSTALLED, {
+      props: { onBack: () => {} },
+      results: { status: { ok: true, status: { version: '0.2.4', key: null, keys: [], freeQuestions: 3, freeQuestionsLeft: 0 } } },
+    });
+    await tick();
+    assert.match(r.html(), /The 3 free questions have been used\./);
+    button(r.out(), 'Buy a key').props.onClick();
+    assert.deepEqual(r.calls('openExternal'), [['openExternal', 'https://www.openextract.app/ai/buy']]);
+  });
+
+  test('the guide and the product page open in the browser', async t => {
+    const r = await render(t, SCREEN, ON, { props: { onBack: () => {} } });
+    button(r.out(), 'How to set it up and use it').props.onClick();
+    button(r.out(), 'About OpenExtract AI').props.onClick();
+    assert.deepEqual(r.calls('openExternal'), [
+      ['openExternal', 'https://www.openextract.app/use-cases/ask-claude-about-your-iphone-backup'],
+      ['openExternal', 'https://www.openextract.app/ai'],
+    ]);
+  });
+
+  test('this copy carries a newer add-on: Update in the installed row, and in Claude\'s card when Claude has an older one', async t => {
+    const state = { ...INSTALLED, installed: { version: '0.2.4' }, update: { version: '0.3.0' }, claude: { connected: true, version: '0.2.4', outdated: true } };
+    const r = await render(t, SCREEN, state, { props: { onBack: () => {} } });
+    const page = r.html();
+    assert.match(page, /OpenExtract AI 0\.3\.0 came with this version of OpenExtract\./);
+    assert.match(page, /Connected, with an older version \(0\.2\.4\)/);
+    const updates = buttons(r.out()).filter(b => text(b) === 'Update');
+    assert.equal(updates.length, 3, 'the installed row, Claude, Claude Code');
+    updates[0].props.onClick();
+    await tick();
+    await tick();
+    assert.equal(r.calls('askAi.install').length, 1);
+    assert.match(r.html(), /Updated\. Each app below says if it needs a step too\./);
+    buttons(r.out()).filter(b => text(b) === 'Update')[1].props.onClick();
+    await tick();
+    await tick();
+    assert.equal(r.calls('askAi.connectClaude').length, 1);
+    assert.match(r.html(), /Click Install there to update OpenExtract AI, then start a new chat\./);
   });
 
   test('a backup in Finder\'s folder on a Mac: Claude and ChatGPT show the Full Disk Access step; Open Settings asks main', async t => {
