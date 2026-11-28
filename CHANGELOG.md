@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Back up my iPhone: while the backup copies, a short story from the developer, Charles, fills the screen: who he is, what OpenExtract can do, how your backup stays on your computer, why he made it and why it's free, what people have written to him, who pays for it, and how to say thanks. The chapters change on their own and start again for as long as the backup runs. They pause while the pointer is over them, while OpenExtract is in the background, or with the pause button, and Hide folds them away. While the backup runs, the device, folder and encryption steps fold into one line above it. Nothing in the story takes a payment, stores anything or sends anything
+
 ### Changed
 - Back up my iPhone: choosing a backup folder in OneDrive, iCloud Drive, Dropbox or Google Drive now shows a warning under it. A backup there still takes up space on the computer's own drive, so the space in the online account doesn't count, and the sync app uploading each file as it's saved can make the backup fail. If such a backup runs out of room, the message now says the folder is in OneDrive (or the like) and that its online space doesn't count
 
