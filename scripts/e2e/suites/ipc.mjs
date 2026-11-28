@@ -162,8 +162,9 @@ export default {
       const answered = await app.api('support.answerBusiness', 'personal');
       check('onBusinessCard registers; support.answerBusiness goes through', unsubscribed === true && !answered.__missing && !answered.__error, { unsubscribed, answered });
 
-      // Ask AI: only in builds made with OPENEXTRACT_AI_INDEX_URL, and this isn't one (the harness
-      // leaves the variable out). Every call answers that it's off; nothing is downloaded or opened.
+      // Ask AI: only in builds that carry the add-on (Mac and Windows releases) or name an index.json,
+      // and this isn't one (a development build or Pre-release check's package; the harness leaves
+      // the variables out). Every call answers that it's off; nothing is downloaded or opened.
       const aiState = await app.api('askAi.state');
       check('askAi.state: off in this build', JSON.stringify(aiState.value) === JSON.stringify({ enabled: false }), aiState);
       const aiCalls = [];

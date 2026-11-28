@@ -77,9 +77,12 @@ export async function launch(target, { profile, extraArgs = [], env = {} } = {})
   const args = [`--user-data-dir=${userData}`, ...extraArgs];
   if (process.platform === 'linux') args.push('--no-sandbox');
   const options = { args, timeout: 120_000, env: { ...process.env, ...env } };
-  // The suites test the app everyone gets, which has no Ask AI: a development build would turn it
-  // on from this variable (electron/aiAddon.ts), so it's left out unless a suite asks for it.
-  if (!('OPENEXTRACT_AI_INDEX_URL' in env)) delete options.env.OPENEXTRACT_AI_INDEX_URL;
+  // The suites test the app without Ask AI (a development build, or a package built without the
+  // add-on, as Pre-release check makes): a development build would turn it on from these variables
+  // (electron/aiAddon.ts), so they're left out unless a suite asks for them.
+  for (const name of ['OPENEXTRACT_AI_INDEX_URL', 'OPENEXTRACT_AI_BUNDLED_MCPB']) {
+    if (!(name in env)) delete options.env[name];
+  }
   if (target.app) {
     options.executablePath = target.app;
   } else {

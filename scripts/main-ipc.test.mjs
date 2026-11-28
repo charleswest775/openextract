@@ -44,7 +44,7 @@ const EXPECTED_CHANNELS = [
 
 // Development-only switches in main.ts that a developer's shell might have set.
 // So are Ask AI's switch and the folders it uses.
-for (const name of ['OPENEXTRACT_E2E', 'OPENEXTRACT_PYTHON', 'OPENEXTRACT_FEEDBACK_SITE', 'OPENEXTRACT_AI_INDEX_URL', 'OPENEXTRACT_AI_HOME', 'CODEX_HOME']) {
+for (const name of ['OPENEXTRACT_E2E', 'OPENEXTRACT_PYTHON', 'OPENEXTRACT_FEEDBACK_SITE', 'OPENEXTRACT_AI_INDEX_URL', 'OPENEXTRACT_AI_BUNDLED_MCPB', 'OPENEXTRACT_AI_HOME', 'CODEX_HOME']) {
   delete process.env[name];
 }
 
