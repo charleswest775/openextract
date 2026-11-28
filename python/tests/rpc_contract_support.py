@@ -733,7 +733,7 @@ def _voicemail_db(rows: list[tuple]) -> bytes:
                      "trashed_date INTEGER, flags INTEGER, receiver TEXT, label TEXT)")
         for rowid, iso, sender, seconds in rows:
             conn.execute("INSERT INTO voicemail (ROWID, date, sender, duration, flags, trashed_date) "
-                         "VALUES (?, ?, ?, ?, ?, 0)", (rowid, _iso_seconds(iso), sender, seconds, 0x1103))
+                         "VALUES (?, ?, ?, ?, ?, 0)", (rowid, _iso_seconds(iso), sender, seconds, 0x3))
     return _sqlite_bytes(build)
 
 

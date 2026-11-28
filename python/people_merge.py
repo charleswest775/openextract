@@ -60,6 +60,16 @@ def _person_key(name: str) -> str:
     return digits if _LOOKS_LIKE_A_NUMBER.fullmatch(name) and len(digits) >= 7 else name.strip().lower()
 
 
+NO_CALLER_ID = "Unknown"  # what the engine names a call or voicemail with no number
+
+
+def no_caller_id(e: dict) -> bool:
+    """A call or voicemail with no number at all (noCallerId): no one's, whatever it's called.
+    An app's call, which keeps an id in place of the number (None here), isn't one."""
+    return not e.get("contactIdentifier") and (
+        e.get("type") == "voicemail" or (e.get("type") == "call" and e.get("contactName") == NO_CALLER_ID))
+
+
 def named_by_number(e: dict) -> bool:
     """A text, call or voicemail the address book had no name for: no name, or only its
     own number or address (namedByNumber). Never a group conversation."""
@@ -136,7 +146,8 @@ def gather_people(entries: list, cards: Optional[list] = None) -> list:
     entry, and a one-to-one chat joins whoever already has its number (on their
     texts, calls, voicemail or card), or else is a person of its own. A call with a
     name but no number (an app's call) is the person of that name, if there is one;
-    a record with neither is no one's. ``cards`` are list_contacts cards
+    a record with neither is no one's, and so is a call or voicemail with no number at
+    all (no_caller_id), though the engine names it "Unknown". ``cards`` are list_contacts cards
     ({id, phones, emails}).
     """
     cards = cards or []
@@ -153,8 +164,9 @@ def gather_people(entries: list, cards: Optional[list] = None) -> list:
         if e.get("type") not in PERSON_KINDS:
             continue
         if not e.get("contactIdentifier"):
-            # A WhatsApp chat with no number WhatsApp could tie it to isn't anyone's
-            if e.get("contactName") and e["type"] != "whatsapp":
+            # A WhatsApp chat with no number WhatsApp could tie it to isn't anyone's, nor is a call
+            # or voicemail with no number at all
+            if e.get("contactName") and e["type"] != "whatsapp" and not no_caller_id(e):
                 name_only.append(e)
         elif e["type"] == "whatsapp":
             whatsapp.append(e)

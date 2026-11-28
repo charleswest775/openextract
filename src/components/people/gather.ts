@@ -1,7 +1,7 @@
 import type { AddressCard } from '../../hooks/useTimeline';
 import type { TimelineEntry } from '../../types/timeline';
 import type { WhatsAppChatType } from '../../types/whatsapp';
-import { isWhatsAppAddress, namedByNumber, normPhone, personKey } from '../../lib/people';
+import { isWhatsAppAddress, namedByNumber, noCallerId, normPhone, personKey } from '../../lib/people';
 
 // People are who the backup shows you in touch with (messages, WhatsApp, calls,
 // voicemail); the address book is the cards saved on the phone. One person can
@@ -98,7 +98,8 @@ const sorted = (byKey: Map<string, Person>) =>
  *    card), whatever either is called, or else is a person of its own.
  *  - A call with a name but no number (an app's call, such as a WhatsApp or
  *    FaceTime call, which keeps an id in place of the number) is whoever has that
- *    name, if anyone does. A record with neither is no one's.
+ *    name, if anyone does. A record with neither is no one's, and so is a call or
+ *    voicemail with no number at all (noCallerId), though the engine names it "Unknown".
  */
 export function gatherPeople(entries: TimelineEntry[], cards: AddressCard[] = []): Person[] {
   const byKey = new Map<string, Person>();
@@ -117,8 +118,9 @@ export function gatherPeople(entries: TimelineEntry[], cards: AddressCard[] = []
   for (const e of entries) {
     if (!PERSON_KINDS.includes(e.type as PersonKind)) continue;
     if (!e.contactIdentifier) {
-      // A WhatsApp chat with no number WhatsApp could tie it to isn't anyone's
-      if (e.contactName && e.type !== 'whatsapp') nameOnly.push(e);
+      // A WhatsApp chat with no number WhatsApp could tie it to isn't anyone's, nor is a call or
+      // voicemail with no number at all
+      if (e.contactName && e.type !== 'whatsapp' && !noCallerId(e)) nameOnly.push(e);
     } else if (e.type === 'whatsapp') whatsapp.push(e);
     else if (namedByNumber(e)) byNumber.push(e);
     else into(personKey(e.contactName || e.contactIdentifier), e);

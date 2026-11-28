@@ -211,8 +211,11 @@ test('normalizeVoicemail: the number stands in for a missing name', () => {
   const vm = { id: 5, phone_number: '+14065550109', contact_name: '', date_received: '2024-03-10T09:59:59+00:00', duration: 45, is_read: false };
   const e = normalizeVoicemail(vm);
   assert.deepEqual([e.id, e.contactName, e.contactIdentifier, e.timestamp], ['voicemail:5', '+14065550109', '+14065550109', vm.date_received]);
-  assert.deepEqual(e.voicemail, { duration: 45, transcript: '', phoneNumber: '+14065550109' });
+  assert.deepEqual(e.voicemail, { voicemailId: 5, duration: 45, transcript: '', phoneNumber: '+14065550109' });
   assert.equal(normalizeVoicemail({ ...vm, contact_name: 'Dr. Alvarez', transcript: 'Your appointment…' }).contactName, 'Dr. Alvarez');
+  // A per-line store's copy keeps its id as the engine gave it, to play it by
+  assert.equal(normalizeVoicemail({ ...vm, id: 'A-0B1C2D3E-4F50-4A6B-8C7D-9E0F1A2B3C4D.27' }).voicemail.voicemailId,
+    'A-0B1C2D3E-4F50-4A6B-8C7D-9E0F1A2B3C4D.27');
 });
 
 test('normalizePhoto: photos without a date are left off the Timeline', () => {
@@ -445,6 +448,20 @@ const callFrom = (id, date, address, contactName, app = '') => normalizeCall({
 });
 const voicemailFrom = (id, date, phoneNumber, contactName) => normalizeVoicemail({
   id, phone_number: phoneNumber, contact_name: contactName, date_received: engine(date), duration: 20, is_read: true,
+});
+
+test('a call or voicemail with no number is in no one\'s stream, even someone the address book calls "Unknown"', () => {
+  // The engine names both "Unknown"; a saved spam number can be called that too
+  const chat = { ...MOM_CHAT, chat_id: 41, chat_identifier: '+15035550399', display_name: 'Unknown' };
+  const entries = [
+    normalizeMessage(msg(1, local(2024, 3, 1, 9), 'hi', { sender: chat.chat_identifier }), chat),
+    voicemailFrom(2, local(2024, 3, 2, 9), '', 'Unknown'),
+    callFrom(3, local(2024, 3, 3, 9), '', 'Unknown'),
+  ];
+  const [unknown, ...rest] = assertCountsAreStreams(entries);
+  assert.equal(rest.length, 0);
+  assert.deepEqual(unknown.stream, ['message:1']);
+  assert.deepEqual(unknown.person.counts, { message: 1, whatsapp: 0, call: 0, voicemail: 0 });
 });
 
 test("an app's call with only a name counts for the person of that name, as their stream shows it", () => {

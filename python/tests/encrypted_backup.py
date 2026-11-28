@@ -24,8 +24,12 @@ MADE = datetime(2024, 5, 6, 12, tzinfo=timezone.utc)
 
 
 def make_encrypted_backup(out: Path, udid: str, *, seed: int = 1, text: bytes = b"the only copy",
-                          when: datetime = MADE) -> Path:
-    """<out>/<udid>: a finished, encrypted backup whose sms.db holds `text`."""
+                          when: datetime = MADE, host: str = "finder") -> Path:
+    """<out>/<udid>: a finished, encrypted backup whose sms.db holds `text`.
+
+    ``host`` is what made it (backupgen's Host): "finder", or "pymobiledevice3" as OpenExtract makes
+    them, whose Info.plist has no "Last Backup Date" (only Status.plist and Manifest.plist date it).
+    """
     root = backupgen_root()
     if root is None:
         skip_or_fail("ios-backup-core's backupgen wasn't found; set OPENEXTRACT_IOS_BACKUP_CORE")
@@ -36,7 +40,7 @@ def make_encrypted_backup(out: Path, udid: str, *, seed: int = 1, text: bytes = 
                               ios="17.3", build="21D50", phone_number="+1 555 0100", udid=udid)
     writer = container.BackupWriter(out_dir=out, device=device, seed=seed, password=PASSWORD,
                                     backup_date=when,
-                                    container_version="17.3")
+                                    container_version="17.3", host=container.Host(kind=host))
     writer.add_file(*SMS, text)
     for i in range(12):
         writer.add_file("CameraRollDomain", f"Media/DCIM/100APPLE/IMG_{i:04d}.HEIC", bytes([i]) * (400 + i))

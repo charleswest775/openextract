@@ -38,7 +38,8 @@ SPAM_MARK = hasattr(_core_voicemail, "is_spam")
 UDID = "00008030-0000000000000002"
 ACCOUNT = "A-0B1C2D3E-4F50-4A6B-8C7D-9E0F1A2B3C4D"
 AMR = b"#!AMR\n" + bytes(32)
-LIVE, SPAM, TRASHED, DELETED_LONG_AGO, SPAM_THEN_DELETED = 0x1103, 0x1182, 0x110A, 0x110B, 0x118A
+# Made-up flag words: known bits (0x1 heard, 0x8 deleted, 0x80 spam, 0x2) beside one the reader ignores (0x40000)
+LIVE, SPAM, TRASHED, DELETED_LONG_AGO, SPAM_THEN_DELETED = 0x40003, 0x40082, 0x4000A, 0x4000B, 0x4008A
 
 
 def _voicemail_db(rows) -> bytes:
@@ -63,7 +64,7 @@ def _make_backup(backup_dir: str, files: dict) -> None:
     os.makedirs(backup_dir)
     with open(os.path.join(backup_dir, "Info.plist"), "wb") as f:
         plistlib.dump({"Unique Identifier": UDID, "Device Name": "Test: iPhone?", "Product Type": "iPhone17,1",
-                       "Product Version": "27.2"}, f)
+                       "Product Version": "26.1"}, f)
     with open(os.path.join(backup_dir, "Manifest.plist"), "wb") as f:
         plistlib.dump({"IsEncrypted": False}, f)
     manifest = sqlite3.connect(os.path.join(backup_dir, "Manifest.db"))
@@ -93,10 +94,10 @@ class BundleTest(unittest.TestCase):
                 (6, 1_726_000_000, "+15550000001", 8, LIVE, 0),  # no audio in the backup
             ]),
             f"Library/Voicemail/{ACCOUNT}/voicemail.db": _voicemail_db([
-                (7, 1_730_000_000, "+15550000007", 60, 0x3, 0),  # only in the account store
+                (27, 1_730_000_000, "+15550000007", 60, 0x3, 0),  # only in the account store
             ]),
             **{f"Library/Voicemail/{n}.amr": AMR + bytes([n]) for n in (1, 2, 3, 4, 5)},
-            f"Library/Voicemail/{ACCOUNT}/7.amr": AMR,
+            f"Library/Voicemail/{ACCOUNT}/27.amr": AMR,
         })
         self.server = SidecarServer()
         self.notifications = []
@@ -132,7 +133,7 @@ class BundleTest(unittest.TestCase):
         self.assertEqual((manifest["format"], manifest["experimental"], manifest["time_zone_used"]),
                          ("openextract-bundle", True, "UTC"))
         self.assertEqual(manifest["computer_time_zone"], "Europe/London")
-        self.assertEqual(manifest["backup"]["ios_version"], "27.2")
+        self.assertEqual(manifest["backup"]["ios_version"], "26.1")
         self.assertEqual(manifest["backup"]["device_name"], "Test: iPhone?")
         self.assertEqual(manifest["backup"]["udid_sha256"], hashlib.sha256(UDID.encode()).hexdigest())
         self.assertEqual(manifest["app"]["version"], build_info.app_version())
@@ -146,7 +147,7 @@ class BundleTest(unittest.TestCase):
             {i: (v["folder"], v["is_spam"], v["is_deleted"]) for i, v in rows.items()},
             {"1": ("voicemail", False, False), "2": ("spam", True, False), "3": ("deleted", False, True),
              "4": ("deleted", False, True), "5": ("deleted", True, True), "6": ("voicemail", False, False),
-             f"{ACCOUNT}.7": ("voicemail", False, False)},
+             f"{ACCOUNT}.27": ("voicemail", False, False)},
         )
         self.assertEqual(rows["2"]["phone_number"], "+15550000002")
         self.assertEqual(rows["1"]["date_utc"], "2023-11-14T22:13:20Z")
@@ -178,6 +179,10 @@ class BundleTest(unittest.TestCase):
         self.assertEqual(people["sources"], ["messages", "calls", "voicemail"])
         calls = read_lines(os.path.join(result["path"], "calls.jsonl"))
         self.assertTrue(calls and all(c["source"] == "voicemail" for c in calls))
+        # Deleted voicemails aren't counted, as the app's People screen doesn't show them: no one is
+        # made of those alone
+        deleted_only = {"+15550000003", "+15550000004", "+15550000005"}
+        self.assertFalse(deleted_only & {p["identifier"] for p in people["people"]})
 
     def test_only_the_kinds_asked_for(self):
         result = self.bundle(types=["voicemail"], files={"voicemail_audio": False})
@@ -264,6 +269,14 @@ class HelpersTest(unittest.TestCase):
         self.assertEqual(bundle.utc("2024-07-05T16:10:00Z"), "2024-07-05T16:10:00Z")
         for nothing in ("", None, "not a date"):
             self.assertIsNone(bundle.utc(nothing))
+
+    def test_a_caller_with_no_number_has_no_name(self):
+        """The engine names a call or voicemail with no number "Unknown"; that's no name in the address book."""
+        self.assertIsNone(bundle._name_or_none("Unknown", None))
+        self.assertIsNone(bundle._name_or_none("Unknown", ""))
+        self.assertEqual(bundle._name_or_none("Unknown", "+15550000001"), "Unknown")  # a contact really called that
+        self.assertEqual(bundle._name_or_none("Dentist", "+15550000001"), "Dentist")
+        self.assertIsNone(bundle._name_or_none("+15550000001", "+15550000001"))
 
     def test_file_names_work_everywhere(self):
         self.assertEqual(bundle.safe_name('a<b>c:"d"/e\\f|g?h*i\x01'), "a_b_c__d__e_f_g_h_i_")

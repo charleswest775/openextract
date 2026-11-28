@@ -122,8 +122,17 @@ def test_a_person_gets_their_chats_calls_and_voicemail_only(ctx):
 
     calls = Counter(_local_day(c["date"]) for c in ctx.calls_result.get("calls", []) if c["address"] == identifier)
     assert got["call"] == calls
-    voicemail = Counter(_local_day(v["date"]) for v in expected["voicemails"] if v["sender"] == identifier)
+    # Deleted voicemails aren't counted, as the Timeline leaves them out
+    voicemail = Counter(_local_day(v["date"]) for v in expected["voicemails"]
+                        if v["sender"] == identifier and not v["is_deleted"])
     assert got["voicemail"] == voicemail
+
+
+def test_voicemail_matches_answer_key(ctx):
+    """The Voicemail and Spam lists count; Deleted voicemails don't, nor voicemails no list shows."""
+    expected = _synthetic(ctx)
+    want = Counter(_local_day(v["date"]) for v in expected.get("voicemails") or [] if not v["is_deleted"])
+    assert _all_days(ctx, types=["voicemail"])["voicemail"] == want
 
 
 def test_a_group_chat_counts_when_named(ctx):

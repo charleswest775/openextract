@@ -22,6 +22,8 @@ export const BRIDGE = [
   'mediaThumbnail',
   // Older backups to the Trash (electron/olderBackups.ts)
   'trashOlderBackup',
+  // A backup folder in OneDrive or the like (BackupFlow.tsx, electron/syncedFolder.ts)
+  'syncedFolder',
 ];
 
 export default {
@@ -73,6 +75,11 @@ export default {
       await app.cancelDialogs();
       check('selectFolder returns null when cancelled', (await app.api('selectFolder')).value === null);
       check('saveFile returns null when cancelled', (await app.api('saveFile', {})).value === null);
+      const inOneDrive = path.join(scratch, 'OneDrive', 'iPhone');
+      fs.mkdirSync(inOneDrive, { recursive: true });
+      const synced = await app.api('syncedFolder', inOneDrive);
+      check('syncedFolder names OneDrive for a folder in it, and nothing for others',
+        synced.value === 'OneDrive' && (await app.api('syncedFolder', scratch)).value === null, synced);
 
       // Files.
       const file = path.join(scratch, 'ünïcode – 日本.txt');

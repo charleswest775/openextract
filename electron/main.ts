@@ -9,6 +9,7 @@ import { safeBaseName, writeNewFile } from './newFile';
 import { FeedbackRecorder } from './feedback';
 import { FeedbackReports } from './feedbackReports';
 import { installFolderFor, installFolderWarning, isInsideFolder, resolveReal } from './installFolder';
+import { syncedFolderAt, withSyncedFolderNote } from './syncedFolder';
 import { CHECK_OLDER_TIMEOUT_MS, takeMoveLock, trashOlderBackup } from './olderBackups';
 import { isBusinessAnswer, recordSave, shouldAskBusiness } from './businessUse';
 // ── Media in the window (videos, posters): only from the engine's copy folders ──
@@ -483,6 +484,9 @@ app.whenReady().then(async () => {
         appendLog(logPath, `[Electron] backup.start failed after the computer slept: ${message.split('\n')[0]}`);
         message = message.includes(EARLIER_UNCHANGED) ? `${COMPUTER_SLEPT} ${EARLIER_UNCHANGED}` : COMPUTER_SLEPT;
       }
+      // Space in OneDrive's online account doesn't count, which people expect it to (OE-212).
+      // Said here, where the folder is known: a report shows the error but never the folder.
+      if (method === 'backup.start') message = withSyncedFolderNote(message, syncedFolderAt(params?.output_dir));
       feedback.recordCall(method, params, { ok: false, error: message });
       if (method === 'open_backup') {
         const ts = new Date().toTimeString().slice(0, 8);
@@ -636,6 +640,10 @@ app.whenReady().then(async () => {
     store.set('textSize', size);
     applyTextSize();
   });
+
+  // The cloud storage app, such as "OneDrive", that syncs a chosen backup folder, or null
+  // (electron/syncedFolder.ts). Looks only at the path, so it answers at once.
+  ipcMain.handle('folder:syncedService', (_event: any, folder: unknown) => syncedFolderAt(folder));
 
   // Back up my iPhone and every export save through these two, so neither accepts a
   // place inside the program folder, which every update deletes (see installFolder.ts).

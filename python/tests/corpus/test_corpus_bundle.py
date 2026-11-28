@@ -124,7 +124,9 @@ def test_bundle_people_add_up(made):
     _, path, manifest = made
     people = json.loads((path / "people.json").read_text(encoding="utf-8"))
     assert people["sources"] == ["messages", "calls", "voicemail"]
-    voicemail_from_someone = sum(1 for v in read_lines(path / "voicemail.jsonl") if v["phone_number"] and v["date_utc"])
+    # Voicemail from a number, in the Voicemail and Spam lists: Deleted isn't counted, as on the People screen
+    voicemail_from_someone = sum(1 for v in read_lines(path / "voicemail.jsonl")
+                                 if v["phone_number"] and v["date_utc"] and not v["is_deleted"])
     assert sum(p["counts"]["voicemail"] for p in people["people"]) == voicemail_from_someone
     if (path / "messages.jsonl").exists():
         dated = Counter(m["chat_id"] for m in read_lines(path / "messages.jsonl") if m["date_utc"])

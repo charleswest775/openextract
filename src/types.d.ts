@@ -21,6 +21,8 @@ declare global {
       exportHtmlPdf: (html: string, outputDir: string, baseName: string) => Promise<{ success: boolean; data?: { file: string }; error?: string }>;
       selectFolder: () => Promise<string | null>;
       saveFolder: () => Promise<string | null>;
+      /** "OneDrive", "iCloud Drive", "Dropbox", … when the folder is in one, else null (electron/syncedFolder.ts). */
+      syncedFolder: (folder: string) => Promise<string | null>;
       saveFile: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<string | null>;
       writeFile: (filePath: string, content: string) => Promise<void>;
       /** Never replaces a file: resolves to the path written, "<baseName> (2).<extension>" if the name was taken. */

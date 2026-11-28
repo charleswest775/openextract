@@ -98,6 +98,15 @@
       },
       {
         "@type": "Question",
+        "name": "Not enough space in a OneDrive or iCloud Drive folder",
+        "url": "https://www.openextract.app/fixes#backup-folder-in-cloud-storage",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A backup is saved on this computer's own drive, even in a OneDrive, iCloud Drive, Dropbox or Google Drive folder, so the space in your online account doesn't count. Those apps also upload each file while the backup is being saved, which can make it fail. Choose a folder that isn't in one of them, on a drive with enough free space, such as an external drive, then try again. A backup can need much more space than your iPhone shows as used, because the iPhone counts some files more than once."
+        }
+      },
+      {
+        "@type": "Question",
         "name": "Encrypted backups of some iPhones",
         "url": "https://www.openextract.app/fixes#encrypted-backup-no-such-value",
         "acceptedAnswer": {
@@ -258,6 +267,11 @@
         <h3>The backup needs more space than the drive has</h3>
         <p class="fix__seen">What you see: <code>Not enough free space for this backup</code></p>
         <p>The drive you chose doesn't have room for the backup. A backup can need much more space than your iPhone shows as used, because the iPhone counts some files more than once. Choose a folder on a drive with more free space, such as an external drive, or free up space on this one, then try again.</p>
+      </div>
+      <div class="fix" id="backup-folder-in-cloud-storage">
+        <h3>Not enough space in a OneDrive or iCloud Drive folder</h3>
+        <p class="fix__seen">What you see: <code>Not enough free space for this backup</code> or <code>This folder is in OneDrive</code></p>
+        <p>A backup is saved on this computer's own drive, even in a OneDrive, iCloud Drive, Dropbox or Google Drive folder, so the space in your online account doesn't count. Those apps also upload each file while the backup is being saved, which can make it fail. Choose a folder that isn't in one of them, on a drive with enough free space, such as an external drive, then try again. A backup can need much more space than your iPhone shows as used, because the iPhone counts some files more than once.</p>
       </div>
       <div class="fix" id="encrypted-backup-no-such-value">
         <h3>Encrypted backups of some iPhones</h3>
