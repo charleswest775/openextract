@@ -39,6 +39,14 @@ declare global {
         { status: 'moved' } | { status: 'cancelled' } | { status: 'refused' | 'failed'; message: string }
       >;
       /**
+       * Move any backup on the home screen's list to the Trash (the Recycle Bin on Windows),
+       * after the engine's checks and the main process's own question, which says first when
+       * it may be the only copy. Never deletes.
+       */
+      trashBackup: (backupDir: string) => Promise<
+        { status: 'moved' } | { status: 'cancelled' } | { status: 'refused' | 'failed'; message: string }
+      >;
+      /**
        * A poster frame (JPEG data: URL, at most `size` px on its longer side) for a video the
        * engine copied out with as_file. Null on Linux, for any other path, or when it can't be drawn.
        */

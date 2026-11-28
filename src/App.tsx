@@ -54,6 +54,10 @@ export default function App() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
+  // The recent backup that couldn't be found, which the alert offers to take off the list.
+  const [missingSessionId, setMissingSessionId] = useState<string | null>(null);
+  // Counts up to have the home screen read its list again.
+  const [homeReload, setHomeReload] = useState(0);
   const [browseChoices, setBrowseChoices] = useState<{ folder: string; backups: BackupInfo[] } | null>(null);
 
   const openAndNavigate = useCallback(async (
@@ -65,6 +69,7 @@ export default function App() {
     passwordHint?: string,
   ) => {
     setOpenError(null);
+    setMissingSessionId(null);
     const result = await backup.openBackup(udid, password, backupDir);
 
     if (result.status === 'password_required') {
@@ -81,7 +86,9 @@ export default function App() {
     }
 
     if (result.status.startsWith('error:')) {
-      setOpenError(result.status.slice(6));
+      const message = result.status.slice(6);
+      setOpenError(message);
+      if (session && backupMissingMessage(message)) setMissingSessionId(session.id);
     } else {
       setOpenError(`Could not open backup (status: ${result.status}).`);
     }
@@ -91,6 +98,7 @@ export default function App() {
   // where it was. Opening it again saves its new folder in the recent list.
   const browseForBackup = useCallback(async () => {
     setOpenError(null);
+    setMissingSessionId(null);
     const path = await window.openextract.selectFolder();
     if (!path) return;
     try {
@@ -114,7 +122,17 @@ export default function App() {
 
   // A backup that isn't where it was (moved, or on a drive that isn't plugged in): its
   // words, shown with Find it. null for any other error.
-  const missingBackup = backupMissingMessage(openError);
+  const missingBackup = backupMissingMessage(openError, !!missingSessionId);
+
+  // Remove from list, on a recent backup that isn't where it was: one deleted along with the
+  // folder it was in, or kept on a drive that's gone (OE-214). Only the app's list changes.
+  const removeMissingSession = useCallback(async () => {
+    if (!missingSessionId) return;
+    await window.openextract.removeSession(missingSessionId);
+    setOpenError(null);
+    setMissingSessionId(null);
+    setHomeReload(n => n + 1);
+  }, [missingSessionId]);
 
   const handlePasswordSubmit = useCallback(async (password: string) => {
     if (!pendingOpen) return;
@@ -146,6 +164,7 @@ export default function App() {
     <div className="h-screen flex flex-col bg-base text-text-primary">
       {screen === 'home' && (
         <HomeScreen
+          reload={homeReload}
           onOpenBackup={async (session) => {
             await openAndNavigate(session.id, undefined, session.backupDir, session, undefined);
           }}
@@ -225,11 +244,16 @@ export default function App() {
                   Find it
                 </button>
               )}
+              {missingBackup && missingSessionId && (
+                <button type="button" onClick={removeMissingSession} className="text-xs font-medium text-accent hover:underline">
+                  Remove from list
+                </button>
+              )}
               <ReportProblemButton error={openError} area="open_backup" />
             </div>
           </div>
           <button
-            onClick={() => setOpenError(null)}
+            onClick={() => { setOpenError(null); setMissingSessionId(null); }}
             className="text-text-tertiary hover:text-text-primary flex-shrink-0"
             aria-label="Dismiss"
           >×</button>

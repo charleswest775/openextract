@@ -2217,6 +2217,45 @@ def case_backup_check_older(ctx):
         assert files_under(engine.backup_dir) == before
 
 
+@contract("backup.check_trash")
+def case_backup_check_trash(ctx):
+    # Only looks: what the question needs, or why not. Nothing in the folder changes.
+    for engine in (ctx.maren, ctx.maren_enc):
+        before = files_under(engine.backup_dir)
+        result = ctx.plain.call("backup.check_trash", {"backup_dir": str(engine.backup_dir)})
+        assert files_under(engine.backup_dir) == before
+        if sys.platform not in ("darwin", "win32"):
+            assert result["allowed"] is False and "Linux" in result["reason"], result
+            continue
+        if not result["allowed"]:  # a Recycle Bin too small on this runner, say
+            assert isinstance(result["reason"], str) and result["reason"], result
+            continue
+        backup = result["backup"]
+        assert same_path(backup["backup_dir"], engine.backup_dir)
+        assert backup["encrypted"] is engine.encrypted
+        assert backup["unfinished"] is False
+        assert backup["bytes"] > 0 and backup["device_name"] and backup["last_backup"]
+        assert isinstance(result["others"], list) and result["more_others"] >= 0
+        assert isinstance(result["stamp"], str) and result["stamp"]
+    nothing = ctx.folder("not-a-backup")
+    result = ctx.plain.call("backup.check_trash", {"backup_dir": str(nothing)})
+    assert result["allowed"] is False and "no iPhone backup" in result["reason"], result
+    assert ctx.plain.call("backup.check_trash", {})["allowed"] is False
+
+
+@contract("backup.release_folder")
+def case_backup_release_folder(ctx):
+    # A folder no open backup is in: nothing to close.
+    assert ctx.plain.call("backup.release_folder", {"backup_dir": str(ctx.folder("nothing-open"))}) == {"closed": 0}
+    assert ctx.plain.call("backup.release_folder", {}) == {"closed": 0}
+    # The open backup's own folder: closed, so it has to be opened again before it's read.
+    e = ctx.einstein
+    assert ctx.plain.call("open_backup", {"udid": e.udid, "backup_dir": str(e.backup_dir)})["status"] == "open"
+    assert ctx.plain.call("backup.release_folder", {"backup_dir": str(e.backup_dir)}) == {"closed": 1}
+    err = ctx.plain.error("list_conversations", {"udid": e.udid})
+    assert "not open" in err.message.lower(), err.message
+
+
 def test_every_engine_method_has_a_contract_case():
     served = set(engine_methods())
     missing = sorted(served - set(CONTRACT))

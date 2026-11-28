@@ -10,8 +10,9 @@ import { FeedbackRecorder } from './feedback';
 import { FeedbackReports } from './feedbackReports';
 import { installFolderFor, installFolderWarning, isInsideFolder, resolveReal } from './installFolder';
 import { syncedFolderAt, withSyncedFolderNote } from './syncedFolder';
-import { CHECK_OLDER_TIMEOUT_MS, takeMoveLock, trashOlderBackup } from './olderBackups';
+import { CHECK_OLDER_TIMEOUT_MS, takeMoveLock, trashBackup, trashOlderBackup } from './olderBackups';
 import { isBusinessAnswer, recordSave, shouldAskBusiness } from './businessUse';
+import { listedSessions } from './recentBackups';
 // ── Media in the window (videos, posters): only from the engine's copy folders ──
 const os = require('os');
 const { nativeImage } = require('electron');
@@ -447,8 +448,11 @@ app.whenReady().then(async () => {
   ipcMain.handle('app:get-version', () => app.getVersion());
 
   // ── Sidecar IPC bridge ──────────────────────────────────────────────────
+  // Backups being made now: none may go to the Trash meanwhile (backup:trash below).
+  let backupsRunning = 0;
   ipcMain.handle('sidecar:call', async (_event: any, method: string, params: any) => {
     const awake = method === 'backup.start' ? keepAwakeDuringBackup(logPath) : null;
+    if (method === 'backup.start') backupsRunning++;
     try {
       // Backups and saves send progress reports, and each one starts the time limit
       // over (sidecar.ts), so these limits are how long they may go without one.
@@ -496,12 +500,33 @@ app.whenReady().then(async () => {
       return { success: false, error: message };
     } finally {
       awake?.stop();
+      if (method === 'backup.start') backupsRunning--;
     }
   });
 
   // ── An older backup to the Trash ────────────────────────────────────────
   // The only thing in the app that removes a backup, and only to the Trash (olderBackups.ts).
   // The window says which; it can't skip the checks or the question.
+  // No window to ask in means no.
+  const askInWindow = async (options: Record<string, unknown>) =>
+    mainWindow && !mainWindow.isDestroyed() ? dialog.showMessageBox(mainWindow, options) : { response: 0 };
+  const moveToTrash = (target: string) => {
+    // Windows won't move the folder this process is working in, as a file dialog can leave it.
+    try {
+      if (isInsideFolder(resolveReal(process.cwd()), resolveReal(target))) process.chdir(os.homedir());
+    } catch {
+      // The working folder has gone, so it's in nobody's way.
+    }
+    return shell.trashItem(target);
+  };
+  const stillThere = (target: string) => {
+    try {
+      fs.lstatSync(target);
+      return true;
+    } catch (err: any) {
+      return err?.code === 'ENOENT' ? false : null;
+    }
+  };
   ipcMain.handle('backup:trashOlder', async (_event: any, udid: unknown, backupDir: unknown) => {
     const params = { udid, backup_dir: backupDir };
     try {
@@ -513,31 +538,43 @@ app.whenReady().then(async () => {
           feedback.recordCall('backup.check_older', params, { ok: true, result: found });
           return found;
         },
-        // No window to ask in means no.
-        confirm: async options =>
-          mainWindow && !mainWindow.isDestroyed() ? dialog.showMessageBox(mainWindow, options) : { response: 0 },
-        trashItem: target => {
-          // Windows won't move the folder this process is working in, as a file dialog can leave it.
-          try {
-            if (isInsideFolder(resolveReal(process.cwd()), resolveReal(target))) process.chdir(os.homedir());
-          } catch {
-            // The working folder has gone, so it's in nobody's way.
-          }
-          return shell.trashItem(target);
-        },
-        exists: target => {
-          try {
-            fs.lstatSync(target);
-            return true;
-          } catch (err: any) {
-            return err?.code === 'ENOENT' ? false : null;
-          }
-        },
+        confirm: askInWindow,
+        trashItem: moveToTrash,
+        exists: stillThere,
       }, udid, backupDir);
     } catch (error: any) {
       const message = String(error?.message ?? error);
       console.error('Checking an older backup failed', error);
       feedback.recordCall('backup.check_older', params, { ok: false, error: message });
+      return { status: 'failed', message: "OpenExtract couldn't check that backup, so it didn't move it." };
+    }
+  });
+
+  // ── Any backup on the home screen's list to the Trash ───────────────────
+  // It may be the only copy, which the question says first (olderBackups.ts trashBackup).
+  ipcMain.handle('backup:trash', async (_event: any, backupDir: unknown) => {
+    const params = { backup_dir: backupDir };
+    try {
+      return await trashBackup({
+        platform: process.platform,
+        lock: () => takeMoveLock(process.platform),
+        backingUp: () => backupsRunning > 0,
+        check: async dir => {
+          const found = await sidecar.call('backup.check_trash', { backup_dir: dir }, CHECK_OLDER_TIMEOUT_MS);
+          feedback.recordCall('backup.check_trash', params, { ok: true, result: found });
+          return found;
+        },
+        confirm: askInWindow,
+        release: async dir => {
+          await sidecar.call('backup.release_folder', { backup_dir: dir });
+        },
+        trashItem: moveToTrash,
+        exists: stillThere,
+      }, backupDir);
+    } catch (error: any) {
+      const message = String(error?.message ?? error);
+      console.error('Checking a backup to move failed', error);
+      feedback.recordCall('backup.check_trash', params, { ok: false, error: message });
       return { status: 'failed', message: "OpenExtract couldn't check that backup, so it didn't move it." };
     }
   });
@@ -693,8 +730,9 @@ app.whenReady().then(async () => {
   });
 
   // ── App state persistence ───────────────────────────────────────────────
+  // A backup deleted since it was opened is left out of the list, not forgotten (recentBackups.ts).
   ipcMain.handle('get-app-state', async () => {
-    const sessions = (store.get('sessions', []) as any[])
+    const sessions = (await listedSessions(store.get('sessions', []) as any[]))
       .sort((a: any, b: any) => new Date(b.lastOpened).getTime() - new Date(a.lastOpened).getTime());
     const firstLaunch = store.get('firstLaunchCompleted', false) as boolean;
     const stats = store.get('stats', { totalExports: 0 }) as any;

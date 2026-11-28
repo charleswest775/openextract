@@ -1,5 +1,5 @@
 import {
-  ArchiveRestore, ArrowLeft, AudioWaveform, BookUser, Briefcase, CalendarClock, CalendarDays, Check, ChevronRight, Clock, Download, FolderOpen,
+  ArchiveRestore, ArrowLeft, AudioWaveform, BookUser, Briefcase, CalendarClock, CalendarDays, Check, ChevronRight, Clock, Download, Ellipsis, FolderOpen,
   Globe, House, Image, LayoutGrid, LifeBuoy, Lock, MessageCircle, MessagesSquare, NotebookPen, PackageOpen, Phone, Play, Plus,
   Podcast, Search,
   Settings, Smartphone, Users, Voicemail,
@@ -59,4 +59,5 @@ export const PhoneIcon = icon(Smartphone); // the device, not a call
 export const FolderIcon = icon(FolderOpen);
 export const CaseIcon = icon(Briefcase);
 export const LockIcon = icon(Lock);
+export const MoreIcon = icon(Ellipsis); // a row's menu
 export const GridIcon = icon(LayoutGrid);

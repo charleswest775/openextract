@@ -50,11 +50,17 @@ export const BACKUP_MISSING_PREFIX = 'BACKUP_MISSING:';
  * renamed, deleted, or on a drive that isn't plugged in), under the title "Can't find
  * this backup" and next to a Find it button. The engine's first sentence says what the
  * title does, so it's left out. null for any other error. In-app report OE-40.
+ *
+ * `fromList`: it was opened from the list of recent backups, so the alert also has a
+ * Remove from list button, and the words say what it's for (OE-214).
  */
-export function backupMissingMessage(error: string | null | undefined): string | null {
+export function backupMissingMessage(error: string | null | undefined, fromList = false): string | null {
   if (!error?.startsWith(BACKUP_MISSING_PREFIX)) return null;
-  return error.slice(BACKUP_MISSING_PREFIX.length).trim().replace(/^OpenExtract can't find this backup\.\s*/, '');
+  const words = error.slice(BACKUP_MISSING_PREFIX.length).trim().replace(/^OpenExtract can't find this backup\.\s*/, '');
+  return fromList ? [words, REMOVE_FROM_LIST_HINT].filter(Boolean).join(' ') : words;
 }
+
+export const REMOVE_FROM_LIST_HINT = 'If you deleted it, click Remove from list.';
 
 /**
  * Shown on a backup that stopped partway, once it's open (the engine's
@@ -95,4 +101,22 @@ export function noBackupsMessage(path: string, hint: string | undefined, platfor
     "Choose the backup's own folder (the one with Manifest.db in it) or the folder it's in.",
     where,
   ].filter(Boolean).join(' ');
+}
+
+/**
+ * The words of a backup's menu in the list of backups, and whether it offers Move to Trash: the
+ * engine never moves one on Linux (python/trash_room.py), so it isn't offered there.
+ */
+export function backupMenuWords(platform: string) {
+  const windows = platform === 'win32';
+  const trash = windows ? 'Recycle Bin' : 'Trash';
+  return {
+    show: windows ? 'Show in File Explorer' : platform === 'darwin' ? 'Show in Finder' : 'Show in folder',
+    canMove: platform === 'darwin' || windows,
+    move: `Move to ${trash}…`,
+    remove: 'Remove from list',
+    moved: `Moved to the ${trash}. It takes up the same space until the ${trash} is emptied.`
+      + (windows ? " If things you delete later don't fit in the Recycle Bin, Windows erases it for good, without asking." : ''),
+    checking: 'Checking the backup before asking. A big one on a slow drive can take a few minutes.',
+  };
 }
