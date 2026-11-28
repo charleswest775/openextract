@@ -44,7 +44,7 @@
   <header class="page-head">
     <div class="page-head__eyebrow">Privacy</div>
     <h1>Privacy policy</h1>
-    <p class="page-head__lede">OpenExtract is a desktop app that reads iPhone and iPad backups stored on your own computer. It is made by Charles West. Last updated November 15, 2026.</p>
+    <p class="page-head__lede">OpenExtract is a desktop app that reads iPhone and iPad backups stored on your own computer. It is made by Charles West. Last updated November 28, 2026.</p>
   </header>
 
   <section class="prose">
@@ -53,7 +53,7 @@
       <p>When you open a backup, OpenExtract reads the personal information in it, such as messages, photos, voicemails, call history, contacts, notes and browsing history, so it can show them to you and save copies where you choose. If the backup is encrypted, you type its password into the app to unlock it.</p>
 
       <h2>Where it goes</h2>
-      <p>Nowhere. All reading and decryption happens on your computer. OpenExtract has no account, and it doesn't upload, sell or share your data with anyone. It doesn't save your backup password. While a backup is open, the app may keep temporary copies of the databases it reads on your computer. Files you export are saved only where you choose. The one thing that can leave your computer is a feedback report you choose to send, described below.</p>
+      <p>Nowhere. All reading and decryption happens on your computer. OpenExtract has no account, and it doesn't upload, sell or share your data with anyone. It doesn't save your backup password. While a backup is open, the app may keep temporary copies of the databases it reads on your computer. Files you export are saved only where you choose. The one thing that can leave your computer is a feedback report you choose to send, described below. If you use the optional OpenExtract AI add-on, the AI app you use it with sends what it reads to the company that runs it; see <a href="#ai">OpenExtract AI</a>.</p>
 
       <h2>Network use</h2>
       <p>The app makes network requests only with your say-so, of three kinds. The first is an optional check for updates. The app asks you once before turning it on, and you can turn it off in Settings. A check downloads a small version file from GitHub, where OpenExtract's releases are published. It sends no information about you or your backups. GitHub sees the request, as it would any download. Updates download only when you choose to update.</p>
@@ -71,6 +71,13 @@
 
       <h2 id="support">Paying it forward</h2>
       <p>The app's payment buttons only open <a href="/support">openextract.app/support</a> or <a href="/support/pay">openextract.app/support/pay</a> (which forwards you to Stripe's payment page) in your browser; the app sends nothing. Whether you closed the card or picked "I've paid" stays on your computer, and the app has no way to see payments. If you pay, Stripe handles the payment on its own page. OpenExtract never sees your card details. Stripe shares the amount, your email address and the name on your card with OpenExtract's developer, who uses them only to send receipts and refunds. See <a href="https://stripe.com/privacy">Stripe's privacy policy</a> for what Stripe keeps.</p>
+
+      <h2 id="ai">OpenExtract AI</h2>
+      <p><a href="/ai">OpenExtract AI</a> is an optional, paid add-on that lets an AI app on your computer, such as Claude, read your backup and answer questions about it. It comes inside OpenExtract. OpenExtract offers it only when a supported AI app is installed, which it checks by looking in the usual places on your computer; nothing is sent.</p>
+      <p>Once installed, the add-on is started by the AI app on your computer and talks only to that app. Neither OpenExtract nor the add-on sends anything from your backup anywhere. But whatever the AI app reads from your backup through the add-on, it sends to the company that runs the AI, as it does with anything you paste into a chat: Anthropic for Claude, OpenAI for ChatGPT. Their privacy policies cover what happens to it there. Only ask about things you're comfortable sharing that way.</p>
+      <p>The add-on never gives your backup password to the AI. On a Mac it asks for the password in a box from your Mac, not from the AI app, and keeps it in memory only until the AI app closes; it's saved only if you save it in your Mac's Keychain yourself. Hidden photos are left out unless you ask for them, and photos in Recently Deleted are never shown. The add-on keeps no record of what you asked.</p>
+      <p>So that the add-on reads the right backup, OpenExtract notes which backup you last opened in the add-on's folder on your computer. Your access key and your count of free questions are kept in that folder too, and keys are checked on your computer without going online.</p>
+      <p>Buying a key happens on the website, not in the app. The buy page sends you to Stripe's payment page with your iPhone's phone code, eight letters and numbers worked out from the iPhone's ID that say nothing about you or the phone. After you pay, the thank-you page asks openextract.app for your key, and openextract.app asks Stripe whether that checkout was paid and makes the key from it; it doesn't store your key. As with the payments above, Stripe shares the amount, your email address and your name with OpenExtract's developer.</p>
 
       <h2>No analytics in the app</h2>
       <p>The app contains no analytics, advertising or tracking. This website uses Vercel Web Analytics to count page visits, which is separate from the app.</p>
