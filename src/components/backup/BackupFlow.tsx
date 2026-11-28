@@ -490,7 +490,7 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
           </section>
           </>)}
 
-          {/* MOCKUP: while it runs, the three steps fold into one line */}
+          {/* While it runs, the three steps fold into one line */}
           {status === 'running' && selectedDevice && (
             <div className="mb-3 flex items-center gap-x-5 gap-y-1 flex-wrap text-sm text-text-secondary" data-backup-summary>
               <span className="flex items-center gap-1.5">
@@ -537,9 +537,9 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
             </div>
           )}
 
-          {/* MOCKUP: a story while the backup copies (not while the iPhone waits for its passcode) */}
+          {/* Charles's story while the backup copies (not while the iPhone waits for its passcode) */}
           {status === 'running' && (progress?.phase === 'backing_up' || progress?.phase === 'finalizing') && (
-            <BackupStory aiApp="Claude" />
+            <BackupStory />
           )}
 
           {/* Success */}
