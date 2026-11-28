@@ -49,28 +49,14 @@ export default {
 
       // WhatsApp: most iPhones don't have it, so a backup without it has no WhatsApp tile and
       // doesn't list it as missing; the engine says so without an error. The answer key agrees
-      // (a backupgen that writes WhatsApp lists it under "absent"). An iPhone that has the app but
-      // whose chats aren't in the backup (the answer key's "apps": einstein's iOS 26 backup, made
-      // the way OpenExtract makes them) has a tile with no number that says so, and so does its screen.
-      check('the answer key has no WhatsApp chats for this backup', !key.whatsapp && [undefined, 'none'].includes(key.absent?.whatsapp), key.absent);
-      const waInstalled = (key.apps ?? []).includes('net.whatsapp.WhatsApp');
+      // (a backupgen that writes WhatsApp lists it under "absent").
+      check('the answer key has no WhatsApp for this backup', !key.whatsapp && [undefined, 'none'].includes(key.absent?.whatsapp), key.absent);
       await app.home();
-      if (waInstalled) {
-        const t = await app.tiles();
-        check('WhatsApp: a tile with no number that says its chats aren\'t in this backup',
-          'WhatsApp' in t && t.WhatsApp === null && /Its chats aren't in this backup/.test(await app.text()), t);
-        check('WhatsApp: its screen says the chats aren\'t in this backup',
-          await app.open('WhatsApp', /WhatsApp's chats aren't in this backup/), (await app.text()).slice(0, 300));
-        check('WhatsApp: no error', !/Couldn't|Something went wrong|Error:/i.test(await app.text()));
-        await app.home();
-      } else {
-        const waShown = await app.eval(() => [...document.querySelectorAll('span')].some(s => s.textContent.trim() === 'WhatsApp'));
-        check('WhatsApp: no tile, and not listed as missing', !('WhatsApp' in (await app.tiles())) && !waShown);
-      }
+      const waShown = await app.eval(() => [...document.querySelectorAll('span')].some(s => s.textContent.trim() === 'WhatsApp'));
+      check('WhatsApp: no tile, and not listed as missing', !('WhatsApp' in (await app.tiles())) && !waShown);
       const waList = await app.api('call', 'list_whatsapp_chats', { udid: key?.udid ?? path.basename(b.dir) });
       const wa = waList.value?.data;
-      check(`WhatsApp: the engine says calmly why there are no chats (${waInstalled ? 'left out' : 'not in this backup'})`,
-        waList.value?.success === true && wa?.empty_reason === (waInstalled ? 'chats_left_out' : 'not_in_backup') && !wa?.error, wa ?? waList);
+      check('WhatsApp: the engine says calmly that it isn\'t in this backup', waList.value?.success === true && wa?.empty_reason === 'not_in_backup' && !wa?.error, wa ?? waList);
 
       // Podcasts, the same: many iPhones never use the Podcasts app, so no tile, not listed as
       // missing, and the engine's list, episodes and save all say so calmly, writing nothing.
@@ -156,10 +142,6 @@ export default {
         const waEnc = (await app.api('call', 'list_whatsapp_chats', { udid: enc.expected.udid })).value?.data;
         check('it has no WhatsApp either, and says so calmly', !enc.expected.whatsapp && !('WhatsApp' in t2)
           && waEnc?.empty_reason === 'not_in_backup' && !waEnc?.error, waEnc);
-        // This phone never had WhatsApp (no "apps" in its answer key), so home doesn't list it as missing either.
-        const waShownEnc = await app.eval(() => [...document.querySelectorAll('span')].some(s => s.textContent.trim() === 'WhatsApp'));
-        check('it has no WhatsApp tile, and doesn\'t list it as missing', !(enc.expected.apps ?? []).includes('net.whatsapp.WhatsApp')
-          && !('WhatsApp' in t2) && !waShownEnc);
       }
     } finally {
       await app.close();

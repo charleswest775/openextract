@@ -66,9 +66,9 @@ def messages_db(tmp_path) -> bytes:
     return path.read_bytes()
 
 
-def make(tmp_path, dest, when, *, udid=UDID, by_openextract=False, seed=1, host="finder"):
+def make(tmp_path, dest, when, *, udid=UDID, by_openextract=False, seed=1):
     made = make_encrypted_backup(tmp_path / f"made-{dest.name}-{seed}", udid, seed=seed, when=when,
-                                 text=messages_db(tmp_path), host=host)
+                                 text=messages_db(tmp_path))
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(made), str(dest))
     # Written when it was made, by this computer's clock too.
@@ -170,20 +170,36 @@ def test_the_older_backup_is_offered_and_asking_changes_nothing(manager, out, ol
     assert snapshot(out) == before
 
 
-def test_one_made_as_openextract_makes_them_is_newest_and_the_older_one_is_offered(manager, tmp_path, out, old):
-    """#317: pymobiledevice3 writes no "Last Backup Date" in Info.plist, so the backup OpenExtract had just
-    made sorted last and couldn't be told from older ones. Its last Status.plist, the iPhone's, dates it."""
-    made = make(tmp_path, out / f"{UDID}-20240615-120000", LATER, by_openextract=True, seed=2, host="pymobiledevice3")
-    info = plistlib.loads((made / "Info.plist").read_bytes())
-    assert "Last Backup Date" not in info and isinstance(info["GUID"], bytes)
+def edit_plist(path, change):
+    """Change a plist in place, keeping its format (XML or binary)."""
+    raw = path.read_bytes()
+    data = plistlib.loads(raw)
+    change(data)
+    path.write_bytes(plistlib.dumps(data, fmt=plistlib.FMT_BINARY if raw.startswith(b"bplist") else plistlib.FMT_XML))
+
+
+def test_one_dated_only_by_its_status_plist_is_newest_and_the_older_one_is_offered(manager, tmp_path, out, old):
+    """#317: a backup with no "Last Backup Date" in Info.plist (pymobiledevice3, which OpenExtract backs
+    up with, writes none) sorted last and couldn't be told from older ones. The Status.plist written
+    when it finished dates it, in the app's list and in ios-backup-core, which unlocks it."""
+    made = make(tmp_path, out / f"{UDID}-20240615-120000", LATER, seed=2)
+    finished = LATER + timedelta(hours=2, minutes=19)
+    edit_plist(made / "Info.plist", lambda info: info.pop("Last Backup Date"))
+    edit_plist(made / "Status.plist", lambda status: status.update(Date=finished.replace(tzinfo=None)))
+    finish_marker(made, LATER)
     listed = manager.list_backups(str(out))["backups"]
     assert [Path(b["backup_dir"]) for b in listed] == [made, old]
-    assert listed[0]["last_backup"] == LATER.isoformat() and listed[1]["last_backup"] == MADE.isoformat()
+    assert listed[0]["last_backup"] == finished.isoformat() and listed[1]["last_backup"] == MADE.isoformat()
+    accessor = backup.open_local_backup(str(made), password=PASSWORD)
+    try:
+        assert accessor.info["last_backup"] == finished.replace(tzinfo=None).isoformat()
+    finally:
+        accessor.cleanup()
     kept = opened(manager, made)
     assert offered(manager, kept) == [old]
     found = ask(manager, kept, old)
     assert found["allowed"] is True and found["older"]["last_backup"] < found["newer"]["last_backup"]
-    # And from the other side, the one OpenExtract made is never offered: it's the newest
+    # And from the other side, the newer one is never offered
     kept = opened(manager, old)
     assert offered(manager, kept) == []
     refused(manager, kept, made)
