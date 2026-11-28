@@ -49,17 +49,6 @@ KEEP_VERSIONS = 3  # an item's newest generated versions, never deleted
 KEEP_RECENT_SECONDS = 24 * 3600
 
 
-# WhatsApp's bundle id, as an answer key's "apps" lists it (python/whatsapp.py reads only this one).
-WHATSAPP_APP = "net.whatsapp.WhatsApp"
-
-
-def whatsapp_empty_reason(expected: Optional[dict]) -> str:
-    """What the engine says about WhatsApp in a backup with none of its chats, by the answer key:
-    "chats_left_out" when the phone has the app (its "apps"), else "not_in_backup". An answer key
-    from a backupgen without "apps" lists no apps."""
-    return "chats_left_out" if WHATSAPP_APP in ((expected or {}).get("apps") or []) else "not_in_backup"
-
-
 class CacheError(RuntimeError):
     """The cache or this run's backupgen is in a state generating can't fix (code edited mid-run, a
     folder that can't be replaced). Not a missing prerequisite, so tests stop on it, never skip."""

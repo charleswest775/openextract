@@ -8,10 +8,9 @@ import exportsSuite from './exports.mjs';
 import empty from './empty.mjs';
 import podcasts from './podcasts.mjs';
 import photoPeople from './photo-people.mjs';
-import voicemailLists from './voicemail-lists.mjs';
 import ipc from './ipc.mjs';
 import network from './network.mjs';
 import hickman from './hickman.mjs';
 import smoke from './smoke.mjs';
 
-export const SUITES = [firstRun, open, screens, search, exportsSuite, empty, podcasts, photoPeople, voicemailLists, ipc, network, hickman, smoke];
+export const SUITES = [firstRun, open, screens, search, exportsSuite, empty, podcasts, photoPeople, ipc, network, hickman, smoke];

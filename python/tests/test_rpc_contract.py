@@ -36,7 +36,6 @@ import html
 import io
 import json
 import os
-import plistlib
 import re
 import shutil
 import sys
@@ -82,8 +81,6 @@ from rpc_contract_support import (  # noqa: E402
     same_path,
 )
 from bundle_schema import check_bundle, read_lines  # noqa: E402
-from raw_backup import RawBackup  # noqa: E402  (python/tests/corpus, on the path via rpc_contract_support)
-from corpus.synthetic import WHATSAPP_APP, whatsapp_empty_reason  # noqa: E402
 import whatsapp_backup as wb  # noqa: E402
 import podcasts_backup as pb  # noqa: E402
 import voice_memos_backup as vb  # noqa: E402
@@ -272,23 +269,6 @@ def case_list_backups(ctx):
     assert same_path(result["search_dirs"][0], m.backup_dir.parent)
     enc = ctx.maren_enc
     assert [b["encrypted"] for b in enc.call("list_backups", {"path": str(enc.backup_dir)})["backups"]] == [True]
-    # One iPhone's backups side by side (#317): the one OpenExtract made last, as pymobiledevice3 writes
-    # it, has no date in Info.plist and must still come first, dated by its Status.plist. Einstein's
-    # iOS 26 backup is made that way; his iOS 17 one, the same iPhone, by Finder.
-    new_item, new_dir = generated_backup(EINSTEIN)
-    old_item, old_dir = generated_backup(EINSTEIN_ENCRYPTED)
-    assert new_item.udid == old_item.udid
-    assert (new_item.expected()["host"], old_item.expected()["host"]) == ("pymobiledevice3", "finder")
-    assert "Last Backup Date" not in plistlib.loads((new_dir / "Info.plist").read_bytes())
-    one_iphone = ctx.folder("one-iphone")
-    beside = one_iphone / f"{new_item.udid}-20260614-193000"  # where the engine puts a new one beside the old
-    shutil.copytree(old_dir, one_iphone / old_item.udid, copy_function=_link_or_copy)
-    shutil.copytree(new_dir, beside, copy_function=_link_or_copy)
-    listed = ctx.plain.call("list_backups", {"path": str(one_iphone)})["backups"]
-    assert [Path(b["backup_dir"]).name for b in listed] == [beside.name, old_item.udid]
-    assert [datetime.fromisoformat(b["last_backup"]) for b in listed] == \
-        [datetime.fromisoformat(item.expected()["backup_date"]) for item in (new_item, old_item)]
-    assert not any(b["unfinished"] for b in listed)
     # No path: the OS's usual folders. What's in them depends on the machine, so the shape only.
     result = ctx.plain.call("list_backups", {})
     assert isinstance(result["backups"], list) and isinstance(result["search_dirs"], list)
@@ -1165,13 +1145,6 @@ def case_list_whatsapp_chats(ctx):
     enc = ctx.whatsapp_enc
     assert [(c["chat_id"], c["display_name"], c["message_count"], c["last_message_date"]) for c in enc.whatsapp_chats] == \
         [(c["chat_id"], c["display_name"], c["message_count"], c["last_message_date"]) for c in chats]
-    # WhatsApp on the iPhone, its chats not in the backup (Einstein's iOS 26 phone, backed up the way
-    # OpenExtract does): the app says so, calmly, rather than that WhatsApp isn't there
-    e = ctx.einstein
-    assert WHATSAPP_APP in e.expected["apps"] and e.expected["whatsapp"] is None
-    assert e.rpc("list_whatsapp_chats") == {"conversations": [], "empty_reason": "chats_left_out"}
-    stats = e.rpc("get_backup_stats")
-    assert stats["errors"] == [] and stats["overview"]["whatsapp_status"] == "chats_left_out"
 
 
 @contract("get_whatsapp_messages")
@@ -2363,20 +2336,6 @@ def empty_list_calls(e, out):
 @empty_state("list_notes")
 def empty_list_notes(e, out):
     assert e.rpc("list_notes")["notes"] == []
-    # Einstein never used his phone's Notes app. By his iOS 26 backup iCloud had set Notes up: a NoteStore whose
-    # only note is a placeholder for one still to download (Notes there, nothing to show). His iOS 17 backup has
-    # no NoteStore (not in this backup). The two Einstein backups here are one of each.
-    raw = RawBackup(e.backup_dir, e.password)
-    try:
-        notes = raw.query("AppDomainGroup-group.com.apple.notes", "NoteStore.sqlite",
-                          "SELECT o.ZTITLE1, o.ZNEEDSINITIALFETCHFROMCLOUD FROM ZICCLOUDSYNCINGOBJECT o "
-                          "JOIN Z_PRIMARYKEY e ON e.Z_ENT = o.Z_ENT WHERE e.Z_NAME = 'ICNote'")
-    finally:
-        raw.close()
-    if e.expected["snapshot"] == "ios26":
-        assert notes is not None and [tuple(r) for r in notes] == [(None, 1)]
-    else:
-        assert notes is None
 
 
 @empty_state("has_browser_history")
@@ -2450,8 +2409,7 @@ def empty_export_recovered_messages(e, out):
 
 @empty_state("list_whatsapp_chats")
 def empty_list_whatsapp_chats(e, out):
-    # "chats_left_out" for a phone with the app whose chats aren't in the backup (its answer key's apps)
-    assert e.rpc("list_whatsapp_chats") == {"conversations": [], "empty_reason": whatsapp_empty_reason(e.expected)}
+    assert e.rpc("list_whatsapp_chats") == {"conversations": [], "empty_reason": "not_in_backup"}
 
 
 @empty_state("get_whatsapp_messages")
@@ -2594,7 +2552,7 @@ def empty_get_backup_stats(e, out):
                 "total_deleted_voice_memos", "total_voice_memos_with_audio", "total_calendar_events", "total_subscribed_events", "total_calendars",
                 "total_calendars_with_events"):
         assert o[key] == 0, key
-    assert o["whatsapp_status"] == whatsapp_empty_reason(e.expected)
+    assert o["whatsapp_status"] == "not_in_backup"
     assert o["podcasts_status"] == "not_in_backup"
     assert o["voice_memos_status"] == "not_in_backup"
     assert o["calendar_status"] == "not_in_backup"

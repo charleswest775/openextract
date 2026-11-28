@@ -24,12 +24,8 @@ MADE = datetime(2024, 5, 6, 12, tzinfo=timezone.utc)
 
 
 def make_encrypted_backup(out: Path, udid: str, *, seed: int = 1, text: bytes = b"the only copy",
-                          when: datetime = MADE, host: str = "finder") -> Path:
-    """<out>/<udid>: a finished, encrypted backup whose sms.db holds `text`.
-
-    ``host`` is what made it (backupgen's Host): "finder", or "pymobiledevice3" as OpenExtract makes
-    them, whose Info.plist has no "Last Backup Date" (only Status.plist and Manifest.plist date it).
-    """
+                          when: datetime = MADE) -> Path:
+    """<out>/<udid>: a finished, encrypted backup whose sms.db holds `text`."""
     root = backupgen_root()
     if root is None:
         skip_or_fail("ios-backup-core's backupgen wasn't found; set OPENEXTRACT_IOS_BACKUP_CORE")
@@ -40,7 +36,7 @@ def make_encrypted_backup(out: Path, udid: str, *, seed: int = 1, text: bytes = 
                               ios="17.3", build="21D50", phone_number="+1 555 0100", udid=udid)
     writer = container.BackupWriter(out_dir=out, device=device, seed=seed, password=PASSWORD,
                                     backup_date=when,
-                                    container_version="17.3", host=container.Host(kind=host))
+                                    container_version="17.3")
     writer.add_file(*SMS, text)
     for i in range(12):
         writer.add_file("CameraRollDomain", f"Media/DCIM/100APPLE/IMG_{i:04d}.HEIC", bytes([i]) * (400 + i))
@@ -48,7 +44,7 @@ def make_encrypted_backup(out: Path, udid: str, *, seed: int = 1, text: bytes = 
 
 
 def plan_sending(backup_dir: Path) -> list[dict]:
-    """A backup plan in the order a real iPhone uses (plan.py), sending this backup's own bytes."""
+    """A backup plan in the same order as fake_iphone/plan.py's, sending this backup's own bytes."""
     u, snapshot = plans.UDID_PLACEHOLDER, f"{plans.UDID_PLACEHOLDER}/Snapshot"
     stored = sorted(p for p in backup_dir.glob("??/*") if p.is_file())
     folders = sorted({p.parent.name for p in stored})
@@ -70,11 +66,11 @@ def plan_sending(backup_dir: Path) -> list[dict]:
         {"op": "CreateDirectory", "path": snapshot},
         *({"op": "CreateDirectory", "path": f"{snapshot}/{xx}"} for xx in folders),
         status,
-        {"op": "UploadFiles", "progress": 90, "files": payload},
-        {"op": "UploadFiles", "progress": 98, "files": metadata},
-        *({"op": "MoveItems", "progress": 99, "items": {f["path"]: f["path"].replace("/Snapshot/", "/")}}
+        {"op": "UploadFiles", "progress": 64, "files": payload},
+        {"op": "UploadFiles", "progress": 71, "files": metadata},
+        *({"op": "MoveItems", "progress": 77, "items": {f["path"]: f["path"].replace("/Snapshot/", "/")}}
           for f in payload + metadata),
         status,
-        {"op": "RemoveItems", "paths": [snapshot], "progress": 99.9},
+        {"op": "RemoveItems", "paths": [snapshot], "progress": 86},
         {"op": "ProcessMessage", "content": {"ErrorCode": 0, "MessageName": "Response"}},
     ]
