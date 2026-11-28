@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- Messages: saving a conversation as a webpage now sets each saved attachment file's modified timestamp (and any generated JPEG preview's) to the timestamp of the message it came from, so attachments sort chronologically in Finder and Explorer
 - Back up my iPhone: choosing a backup folder in OneDrive, iCloud Drive, Dropbox or Google Drive now shows a warning under it. A backup there still takes up space on the computer's own drive, so the space in the online account doesn't count, and the sync app uploading each file as it's saved can make the backup fail. If such a backup runs out of room, the message now says the folder is in OneDrive (or the like) and that its online space doesn't count
 
 ## [0.21.0] - 2026-11-26
