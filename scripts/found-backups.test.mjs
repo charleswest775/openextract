@@ -169,5 +169,5 @@ test("a backup's menu uses each system's words, and offers Move to Trash only on
   assert.equal(linux.show, 'Show in folder');
   for (const words of [mac, win, linux]) assert.equal(words.remove, 'Remove from list');
   const engine = fs.readFileSync(path.join(root, 'python', 'trash_room.py'), 'utf-8');
-  assert.match(engine, /if sys\.platform != "win32":\n\s+return NOT_HERE/, 'the engine still refuses everywhere but a Mac and Windows');
+  assert.match(engine, /if sys\.platform != "win32":\r?\n\s+return NOT_HERE/, 'the engine still refuses everywhere but a Mac and Windows');
 });
