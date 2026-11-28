@@ -206,7 +206,8 @@ describe('detectAiApps: macOS', () => {
     assert.deepEqual(m.detect(), []);
   });
 
-  test('looks only at the fixed places: no folder is listed, nothing searched', () => {
+  // A Mac's PATH is split at ':', which a Windows test folder's drive letter (C:) also has.
+  test('looks only at the fixed places: no folder is listed, nothing searched', { skip: process.platform === 'win32' && 'a Mac PATH can\'t hold a Windows drive letter' }, () => {
     const m = macLayout();
     m.detect();
     const expected = [
@@ -562,22 +563,24 @@ describe('program/current.json', () => {
 // ── backups.json and Finder's backup folder ─────────────────────────────────
 
 describe('backups.json', () => {
-  const base = path.join(path.sep, 'Users', 'sam');
+  // Absolute on this computer: /Users/sam on a Mac, C:\Users\sam on Windows (backupsFile resolves paths).
+  const base = path.resolve(path.sep, 'Users', 'sam');
   const at = (...parts) => path.join(base, ...parts);
+  const volumes = (...parts) => path.resolve(path.sep, 'Volumes', ...parts);
 
   test('open, then each backup\'s folder once: the open one\'s first, absolute paths only', () => {
     const open = at('iphone-backups', '00008140-AAAA');
     const file = A.backupsFile(open, [
       at('Library', 'Application Support', 'MobileSync', 'Backup', '00008110-BBBB'),
       at('iphone-backups', '00008030-CCCC'), // same folder as the open one
-      path.join(path.sep, 'Volumes', 'Drive', 'Backups', '00008101-DDDD') + path.sep,
+      volumes('Drive', 'Backups', '00008101-DDDD') + path.sep,
       at('Library', 'Application Support', 'MobileSync', 'Backup', '00008120-EEEE'),
       'relative/backup', '', null, 42, { dir: '/x' },
     ], 'darwin');
     assert.deepEqual(file, {
       version: 1,
       open,
-      folders: [at('iphone-backups'), at('Library', 'Application Support', 'MobileSync', 'Backup'), path.join(path.sep, 'Volumes', 'Drive', 'Backups')],
+      folders: [at('iphone-backups'), at('Library', 'Application Support', 'MobileSync', 'Backup'), volumes('Drive', 'Backups')],
     });
   });
 
