@@ -143,6 +143,18 @@ describe('the builds that carry it', () => {
     assert.match(installers, /- 'ai-addon\.json'/);
   });
 
+  test('package-friends.mjs stages the one file it\'s given, even one already staged', async () => {
+    const { stageAddon } = await import('./package-friends.mjs');
+    const stageDir = path.join(fresh('stage'), 'ai-addon');
+    fs.mkdirSync(stageDir, { recursive: true });
+    fs.writeFileSync(path.join(stageDir, 'openextract-ai-0.2.4-win-x64.mcpb'), 'another');
+    const inside = path.join(stageDir, 'openextract-ai-0.3.0-mac-arm64.mcpb');
+    fs.writeFileSync(inside, 'the add-on');
+    assert.equal(stageAddon(inside, stageDir), inside);
+    assert.deepEqual(fs.readdirSync(stageDir), ['openextract-ai-0.3.0-mac-arm64.mcpb']);
+    assert.equal(fs.readFileSync(inside, 'utf-8'), 'the add-on');
+  });
+
   test('package.json carries build/ai-addon/*.mcpb as resources/ai-addon/, and git ignores the staged copy', () => {
     const build = JSON.parse(read('package.json')).build;
     assert.deepEqual(build.extraResources.find(r => r.to === 'ai-addon'), { from: 'build/ai-addon', to: 'ai-addon', filter: ['*.mcpb'] });

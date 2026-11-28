@@ -53,10 +53,12 @@ export function friendsConfig(build, version) {
 
 /** build/ai-addon/ holding only `mcpb`; returns the staged copy's path. */
 export function stageAddon(mcpb, stageDir = path.join(root, 'build', 'ai-addon')) {
+  // Read first: the file may already be in build/ai-addon/ (fetched there by ai-addon-pin.mjs).
+  const bytes = fs.readFileSync(mcpb);
   fs.rmSync(stageDir, { recursive: true, force: true });
   fs.mkdirSync(stageDir, { recursive: true });
   const dest = path.join(stageDir, path.basename(mcpb));
-  fs.copyFileSync(mcpb, dest);
+  fs.writeFileSync(dest, bytes);
   return dest;
 }
 
