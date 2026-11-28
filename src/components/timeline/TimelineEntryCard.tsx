@@ -86,6 +86,8 @@ interface LightboxProps {
   onClose: () => void;
 }
 
+const PHOTO_NOT_SHOWN = "This photo couldn't be shown here. Save still copies the original photo.";
+
 /** A photo full size over everything; Escape or a click outside closes it. */
 export function TimelinePhotoLightbox({ fileHash, udid, filename, onClose }: LightboxProps) {
   const [src, setSrc] = useState<string | null>(null);
@@ -153,6 +155,8 @@ export function TimelinePhotoLightbox({ fileHash, udid, filename, onClose }: Lig
           <img
             src={src}
             alt={filename}
+            // Bytes the window can't draw used to leave a blank space and no word (OE-206).
+            onError={() => { setSrc(null); setError(PHOTO_NOT_SHOWN); }}
             style={{
               maxWidth: '90vw', maxHeight: '85vh',
               objectFit: 'contain',
