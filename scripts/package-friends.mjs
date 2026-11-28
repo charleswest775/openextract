@@ -98,7 +98,7 @@ function main() {
 
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf-8'));
   const version = opts.version ?? `${nextPatch(pkg.version)}-ai.friends`;
-  console.log(`OpenExtract ${version} for friends and family, carrying ${name}${m[2] ? ' (unrestricted)' : ''}`);
+  console.log(`OpenExtract ${version}, carrying ${name}${m[2] ? " (the unrestricted edition)" : ""}`);
 
   // A stale tsbuildinfo can make tsc skip writing dist-electron (it's tracked in git): start clean.
   fs.rmSync(path.join(root, 'tsconfig.electron.tsbuildinfo'), { force: true });
