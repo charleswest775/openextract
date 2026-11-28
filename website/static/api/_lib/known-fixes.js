@@ -120,6 +120,23 @@ const KNOWN_FIXES = [
     text: 'The drive you chose doesn\'t have room for the backup. A backup can need much more space than your iPhone shows as used, because the iPhone counts some files more than once. Choose a folder on a drive with more free space, such as an external drive, or free up space on this one, then try again.',
   },
   {
+    id: 'backup-folder-in-cloud-storage',
+    title: 'Not enough space in a OneDrive or iCloud Drive folder',
+    area: 'backup',
+    seen: ['Not enough free space for this backup', 'This folder is in OneDrive'],
+    // OE-212: a backup to a OneDrive folder, "which has 85% of 1 TB available", refused because the
+    // PC's own drive had 175 GB free. A synced folder is on this computer's drive, and that's the
+    // space the iPhone checks. Reports leave out folder paths, so this matches what people write
+    // (my OneDrive, my iCloud) and the app's own note (electron/syncedFolder.ts) beside the space
+    // error. The engine's own advice is skipped: "such as OneDrive or antivirus software" and
+    // "outside OneDrive or other synced folders" (folder in use), "for example in OneDrive or
+    // iCloud Drive" (older backups).
+    match: /(?<!such as |outside |for example in |onedrive or )\b(?:one ?drive|icloud|dropbox|google drive)\b/i,
+    when: /It needs more than [\d.]+ GB free, but the drive you chose has|Your iPhone has about [\d.]+ GB of data, but the drive you chose only has/,
+    hides: ['backup-drive-full'],
+    text: 'A backup is saved on this computer\'s own drive, even in a OneDrive, iCloud Drive, Dropbox or Google Drive folder, so the space in your online account doesn\'t count. Those apps also upload each file while the backup is being saved, which can make it fail. Choose a folder that isn\'t in one of them, on a drive with enough free space, such as an external drive, then try again. A backup can need much more space than your iPhone shows as used, because the iPhone counts some files more than once.',
+  },
+  {
     id: 'encrypted-backup-no-such-value',
     title: 'Encrypted backups of some iPhones',
     area: 'backup',

@@ -17,6 +17,74 @@ export const SUPPORT_AMOUNTS_URL = 'https://www.openextract.app/support#pay';
 /** The site's business rates ($50 a case, $200 a year, with a receipt), for "Using it for paid work?". */
 export const SUPPORT_BUSINESS_URL = 'https://www.openextract.app/support#business';
 
+/**
+ * The price step in the Save window ("What's this worth to you?", PriceStep.tsx): asked on
+ * the first save of each run, before saving, until the person says they've paid. A test of
+ * whether asking at the moment of saving gets more people to pay than the card after an
+ * export, so in a run where it has asked, that card doesn't come (it's one ask a run).
+ *
+ * Its amounts go through their own redirects on the site (/support/pay/app/...), which send
+ * people to the same Stripe links as the support page with client_reference_id=app_save_step,
+ * so payments from this step can be told apart. Nothing is sent from the app: the browser
+ * opens the page, and the tag is the same for everyone.
+ */
+export const PRICE_STEP_AMOUNTS = [
+  { id: '5', label: '$5', note: '' },
+  { id: '25', label: '$25', note: 'Suggested' },
+  { id: '100', label: '$100', note: 'Covers others' },
+  { id: 'any', label: 'Other', note: 'Any amount' },
+] as const;
+export type PriceStepAmount = (typeof PRICE_STEP_AMOUNTS)[number]['id'];
+/** The amount picked when the step opens. */
+export const PRICE_STEP_SUGGESTED: PriceStepAmount = '25';
+
+/** The site's redirect for an amount in the price step. */
+export function priceStepUrl(amount: PriceStepAmount): string {
+  return `${SUPPORT_PAY_URL}/app/${amount}`;
+}
+
+/**
+ * Whether a Save should show the price step first: not after "I've paid", and not again in a
+ * run where an ask was already shown or dismissed. When the answer isn't known (no bridge, or
+ * it failed), no: the step never stands between someone and their save.
+ */
+export function priceStepDue(status: { paid: boolean; snoozed?: boolean } | null | undefined): boolean {
+  return !!status && !status.paid && !status.snoozed;
+}
+
+export interface SupportStatus { paid: boolean; thanksSent: boolean; snoozed?: boolean }
+
+/** The ask's state from the main process, or null when there's no bridge or it fails. */
+export function readSupportStatus(): Promise<SupportStatus | null> {
+  return Promise.resolve(window.openextract?.support?.status?.()).then(s => s ?? null, () => null);
+}
+
+/** Shows the price step in its own window (PriceStepHost) and says whether to go on with the save. */
+export interface PriceStepRequest { thanksSent: boolean; resolve: (goOn: boolean) => void }
+let priceStepHost: ((request: PriceStepRequest) => void) | null = null;
+
+/** PriceStepHost registers itself here; the returned function unregisters it. */
+export function setPriceStepHost(host: (request: PriceStepRequest) => void): () => void {
+  priceStepHost = host;
+  return () => { if (priceStepHost === host) priceStepHost = null; };
+}
+
+/**
+ * Before a save that doesn't go through the Save window (photos, voicemail audio, anything
+ * with one format): the price step in its own window when it's due, then true to go on or
+ * false when the person backs out. True straight away when it isn't due, including after the
+ * Save window already asked in this run, so calling it after that window never asks twice.
+ */
+export async function askPriceFirst(): Promise<boolean> {
+  if (!priceStepHost) return true;
+  const status = await readSupportStatus();
+  if (!priceStepDue(status)) return true;
+  const host = priceStepHost;
+  if (!host) return true;
+  window.openextract?.support?.snooze?.();
+  return new Promise(resolve => host({ thanksSent: status!.thanksSent, resolve }));
+}
+
 /** Which wording the card uses. */
 export type AskMode =
   /** First export ever (or the first since this card replaced the thank-you card): Charles introduces himself. */
@@ -37,6 +105,19 @@ export interface AskRequest {
 
 const ASK_EVENT = 'openextract:pay-it-forward';
 const EXPORTED_EVENT = 'openextract:exported';
+
+const THANKS_EVENT = 'openextract:say-thanks';
+
+/** Opens the thank-you note (FeedbackProvider listens) from places that don't use its context, like the price step. */
+export function openThanks(area: FeedbackArea) {
+  window.dispatchEvent(new CustomEvent<FeedbackArea>(THANKS_EVENT, { detail: area }));
+}
+
+export function onOpenThanks(listener: (area: FeedbackArea) => void): () => void {
+  const handler = (e: Event) => listener((e as CustomEvent<FeedbackArea>).detail);
+  window.addEventListener(THANKS_EVENT, handler);
+  return () => window.removeEventListener(THANKS_EVENT, handler);
+}
 
 /** Shows the card from anywhere in the window. */
 export function showAsk(request: AskRequest) {

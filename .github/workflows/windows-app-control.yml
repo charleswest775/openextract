@@ -33,7 +33,7 @@ on:
         type: string
         default: ''
       ios_backup_core_ref:
-        description: ios-backup-core branch, tag or full commit SHA to make the test backup with (blank = master). release.yml passes the commit it built.
+        description: ios-backup-core branch, tag or full commit SHA to make the test backup with (blank = the commit pinned in ios-backup-core.ref). release.yml passes the commit it built.
         type: string
         default: ''
   workflow_dispatch:
@@ -78,7 +78,7 @@ jobs:
       - name: Check out ios-backup-core
         uses: ./.github/actions/ios-backup-core
         with:
-          ref: ${{ inputs.ios_backup_core_ref || 'master' }}
+          ref: ${{ inputs.ios_backup_core_ref || 'pinned' }}
 
       - name: Cache the generated backups' photos
         uses: ./.github/actions/backupgen-media

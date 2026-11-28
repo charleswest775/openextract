@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ExportIcon } from './Icons';
+import PriceStep from './PriceStep';
+import { priceStepDue, readSupportStatus, type SupportStatus } from '../../lib/payItForward';
 
 export interface SaveFormat<T extends string = string> {
   id: T;
@@ -102,11 +104,29 @@ interface Props<T extends string> {
 }
 
 /**
- * The one Save dialog: pick a format, then the system dialog asks where.
- * The caller does the saving and reports the result with a notice.
+ * The one Save dialog: pick a format, then the system dialog asks where. On the first save of
+ * a run it asks "What's this worth to you?" in between (PriceStep). The caller does the saving
+ * and reports the result with a notice.
  */
 export default function SaveDialog<T extends string>({ title, formats, initial, children, canSave = true, onSave, onCancel }: Props<T>) {
   const [format, setFormat] = useState<T>(initial ?? formats[0].id);
+  // "What's this worth to you?" (PriceStep) comes between picking a format and saving, on the
+  // first save of a run (priceStepDue). Save waits for the status if it isn't in yet, and goes
+  // straight on if it can't be read: the step never stands between someone and their save.
+  const [step, setStep] = useState<'format' | 'price'>('format');
+  const [support, setSupport] = useState<SupportStatus | null>(null);
+  useEffect(() => {
+    let live = true;
+    readSupportStatus().then(s => { if (live) setSupport(s); });
+    return () => { live = false; };
+  }, []);
+  const save = async () => {
+    const status = support ?? await readSupportStatus();
+    if (!priceStepDue(status)) return onSave(format);
+    // One ask a run: shown here, so no more in this run (the card after an export included).
+    window.openextract?.support?.snooze?.();
+    setStep('price');
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
@@ -124,42 +144,48 @@ export default function SaveDialog<T extends string>({ title, formats, initial, 
         style={{ boxShadow: '0 24px 48px rgba(30,26,22,0.22)' }}
         onClick={e => e.stopPropagation()}
       >
-        <h2 id="save-dialog-title" className="text-xl text-text-primary">{title}</h2>
-        <div role="radiogroup" aria-label="Format" className="flex flex-col gap-2">
-          {formats.map(f => {
-            const on = f.id === format;
-            return (
-              <label
-                key={f.id}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-colors ${
-                  on ? 'border-accent bg-accent-wash' : 'border-rule hover:bg-elevated'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="save-format"
-                  value={f.id}
-                  checked={on}
-                  onChange={() => setFormat(f.id)}
-                  className="w-4 h-4 accent-[var(--accent)]"
-                />
-                <span className="flex flex-col">
-                  <span className="text-sm font-medium text-text-primary">{f.label}</span>
-                  <span className="text-xs text-text-secondary">{f.detail}</span>
-                </span>
-              </label>
-            );
-          })}
-        </div>
-        {children}
-        <div className="flex items-center gap-3 pt-1">
-          <span className="text-xs text-text-tertiary mr-auto">You'll choose where to save it next.</span>
-          <button onClick={onCancel} className="hearth-ghost-btn">Cancel</button>
-          <button onClick={() => onSave(format)} className="hearth-primary-btn" disabled={!canSave} autoFocus>
-            <ExportIcon size={18} />
-            Save
-          </button>
-        </div>
+        {step === 'price' ? (
+          <PriceStep onContinue={() => onSave(format)} onBack={() => setStep('format')} thanksSent={support?.thanksSent} />
+        ) : (
+          <>
+            <h2 id="save-dialog-title" className="text-xl text-text-primary">{title}</h2>
+            <div role="radiogroup" aria-label="Format" className="flex flex-col gap-2">
+              {formats.map(f => {
+                const on = f.id === format;
+                return (
+                  <label
+                    key={f.id}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-colors ${
+                      on ? 'border-accent bg-accent-wash' : 'border-rule hover:bg-elevated'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="save-format"
+                      value={f.id}
+                      checked={on}
+                      onChange={() => setFormat(f.id)}
+                      className="w-4 h-4 accent-[var(--accent)]"
+                    />
+                    <span className="flex flex-col">
+                      <span className="text-sm font-medium text-text-primary">{f.label}</span>
+                      <span className="text-xs text-text-secondary">{f.detail}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            {children}
+            <div className="flex items-center gap-3 pt-1">
+              <span className="text-xs text-text-tertiary mr-auto">You'll choose where to save it next.</span>
+              <button onClick={onCancel} className="hearth-ghost-btn">Cancel</button>
+              <button onClick={save} className="hearth-primary-btn" disabled={!canSave} autoFocus>
+                <ExportIcon size={18} />
+                Save
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

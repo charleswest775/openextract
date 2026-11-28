@@ -4,7 +4,7 @@ import {
   FEEDBACK_AREAS, FEEDBACK_KINDS, FIXES_URL, PRIVACY_URL, SITE_URL, formatDiagnostics, fullReport, githubIssueUrl, newReportToken,
   type FeedbackArea, type FeedbackForm, type FeedbackKind, type FeedbackRequest,
 } from '../../lib/feedback';
-import { SUPPORT_PAY_URL, showAsk } from '../../lib/payItForward';
+import { SUPPORT_PAY_URL, onOpenThanks, showAsk } from '../../lib/payItForward';
 import type { KnownFix } from '../../types';
 
 /**
@@ -29,6 +29,8 @@ export function useFeedback() {
 export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [request, setRequest] = useState<FeedbackRequest | null>(null);
   const openFeedback = useCallback((req: FeedbackRequest = {}) => setRequest(req), []);
+  // The price step's "Can't pay? Say thanks" (openThanks), which sits outside this context's users.
+  useEffect(() => onOpenThanks(area => setRequest({ kind: 'thanks', area })), []);
 
   return (
     <FeedbackContext.Provider value={{ openFeedback }}>

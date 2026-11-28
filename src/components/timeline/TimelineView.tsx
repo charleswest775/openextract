@@ -7,7 +7,7 @@ import EventStream from './EventStream';
 import { gatherPeople } from '../people/gather';
 import { personNamed } from '../people/stream';
 import { formatPhone } from '../../lib/people';
-import { saveFolder } from '../../lib/ipc';
+import { exportFolder } from '../../lib/ipc';
 import type { ExportFormat } from '../../lib/timelineExport';
 import OrganicLoader from '../shared/OrganicLoader';
 import { ReportProblemButton } from '../shared/Feedback';
@@ -76,7 +76,7 @@ export default function TimelineView({ udid, index, startingFilters, query, onOp
     setChoosing(false);
     if (filteredEntries.length === 0) return;
     run(async () => {
-      const folder = await saveFolder();
+      const folder = await exportFolder();
       if (!folder) return null;
       // The PDF is the web page, printed by Chromium. No format overwrites a file
       const path = await writeTimeline(filteredEntries, format, folder, 'timeline-export');

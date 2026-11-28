@@ -10,6 +10,11 @@ about a new version if someone tells them. This file lists all of it in order.
       you're happy to publish. Start it with a short plain-words paragraph, above the `###`
       headings, when you can: the workflow uses that paragraph as the Flatpak's release notes
       (without one it uses the bullets, leaving out ones that start "Windows:" or "macOS:").
+- [ ] A release builds the ios-backup-core commit pinned in `ios-backup-core.ref` on `main`, not
+      ios-backup-core's `master`. If ios-backup-core has fixes this release should ship, move the
+      pin first: `scripts/bump-ios-backup-core.sh` (it prints what changed since the current pin),
+      run the tests, open a PR with the new `ios-backup-core.ref` and merge it
+      ([docs/TESTING.md](docs/TESTING.md#which-ios-backup-core)).
 - [ ] Credentials that have broken releases before:
   - Apple: if notarization answers 403 "A required agreement is missing", accept the new
     agreement at developer.apple.com/account.
@@ -23,11 +28,12 @@ before releasing.
 ## 2. The release
 
 - [ ] Run **Release** (Actions tab) with the new version, for example `0.16.0`. Leave
-      **ios_backup_core_ref** blank to build against ios-backup-core's `master` as it is when
-      the run starts, or give a branch, tag or full commit SHA. It takes about 15 to 20
-      minutes. On its own it:
-  - picks one ios-backup-core commit that every job below builds and tests against, and names
-    it in the run summary and at the foot of the release notes;
+      **ios_backup_core_ref** blank to build against the commit pinned in `ios-backup-core.ref`
+      (bump it first, above, when ios-backup-core has fixes to ship), or give a branch, tag or
+      full commit SHA. It takes about 15 to 20 minutes. On its own it:
+  - picks one ios-backup-core commit (the pinned one, unless you gave another) that every job
+    below builds and tests against, and names it in the run summary and at the foot of the
+    release notes;
   - creates `release/vX.Y.Z` with the version in `package.json`, `## [X.Y.Z] - <date>` under an
     empty `## [Unreleased]` in `CHANGELOG.md`, and the version label in `website/static/index.html`;
   - tags it and creates a draft release;

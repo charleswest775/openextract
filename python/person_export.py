@@ -61,6 +61,7 @@ from messages import (
     _FILE_NAME_UNSAFE,
     _HtmlAttachmentWriter,
     _PrintAttachmentWriter,
+    _nothing_known,
     _visible,
     _without_lone_surrogates,
 )
@@ -248,6 +249,11 @@ def _note_parts(note: dict) -> tuple:
     return _visible(raw_title).strip() or "Untitled", body.strip()
 
 
+def _note_source(note: dict) -> str:
+    """"Shared note", or "Shared note (Recently Deleted)" for one in the iPhone's Recently Deleted folder."""
+    return "Shared note (Recently Deleted)" if note.get("is_deleted") else "Shared note"
+
+
 def _note_text(note: dict) -> str:
     """A shared note in text: its title in quotes, then the rest of it on the lines after."""
     title, body = _note_parts(note)
@@ -262,6 +268,8 @@ def _messages_kind(att: dict) -> str:
         return "Video"
     if mime.startswith("audio/"):
         return "Audio"
+    if _nothing_known(att):
+        return "Attachment"  # a photo or file whose record iOS removed
     return "File"
 
 
@@ -861,7 +869,7 @@ class PersonExporter:
         if it.kind == "message":
             return _SERVICE_WORDS.get(it.data.get("service") or "", "Messages")
         if it.kind == "note":
-            return "Shared note"
+            return _note_source(it.data)
         return "Call" if it.kind == "call" else "Voicemail"
 
     def _messages_text(self, msg: dict) -> str:
@@ -1109,7 +1117,7 @@ class PersonExporter:
         parts = [f'<div class="log-title">{_esc(title)}</div>']
         if body:
             parts.append(f'<div class="note-body">{_esc(body, preserve_newlines=True)}</div>')
-        return (f'<div class="item log note"><div class="meta">{_esc(when)} · <span class="src">Shared note</span></div>'
+        return (f'<div class="item log note"><div class="meta">{_esc(when)} · <span class="src">{_esc(_note_source(it.data))}</span></div>'
                 f'<div class="log-box">{"".join(parts)}</div></div>')
 
     def _files_note(self, fmt: str, folder_name: str, media_total: int, has_folder: bool) -> str:

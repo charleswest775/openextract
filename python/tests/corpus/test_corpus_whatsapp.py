@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from corpus.facts import parse_iso
+from corpus.synthetic import whatsapp_empty_reason
 
 pytestmark = pytest.mark.corpus
 
@@ -104,14 +105,19 @@ def store(ctx):
 
 
 def test_whatsapp_absent_is_calm(ctx):
-    """A backup without WhatsApp says so, without an error, on the screen and in the counts."""
+    """A backup without WhatsApp says so, without an error, on the screen and in the counts.
+
+    A generated backup whose phone has the app (its answer key's "apps") but whose chats aren't in
+    the backup says that instead ("chats_left_out").
+    """
     ctx.require_open()
     if ctx.raw.has_file(*WHATSAPP):
         pytest.skip("this backup has WhatsApp")
-    assert ctx.whatsapp_result == {"conversations": [], "empty_reason": "not_in_backup"}
+    reason = whatsapp_empty_reason(ctx.item.expected() if hasattr(ctx.item, "expected") else None)
     o = ctx.stats.get("overview", {})
+    assert ctx.whatsapp_result == {"conversations": [], "empty_reason": reason}
     assert (o.get("total_whatsapp_chats"), o.get("total_whatsapp_messages"), o.get("whatsapp_status")) == \
-        (0, 0, "not_in_backup")
+        (0, 0, reason)
 
 
 def test_whatsapp_chats_match_chatstorage(ctx, store):

@@ -48,15 +48,25 @@ export function noPhotosHere(missingFromFolder: number, onlyInIcloud: number): s
 }
 
 export interface PhotoExportResult {
+  /** Photos now in the folder, the ones already_there included. */
   exported: number;
+  /** Of those, how many an earlier save had put there, so they weren't copied again. */
+  already_there?: number;
   errors: number;
   not_in_backup?: number;
   missing_from_folder?: number;
 }
 
-/** "300 exported · 5,700 only in iCloud, not in this backup · 12 missing from the backup's folder · 3 couldn't be copied" */
+/**
+ * "300 exported · 5,700 only in iCloud, not in this backup · 12 missing from the backup's folder · 3 couldn't be copied".
+ * Saving into a folder used before copies only what isn't there yet: "40 exported · 1,200 were already in that folder".
+ */
 export function photoExportSummary(result: PhotoExportResult): string {
-  const parts = [`${result.exported.toLocaleString()} exported`];
+  const there = result.already_there ?? 0;
+  const parts = [`${(result.exported - there).toLocaleString()} exported`];
+  if (there > 0) {
+    parts.push(there === 1 ? '1 was already in that folder' : `${there.toLocaleString()} were already in that folder`);
+  }
   if (result.not_in_backup) {
     parts.push(`${result.not_in_backup.toLocaleString()} only in iCloud, not in this backup`);
   }

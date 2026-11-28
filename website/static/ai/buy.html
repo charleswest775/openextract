@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>OpenExtract AI for your iPhone</title>
+  <meta name="description" content="Unlimited questions about one iPhone's backup with OpenExtract AI: $29 once, or $9 for a week." />
+  <!-- Only the add-on links here (its paywall gives /ai/buy?phone=<code>): not in the sitemap or the nav. -->
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <script defer src="/_vercel/insights/script.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+  <link rel="stylesheet" href="/css/ai.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">OpenExtract AI</div>
+    <h1>Keep asking about <span class="it">this iPhone.</span></h1>
+    <p class="page-head__lede">One key unlocks unlimited questions about one iPhone, in Claude or any AI app OpenExtract AI works with, on any of your computers. Each iPhone needs its own key.</p>
+  </header>
+
+  <!--
+    The Stripe payment links (live, account OpenExtract): data-link-phone is "OpenExtract AI: one iPhone"
+    ($29), data-link-week "OpenExtract AI: one iPhone for 7 days" ($9). Each link's "after payment"
+    setting sends people to https://www.openextract.app/ai/thanks?session_id={CHECKOUT_SESSION_ID}, and
+    /api/ai-key knows them by their price ids (AI_PRICE_PHONE, AI_PRICE_WEEK). Empty both to take the
+    keys off sale: the buttons then say so.
+  -->
+  <section class="ai-buy" data-ai-buy data-link-phone="https://buy.stripe.com/00w7sL7wk8PQaaNcPy2wU06"
+           data-link-week="https://buy.stripe.com/eVq3cvbMAfee0Ad3eY2wU07">
+    <div class="ai-buy__phone">
+      <div class="ai-buy__label">For the iPhone with phone code</div>
+      <div class="ai-buy__code" data-code-shown>—</div>
+      <form class="ai-buy__enter" data-code-form hidden>
+        <label for="code">Phone code</label>
+        <input id="code" name="phone" autocomplete="off" spellcheck="false" placeholder="7F3K-Q9M2" maxlength="12" />
+        <button class="btn" type="submit">Use this code</button>
+        <p class="ai-buy__hint">Don’t have it? Ask your AI app: “What’s my OpenExtract phone code?” It’s eight letters and numbers, from the backup you have open.</p>
+      </form>
+    </div>
+
+    <div class="ai-buy__options">
+      <div class="ai-buy__option">
+        <div class="ai-buy__price">$29 <span>once</span></div>
+        <p>This iPhone, for good. No subscription.</p>
+        <a class="btn btn--primary" data-buy="phone" href="#" aria-disabled="true">Buy for this iPhone</a>
+      </div>
+      <div class="ai-buy__option">
+        <div class="ai-buy__price">$9 <span>for 7 days</span></div>
+        <p>This iPhone, for a week. It ends on its own; nothing renews.</p>
+        <a class="btn" data-buy="week" href="#" aria-disabled="true">Buy a week</a>
+      </div>
+    </div>
+    <p class="ai-buy__closed" data-closed hidden>Keys aren’t on sale yet. Check back soon.</p>
+
+    <ul class="ai-buy__facts">
+      <li>Your key arrives on the next page, right after you pay. Paste it into your AI app’s chat and it’s saved on your computer.</li>
+      <li>A key works for every backup of this iPhone. A new iPhone needs a new key, even one set up from this one.</li>
+      <li>OpenExtract AI runs on your computer and reads the backup there. What your AI app reads from it goes to that AI company, as everything in your chats does: Anthropic, for Claude.</li>
+      <li>OpenExtract itself stays free, with no limits.</li>
+    </ul>
+  </section>
+
+  <script src="/js/ai-buy.js"></script>
+</body>
+</html>

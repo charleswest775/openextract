@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { saveFolder, sidecarCall } from '../../lib/ipc';
+import { exportFolder, sidecarCall } from '../../lib/ipc';
 import { photoExportSummary, photoSaveFailures, photoSaveProgress, PhotoExportResult } from '../../lib/photoCounts';
 import { percentDone } from '../../lib/exportProgress';
 import { voiceMemosAudioSaveable, voiceMemosListed } from '../../lib/voiceMemos';
@@ -229,7 +229,7 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
     setBundleChoice(null);
     setBundleRunning(true);
     await bundleAction.run(async () => {
-      const outputDir = await saveFolder();
+      const outputDir = await exportFolder();
       if (!outputDir) return null;
       const result = checkEngineResult(await sidecarCall<BundleResult>('export_bundle', {
         udid, output_dir: outputDir, time_zone: computerTimeZone(), ...bundleParams(choice),
@@ -247,7 +247,7 @@ export default function ExportPanel({ udid, overview, hasBrowserHistory }: Props
   }
 
   async function saveToFolder(kind: Kind): Promise<SaveResult | null> {
-    const outputDir = await saveFolder();
+    const outputDir = await exportFolder();
     if (!outputDir) return null;
     switch (kind) {
       case 'photos': {

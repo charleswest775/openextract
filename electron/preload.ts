@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('openextract', {
   // Native dialogs
   selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
   saveFolder: () => ipcRenderer.invoke('dialog:saveFolder'),
+  // "OneDrive", "iCloud Drive", … when a chosen folder is in one, else null
+  syncedFolder: (folder: string) => ipcRenderer.invoke('folder:syncedService', folder),
   saveFile: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) =>
     ipcRenderer.invoke('dialog:saveFile', options),
   writeFile: (filePath: string, content: string) =>

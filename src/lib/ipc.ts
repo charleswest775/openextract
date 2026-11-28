@@ -2,6 +2,7 @@
  * IPC client for communicating with the Python sidecar via Electron.
  * In dev mode without Electron, falls back to mock data.
  */
+import { askPriceFirst } from './payItForward';
 
 const isElectron = typeof window !== 'undefined' && window.openextract;
 
@@ -90,4 +91,24 @@ export async function selectFolder(): Promise<string | null> {
 export async function saveFolder(): Promise<string | null> {
   if (!isElectron) return null;
   return window.openextract.saveFolder();
+}
+
+/** The cloud storage app, such as "OneDrive", that syncs `folder`, or null. */
+export async function syncedFolder(folder: string): Promise<string | null> {
+  if (!isElectron || !window.openextract.syncedFolder) return null;
+  try {
+    return await window.openextract.syncedFolder(folder);
+  } catch {
+    return null; // only a warning: never in the way of the backup
+  }
+}
+
+/**
+ * The folder for a save out of a backup: on the first save of a run, "What's this worth to
+ * you?" comes first (askPriceFirst), then the folder picker. null when the person backs out of
+ * either, which every caller already treats like closing the picker.
+ */
+export async function exportFolder(): Promise<string | null> {
+  if (!(await askPriceFirst())) return null;
+  return saveFolder();
 }

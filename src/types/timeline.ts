@@ -102,6 +102,8 @@ export interface TimelineEntry {
     duration: number;
   };
   voicemail?: {
+    /** list_voicemails' id: a ROWID in the main store, or "<account folder>.<ROWID>" for a per-line store's copy. */
+    voicemailId: number | string;
     duration: number;
     transcript: string;
     phoneNumber: string;
@@ -117,6 +119,11 @@ export interface TimelineEntry {
      * phone's owner), so it's in their stream. Absent when it isn't shared.
      */
     sharedWith?: string[];
+    /**
+     * In the iPhone's Recently Deleted folder. Only a person's stream shows
+     * it (People, and what a person save writes); the Timeline and search leave it out.
+     */
+    deleted?: boolean;
   };
   browser?: {
     url: string;

@@ -32,6 +32,7 @@ import shutil
 import sqlite3
 import sys
 import time
+import urllib.error
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import cached_property
@@ -48,10 +49,12 @@ for _path in (REPO_ROOT, HERE / "corpus", PYTHON_DIR):
         sys.path.insert(0, str(_path))
 
 from corpus.synthetic import (  # noqa: E402
+    CacheError,
     SyntheticItem,
     backupgen_root,
     ensure_generated,
     load_synthetic,
+    mark_used,
     persona_available,
 )
 from sidecar_client import ProtocolError, SidecarClient, SidecarError  # noqa: E402
@@ -164,9 +167,18 @@ _generated: dict[str, tuple[SyntheticItem, Path]] = {}
 _generation_errors: dict[str, str] = {}
 
 
+def _download_failed(e: Exception) -> bool:
+    """True if generating failed on a download: backupgen's MediaError, or the network itself."""
+    media = sys.modules.get("backupgen.media")  # imported with backupgen.generate; absent, backupgen never ran
+    media_error = getattr(media, "MediaError", None)
+    return ((isinstance(media_error, type) and isinstance(e, media_error))
+            or isinstance(e, (urllib.error.URLError, ConnectionError)))
+
+
 def generated_backup(key: str) -> tuple[SyntheticItem, Path]:
     """The item and its backup folder, generated into the corpus cache if needed; skips (or fails) if it can't be."""
     if key in _generated:
+        mark_used(_generated[key][1].parent)  # still in use: other runs' pruning leaves it alone
         return _generated[key]
     if key in _generation_errors:
         skip_or_fail(_generation_errors[key])
@@ -183,10 +195,14 @@ def generated_backup(key: str) -> tuple[SyntheticItem, Path]:
         try:
             with _exclusive(item.item_dir().parent / f"{key}.lock"):
                 backup_dir = ensure_generated(item)
+        except CacheError:
+            raise  # backupgen edited mid-run, a folder that can't be replaced: a skip would hide it
         except Exception as e:  # e.g. backupgen.media.MediaError
-            reason = (f"{key} couldn't be generated: {type(e).__name__}: {e}. Maren's photos are downloaded "
-                      "from Wikimedia Commons the first time (into ~/.cache/backupgen/media, or "
-                      "$BACKUPGEN_MEDIA_CACHE), so the first run needs a network connection")
+            reason = f"{key} couldn't be generated: {type(e).__name__}: {str(e).rstrip('.')}"
+            if _download_failed(e):
+                reason += (". Maren's photos are downloaded from Wikimedia Commons the first time (into "
+                           "~/.cache/backupgen/media, or $BACKUPGEN_MEDIA_CACHE), so the first run needs a "
+                           "network connection")
         else:
             if backup_dir is None:
                 reason = f"{key} can't be generated: backupgen wrote no backup folder"
@@ -717,7 +733,7 @@ def _voicemail_db(rows: list[tuple]) -> bytes:
                      "trashed_date INTEGER, flags INTEGER, receiver TEXT, label TEXT)")
         for rowid, iso, sender, seconds in rows:
             conn.execute("INSERT INTO voicemail (ROWID, date, sender, duration, flags, trashed_date) "
-                         "VALUES (?, ?, ?, ?, ?, 0)", (rowid, _iso_seconds(iso), sender, seconds, 0x1103))
+                         "VALUES (?, ?, ?, ?, ?, 0)", (rowid, _iso_seconds(iso), sender, seconds, 0x3))
     return _sqlite_bytes(build)
 
 

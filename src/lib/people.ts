@@ -65,6 +65,18 @@ export function namedByNumber(e: PersonRow & { message?: { isGroup?: boolean } }
   return NUMBER_LIKE.test(name) ? personKey(name) === personKey(id) : name.trim().toLowerCase() === id.trim().toLowerCase();
 }
 
+/** What the engine names a call or voicemail with no number (no caller ID), as Calls has long done. */
+export const NO_CALLER_ID = 'Unknown';
+
+/**
+ * A call or voicemail with no number at all: the caller hid it, or the carrier had none. It's no
+ * one's, whatever it's called (the engine names it "Unknown"), so it never joins someone of that
+ * name. An app's call, which keeps an id in place of the number (null here), isn't one.
+ */
+export function noCallerId(e: PersonRow): boolean {
+  return !e.contactIdentifier && (e.type === 'voicemail' || (e.type === 'call' && e.contactName === NO_CALLER_ID));
+}
+
 // Returns true when two contact identifiers refer to the same entity.
 // Emails match whatever their case, as the picker merges them; then falls back
 // to normalised phone comparison.

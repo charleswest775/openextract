@@ -35,6 +35,11 @@
       "permanent": true
     },
     {
+      "source": "/ai/addon/index.json",
+      "destination": "https://github.com/charleswest775/openextract-ai-releases/releases/latest/download/index.json",
+      "permanent": false
+    },
+    {
       "source": "/support/pay",
       "destination": "https://buy.stripe.com/7sY00j9Es3vw0Ad16Q2wU01",
       "permanent": false
@@ -52,6 +57,26 @@
     {
       "source": "/support/pay/100",
       "destination": "https://buy.stripe.com/dRmcN58Aogii3Mp16Q2wU03",
+      "permanent": false
+    },
+    {
+      "source": "/support/pay/app/5",
+      "destination": "https://buy.stripe.com/7sY00j9Es3vw0Ad16Q2wU01?client_reference_id=app_save_step",
+      "permanent": false
+    },
+    {
+      "source": "/support/pay/app/25",
+      "destination": "https://buy.stripe.com/28E00jdUId66er3dTC2wU02?client_reference_id=app_save_step",
+      "permanent": false
+    },
+    {
+      "source": "/support/pay/app/100",
+      "destination": "https://buy.stripe.com/dRmcN58Aogii3Mp16Q2wU03?client_reference_id=app_save_step",
+      "permanent": false
+    },
+    {
+      "source": "/support/pay/app/any",
+      "destination": "https://buy.stripe.com/7sY00j9Es3vw0Ad16Q2wU01?client_reference_id=app_save_step",
       "permanent": false
     },
     {

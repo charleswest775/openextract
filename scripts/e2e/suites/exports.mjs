@@ -6,7 +6,7 @@
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { check, csvRows, launch, looksValid, pdfStats, sleep, timing } from '../harness.mjs';
+import { check, csvRows, launch, looksValid, num, pdfStats, sleep, timing } from '../harness.mjs';
 
 // Every kind on "Save to this computer" (ExportPanel's KINDS) with every format it offers, in
 // the order its dialog lists them: the kind's own format first, then PDF, web page, spreadsheet,
@@ -74,8 +74,9 @@ export default {
       let exportCheckSeen = 0;
       const prompts = async () => {
         const t = await app.text();
-        // The "Pay it forward" card: its buttons, in order. The first time, Say thanks opens the
-        // thank-you note (and, like the ×, quiets the ask for the rest of the run); Escape closes it.
+        // The "Pay it forward" card after an export: its buttons, in order (it shouldn't come in this
+        // run: the price step on the first save is the run's ask). Say thanks opens the thank-you
+        // note (and, like the ×, quiets the ask for the rest of the run); Escape closes it.
         const card = await app.eval(() => {
           const pay = [...document.querySelectorAll('.fixed button')].find(b => b.textContent.trim() === 'Pay $5');
           const box = pay?.closest('[role=status]');
@@ -176,7 +177,8 @@ export default {
             const shown = tiles.Calls;
             pass = one.length === 1 && files.length === 1 && (rows === null || rows === shown); detail = { files, rows, shown };
           }
-          if (kind === 'voicemail') { const audio = files.filter(f => /\.(amr|m4a|wav|mp3|caf)$/i.test(f)); pass = audio.length === key.voicemails.length; detail = { audio: audio.length }; }
+          // Every list's voicemails, deleted ones too, each whose audio is in the backup
+          if (kind === 'voicemail') { const audio = files.filter(f => /\.(amr|m4a|wav|mp3|caf)$/i.test(f)); pass = audio.length === key.voicemails.filter(v => v.audio_available ?? true).length; detail = { audio: audio.length }; }
           if (kind === 'podcasts' && format === 'opml') {
             const opml = files.filter(f => ext(f) === 'opml');
             const outlines = opml.length === 1 ? (fs.readFileSync(path.join(dir, opml[0]), 'utf-8').match(/<outline\b[^>]*xmlUrl=/g) || []).length : -1;
@@ -250,20 +252,41 @@ export default {
         const wrong = sums.filter(([f, h]) => !fs.existsSync(inBundle(f))
           || crypto.createHash('sha256').update(fs.readFileSync(inBundle(f))).digest('hex') !== h).map(([f]) => f);
         const voicemails = lines('voicemail.jsonl').map(l => JSON.parse(l));
+        // Each voicemail as the answer key has it: its number (none for a caller with no number), and audio when it's in the backup
+        const keyVoicemails = new Map(key.voicemails.map(v => [String(v.id ?? v.rowid), v]));
+        const voicemailRight = v => { const k = keyVoicemails.get(String(v.id)); return !!k && (v.phone_number || null) === (k.sender ?? null)
+          && !!v.audio_sha256 === (k.audio_available ?? true) && typeof v.is_spam === 'boolean'; };
         const detail = {
           format: manifest?.format, version: manifest?.schema_version, messages: lines('messages.jsonl').length,
           voicemails: voicemails.length, sums: sums.length, files: files.length, wrong: wrong.slice(0, 5),
         };
         const pass = manifest?.format === 'openextract-bundle' && manifest?.time_zone_used === 'UTC'
           && detail.messages === key.messages.length && voicemails.length === key.voicemails.length
-          && voicemails.every(v => v.phone_number && v.audio_sha256 && typeof v.is_spam === 'boolean')
+          && voicemails.every(voicemailRight)
           && sums.length === files.length && wrong.length === 0;
         ok('Save panel: data bundle', res, { pass, detail });
         await prompts();
       }
 
-      check('the "Pay it forward" card showed after the first export, with Say thanks and Pay $5', shareSeen?.join() === 'Say thanks,Pay $5', shareSeen);
-      check('Say thanks on that card opens the thank-you note', thanksOpened === 'Say thanks', thanksOpened);
+      // "What's this worth to you?" asks once a run, on the first save, and then no card after exports.
+      check('the price step asked once, on the first save: Pay $25 and save, then Save without paying',
+        app.priceSteps?.length === 1 && app.priceSteps[0].join() === 'Pay $25 and save,Save without paying', app.priceSteps);
+      check('no "Pay it forward" card after exports in a run where the price step asked', shareSeen === null && thanksOpened === null, shareSeen);
+      {
+        // The card itself still opens from the header's Pay it forward button, and Say thanks on it
+        // opens the thank-you note.
+        await app.eval(() => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Pay it forward' && !b.closest('[role=status]'))?.click());
+        const headerCard = await app.waitFor(() => {
+          const pay = [...document.querySelectorAll('.fixed button')].find(b => b.textContent.trim() === 'Pay $5');
+          const box = pay?.closest('[role=status]');
+          return box ? [...box.querySelectorAll('.hearth-ghost-btn, .hearth-primary-btn')].map(b => b.textContent.trim()) : null;
+        }, null, 5_000);
+        await app.eval(() => [...document.querySelectorAll('.fixed button')].find(b => b.textContent.trim() === 'Say thanks')?.click());
+        const thanks = await app.waitFor(() => document.getElementById('feedback-title')?.textContent, null, 5_000);
+        await app.eval(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+        check('the header\'s Pay it forward card has Say thanks and Pay $5, and Say thanks opens the thank-you note',
+          headerCard?.join() === 'Say thanks,Pay $5' && thanks === 'Say thanks', { headerCard, thanks });
+      }
       check('"Did this export come out right?" showed at most once', exportCheckSeen <= 1, exportCheckSeen);
 
       // ── One conversation, every format, and saving twice keeps both files ──
@@ -425,6 +448,58 @@ export default {
         await prompts();
         // Only the changed one is saved again, beside it; the rest are there already
         await keeps("Photos: saving again keeps what's in the folder and copies only what's missing", res, [media[0]], 'Save all', 'only', 1, { timeoutMs: 600_000 });
+      }
+      // Photos: only the ones picked (OE-193, OE-195). Select, click the first, Shift-click the third.
+      {
+        await app.click('Select');
+        await app.waitForText(/Shift-click selects every one in between/, 5_000);
+        const tiles = await app.eval(() => {
+          const t = [...document.querySelectorAll('div.grid .aspect-square')];
+          if (t.length < 3) return t.length;
+          t[0].click();
+          t[2].dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
+          return t.length;
+        });
+        const bar = await app.waitForText(/3 (photos|videos)[^\n]* selected|\d+ photos? and \d+ videos? selected/, 5_000);
+        check('Photos: Select, a click and a Shift-click pick 3', tiles >= 3 && !!bar, { tiles });
+        const dir = path.join(root, 'photos-picked');
+        const res = await run(dir, 'Save 3 selected', 'only', { timeoutMs: 120_000 });
+        const media = res.files.filter(f => /\.(jpe?g|heic|png|mov|mp4|gif)$/i.test(f));
+        ok('Photos: Save 3 selected saves just those 3', res, { pass: media.length === 3, detail: { media: media.length } });
+        await prompts();
+        const again = await run(dir, 'Save 3 selected', 'only', { timeoutMs: 120_000, keep: true });
+        check('Photos: saving them again copies nothing and says they were there',
+          /3 were already in that folder/.test(again.notice?.text ?? '') && again.files.length === res.files.length,
+          { notice: again.notice?.text?.split('\n').slice(0, 2), files: [res.files.length, again.files.length] });
+        await prompts();
+        await app.click('Cancel');
+      }
+      // Photos: only those from some dates. From the 11th photo's day to the 31st's, in this computer's time zone.
+      {
+        const day = iso => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+        const shown = key.photos.filter(p => !p.trashed);
+        const days = shown.map(p => day(p.date)).sort();
+        const [from, to] = [days[10], days[30]];
+        const want = days.filter(d => d >= from && d <= to).length;
+        await app.eval(([from, to]) => {
+          const set = (el, v) => {
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v);
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+          };
+          const [a, b] = document.querySelectorAll('input[type=date]');
+          set(a, from);
+          set(b, to);
+        }, [from, to]);
+        const header = await app.waitForText(new RegExp(`\\b${want.toLocaleString('en-US')} photos? (?:and videos|or video) from these dates`), 15_000);
+        const count = num((await app.text()).match(/([\d,]+) photos? (?:and videos|or video) from these dates/)?.[1]);
+        check(`Photos: ${from} to ${to} shows its ${want}`, !!header && count === want, { count, want });
+        const dir = path.join(root, 'photos-dates');
+        const res = await run(dir, 'Save these', 'only', { timeoutMs: 300_000 });
+        const media = res.files.filter(f => /\.(jpe?g|heic|png|mov|mp4|gif)$/i.test(f));
+        ok('Photos: Save these saves the photos from those dates', res,
+          { pass: media.length === want && /^Saved photos and videos from /.test(res.notice?.text ?? ''), detail: { media: media.length, want } });
+        await prompts();
+        await app.click('Any date');
       }
 
       // Recovered messages, when the scan finds any.

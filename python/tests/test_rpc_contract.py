@@ -36,6 +36,7 @@ import html
 import io
 import json
 import os
+import plistlib
 import re
 import shutil
 import sys
@@ -81,6 +82,8 @@ from rpc_contract_support import (  # noqa: E402
     same_path,
 )
 from bundle_schema import check_bundle, read_lines  # noqa: E402
+from raw_backup import RawBackup  # noqa: E402  (python/tests/corpus, on the path via rpc_contract_support)
+from corpus.synthetic import WHATSAPP_APP, whatsapp_empty_reason  # noqa: E402
 import whatsapp_backup as wb  # noqa: E402
 import podcasts_backup as pb  # noqa: E402
 import voice_memos_backup as vb  # noqa: E402
@@ -269,6 +272,23 @@ def case_list_backups(ctx):
     assert same_path(result["search_dirs"][0], m.backup_dir.parent)
     enc = ctx.maren_enc
     assert [b["encrypted"] for b in enc.call("list_backups", {"path": str(enc.backup_dir)})["backups"]] == [True]
+    # One iPhone's backups side by side (#317): the one OpenExtract made last, as pymobiledevice3 writes
+    # it, has no date in Info.plist and must still come first, dated by its Status.plist. Einstein's
+    # iOS 26 backup is made that way; his iOS 17 one, the same iPhone, by Finder.
+    new_item, new_dir = generated_backup(EINSTEIN)
+    old_item, old_dir = generated_backup(EINSTEIN_ENCRYPTED)
+    assert new_item.udid == old_item.udid
+    assert (new_item.expected()["host"], old_item.expected()["host"]) == ("pymobiledevice3", "finder")
+    assert "Last Backup Date" not in plistlib.loads((new_dir / "Info.plist").read_bytes())
+    one_iphone = ctx.folder("one-iphone")
+    beside = one_iphone / f"{new_item.udid}-20260614-193000"  # where the engine puts a new one beside the old
+    shutil.copytree(old_dir, one_iphone / old_item.udid, copy_function=_link_or_copy)
+    shutil.copytree(new_dir, beside, copy_function=_link_or_copy)
+    listed = ctx.plain.call("list_backups", {"path": str(one_iphone)})["backups"]
+    assert [Path(b["backup_dir"]).name for b in listed] == [beside.name, old_item.udid]
+    assert [datetime.fromisoformat(b["last_backup"]) for b in listed] == \
+        [datetime.fromisoformat(item.expected()["backup_date"]) for item in (new_item, old_item)]
+    assert not any(b["unfinished"] for b in listed)
     # No path: the OS's usual folders. What's in them depends on the machine, so the shape only.
     result = ctx.plain.call("list_backups", {})
     assert isinstance(result["backups"], list) and isinstance(result["search_dirs"], list)
@@ -535,6 +555,24 @@ def case_list_photos(ctx):
         assert all(p["favorite"] for p in favorites["photos"])
         assert favorites["total"] == sum(1 for p in m.expected["photos"] if p["favorite"] and not p["trashed"])
 
+    # Dates (OE-193): the photos taken from date_from up to date_to, paged and counted on their own.
+    def taken(p):
+        return datetime.fromisoformat(p["date_created"]).timestamp()
+
+    stamps = sorted({taken(p) for p in m.photos if p["date_created"]})
+    low, high = stamps[len(stamps) // 4] - 0.5, stamps[len(stamps) // 2] - 0.5
+    want = sorted(p["uuid"] for p in m.photos if p["date_created"] and low <= taken(p) < high)
+    got, offset = [], 0
+    while True:
+        dated = m.rpc("list_photos", offset=offset, limit=7, date_from=low, date_to=high)
+        got += dated["photos"]
+        offset += 7
+        if offset >= dated["total"]:
+            break
+    assert want and sorted(p["uuid"] for p in got) == want
+    assert (dated["total"], dated["in_backup"], dated["not_in_backup"]) == (len(want), len(want), 0)
+    assert m.rpc("list_photos", offset=0, limit=100, date_from=stamps[-1] + 1)["total"] == 0
+
 
 def _photo_people_expected(engine: BackupEngine) -> list[dict]:
     """The answer key's People album as list_photo_people lists it: people (not pets), not merged away, with photos."""
@@ -570,6 +608,24 @@ def case_list_photo_people(ctx):
         anyone = engine.rpc("list_photos", offset=0, limit=100, person_ids=ids)
         assert together["in_backup"] == len(together["photos"]) < anyone["in_backup"] == len(anyone["photos"])
         assert engine.rpc("list_photos", offset=0, limit=100, person_ids=["999999"])["total"] == 0
+        # Dates and people together (OE-193): the people's photos taken in that time, paged and counted.
+        for match, listing in (("any", anyone), ("all", together)):
+            def taken(p):
+                return datetime.fromisoformat(p["date_created"]).timestamp()
+
+            stamps = sorted({taken(p) for p in listing["photos"] if p["date_created"]})
+            low, high = stamps[len(stamps) // 3] - 0.5, stamps[2 * len(stamps) // 3] + 0.5
+            want = sorted(p["uuid"] for p in listing["photos"] if p["date_created"] and low <= taken(p) < high)
+            got, offset = [], 0
+            while True:
+                page = engine.rpc("list_photos", offset=offset, limit=3, person_ids=ids, person_match=match,
+                                  date_from=low, date_to=high)
+                got += page["photos"]
+                offset += 3
+                if offset >= page["total"]:
+                    break
+            assert want and sorted(p["uuid"] for p in got) == want
+            assert (page["total"], page["in_backup"], page["not_in_backup"]) == (len(want), len(want), 0)
     assert ctx.maren.rpc("list_photo_people")["people"] == []  # maren's library has no faces
 
 
@@ -714,6 +770,9 @@ def case_list_notes(ctx):
     notes = m.rpc("list_notes")["notes"]
     assert sorted(n["title"] for n in notes) == sorted(n["title"] for n in m.expected["notes"])
     assert len({n["note_id"] for n in notes}) == len(notes)
+    # Notes in Recently Deleted are listed too, and say so
+    deleted = sorted(n["title"] for n in m.expected["notes"] if n.get("deleted"))
+    assert deleted and sorted(n["title"] for n in notes if n["is_deleted"]) == deleted
     for n in notes:
         assert n["body"] and local_day(n["created"]) and local_day(n["modified"])
 
@@ -848,6 +907,20 @@ def case_export_photos(ctx):
         meta = json.loads(Path(f"{image}.json").read_text(encoding="utf-8"))
         assert meta["uuid"] == photo["uuid"] and "file_hash" not in meta
     shutil.rmtree(out)
+
+    # Only the photos picked on the Photos screen (OE-193, OE-195), from either kind of backup;
+    # saving them again into that folder finds them there and copies nothing.
+    for engine, name in ((m, "photos-picked"), (ctx.maren_enc, "photos-picked-encrypted")):
+        picked = engine.photos[::25][:4]
+        out = ctx.out(name)
+        options = {"uuids": [p["uuid"] for p in picked], "folder_structure": "by_date"}
+        result = engine.rpc("export_photos", output_dir=str(out), options=options)
+        assert (result["exported"], result["errors"], result["already_there"]) == (len(picked), 0, 0)
+        assert sorted(p.name for p in files_under(out)) == sorted(p["filename"] for p in picked)
+        again = engine.rpc("export_photos", output_dir=str(out), options=options)
+        assert (again["exported"], again["errors"], again["already_there"]) == (len(picked), 0, len(picked))
+        assert len(files_under(out)) == len(picked)
+        shutil.rmtree(out)
 
 
 @contract("export_voicemails")
@@ -1092,6 +1165,13 @@ def case_list_whatsapp_chats(ctx):
     enc = ctx.whatsapp_enc
     assert [(c["chat_id"], c["display_name"], c["message_count"], c["last_message_date"]) for c in enc.whatsapp_chats] == \
         [(c["chat_id"], c["display_name"], c["message_count"], c["last_message_date"]) for c in chats]
+    # WhatsApp on the iPhone, its chats not in the backup (Einstein's iOS 26 phone, backed up the way
+    # OpenExtract does): the app says so, calmly, rather than that WhatsApp isn't there
+    e = ctx.einstein
+    assert WHATSAPP_APP in e.expected["apps"] and e.expected["whatsapp"] is None
+    assert e.rpc("list_whatsapp_chats") == {"conversations": [], "empty_reason": "chats_left_out"}
+    stats = e.rpc("get_backup_stats")
+    assert stats["errors"] == [] and stats["overview"]["whatsapp_status"] == "chats_left_out"
 
 
 @contract("get_whatsapp_messages")
@@ -2244,6 +2324,20 @@ def empty_list_calls(e, out):
 @empty_state("list_notes")
 def empty_list_notes(e, out):
     assert e.rpc("list_notes")["notes"] == []
+    # Einstein never used his phone's Notes app. By his iOS 26 backup iCloud had set Notes up: a NoteStore whose
+    # only note is a placeholder for one still to download (Notes there, nothing to show). His iOS 17 backup has
+    # no NoteStore (not in this backup). The two Einstein backups here are one of each.
+    raw = RawBackup(e.backup_dir, e.password)
+    try:
+        notes = raw.query("AppDomainGroup-group.com.apple.notes", "NoteStore.sqlite",
+                          "SELECT o.ZTITLE1, o.ZNEEDSINITIALFETCHFROMCLOUD FROM ZICCLOUDSYNCINGOBJECT o "
+                          "JOIN Z_PRIMARYKEY e ON e.Z_ENT = o.Z_ENT WHERE e.Z_NAME = 'ICNote'")
+    finally:
+        raw.close()
+    if e.expected["snapshot"] == "ios26":
+        assert notes is not None and [tuple(r) for r in notes] == [(None, 1)]
+    else:
+        assert notes is None
 
 
 @empty_state("has_browser_history")
@@ -2317,7 +2411,8 @@ def empty_export_recovered_messages(e, out):
 
 @empty_state("list_whatsapp_chats")
 def empty_list_whatsapp_chats(e, out):
-    assert e.rpc("list_whatsapp_chats") == {"conversations": [], "empty_reason": "not_in_backup"}
+    # "chats_left_out" for a phone with the app whose chats aren't in the backup (its answer key's apps)
+    assert e.rpc("list_whatsapp_chats") == {"conversations": [], "empty_reason": whatsapp_empty_reason(e.expected)}
 
 
 @empty_state("get_whatsapp_messages")
@@ -2460,7 +2555,7 @@ def empty_get_backup_stats(e, out):
                 "total_deleted_voice_memos", "total_voice_memos_with_audio", "total_calendar_events", "total_subscribed_events", "total_calendars",
                 "total_calendars_with_events"):
         assert o[key] == 0, key
-    assert o["whatsapp_status"] == "not_in_backup"
+    assert o["whatsapp_status"] == whatsapp_empty_reason(e.expected)
     assert o["podcasts_status"] == "not_in_backup"
     assert o["voice_memos_status"] == "not_in_backup"
     assert o["calendar_status"] == "not_in_backup"

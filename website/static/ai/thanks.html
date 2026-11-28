@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf6f1" />
+  <title>Your OpenExtract AI key</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/site.css" />
+  <link rel="stylesheet" href="/css/ai.css" />
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="nav__brand">
+      <div class="nav__logo" aria-hidden="true">o</div>
+      <span class="nav__wordmark">OpenExtract</span>
+    </a>
+  </nav>
+
+  <header class="page-head">
+    <div class="page-head__eyebrow">OpenExtract AI</div>
+    <h1>Thank you. <span class="it">Here’s your key.</span></h1>
+  </header>
+
+  <section class="ai-key" data-ai-key>
+    <p class="ai-key__status" data-status role="status">Getting your key…</p>
+    <div data-got hidden>
+      <p class="ai-key__for" data-for></p>
+      <code class="ai-key__key" data-key></code>
+      <div class="ai-key__actions">
+        <button class="btn btn--primary" type="button" data-copy="message">Copy it for your AI app</button>
+        <button class="btn" type="button" data-copy="key">Copy just the key</button>
+        <span class="ai-key__copied" data-copied aria-live="polite"></span>
+      </div>
+      <ol class="ai-key__steps">
+        <li>Paste it into your AI app’s chat (Claude, ChatGPT…) and send it. It saves the key on this computer, and your questions about this iPhone are unlimited.</li>
+        <li>On another computer, paste the same key there too.</li>
+        <li>Bookmark this page: it shows your key again whenever you open it.</li>
+      </ol>
+    </div>
+  </section>
+
+  <script src="/js/ai-thanks.js"></script>
+</body>
+</html>

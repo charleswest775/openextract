@@ -27,8 +27,10 @@ export default {
       if (!check('backup opens', r.opened, r)) return;
       const tiles = await app.homeTiles();
       await shot('home');
+      // The Voicemail tile, the Timeline and its chip count the Voicemail and Spam lists, not Deleted
+      const listedVoicemails = key.voicemails.filter(v => !v.is_deleted).length;
       check('home tiles match the answer key', tiles.Messages === key.messages.length && tiles.Photos === key.photos.length
-        && tiles['Address book'] === key.contacts.length && tiles.Notes === key.notes.length && tiles.Voicemail === key.voicemails.length, { tiles });
+        && tiles['Address book'] === key.contacts.length && tiles.Notes === key.notes.length && tiles.Voicemail === listedVoicemails, { tiles });
       // WhatsApp, when the backup has it: the answer key's "whatsapp" section (none from a
       // backupgen without the WhatsApp writer, and most iPhones have none).
       const waKey = key.whatsapp ?? null;
@@ -253,8 +255,10 @@ export default {
 
       // ── Voicemail ──
       check('Voicemail opens', await timed('screen Voicemail', () => app.open('Voicemail', /\d+ voicemails?/)));
+      // The screen opens on the Voicemail list (Spam and Deleted have tabs of their own)
+      const inVoicemailList = key.voicemails.filter(v => (v.folder ?? 'voicemail') === 'voicemail').length;
       const vms = num((await app.text()).match(/([\d,]+) voicemails?/)?.[1]);
-      check(`Voicemail has ${key.voicemails.length}`, vms === key.voicemails.length, vms);
+      check(`Voicemail has ${inVoicemailList}`, vms === inVoicemailList, vms);
       // (The answer key has transcripts, but backupgen doesn't write them into the backup.)
       const vm = [...key.voicemails].sort((a, z) => z.date.localeCompare(a.date)).find(v => v.contact);
       await app.click(vm.contact);
@@ -411,8 +415,10 @@ export default {
         .map(b => b.textContent.trim().match(/^(Messages|WhatsApp|Calls|Photos|Voicemail|Notes|Web)([\d,]+)$/)).filter(Boolean).map(m => [m[1], Number(m[2].replace(/,/g, ''))])));
       const chipTotal = Object.values(chips).reduce((a, n) => a + n, 0);
       check('timeline total is the sum of its type chips', events === chipTotal, { events, chips });
-      check('timeline photos, notes, voicemail and web visits match the answer key', chips.Photos === key.photos.length && chips.Notes === key.notes.length
-        && chips.Voicemail === key.voicemails.length && chips.Web === key.browser_history.length && chips.Calls === tiles.Calls, chips);
+      // The Timeline leaves out notes in Recently Deleted (the Notes screen still lists them)
+      const timelineNotes = key.notes.filter(n => !n.deleted).length;
+      check('timeline photos, notes, voicemail and web visits match the answer key', chips.Photos === key.photos.length && chips.Notes === timelineNotes
+        && chips.Voicemail === listedVoicemails && chips.Web === key.browser_history.length && chips.Calls === tiles.Calls, chips);
       check(`timeline has the answer key's ${waTotal} WhatsApp messages`, (chips.WhatsApp ?? 0) === waTotal, chips);
       await app.click(`Photos${chips.Photos}`);
       await sleep(800);

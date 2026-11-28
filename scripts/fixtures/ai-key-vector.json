@@ -1,0 +1,39 @@
+{
+  "about": "A shared test vector: tools/make_key.py (the add-on) and website/static/api/_lib/ai-key.js (the store) must make these exact keys from this seed. Test-only seed: never a real one.",
+  "seed": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "public_key": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+  "udid_to_code": [
+    {
+      "udid": "00008140-71766CB0FCFEEA02",
+      "code": "JN35Q4HN"
+    },
+    {
+      "udid": "00008030-001259123e50802e",
+      "code": "7KQK9EK1"
+    },
+    {
+      "udid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "code": "T4N8Z5KG"
+    }
+  ],
+  "cases": [
+    {
+      "name": "Sarah Jones",
+      "kind": "phone",
+      "issued": "2026-11-26",
+      "until": null,
+      "id": "k3f9x2",
+      "phone": "7F3KQ9M2",
+      "key": "OEAI1-eyJ2IjoxLCJuIjoiU2FyYWggSm9uZXMiLCJrIjoicGhvbmUiLCJpIjoiMjAyNi0xMS0yNiIsImUiOm51bGwsImlkIjoiazNmOXgyIiwicCI6IjdGM0tROU0yIn06nt98nDPCiapvIZHo0D7Hmm80rPdj2EGNck8UZSP6zASa_NQ3oTEFDpuNfglR3rhMREdgi2orRF-bJWem_KgM"
+    },
+    {
+      "name": "Zoë Ångström",
+      "kind": "week",
+      "issued": "2026-11-26",
+      "until": "2026-12-03",
+      "id": "a1b2c3",
+      "phone": "JN35Q4HN",
+      "key": "OEAI1-eyJ2IjoxLCJuIjoiWm_DqyDDhW5nc3Ryw7ZtIiwiayI6IndlZWsiLCJpIjoiMjAyNi0xMS0yNiIsImUiOiIyMDI2LTEyLTAzIiwiaWQiOiJhMWIyYzMiLCJwIjoiSk4zNVE0SE4ifbi29u6GQz1OODX4On464bbbQwkDUY0InW0VCMU-UI5moM2af0F_DXhfXEaZ4-4A7dZNNHFjxRXWOilO5BWNgwk"
+    }
+  ]
+}

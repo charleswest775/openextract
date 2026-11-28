@@ -274,8 +274,34 @@ export class App {
     }, null, 10_000);
   }
 
-  /** In the open Save dialog: pick a format (and one file per conversation or all in one), then Save. */
+  /**
+   * In the open Save dialog: pick a format (and one file per conversation or all in one), then Save.
+   * The first save of a run asks "What's this worth to you?" first (PriceStep): see passPriceStep.
+   */
   async saveAs(format, mode) {
+    const clicked = await this.pickAndSave(format, mode);
+    if (!clicked) return clicked;
+    // Either the step shows, or the dialog closes and the save starts.
+    const step = await this.waitFor(() => document.querySelector('[data-price-step]') ? 'step'
+      : document.querySelector('[role=dialog] input[name=save-format]') ? null : 'gone', null, 3_000);
+    if (step === 'step') await this.passPriceStep();
+    return clicked;
+  }
+
+  /** The price step is open: keep its main buttons, in order, in `priceSteps`, and save without paying. */
+  async passPriceStep() {
+    const buttons = await this.page.evaluate(() => {
+      const s = document.querySelector('[data-price-step]');
+      if (!s) return null;
+      const seen = [...s.querySelectorAll('.hearth-primary-btn, .hearth-ghost-btn')].map(b => b.textContent.trim());
+      [...s.querySelectorAll('button')].find(b => b.textContent.trim() === 'Save without paying')?.click();
+      return seen;
+    });
+    if (buttons) (this.priceSteps ??= []).push(buttons);
+    return buttons;
+  }
+
+  async pickAndSave(format, mode) {
     await this.saveFormats();
     return this.page.evaluate(([format, mode]) => {
       const d = document.querySelector('[role=dialog]');
@@ -300,9 +326,16 @@ export class App {
     const t0 = performance.now();
     const clicked = typeof button === 'function' ? await button() : await this.click(button, { within });
     if (!clicked) return { clicked: false, files: [] };
-    // Kinds with one format skip the Save dialog and start right away.
-    const next = await this.waitFor(() => document.querySelector('[role=dialog] input[name=save-format]') ? 'dialog'
+    // Kinds with one format skip the Save dialog and start right away, after the price step in
+    // its own window on the first save of a run.
+    const waitNext = () => this.waitFor(() => document.querySelector('[data-price-step]') ? 'price'
+      : document.querySelector('[role=dialog] input[name=save-format]') ? 'dialog'
       : window.__seenNotices?.length ? 'notice' : null, null, 15_000);
+    let next = await waitNext();
+    if (next === 'price') {
+      await this.passPriceStep();
+      next = await waitNext();
+    }
     const saved = next === 'dialog' ? await this.saveAs(format, mode) : next === 'notice' ? 'no dialog' : false;
     const { notice } = await this.waitNotice(timeoutMs);
     // Some exports report before the last file is closed; give the folder a moment to settle.

@@ -82,8 +82,13 @@ export function hasSidebar(sidebar: PhotoSidebar): boolean {
   return sidebar.albums.length > 0 || sidebar.shared.length > 0 || sidebar.smart.some(a => albumCount(a) > 0);
 }
 
-/** The save button's label for what's selected (null is All Photos). */
-export function saveLabel(selected: string | null): string {
+/**
+ * The save button's label for the album on screen (null is All Photos): for the photos
+ * picked when there are any, or "Save these" when the dates or a kind narrow the grid.
+ */
+export function saveLabel(selected: string | null, picked = 0, narrowed = false): string {
+  if (picked > 0) return `Save ${picked.toLocaleString()} selected`;
+  if (narrowed) return 'Save these';
   if (selected === null || selected === ALL_PHOTOS) return 'Save all';
   if (selected === FAVORITES) return 'Save favorites';
   if (selected === HIDDEN) return 'Save hidden';
@@ -92,7 +97,12 @@ export function saveLabel(selected: string | null): string {
 
 /** What the "saved" message is titled. */
 export function savedTitle(selected: string | null, albums: PhotoAlbum[]): string {
+  const title = albumTitle(selected, albums);
+  return title === null ? 'Saved photos and videos' : `Saved ${title}`;
+}
+
+/** The title of the album on screen, or null for All Photos. */
+export function albumTitle(selected: string | null, albums: PhotoAlbum[]): string | null {
   const album = selected === null ? undefined : albums.find(a => a.id === selected);
-  if (!album || album.id === ALL_PHOTOS) return 'Saved photos and videos';
-  return `Saved ${album.title}`;
+  return !album || album.id === ALL_PHOTOS ? null : album.title;
 }

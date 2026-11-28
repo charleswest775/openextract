@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import BenzAMRRecorder from 'benz-amr-recorder';
 import { ChevronDown } from 'lucide-react';
-import { saveFolder, sidecarCall } from '../../lib/ipc';
+import { exportFolder, sidecarCall } from '../../lib/ipc';
 import { VoicemailIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
 import { formatDateTime, formatDuration } from '../../lib/dates';
@@ -207,7 +207,7 @@ export default function VoicemailExplorer({ udid, query, selectId }: Props) {
 
   function handleSave() {
     run(async () => {
-      const outputDir = await saveFolder();
+      const outputDir = await exportFolder();
       if (!outputDir) return null;
       const result = checkEngineResult(await sidecarCall<{ exported: number; path?: string }>(
         'export_voicemails', { udid, output_dir: outputDir },

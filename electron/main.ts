@@ -9,6 +9,7 @@ import { safeBaseName, writeNewFile } from './newFile';
 import { FeedbackRecorder } from './feedback';
 import { FeedbackReports } from './feedbackReports';
 import { installFolderFor, installFolderWarning, isInsideFolder, resolveReal } from './installFolder';
+import { syncedFolderAt, withSyncedFolderNote } from './syncedFolder';
 import { CHECK_OLDER_TIMEOUT_MS, takeMoveLock, trashOlderBackup } from './olderBackups';
 import { isBusinessAnswer, recordSave, shouldAskBusiness } from './businessUse';
 // ── Media in the window (videos, posters): only from the engine's copy folders ──
@@ -157,7 +158,8 @@ const FEEDBACK_CHECK_DELAY_MS = 15_000;
 
 // The export check shows at most once per run, and never on the same export as the ask.
 let exportCheckShownThisRun = false;
-// The "Pay it forward" card was dismissed (its × or Say thanks): no more asks after exports until the app is opened again.
+// An ask was dismissed (the card's × or Say thanks) or the Save window's price step was shown:
+// no more asks until the app is opened again, the introduction card included.
 let askSnoozedThisRun = false;
 // The iPhone whose backup is open (its ID from the last open_backup that opened), so a save
 // can be counted against it for "Using it for paid work?".
@@ -482,6 +484,9 @@ app.whenReady().then(async () => {
         appendLog(logPath, `[Electron] backup.start failed after the computer slept: ${message.split('\n')[0]}`);
         message = message.includes(EARLIER_UNCHANGED) ? `${COMPUTER_SLEPT} ${EARLIER_UNCHANGED}` : COMPUTER_SLEPT;
       }
+      // Space in OneDrive's online account doesn't count, which people expect it to (OE-212).
+      // Said here, where the folder is known: a report shows the error but never the folder.
+      if (method === 'backup.start') message = withSyncedFolderNote(message, syncedFolderAt(params?.output_dir));
       feedback.recordCall(method, params, { ok: false, error: message });
       if (method === 'open_backup') {
         const ts = new Date().toTimeString().slice(0, 8);
@@ -636,6 +641,10 @@ app.whenReady().then(async () => {
     applyTextSize();
   });
 
+  // The cloud storage app, such as "OneDrive", that syncs a chosen backup folder, or null
+  // (electron/syncedFolder.ts). Looks only at the path, so it answers at once.
+  ipcMain.handle('folder:syncedService', (_event: any, folder: unknown) => syncedFolderAt(folder));
+
   // Back up my iPhone and every export save through these two, so neither accepts a
   // place inside the program folder, which every update deletes (see installFolder.ts).
   ipcMain.handle('dialog:saveFolder', async () => {
@@ -756,6 +765,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('support:status', () => ({
     paid: store.get('paidItForward', false) === true,
     thanksSent: store.get('thanksSent', false) === true,
+    // The Save window shows its price step only when no ask has come yet in this run.
+    snoozed: askSnoozedThisRun,
   }));
   ipcMain.handle('support:snooze', () => {
     askSnoozedThisRun = true;
@@ -774,7 +785,8 @@ app.whenReady().then(async () => {
     store.set('stats', stats);
     // Every export calls this after it succeeds, so the card after an export starts
     // here, never before or during one. Remembered locally; nothing is sent anywhere.
-    //  - First export: "Pay it forward" with Charles's introduction.
+    //  - First export: "Pay it forward" with Charles's introduction, unless the price step
+    //    in the Save window already asked in this run.
     //  - Once per run: "Did this export come out right?", which catches exports that finish
     //    without an error but come out empty or wrong. "Looks right" leads to the ask.
     //  - Every other export: the shorter ask.
@@ -792,7 +804,7 @@ app.whenReady().then(async () => {
         return stats.totalExports;
       }
     }
-    if (!paid && !store.get('payIntroShown', false)) {
+    if (!paid && !askSnoozedThisRun && !store.get('payIntroShown', false)) {
       store.set('payIntroShown', true);
       event.sender.send('share-prompt:show', exportArea, true);
     } else if (!exportCheckShownThisRun && !store.get('exportCheckOptOut', false)) {

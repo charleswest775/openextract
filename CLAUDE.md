@@ -103,6 +103,9 @@ npm test
 # Corpus tests against real public iPhone backups (see corpus/README.md)
 python -m corpus.fetch fetch pub-hickman-15.3.1
 pytest python/tests/corpus -m corpus -v
+
+# CI builds the ios-backup-core commit in ios-backup-core.ref; move it (then open a PR)
+scripts/bump-ios-backup-core.sh            # or: ... <branch|tag|full SHA>
 ```
 
 *(Update these if scripts differ in package.json)*

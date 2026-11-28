@@ -53,9 +53,9 @@ function AttachmentTiles({ attachments, source, udid, isMine, messageType, onMor
   return (
     // A tile's own clicks (and its viewer's) are its own, not the card's
     <div className="flex flex-wrap items-center gap-2 mt-2" onClick={e => e.stopPropagation()}>
-      {shown.map(a => (
+      {shown.map((a, i) => (
         <MediaAttachment
-          key={a.attachment_id}
+          key={a.attachment_id ?? `gone-${i}`}
           udid={udid}
           attachment={a as BubbleAttachment}
           isMine={isMine}
@@ -279,9 +279,9 @@ function MessageViewerModal({
           {displayText}
           {attachments && attachments.length > 0 && source && udid && (
             <div className="flex flex-wrap gap-3 mt-3 not-italic">
-              {attachments.map(a => (
+              {attachments.map((a, i) => (
                 <MediaAttachment
-                  key={a.attachment_id}
+                  key={a.attachment_id ?? `gone-${i}`}
                   udid={udid}
                   attachment={a as BubbleAttachment}
                   isMine={false}
@@ -468,7 +468,8 @@ function PhotoThumb({ fileHash, udid, kind, onClick }: { fileHash: string; udid:
 // ── Inline voicemail player ───────────────────────────────────────────────────
 
 interface VoicemailPlayerProps {
-  voicemailId: number;
+  /** As list_voicemails gives it: a ROWID, or "A-<UUID>.<ROWID>" for a per-line store's copy. */
+  voicemailId: number | string;
   udid: string;
 }
 
@@ -715,9 +716,8 @@ function TimelineEntryCard({ entry, udid, onOpenWhatsApp, onOpenMessage }: Props
       </>
     );
   } else if (entry.type === 'voicemail' && entry.voicemail) {
-    const { duration, transcript, phoneNumber } = entry.voicemail;
-    // Extract the raw numeric ID from "voicemail:42"
-    const vmId = parseInt(entry.id.split(':')[1], 10);
+    // The engine's own id, never read as a number: a per-line store's is "A-<UUID>.27"
+    const { voicemailId: vmId, duration, transcript, phoneNumber } = entry.voicemail;
 
     body = (
       <>
@@ -738,7 +738,7 @@ function TimelineEntryCard({ entry, udid, onOpenWhatsApp, onOpenMessage }: Props
           style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', cursor: 'pointer' }}
           onClick={() => setVmExpanded(x => !x)}
         >
-          {entry.contactName || phoneNumber}
+          {entry.contactName || phoneNumber || 'Unknown'}
         </div>
         {transcript && (
           <div style={{ fontSize: 14, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -756,7 +756,7 @@ function TimelineEntryCard({ entry, udid, onOpenWhatsApp, onOpenMessage }: Props
       </>
     );
   } else if (entry.type === 'note' && entry.note) {
-    const { title, bodyPreview, body: noteBody, modified } = entry.note;
+    const { title, bodyPreview, body: noteBody, modified, deleted } = entry.note;
 
     body = (
       <>
@@ -770,7 +770,7 @@ function TimelineEntryCard({ entry, udid, onOpenWhatsApp, onOpenMessage }: Props
           </div>
         )}
         <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: 1 }}>
-          Modified: {formatDate(modified)}
+          Modified: {formatDate(modified)}{deleted && ' · Recently Deleted'}
         </div>
         {noteOpen && (
           <NoteViewerModal

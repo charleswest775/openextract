@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { saveFolder, sidecarCall } from '../../lib/ipc';
+import { saveFolder, sidecarCall, syncedFolder } from '../../lib/ipc';
 import { canBackUp, deviceDetail, markNotAnswering, notAnsweringMessages, searchFailedMessage, type DeviceInfo } from '../../lib/deviceSearch';
 import { ArrowLeftIcon, PhoneIcon, FolderIcon, LockIcon, DownloadIcon } from '../shared/Icons';
 import { ReportProblemButton } from '../shared/Feedback';
+import BackupStory from './BackupStory';
 
 // backup.pair_device: 'locked' also covers the iPhone asking for its passcode after Trust.
 // 'not_answering' comes with a message: the iPhone stopped answering partway.
@@ -140,6 +141,8 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
 
   const [selectedDevice, setSelectedDevice] = useState<DeviceInfo | null>(null);
   const [outputDir, setOutputDir] = useState('');
+  // "OneDrive" etc. when the chosen folder is synced to one, which the backup doesn't suit (OE-212).
+  const [synced, setSynced] = useState<string | null>(null);
   const [useEncryption, setUseEncryption] = useState(false);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -226,9 +229,15 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
   // The iPhone already has a backup password, so the backup uses it, asked to encrypt or not.
   const existingPassword = selectedDevice?.encrypts_backups === true;
 
+  const chosenDir = useRef('');
   const handleChooseDir = async () => {
     const folder = await saveFolder();
-    if (folder) setOutputDir(folder);
+    if (!folder) return;
+    chosenDir.current = folder;
+    setOutputDir(folder);
+    setSynced(null);
+    const service = await syncedFolder(folder);
+    if (chosenDir.current === folder) setSynced(service); // not one chosen before it
   };
 
   const handleStartBackup = async () => {
@@ -322,7 +331,8 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
       </div>
 
       <div className="flex-1 overflow-y-auto px-7 py-6">
-        <div className="max-w-xl">
+        <div className={status === 'running' ? 'max-w-[980px]' : 'max-w-xl'}>
+          {(status as BackupStatus) !== 'running' && (<>
           {/* Step 1: Device selection */}
           <section className="mb-6">
             <div className="flex items-center justify-between mb-2">
@@ -423,6 +433,18 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                 Choose...
               </button>
             </div>
+            {synced && (
+              // A warning, not a block: a synced folder on a big enough drive can work, and the
+              // folder name alone can be wrong. The space error says it again (electron/main.ts).
+              <div role="status" className="mt-2 px-3 py-2.5 rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-800">
+                <p className="font-medium text-amber-900 mb-0.5">This folder is in {synced}</p>
+                <p>
+                  A backup here still takes up space on this computer's own drive: the space in your {synced} account
+                  doesn't count. {synced} also uploads each file while the backup is being saved, which can make the
+                  backup fail. Choose a folder that isn't in {synced}, such as one on an external drive.
+                </p>
+              </div>
+            )}
           </section>
 
           {/* Step 3: Encryption */}
@@ -466,6 +488,27 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
               </div>
             )}
           </section>
+          </>)}
+
+          {/* While it runs, the three steps fold into one line */}
+          {status === 'running' && selectedDevice && (
+            <div className="mb-3 flex items-center gap-x-5 gap-y-1 flex-wrap text-sm text-text-secondary" data-backup-summary>
+              <span className="flex items-center gap-1.5">
+                <PhoneIcon size={16} className="text-accent" />
+                <span className="text-text-primary">{selectedDevice.name}</span>
+              </span>
+              <span className="flex items-center gap-1.5 min-w-0">
+                <FolderIcon size={16} className="text-text-tertiary" />
+                <span className="truncate" data-backup-dest>{outputDir}</span>
+              </span>
+              {(useEncryption || existingPassword) && (
+                <span className="flex items-center gap-1.5">
+                  <LockIcon size={16} className="text-text-tertiary" />
+                  Encrypted
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Progress */}
           {status === 'running' && progress && (
@@ -492,6 +535,11 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                   : 'Keep your device connected and unlocked.'}
               </p>
             </div>
+          )}
+
+          {/* Charles's story while the backup copies (not while the iPhone waits for its passcode) */}
+          {status === 'running' && (progress?.phase === 'backing_up' || progress?.phase === 'finalizing') && (
+            <BackupStory />
           )}
 
           {/* Success */}
@@ -544,11 +592,6 @@ export default function BackupFlow({ onBack, onBackupComplete }: Props) {
                 className="px-5 py-2.5 bg-accent text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
               >
                 Start Backup
-              </button>
-            )}
-            {status === 'running' && (
-              <button disabled className="px-5 py-2.5 bg-accent text-white rounded-lg text-sm font-medium opacity-60 cursor-not-allowed">
-                Backing up...
               </button>
             )}
             {status === 'success' && earlierBackup && backupPath && (

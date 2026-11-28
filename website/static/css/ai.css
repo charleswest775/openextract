@@ -1,0 +1,32 @@
+/* OpenExtract AI's buy and thank-you pages (/ai/buy, /ai/thanks). On top of site.css. */
+/* Lined up with .page-head above (980px wide with 56px sides) */
+.ai-buy, .ai-key { max-width: 980px; margin: 0 auto 96px; padding: 0 56px; box-sizing: border-box; }
+.ai-buy [hidden], .ai-key [hidden] { display: none !important; }
+.ai-buy__phone { margin: 8px 0 32px; }
+.ai-buy__label { font-size: 13px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+.ai-buy__code { font-family: 'IBM Plex Mono', monospace; font-size: 40px; font-weight: 500; letter-spacing: 0.04em; margin-top: 4px; }
+.ai-buy__enter { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
+.ai-buy__enter label { width: 100%; font-weight: 500; }
+.ai-buy__enter input { font-family: 'IBM Plex Mono', monospace; font-size: 18px; padding: 10px 12px; border: 1px solid var(--line, #d9d2c7); border-radius: 10px; width: 12ch; background: #fff; }
+.ai-buy__hint { width: 100%; font-size: 14px; color: var(--ink-dim); margin: 4px 0 0; }
+.ai-buy__options { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.ai-buy__option { border: 1px solid var(--line, #d9d2c7); border-radius: 16px; padding: 22px; background: #fff; display: flex; flex-direction: column; gap: 10px; }
+.ai-buy__option p { margin: 0; color: var(--ink-dim); }
+.ai-buy__option .btn { align-self: flex-start; margin-top: 6px; }
+.ai-buy__price { font-size: 34px; font-weight: 600; }
+.ai-buy__price span { font-size: 15px; font-weight: 400; color: var(--ink-dim); }
+.ai-buy [aria-disabled="true"] { opacity: 0.45; pointer-events: none; }
+.ai-buy__closed { margin-top: 14px; font-weight: 500; }
+.ai-buy__facts { margin: 32px 0 0; padding-left: 20px; color: var(--ink-dim); line-height: 1.6; }
+.ai-buy__facts li + li { margin-top: 8px; }
+.ai-key__status { font-size: 18px; }
+.ai-key__for { font-weight: 500; margin: 0 0 12px; }
+.ai-key__key { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 14px; word-break: break-all; background: #fff; border: 1px solid var(--line, #d9d2c7); border-radius: 12px; padding: 16px; user-select: all; }
+.ai-key__actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 16px 0 24px; }
+.ai-key__copied { font-size: 14px; color: var(--ink-dim); }
+.ai-key__steps { padding-left: 20px; line-height: 1.6; }
+.ai-key__steps li + li { margin-top: 8px; }
+@media (max-width: 720px) { .ai-buy, .ai-key { padding: 0 20px; } }
+@media (max-width: 520px) { .ai-buy__code { font-size: 30px; } }
+/* The second button is outlined, so it reads as a button on the white card */
+.ai-buy__option .btn:not(.btn--primary), .ai-key__actions .btn:not(.btn--primary) { border: 1px solid var(--ink, #1f1d1a); }

@@ -35,6 +35,8 @@ const EXPECTED_CHANNELS = [
   'media:thumbnail',
   // An older backup to the Trash (electron/olderBackups.ts)
   'backup:trashOlder',
+  // Whether a chosen backup folder is in OneDrive or the like (electron/syncedFolder.ts)
+  'folder:syncedService',
 ];
 
 // Development-only switches in main.ts that a developer's shell might have set.
@@ -929,12 +931,30 @@ describe('after an export: "Pay it forward" and the export check', () => {
     assert.deepEqual(run2.env.senderSent, [['export-check:show', 'calls', true], ['share-prompt:show', 'notes', false]]);
   });
 
+  test('the Save window\'s price step is the run\'s one ask: no introduction or ask after exports in that run', async () => {
+    const userData = freshDir('main-userdata');
+    const run1 = await loadMain({ userData });
+    assert.equal((await run1.invoke('support:status')).snoozed, false, 'a fresh run: the step may ask');
+    // SaveDialog snoozes when it shows the step, before the save runs.
+    await run1.invoke('support:snooze');
+    assert.equal((await run1.invoke('support:status')).snoozed, true, 'later saves in this run skip the step');
+    await run1.invoke('increment-export-count', 'messages');
+    await run1.invoke('increment-export-count', 'calls');
+    await run1.invoke('increment-export-count', 'notes');
+    assert.deepEqual(run1.env.senderSent, [['export-check:show', 'messages', false]], 'no introduction, and "Looks right" won\'t ask');
+    assert.equal(run1.readState().payIntroShown, false, 'the introduction is still owed to a run with no step');
+
+    // Next run: the step may ask again.
+    const run2 = await loadMain({ userData });
+    assert.equal((await run2.invoke('support:status')).snoozed, false);
+  });
+
   test('"I\'ve paid" ends the ask for good; the export check stays', async () => {
     const userData = freshDir('main-userdata');
     const run1 = await loadMain({ userData });
-    assert.deepEqual(await run1.invoke('support:status'), { paid: false, thanksSent: false });
+    assert.deepEqual(await run1.invoke('support:status'), { paid: false, thanksSent: false, snoozed: false });
     await run1.invoke('support:paid');
-    assert.deepEqual(await run1.invoke('support:status'), { paid: true, thanksSent: false });
+    assert.deepEqual(await run1.invoke('support:status'), { paid: true, thanksSent: false, snoozed: false });
     await run1.invoke('increment-export-count', 'messages');
     await run1.invoke('increment-export-count', 'calls');
     assert.deepEqual(run1.env.senderSent, [['export-check:show', 'messages', false]]);
@@ -948,7 +968,7 @@ describe('after an export: "Pay it forward" and the export check', () => {
   test('people who saw the older Say thanks card, or already sent thanks, get the introduction once', async () => {
     const userData = freshDir('main-userdata');
     const run1 = await loadMain({ userData, state: { thanksCardShown: true, thanksFollowUpShown: true, thanksSent: true, stats: { totalExports: 12 } } });
-    assert.deepEqual(await run1.invoke('support:status'), { paid: false, thanksSent: true });
+    assert.deepEqual(await run1.invoke('support:status'), { paid: false, thanksSent: true, snoozed: false });
     await run1.invoke('increment-export-count', 'calls');
     assert.deepEqual(run1.env.senderSent, [['share-prompt:show', 'calls', true]]);
 
@@ -1196,6 +1216,36 @@ describe('backups keep the computer awake', () => {
     m.env.powerMonitor.emit('suspend');
     full.finish().reject(new Error('Not enough free space for this backup.'));
     assert.equal((await full.result).error, 'Not enough free space for this backup.');
+  });
+});
+
+describe('synced folders (electron/syncedFolder.ts)', () => {
+  const NO_SPACE = 'Not enough free space for this backup. It needs more than 229 GB free, but the drive you chose has '
+    + '175 GB free. Free up space or choose a folder on an external drive, then try again.';
+
+  test('folder:syncedService names the app that syncs a folder, and is null for others', async () => {
+    const m = await loadMain();
+    const synced = path.join(freshDir('synced'), 'OneDrive', 'iPhone');
+    fs.mkdirSync(synced, { recursive: true });
+    assert.equal(await m.invoke('folder:syncedService', synced), 'OneDrive');
+    assert.equal(await m.invoke('folder:syncedService', freshDir('plain')), null);
+    assert.equal(await m.invoke('folder:syncedService', 42), null);
+  });
+
+  test('a backup.start with no room says the account\'s space doesn\'t count, and the report gets it too', async () => {
+    const m = await loadMain();
+    m.sidecar.answer = method => (method === 'backup.start' ? Promise.reject(new Error(NO_SPACE)) : Promise.resolve({}));
+    const synced = path.join(freshDir('synced'), 'OneDrive', 'iPhone');
+    fs.mkdirSync(synced, { recursive: true });
+    const { error } = await m.invoke('sidecar:call', 'backup.start', { udid: 'U1', output_dir: synced });
+    assert.match(error, /175 GB free\. The folder you chose is in OneDrive, so the space in your OneDrive account doesn't count: the backup is saved on this computer's own drive\. Free up space/);
+    assert.equal(m.recorder.recorded.at(-1).outcome.error, error);
+
+    // A folder that isn't synced, and another call's error, keep the engine's words.
+    const plain = await m.invoke('sidecar:call', 'backup.start', { udid: 'U1', output_dir: freshDir('plain') });
+    assert.equal(plain.error, NO_SPACE);
+    m.sidecar.answer = () => Promise.reject(new Error(NO_SPACE));
+    assert.equal((await m.invoke('sidecar:call', 'export_photos', { output_dir: synced })).error, NO_SPACE);
   });
 });
 

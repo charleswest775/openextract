@@ -31,7 +31,7 @@ Without `-m corpus`, `pytest python/tests/` runs only the corpus tooling's own u
 
 | Variable | Meaning |
 |---|---|
-| `OPENEXTRACT_CORPUS_CACHE` | Cache folder (default `~/.cache/openextract-corpus`). Each item gets `<key>/download/` (the fetched archive), `<key>/backup/` (the unpacked backup) and `<key>/fetch.json`. |
+| `OPENEXTRACT_CORPUS_CACHE` | Cache folder (default `~/.cache/openextract-corpus`). Each item gets `<key>/download/` (the fetched archive), `<key>/backup/` (the unpacked backup) and `<key>/fetch.json`. Generated backups go in `syn/<key>@<version>/`, one folder per ios-backup-core version (the version is the start of a hash of `backupgen`'s files and the persona's, leaving out hidden files such as `.DS_Store`), so runs with different checkouts can share a cache without deleting each other's backups. Each is generated beside its final folder and renamed into place when complete. When an item is generated, its older versions are deleted beyond the newest three, but never one used in the last day: a run uses a version each time it looks it up (generating it, finding it, or going back to a backup it already opened), and `scripts/e2e/run.mjs` when it starts. A run that edits `backupgen` while it's going stops with an error rather than generate with the code it imported into the new code's folder. Every version kept for a day takes up to about 250 MB; delete `syn/` to get the space back between runs. `syn/<key>/` folders (no `@`) belong to checkouts of this repository from before versions; delete them once none of those run any more. |
 | `OPENEXTRACT_CORPUS_ITEMS` | Comma-separated items to test (default: every fetched item). |
 | `OPENEXTRACT_CORPUS_REQUIRE=1` | Fail, rather than skip, when a named item isn't fetched. The weekly job sets this. |
 | `OPENEXTRACT_SIDECAR` | Test a built sidecar binary instead of `python/main.py`. |
@@ -39,8 +39,10 @@ Without `-m corpus`, `pytest python/tests/` runs only the corpus tooling's own u
 
 ## When it runs
 
+Every run below uses the ios-backup-core commit pinned in [`ios-backup-core.ref`](../ios-backup-core.ref), for the engine and for the generated backups, not whatever ios-backup-core's `master` is at the time. A merge there changes nothing here until a PR moves the pin with `scripts/bump-ios-backup-core.sh` (see [docs/TESTING.md](../docs/TESTING.md#which-ios-backup-core)). Locally, the tests use your checkout beside this repository (`../ios-backup-core`, or `$OPENEXTRACT_IOS_BACKUP_CORE`); check out the pinned commit there to test what CI tests.
+
 - **Every PR** (`ci.yml`): the tooling unit tests and the generated backups in the `pr` tier, on Linux, macOS and Windows. Nothing is downloaded.
-- **Weekly** (`corpus-weekly.yml`): fetches every item in the `weekly` tier and runs all corpus checks. Run it by hand with a different item list, or against an `ios-backup-core` branch, from the Actions tab.
+- **Weekly** (`corpus-weekly.yml`): fetches every item in the `weekly` tier and runs all corpus checks. It also runs on a PR that moves the pin (changes `ios-backup-core.ref`), so a new ios-backup-core commit meets the real backups before it merges. Run it by hand with a different item list, or against another `ios-backup-core` branch, tag or commit (blank means the pinned one), from the Actions tab.
 - **Every release** (`prerelease-check.yml`, which `release.yml` runs on the new tag before publishing, and which can be run by hand from the Actions tab): on Linux, macOS and Windows, packages the app unsigned, runs the corpus checks on the public items it's given plus every generated backup against the engine inside that build, and drives the build through every end-to-end suite in `scripts/e2e` (see [docs/TESTING.md](../docs/TESTING.md)). Only the end-to-end results for the fictional backups are uploaded. The downloads (about 5 GB) are kept in the repository's Actions cache, one copy shared by all three systems: runs on `main` save it and every run restores it, so a new item, or a changed `fetch` entry for one, makes the next run on `main` download and save a fresh copy.
 
 ## Adding an item

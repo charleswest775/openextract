@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { sidecarCall, saveFolder } from '../../lib/ipc';
-import { CameraIcon, ChevronRightIcon } from '../shared/Icons';
+import { sidecarCall, exportFolder } from '../../lib/ipc';
+import { CameraIcon, CheckIcon, ChevronRightIcon } from '../shared/Icons';
 import OrganicLoader from '../shared/OrganicLoader';
 import {
   moreMissingFromFolder, moreOnlyInIcloud, noPhotosHere, photoExportSummary, photoSaveFailures, photoSaveProgress,
@@ -11,6 +11,7 @@ import { useNotice } from '../shared/Notices';
 import { percentDone } from '../../lib/exportProgress';
 import PageHeader from '../shared/PageHeader';
 import EmptyState from '../shared/EmptyState';
+import DateRange from '../shared/DateRange';
 import { SaveButton, SaveProgress } from '../shared/SaveDialog';
 import { useSaveAction } from '../../hooks/useSaveAction';
 import { useExportProgress } from '../../hooks/useExportProgress';
@@ -18,8 +19,11 @@ import { checkEngineResult, plural } from '../../lib/saveData';
 import { TimelinePhotoLightbox } from '../timeline/TimelineEntryCard';
 import type { TimelineEntry } from '../../types/timeline';
 import {
-  albumCount, AlbumNode, hasSidebar, isFolder, PhotoAlbum, photoSidebar, saveLabel, savedTitle,
+  albumCount, AlbumNode, albumTitle, hasSidebar, isFolder, PhotoAlbum, photoSidebar, saveLabel, savedTitle,
 } from '../../lib/photoAlbums';
+import {
+  datesWords, hasDates, isVideo, PhotoDates, photoDates, pickedWords, pickingHint, pickPhoto, savedNarrowedTitle,
+} from '../../lib/photoSelection';
 import {
   PersonMatch, PhotoPerson, PhotoPersonFace, peopleSavedTitle, peopleShowing, peopleShown, personDescription,
   personLabel, SAVE_PEOPLE, showMorePeople, togglePerson,
@@ -47,7 +51,11 @@ interface PhotoPage {
   in_backup?: number;
   not_in_backup?: number;
   missing_from_folder?: number;
+  /** 'dcim_scan' when the backup has no Photos library: then nothing has a date to narrow by. */
+  source?: string;
 }
+
+const ANY_DATE = { from: '', to: '' };
 
 const BATCH_SIZE = 100;
 const THUMB_CONCURRENCY = 6;
@@ -90,6 +98,16 @@ export default function PhotoExplorer({ udid, open }: Props) {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [kindFilter, setKindFilter] = useState<string>('all');
+  // The days the grid is narrowed to ('YYYY-MM-DD', '' for no limit), and those days as the engine takes them
+  const [range, setRange] = useState(ANY_DATE);
+  const datesRef = useRef<PhotoDates>({});
+  // Without a Photos library the grid is the DCIM folders, which have no dates
+  const [undated, setUndated] = useState(false);
+  // Picking photos to save: Select was clicked, and the file_hash of each photo picked
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  // The last photo clicked, where a Shift-click's run starts
+  const anchorRef = useRef<string | null>(null);
   // The People list: the groups the iPhone's Photos app made of faces. Picking anyone
   // filters All Photos to them (and clears the album); picking an album clears them.
   const [people, setPeople] = useState<PhotoPerson[]>([]);
@@ -111,7 +129,7 @@ export default function PhotoExplorer({ udid, open }: Props) {
 
   useEffect(() => {
     mountedRef.current = true;
-    // Another backup's albums and people have other ids: start again from All Photos.
+    // Another backup's albums and people have other ids: start again from All Photos, any date.
     setSelectedAlbum(null);
     setPickedPeople([]);
     setPersonMatch('any');
@@ -119,6 +137,10 @@ export default function PhotoExplorer({ udid, open }: Props) {
     setPeople([]);
     setFaces({});
     setOpenFolders(new Set());
+    setRange(ANY_DATE);
+    datesRef.current = {};
+    setUndated(false);
+    clearPicks();
     loadAlbums();
     loadPeople();
     loadPhotos(0);
@@ -160,7 +182,7 @@ export default function PhotoExplorer({ udid, open }: Props) {
         result = await sidecarCall<PhotoPage>(
           'list_photos',
           {
-            udid, offset: next, limit: BATCH_SIZE, album_id: albumId ?? undefined,
+            udid, offset: next, limit: BATCH_SIZE, album_id: albumId ?? undefined, ...datesRef.current,
             ...(personIds.length > 0 ? { person_ids: personIds, person_match: match } : {}),
           }
         );
@@ -177,6 +199,7 @@ export default function PhotoExplorer({ udid, open }: Props) {
       setNotInBackup(result.not_in_backup ?? 0);
       setMissingFromFolder(result.missing_from_folder ?? 0);
       setTotal(result.total);
+      if (!hasDates(datesRef.current)) setUndated(result.source === 'dcim_scan');
       offsetRef.current = next;
       setHasMore(next < result.total);
 
@@ -264,7 +287,8 @@ export default function PhotoExplorer({ udid, open }: Props) {
     }
   }
 
-  // Show a new selection from its first page: an album (null is All Photos), or people in All Photos.
+  // Show a new selection from its first page: an album (null is All Photos), or people in All Photos,
+  // within the dates set. What was picked goes: it was picked from what was shown.
   function showSelection(albumId: string | null, personIds: string[], match: PersonMatch) {
     setSelectedAlbum(albumId);
     setPickedPeople(personIds);
@@ -272,6 +296,12 @@ export default function PhotoExplorer({ udid, open }: Props) {
     setPhotos([]);
     setThumbnails({});
     setFailedThumbs(new Set());
+    // The counts were the last view's: none is shown until the new one's first page says them
+    setTotal(0);
+    setInBackup(null);
+    setNotInBackup(0);
+    setMissingFromFolder(0);
+    clearPicks();
     offsetRef.current = 0;
     loadingRef.current = false;
     loadPhotos(0, albumId, personIds, match);
@@ -285,6 +315,38 @@ export default function PhotoExplorer({ udid, open }: Props) {
     showSelection(null, togglePerson(pickedPeople, id), personMatch);
   }
 
+  function handleRange(next: { from: string; to: string }) {
+    setRange(next);
+    datesRef.current = photoDates(next.from, next.to);
+    showSelection(selectedAlbum, pickedPeople, personMatch);
+  }
+
+  function handleKind(kind: string) {
+    setKindFilter(kind);
+    clearPicks();
+  }
+
+  function clearPicks() {
+    setPicked(new Set());
+    setPicking(false);
+    anchorRef.current = null;
+  }
+
+  // A click picks the photo once Select is on or something is picked, or with Shift, Cmd or Ctrl held;
+  // otherwise it opens the photo.
+  function handleTileClick(photo: PhotoAsset, e: React.MouseEvent) {
+    if (selecting || e.shiftKey || e.metaKey || e.ctrlKey) togglePick(photo, e.shiftKey);
+    else handlePhotoClick(photo);
+  }
+
+  function togglePick(photo: PhotoAsset, shift: boolean) {
+    const order = filteredPhotos.map(p => p.file_hash);
+    // Read now: React runs the update later, by when another click may have moved the anchor
+    const anchor = anchorRef.current;
+    setPicked(prev => pickPhoto(prev, order, photo.file_hash, anchor, shift));
+    if (!shift || anchor === null) anchorRef.current = photo.file_hash;
+  }
+
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 400 && hasMore && !loadingRef.current) {
@@ -292,10 +354,28 @@ export default function PhotoExplorer({ udid, open }: Props) {
     }
   }, [hasMore, selectedAlbum, pickedPeople, personMatch]);
 
+  // What's shown is what's saved: the photos picked, else what the people, the dates and the kind
+  // leave of the album. Into the same month folders as Save all, so saving into a folder used
+  // before adds only what's new.
   function handleSave() {
+    const chosen = pickedPhotos;
+    const dates = datesRef.current;
+    const kind = kindFilter;
+    const { from, to } = range;
+    const personIds = pickedPeople;
+    const match = personMatch;
+    const whose = personIds.map(id => people.find(p => p.id === id) ?? { name: null });
     run(async () => {
-      const outputDir = await saveFolder();
+      const outputDir = await exportFolder();
       if (!outputDir) return null;
+      const only = chosen.length > 0
+        ? { uuids: chosen.map(p => p.uuid) }
+        : {
+          ...dates,
+          kind: kind !== 'all' ? kind : undefined,
+          // The people picked, as on screen.
+          ...(personIds.length > 0 ? { person_ids: personIds, person_match: match } : {}),
+        };
       const result = checkEngineResult(await sidecarCall<PhotoExportResult>('export_photos', {
         udid,
         output_dir: outputDir,
@@ -309,20 +389,19 @@ export default function PhotoExplorer({ udid, open }: Props) {
           include_metadata_sidecar: false,
           // The album, Favorites or Hidden on screen; nothing for All Photos.
           album_id: selectedAlbum ?? undefined,
-          // The people picked, as on screen.
-          ...(pickedPeople.length > 0 ? { person_ids: pickedPeople, person_match: personMatch } : {}),
+          ...only,
         },
       }));
-      const title = pickedPeople.length > 0
-        ? peopleSavedTitle(pickedPeople.map(id => people.find(p => p.id === id) ?? { name: null }), personMatch)
+      const title = chosen.length > 0 ? `Saved ${pickedWords(chosen)}`
+        : whose.length > 0 ? peopleSavedTitle(whose, match) + datesWords(from, to)
+        : hasDates(dates) || kind !== 'all' ? savedNarrowedTitle(albumTitle(selectedAlbum, albums), kind, from, to)
         : savedTitle(selectedAlbum, albums);
       return { title, detail: photoExportSummary(result), path: outputDir };
     });
   }
 
   async function handlePhotoClick(photo: PhotoAsset) {
-    const isVideo = photo.kind === 'video' || photo.duration > 0;
-    if (!isVideo) {
+    if (!isVideo(photo)) {
       setViewing({ fileHash: photo.file_hash, filename: photo.filename });
       return;
     }
@@ -354,11 +433,13 @@ export default function PhotoExplorer({ udid, open }: Props) {
   const sidebar = photoSidebar(albums);
   const showingAll = selectedAlbum === null && pickedPeople.length === 0;
   // All Photos counts what the grid shows while it's open (the DCIM scan, when Photos.sqlite
-  // lists nothing), else the engine's count, so it doesn't change with the album picked.
-  const allPhotosCount = showingAll ? shownCount : sidebar.allPhotos && albumCount(sidebar.allPhotos);
+  // lists nothing), else the engine's count, so it doesn't change with the album picked. Dates
+  // don't change it either: the albums beside it count all their photos too.
+  const allPhotosCount = showingAll && !(range.from || range.to)
+    ? shownCount : sidebar.allPhotos && albumCount(sidebar.allPhotos);
   const listedPeople = peopleShown(people, showAllPeople, pickedPeople);
   const morePeople = people.length - listedPeople.length;
-  const picked = pickedPeople.map(id => people.find(p => p.id === id)).filter((p): p is PhotoPerson => !!p);
+  const pickedPersons = pickedPeople.map(id => people.find(p => p.id === id)).filter((p): p is PhotoPerson => !!p);
 
   // Face thumbnails for the people listed, a few at a time.
   useEffect(() => {
@@ -440,6 +521,19 @@ export default function PhotoExplorer({ udid, open }: Props) {
     if (kindFilter !== 'all' && p.kind !== kindFilter) return false;
     return true;
   });
+  const pickedPhotos = filteredPhotos.filter(p => picked.has(p.file_hash));
+  const selecting = picking || picked.size > 0;
+  const dated = !!(range.from || range.to);
+  const narrowed = dated || kindFilter !== 'all';
+  const nothingShown = !loading && !hasMore && filteredPhotos.length === 0;
+
+  // Escape stops picking, unless a photo is open on top (Escape closes that).
+  useEffect(() => {
+    if (!selecting || viewing) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') clearPicks(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selecting, viewing]);
 
   // A short page (or a filter that hides most of it) can leave the grid too
   // short to scroll, and then no scroll event comes to load the next page.
@@ -455,13 +549,15 @@ export default function PhotoExplorer({ udid, open }: Props) {
     <div className="h-full flex flex-col">
       <PageHeader
         title="Photos"
-        count={total > 0 ? `${plural(shownCount, 'photo or video', 'photos and videos')} in this backup` : undefined}
+        count={total > 0 || (dated && !loading)
+          ? `${plural(shownCount, 'photo or video', 'photos and videos')} ${dated ? 'from these dates' : 'in this backup'}`
+          : undefined}
         actions={
           <>
             <select
               aria-label="Show"
               value={kindFilter}
-              onChange={(e) => setKindFilter(e.target.value)}
+              onChange={(e) => handleKind(e.target.value)}
               className="h-10 text-sm bg-surface border border-rule rounded-full px-4"
             >
               <option value="all">All types</option>
@@ -470,15 +566,34 @@ export default function PhotoExplorer({ udid, open }: Props) {
               <option value="live_photo">Live Photos</option>
               <option value="screenshot">Screenshots</option>
             </select>
+            <button
+              onClick={() => (selecting ? clearPicks() : setPicking(true))}
+              disabled={!selecting && shownCount === 0}
+              aria-pressed={selecting}
+              className="hearth-ghost-btn"
+            >
+              {selecting ? 'Cancel' : 'Select'}
+            </button>
             <SaveButton
               onClick={handleSave}
               busy={busy}
-              disabled={shownCount === 0}
-              label={pickedPeople.length > 0 ? SAVE_PEOPLE : saveLabel(selectedAlbum)}
+              disabled={pickedPhotos.length === 0 && (shownCount === 0 || (narrowed && nothingShown))}
+              label={pickedPhotos.length === 0 && !narrowed && pickedPeople.length > 0
+                ? SAVE_PEOPLE : saveLabel(selectedAlbum, pickedPhotos.length, narrowed)}
             />
           </>
         }
       />
+      {(selecting || (!undated && (total > 0 || dated))) && (
+        <div className="px-6 py-2 min-h-[53px] border-b border-rule flex flex-wrap items-center gap-x-6 gap-y-2">
+          {!undated && <DateRange from={range.from} to={range.to} onChange={handleRange} />}
+          {selecting && (
+            <p role="status" className={`text-sm ml-auto ${pickedPhotos.length > 0 ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
+              {pickingHint(pickedPhotos)}
+            </p>
+          )}
+        </div>
+      )}
       {saving && (
         <SaveProgress
           className="px-6 py-2.5 border-b border-rule"
@@ -493,10 +608,10 @@ export default function PhotoExplorer({ udid, open }: Props) {
       {notInBackup > 0 && shownCount > 0 && (
         <p className="px-6 py-2 text-sm text-text-secondary border-b border-rule">{moreOnlyInIcloud(notInBackup)}</p>
       )}
-      {picked.length > 0 && (
+      {pickedPersons.length > 0 && (
         <div role="group" aria-label="People picked" className="px-6 py-2 border-b border-rule flex items-center gap-2 flex-wrap text-sm">
-          <span className="text-text-secondary">{peopleShowing(picked.length, personMatch)}</span>
-          {picked.map(person => (
+          <span className="text-text-secondary">{peopleShowing(pickedPersons.length, personMatch)}</span>
+          {pickedPersons.map(person => (
             <span key={person.id} className="inline-flex items-center gap-1.5 pl-1 pr-1 py-0.5 rounded-full bg-accent-wash">
               <FaceCircle data={faces[person.id]} size={20} />
               <span className="max-w-[160px] truncate">{personLabel(person)}</span>
@@ -509,7 +624,7 @@ export default function PhotoExplorer({ udid, open }: Props) {
               </button>
             </span>
           ))}
-          {picked.length > 1 && (
+          {pickedPersons.length > 1 && (
             <span role="group" aria-label="Which photos" className="inline-flex rounded-full border border-rule overflow-hidden">
               {(['any', 'all'] as const).map(match => (
                 <button
@@ -569,18 +684,19 @@ export default function PhotoExplorer({ udid, open }: Props) {
         )}
 
         {/* Photo grid */}
-        <div ref={gridRef} className="flex-1 overflow-y-auto p-4" onScroll={handleScroll}>
+        <div ref={gridRef} className={`flex-1 overflow-y-auto p-4 ${selecting ? 'select-none' : ''}`} onScroll={handleScroll}>
           <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
             {filteredPhotos.map((photo) => {
               const thumb = thumbnails[photo.file_hash];
               const failed = failedThumbs.has(photo.file_hash);
-              const isVideo = photo.kind === 'video' || photo.duration > 0;
+              const video = isVideo(photo);
+              const on = picked.has(photo.file_hash);
 
               return (
                 <div
                   key={photo.file_hash}
                   className="aspect-square bg-gray-100 rounded overflow-hidden relative group cursor-pointer"
-                  onClick={() => handlePhotoClick(photo)}
+                  onClick={(e) => handleTileClick(photo, e)}
                 >
                   {thumb ? (
                     <img
@@ -589,7 +705,7 @@ export default function PhotoExplorer({ udid, open }: Props) {
                       className="w-full h-full object-cover"
                       loading="lazy"
                     />
-                  ) : isVideo ? (
+                  ) : video ? (
                     <div className="w-full h-full flex flex-col items-center justify-center bg-gray-800 text-text-tertiary">
                       {/* Play triangle icon */}
                       <svg className="w-10 h-10 mb-1 text-text-tertiary group-hover:text-white transition-colors" viewBox="0 0 24 24" fill="currentColor">
@@ -617,6 +733,20 @@ export default function PhotoExplorer({ udid, open }: Props) {
                   {photo.favorite && (
                     <div className="absolute top-1 right-1 text-yellow-400 text-xs">&#9733;</div>
                   )}
+                  {on && <div className="absolute inset-0 rounded ring-4 ring-inset ring-accent bg-black/10 pointer-events-none" />}
+                  {/* Picks it to save; shown on hover, and on every photo while picking */}
+                  <button
+                    type="button"
+                    aria-label={`Select ${photo.filename}`}
+                    aria-pressed={on}
+                    onClick={(e) => { e.stopPropagation(); togglePick(photo, e.shiftKey); }}
+                    className={`absolute top-1.5 left-1.5 w-6 h-6 rounded-full border-2 border-white shadow flex items-center justify-center transition-opacity focus-visible:opacity-100 ${
+                      on ? 'bg-accent text-white opacity-100'
+                        : `bg-black/30 text-transparent hover:text-white/80 ${selecting ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`
+                    }`}
+                  >
+                    <CheckIcon size={14} />
+                  </button>
                 </div>
               );
             })}
@@ -629,11 +759,12 @@ export default function PhotoExplorer({ udid, open }: Props) {
           {loadError && (
             <div className="text-center py-8 text-sm text-text-secondary">Couldn't load more photos: {loadError}</div>
           )}
-          {!loading && !loadError && !hasMore && filteredPhotos.length === 0 && (
+          {!loadError && nothingShown && (
             <EmptyState
               icon={CameraIcon}
-              title={kindFilter !== 'all' ? 'None of this type here' : 'No photos in this backup'}
+              title={kindFilter !== 'all' ? 'None of this type here' : dated ? 'Nothing from these dates' : 'No photos in this backup'}
               detail={shownCount === 0 ? noPhotosHere(missingFromFolder, notInBackup) : undefined}
+              action={dated ? <button onClick={() => handleRange(ANY_DATE)} className="hearth-ghost-btn">Any date</button> : undefined}
             />
           )}
         </div>

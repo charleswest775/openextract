@@ -59,6 +59,19 @@ test('in place of the grid: missing from the folder, only in iCloud, or both', (
     "None of the photos here are in the backup's folder: 1 is missing from it, though the backup lists it, and 1 is only in iCloud.");
 });
 
+// Saving into a folder used before copies only what isn't there yet (#315); the notice says so (OE-193).
+test('the export summary says how many were already in the folder', () => {
+  assert.equal(photoExportSummary({ exported: 12, already_there: 12, errors: 0 }), '0 exported · 12 were already in that folder');
+  assert.equal(photoExportSummary({ exported: 13, already_there: 1, errors: 0 }), '12 exported · 1 was already in that folder');
+  assert.equal(photoExportSummary({ exported: 12, already_there: 0, errors: 0 }), '12 exported');
+  assert.equal(photoExportSummary({ exported: 40, already_there: 1200, errors: 2, not_in_backup: 5 }).split(' · ').length, 4);
+});
+
+test('English digit grouping in what was already there', { skip: !enUS && 'needs an en-US locale' }, () => {
+  assert.equal(photoExportSummary({ exported: 1240, already_there: 1200, errors: 2, not_in_backup: 5700 }),
+    "40 exported · 1,200 were already in that folder · 5,700 only in iCloud, not in this backup · 2 couldn't be copied");
+});
+
 test('the export summary says how many were missing from the folder', () => {
   assert.equal(photoExportSummary({ exported: 0, errors: 0, not_in_backup: 0, missing_from_folder: 1200 }),
     `0 exported · ${n(1200)} missing from the backup's folder`);

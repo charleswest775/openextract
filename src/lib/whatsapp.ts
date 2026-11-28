@@ -174,14 +174,32 @@ const ENGINE_LABELS = [
   'View-once photo', 'View-once video', 'View-once voice message', 'Video message',
 ];
 
+/** What a file is called when nothing is known about it: "Document" would be a guess. */
+export const UNKNOWN_FILE = 'Attachment';
+
+/**
+ * Whether nothing at all is known about a file: no type and no name. Messages
+ * lists a photo or file this way when iOS removed its record but kept the
+ * message (ios-backup-core marks each one available: false).
+ */
+export function nothingKnown(a: Pick<WhatsAppAttachment, 'mime_type' | 'transfer_name' | 'filename'>): boolean {
+  return !a.mime_type && !cleanFileName(a.transfer_name) && !cleanFileName(a.filename);
+}
+
 /**
  * What a bubble says for a file that isn't in the backup: "Photo not in this
  * backup", or the engine's own label for it ("Video message not in this backup").
+ * A file nothing is known about is an "Attachment not in this backup" (missingLabel).
  */
 export function missingText(kind: AttachmentKind, transferName?: string | null): string {
   const label = transferName && ENGINE_LABELS.includes(transferName) && transferName !== 'Attachment'
     ? transferName : KIND_LABELS[kind];
   return `${label} not in this backup`;
+}
+
+/** missingText for this file: "Attachment not in this backup" when nothing is known about it. */
+export function missingLabel(a: Pick<WhatsAppAttachment, 'mime_type' | 'transfer_name' | 'filename'>, kind: AttachmentKind): string {
+  return nothingKnown(a) ? `${UNKNOWN_FILE} not in this backup` : missingText(kind, a.transfer_name);
 }
 
 // Characters that don't show but change how a name reads: direction overrides and
