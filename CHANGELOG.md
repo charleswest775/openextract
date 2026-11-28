@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Your backups: each backup in the list has a ⋯ menu with Show in Finder (Show in File Explorer on Windows), Move to Trash… (Move to Recycle Bin…) and Remove from list. Move to Trash checks the backup first and then asks, saying first when OpenExtract found no other backup of that iPhone, so it may be the only copy, or when it's the newest one. It won't move a folder that holds anything besides the backup, one on a network drive, or, on Windows, one that doesn't fit in the Recycle Bin beside what's already there, since Windows would erase older things in it for good to make room. It never deletes anything, and a backup put back from the Trash shows up in the list again. Not on Linux
 - Back up my iPhone: while the backup copies, a short story from the developer, Charles, fills the screen: who he is, what OpenExtract can do, how your backup stays on your computer, why he made it and why it's free, what people have written to him, who pays for it, and how to say thanks. The chapters change on their own and start again for as long as the backup runs. They pause while the pointer is over them, while OpenExtract is in the background, or with the pause button, and Hide folds them away. While the backup runs, the device, folder and encryption steps fold into one line above it. Nothing in the story takes a payment, stores anything or sends anything
 
 ### Changed
@@ -16,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - Timeline: a voicemail kept only in the iPhone's store for one phone line (or whose recording is only there) now plays when you open it, instead of saying "Audio not available"
 - Voicemail: a voicemail from a caller with no number now reads "Unknown", as such a call does on Calls, instead of a blank name, on the Voicemail screen, the Timeline and in saved voicemail lists and file names. It still isn't counted as anyone's on People. A copy of a voicemail in the phone line's store that gives the number without its "+", or a time a second off, is now listed once, not twice
+- Your backups: a backup deleted from the computer (with Finder, iTunes or Apple Devices, or by putting its folder in the Trash or Recycle Bin) is no longer listed. It used to stay in the list and fail to open with "Can't find this backup" (OE-214). If it comes back, so does its place in the list. A backup on a drive that isn't plugged in is still listed, and when it can't be found, the message now has Remove from list next to Find it, to take it off the list for good. Removing it only changes the list; nothing on the computer is deleted
 
 ## [0.21.0] - 2026-11-26
 

@@ -33,8 +33,8 @@ const EXPECTED_CHANNELS = [
   'updates:download', 'updates:get-state', 'updates:install', 'updates:set-auto-check',
   // Media in the window (electron/localMedia.ts)
   'media:thumbnail',
-  // An older backup to the Trash (electron/olderBackups.ts)
-  'backup:trashOlder',
+  // An older backup to the Trash, and any backup on the home screen's list (electron/olderBackups.ts)
+  'backup:trashOlder', 'backup:trash',
   // Whether a chosen backup folder is in OneDrive or the like (electron/syncedFolder.ts)
   'folder:syncedService',
 ];
@@ -823,6 +823,42 @@ describe('app state', () => {
     assert.equal((await m.invoke('get-app-state')).state, 'returned_no_data');
   });
 
+  // OE-214: a backup deleted since it was opened stayed listed and failed to open.
+  test('get-app-state leaves out a backup deleted since, keeps one on a drive that is away, and forgets neither', async () => {
+    const backups = freshDir('main-backups');
+    const here = path.join(backups, 'here');
+    const deleted = path.join(backups, 'deleted');
+    fs.mkdirSync(here);
+    fs.mkdirSync(deleted);
+    const m = await loadMain({
+      state: {
+        firstLaunchCompleted: true,
+        sessions: [
+          session('here', '2026-11-01T00:00:00Z', { type: 'device', backupDir: here, sizeGB: 2 }),
+          session('deleted', '2026-11-02T00:00:00Z', { type: 'device', backupDir: deleted, sizeGB: 40 }),
+          session('away', '2026-11-03T00:00:00Z', { type: 'device', backupDir: path.join(backups, 'Unplugged Drive', 'Backups', 'udid') }),
+          session('old', '2026-10-01T00:00:00Z', { type: 'device' }),
+        ],
+      },
+    });
+    assert.deepEqual((await m.invoke('get-app-state')).sessions.map(s => s.id), ['away', 'deleted', 'here', 'old']);
+
+    fs.rmSync(deleted, { recursive: true });
+    const state = await m.invoke('get-app-state');
+    assert.deepEqual(state.sessions.map(s => s.id), ['away', 'here', 'old']);
+    assert.equal(state.totalDevices, 3);
+    assert.equal(state.totalSizeGB, 2);
+    assert.equal(m.readState().sessions.length, 4, 'left out, not forgotten');
+
+    // Put back (out of the Recycle Bin, say): listed again.
+    fs.mkdirSync(deleted);
+    assert.deepEqual((await m.invoke('get-app-state')).sessions.map(s => s.id), ['away', 'deleted', 'here', 'old']);
+
+    // Every remembered backup deleted: no list, so the home screen's "returned" view.
+    const alone = await loadMain({ state: { firstLaunchCompleted: true, sessions: [session('gone', '2026-11-02T00:00:00Z', { backupDir: path.join(backups, 'gone') })] } });
+    assert.equal((await alone.invoke('get-app-state')).state, 'returned_no_data');
+  });
+
   test('add-session merges by id, puts the latest first and keeps 20', async () => {
     const m = await loadMain();
     await m.invoke('add-session', session('a', '2026-01-01T00:00:00Z', { type: 'device', sizeGB: 10, deviceName: 'iPhone' }));
@@ -1451,5 +1487,95 @@ describe('backup:trashOlder', () => {
     } finally {
       process.chdir(before);
     }
+  });
+});
+
+describe('backup:trash', () => {
+  /** A main process whose engine allows one real (empty) folder, and whose person says `response`. */
+  async function setUp({ response = 1, allowed = true } = {}) {
+    const m = await loadMain();
+    const mine = freshDir('a-backup');
+    const facts = { backup_dir: mine, device_name: 'iPhone', phone_number: '', last_backup: '2024-05-06T12:00:00+00:00', encrypted: true, bytes: 5e9, unfinished: false };
+    m.sidecar.answer = async method => {
+      if (method === 'backup.release_folder') return { closed: 0 };
+      if (method === 'backup.check_trash') {
+        return allowed ? { allowed: true, stamp: 's', backup: facts, others: [], more_others: 0 } : { allowed: false, reason: 'Not that one.' };
+      }
+      return { answered: method };
+    };
+    m.env.dialogResults.messageBox = { response };
+    m.env.hooks.trashItem = async p => fs.renameSync(p, `${p}.trashed`);
+    // What the window asks for and what the engine names differ, so a mix-up would show.
+    const asked = path.join(mine, '..', path.basename(mine), '.') + path.sep + '.';
+    return { m, mine, asked, run: () => m.invoke('backup:trash', asked) };
+  }
+
+  test('checks, asks in a native dialog, checks again, lets go, then moves what the engine named', async () => {
+    const { m, mine, asked, run } = await setUp();
+    assert.deepEqual(await run(), { status: 'moved' });
+    const engine = m.sidecar.calls.map(c => c.method).filter(n => n.startsWith('backup.'));
+    assert.deepEqual(engine, ['backup.check_trash', 'backup.check_trash', 'backup.release_folder']);
+    for (const c of m.sidecar.calls.filter(c => c.method === 'backup.check_trash')) {
+      assert.deepEqual(c.params, { backup_dir: asked });
+      assert.equal(c.timeoutMs, 3_600_000);
+    }
+    assert.deepEqual(m.sidecar.calls.find(c => c.method === 'backup.release_folder').params, { backup_dir: mine });
+    assert.deepEqual(m.env.callsTo('shell.trashItem'), [[mine]]);
+    const [[win, options]] = m.env.callsTo('dialog.showMessageBox');
+    assert.equal(win, m.window);
+    assert.equal(options.buttons[0], 'Keep it');
+    assert.equal(options.defaultId, 0);
+    assert.match(options.detail, /only copy/);
+    assert.ok(!fs.existsSync(mine));
+  });
+
+  test('a no moves nothing, and nothing is let go', async () => {
+    const { m, mine, run } = await setUp({ response: 0 });
+    assert.deepEqual(await run(), { status: 'cancelled' });
+    assert.equal(m.env.callsTo('shell.trashItem').length, 0);
+    assert.ok(!m.sidecar.calls.some(c => c.method === 'backup.release_folder'));
+    assert.ok(fs.existsSync(mine));
+  });
+
+  test("what the engine refuses isn't asked about or moved", async () => {
+    const { m, run } = await setUp({ allowed: false });
+    assert.deepEqual(await run(), { status: 'refused', message: 'Not that one.' });
+    assert.equal(m.env.callsTo('dialog.showMessageBox').length, 0);
+    assert.equal(m.env.callsTo('shell.trashItem').length, 0);
+  });
+
+  test("an engine that can't check moves nothing", async () => {
+    const { m, run } = await setUp();
+    m.sidecar.answer = async () => { throw new Error('Sidecar exited with code 1'); };
+    assert.equal((await run()).status, 'failed');
+    assert.equal(m.env.callsTo('shell.trashItem').length, 0);
+    assert.equal(m.recorder.recorded.at(-1).outcome.ok, false);
+  });
+
+  test('refused while a backup is being made, and allowed again once it has ended', async () => {
+    const { m, mine, run } = await setUp();
+    let finish;
+    const answer = m.sidecar.answer;
+    m.sidecar.answer = async (method, params, t) => method === 'backup.start'
+      ? new Promise(resolve => { finish = () => resolve({ success: true }); })
+      : answer(method, params, t);
+    const making = m.invoke('sidecar:call', 'backup.start', { udid: 'u', output_dir: '/x' });
+    await new Promise(resolve => setImmediate(resolve));
+    const result = await run();
+    assert.equal(result.status, 'refused');
+    assert.match(result.message, /making a backup/);
+    assert.ok(fs.existsSync(mine));
+    finish();
+    await making;
+    assert.deepEqual(await run(), { status: 'moved' });
+  });
+
+  test("a Trash that won't take it is reported, not worked around", async () => {
+    const { m, mine, run } = await setUp();
+    m.env.hooks.trashItem = async () => { throw new Error('Operation was aborted'); };
+    const result = await run();
+    assert.equal(result.status, 'failed');
+    assert.match(result.message, /still where it was/);
+    assert.ok(fs.existsSync(mine));
   });
 });

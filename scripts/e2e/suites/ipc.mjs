@@ -22,6 +22,7 @@ export const BRIDGE = [
   'mediaThumbnail',
   // Older backups to the Trash (electron/olderBackups.ts)
   'trashOlderBackup',
+  'trashBackup',
   // A backup folder in OneDrive or the like (BackupFlow.tsx, electron/syncedFolder.ts)
   'syncedFolder',
 ];
@@ -231,6 +232,14 @@ export default {
       const trashed = await app.api('trashOlderBackup', path.basename(b.dir), b.dir);
       check("trashOlderBackup moves nothing the engine doesn't offer",
         trashed.value?.status === 'refused' && !(await opened()).some(c => c[0] === 'trash') && fs.existsSync(b.dir), trashed);
+
+      // Any backup on the list: a folder that holds no backup is refused before anything is asked.
+      const notBackup = path.join(scratch, 'not-a-backup');
+      fs.mkdirSync(notBackup, { recursive: true });
+      fs.writeFileSync(path.join(notBackup, 'notes.txt'), 'mine');
+      const notMoved = await app.api('trashBackup', notBackup);
+      check('trashBackup moves nothing the engine refuses',
+        notMoved.value?.status === 'refused' && !(await opened()).some(c => c[0] === 'trash') && fs.existsSync(path.join(notBackup, 'notes.txt')), notMoved);
 
       // relaunch and updates.check/download/install restart or reach the network, so they are
       // only checked for existence above. The updater's logic is unit tested in scripts/updater.test.mjs.
