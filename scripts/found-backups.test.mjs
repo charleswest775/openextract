@@ -109,7 +109,22 @@ test('any other open error is left to the usual message', () => {
   const { backupMissingMessage } = load('src/lib/foundBackups.ts');
   for (const error of ['Failed to decrypt backup: wrong password', 'FULL_DISK_ACCESS_REQUIRED: macOS is blocking', '', null, undefined]) {
     assert.equal(backupMissingMessage(error), null);
+    assert.equal(backupMissingMessage(error, true), null);
   }
+});
+
+// Opened from the recent list, the alert also has Remove from list, and the words say what
+// it's for: a backup deleted along with the folder it was in stays listed (OE-214).
+test('from the recent list, the words end by saying what Remove from list is for', () => {
+  const { backupMissingMessage, REMOVE_FROM_LIST_HINT } = load('src/lib/foundBackups.ts');
+  const error = "BACKUP_MISSING: OpenExtract can't find this backup. It was in E:\\Backups\\A, and that folder isn't there now.";
+  assert.equal(backupMissingMessage(error, true), `It was in E:\\Backups\\A, and that folder isn't there now. ${REMOVE_FROM_LIST_HINT}`);
+  assert.equal(backupMissingMessage(error, false), backupMissingMessage(error));
+  assert.equal(backupMissingMessage("BACKUP_MISSING: OpenExtract can't find this backup.", true), REMOVE_FROM_LIST_HINT);
+  // The button the words name is the one the alert shows.
+  const app = fs.readFileSync(path.join(root, 'src', 'App.tsx'), 'utf-8');
+  const button = REMOVE_FROM_LIST_HINT.match(/click (.+)\.$/)[1];
+  assert.match(app, new RegExp(`>\\s*${button}\\s*</button>`));
 });
 
 test("the missing-backup prefix matches the engine's", () => {
@@ -132,4 +147,27 @@ test('a folder with no backup and no hint, on a Mac', () => {
   const msg = noBackupsMessage('/Volumes/Old', undefined, 'darwin');
   assert.doesNotMatch(msg, /undefined|  /);
   assert.match(msg, /Library\/Application Support\/MobileSync\/Backup/);
+});
+
+// A backup's ⋯ menu on the home screen's list: Move to Trash isn't offered where the engine
+// never moves one (Linux, python/trash_room.py).
+test("a backup's menu uses each system's words, and offers Move to Trash only on a Mac and Windows", () => {
+  const { backupMenuWords } = load('src/lib/foundBackups.ts');
+  const mac = backupMenuWords('darwin');
+  assert.equal(mac.show, 'Show in Finder');
+  assert.equal(mac.move, 'Move to Trash…');
+  assert.equal(mac.canMove, true);
+  assert.match(mac.moved, /^Moved to the Trash\. It takes up the same space until the Trash is emptied\.$/);
+  const win = backupMenuWords('win32');
+  assert.equal(win.show, 'Show in File Explorer');
+  assert.equal(win.move, 'Move to Recycle Bin…');
+  assert.equal(win.canMove, true);
+  assert.match(win.moved, /Recycle Bin.*erases it for good/);
+  assert.doesNotMatch(win.move + win.moved, /\bTrash\b/);
+  const linux = backupMenuWords('linux');
+  assert.equal(linux.canMove, false);
+  assert.equal(linux.show, 'Show in folder');
+  for (const words of [mac, win, linux]) assert.equal(words.remove, 'Remove from list');
+  const engine = fs.readFileSync(path.join(root, 'python', 'trash_room.py'), 'utf-8');
+  assert.match(engine, /if sys\.platform != "win32":\r?\n\s+return NOT_HERE/, 'the engine still refuses everywhere but a Mac and Windows');
 });

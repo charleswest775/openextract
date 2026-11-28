@@ -11,11 +11,13 @@ interface Props {
   /** Backups found in the usual folders that aren't in the recent list. */
   found: ReactNode;
   onOpenSession: (id: string) => void;
+  /** A backup was moved to the Trash or taken off the list. */
+  onSessionsChanged?: () => void;
   onGetMoreData: () => void;
   onBrowseForBackup: () => void;
 }
 
-export default function WorkspaceView({ data, found, onOpenSession, onGetMoreData, onBrowseForBackup }: Props) {
+export default function WorkspaceView({ data, found, onOpenSession, onSessionsChanged, onGetMoreData, onBrowseForBackup }: Props) {
   return (
     <div className="h-screen flex flex-col bg-base">
       <AppHeader showVersion={false} />
@@ -39,6 +41,7 @@ export default function WorkspaceView({ data, found, onOpenSession, onGetMoreDat
           <RecentSessionList
             sessions={data.sessions}
             onOpenSession={onOpenSession}
+            onChanged={onSessionsChanged}
           />
 
           {found}

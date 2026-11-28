@@ -152,6 +152,7 @@ from export_progress import ChatSaveProgress  # noqa: E402
 from person_export import PersonExporter  # noqa: E402
 import backup_files  # noqa: E402
 import older_backups  # noqa: E402
+import trash_backup  # noqa: E402
 import build_info  # noqa: E402
 
 
@@ -269,6 +270,9 @@ class SidecarServer:
             # Older backups beside the open one: these only look (older_backups.py)
             "backup.list_older": self.backup_list_older,
             "backup.check_older": self.backup_check_older,
+            # Any backup on the app's list to the Trash: these only look, or let go (trash_backup.py)
+            "backup.check_trash": self.backup_check_trash,
+            "backup.release_folder": self.backup_release_folder,
         }
 
     # ── Notification helpers ──────────────────────────────────────────────────
@@ -1029,6 +1033,40 @@ class SidecarServer:
         """
         kept = self.backup_manager.get_open_backup(params["udid"])
         return older_backups.check(kept, params["backup_dir"], self.backup_manager.read_info)
+
+    def backup_check_trash(self, params):
+        """
+        Whether params["backup_dir"], a backup on the app's list, may go to the Trash now, and
+        what the question has to say. Only looks: the app's main process does the asking and
+        the moving (electron/olderBackups.ts). Returns what trash_backup.check says.
+        """
+        return trash_backup.check(params.get("backup_dir"), self.backup_manager.read_info,
+                                  self.backup_manager.list_backups)
+
+    def backup_release_folder(self, params):
+        """
+        Let go of every file in params["backup_dir"] before it's moved to the Trash: close the
+        backup if it's open, and the databases read from it. Windows won't move a folder with a
+        file open in it. Returns { closed: <how many open backups were closed> }.
+        """
+        target = params.get("backup_dir")
+        closed = 0
+        if isinstance(target, str) and target:
+            for udid, backup in list(self.backup_manager._open_backups.items()):
+                try:
+                    same = os.path.samefile(backup.backup_dir, target)
+                except OSError:
+                    same = os.path.realpath(backup.backup_dir) == os.path.realpath(target)
+                if same:
+                    self.backup_manager.close_backup(udid)
+                    self.contact_resolver.clear_cache(udid)
+                    closed += 1
+        self.message_extractor.close_databases()
+        self.whatsapp_extractor.clear_cache()
+        # An unclosed sqlite3 connection waits for the garbage collector (backup.py OpenBackup.close).
+        import gc
+        gc.collect()
+        return {"closed": closed}
 
     def backup_start(self, params):
         """

@@ -1,16 +1,20 @@
 // Opening backups: plain and encrypted (wrong password first), a folder holding several
-// backups, closing a backup, and what a second launch remembers.
+// backups, closing a backup, what a second launch remembers, and what a third leaves out.
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { check, launch, sleep, timing } from '../harness.mjs';
 
 export default {
   name: 'open',
-  about: 'plain and encrypted backups, wrong password, several backups in one folder, recents',
+  about: 'plain and encrypted backups, wrong password, several backups in one folder, recents, deleted ones',
   needs: ['maren-plain', 'maren-encrypted', 'einstein'],
   async run({ target, backups, scratch }) {
     const plain = backups['maren-plain'];
     const enc = backups['maren-encrypted'];
+    const deletedDir = path.join(scratch, 'deleted-backups', 'udid-deleted');
+    const awayDir = path.join(scratch, 'Unplugged Drive', 'Backups', 'udid-away');
+    const trashDir = path.join(scratch, 'trash-test', path.basename(backups.einstein.dir));
+    const remembered = (id, name, backupDir) => ({ id, type: 'device', name, subtitle: '', exportCount: 0, lastOpened: new Date().toISOString(), backupDir });
     const app = await launch(target);
     let profile = app.profile;
     try {
@@ -127,9 +131,81 @@ export default {
       timing('reopen recent backup', performance.now() - t0);
       const sessions = await again.api('getRecentSessions');
       check('recent backups are stored without passwords', Array.isArray(sessions.value) && !JSON.stringify(sessions.value).includes(enc.password === 'test' ? '"password":"test"' : enc.password), sessions.value?.length);
+
+      // Two more remembered backups for the third launch: one deleted since, one on a drive that
+      // isn't plugged in.
+      fs.mkdirSync(path.dirname(deletedDir), { recursive: true });
+      await again.api('addSession', remembered('e2e-deleted', 'Deleted iPhone', deletedDir));
+      await again.api('addSession', remembered('e2e-away', 'Unplugged iPhone', awayDir));
+      // And one to move to the Trash from its menu: a copy of Einstein's backup in a folder of its own.
+      fs.cpSync(backups.einstein.dir, trashDir, { recursive: true });
+      await again.api('addSession', remembered('e2e-trash', 'Trash Test iPhone', trashDir));
       check('no renderer errors (second launch)', again.seriousErrors().length === 0, again.seriousErrors().slice(0, 5));
     } finally {
       await again.close();
+    }
+
+    // A backup deleted since it was opened isn't listed (OE-214). One on a drive that isn't
+    // plugged in is, and its "Can't find this backup" alert can take it off the list. On a Mac
+    // the home folder is an empty one: a backup that isn't where it was is also looked for in
+    // the usual backup folder, and where macOS blocks that folder the app asks for Full Disk
+    // Access instead.
+    const home = path.join(scratch, 'home');
+    fs.mkdirSync(home, { recursive: true });
+    const third = await launch(target, { profile, env: process.platform === 'darwin' ? { HOME: home } : {} });
+    try {
+      await third.waitForText(/Unplugged iPhone/, 15_000);
+      const listed = await third.text();
+      check('a deleted backup is left out of the recent backups; one on a drive that is away stays',
+        /Unplugged iPhone/.test(listed) && !/Deleted iPhone/.test(listed) && /Maren's iPhone/.test(listed), listed.slice(0, 400));
+      await third.eval(() => [...document.querySelectorAll('button')].find(b => /Unplugged iPhone/.test(b.textContent))?.click());
+      const missing = await third.waitFor(() => [...document.querySelectorAll('[role=alert]')].map(a => a.innerText).find(t => /Can't find/.test(t)), null, 30_000);
+      check("the backup that's away says it can't be found and offers Find it and Remove from list",
+        /Can't find this backup/.test(missing ?? '') && /Find it/.test(missing ?? '') && /Remove from list/.test(missing ?? ''), missing ?? (await third.text()).slice(0, 400));
+      await third.click('Remove from list', { within: '[role=alert]' });
+      const gone = await third.waitFor(() => !document.body.innerText.includes('Unplugged iPhone') && !document.querySelector('[role=alert]'), null, 15_000);
+      const kept = ((await third.api('getRecentSessions')).value ?? []).map(s => s.id);
+      check('Remove from list takes only that backup off the list, and the deleted one is still remembered',
+        !!gone && !kept.includes('e2e-away') && kept.includes('e2e-deleted') && /Maren's iPhone/.test(await third.text()), kept);
+
+      // Move to Trash from a backup's ⋯ menu. The question is answered yes here and the Trash is a
+      // folder in scratch; the main process's own check, question and move run for real.
+      const trashed = path.join(scratch, 'trashed');
+      await third.app.evaluate(({ dialog, shell }, trashed) => {
+        globalThis.__asked = [];
+        dialog.showMessageBox = async (_win, options) => { globalThis.__asked.push(options); return { response: 1 }; };
+        shell.trashItem = async p => { (process.getBuiltinModule?.('fs') ?? require('fs')).renameSync(p, trashed); };
+      }, trashed);
+      await third.eval(() => document.querySelector('button[aria-label="More for Trash Test iPhone"]')?.click());
+      const menu = await third.waitFor(() => document.querySelector('[role=menu]')?.innerText, null, 5_000);
+      if (process.platform === 'linux') {
+        check('the menu offers Show in folder and Remove from list, and no Move to Trash on Linux',
+          /Show in folder/.test(menu ?? '') && /Remove from list/.test(menu ?? '') && !/Move to/.test(menu ?? ''), menu);
+      } else {
+        const bin = process.platform === 'win32' ? 'Recycle Bin' : 'Trash';
+        check(`a backup's menu offers Move to ${bin}…`, (menu ?? '').includes(`Move to ${bin}…`) && /Remove from list/.test(menu ?? ''), menu);
+        await third.click(`Move to ${bin}…`, { within: '[role=menu]' });
+        const outcome = await third.waitFor(() => {
+          const t = document.body.innerText;
+          return /Moved to the/.test(t) ? 'moved' : [...document.querySelectorAll('[role=alert]')].map(a => a.innerText).find(Boolean);
+        }, null, 120_000);
+        const asked = await third.app.evaluate(() => globalThis.__asked);
+        if (outcome === 'moved') {
+          const kept = ((await third.api('getRecentSessions')).value ?? []).map(s => s.id);
+          check(`Move to ${bin} asks first, keeping is the default, and says it may be the only copy`,
+            asked.length === 1 && asked[0].defaultId === 0 && asked[0].buttons[0] === 'Keep it' && /only copy/.test(asked[0].detail), asked);
+          check('the backup is moved, its row goes, and it stays remembered in case it comes back',
+            !fs.existsSync(trashDir) && fs.existsSync(path.join(trashed, 'Manifest.db')) && !(await third.text()).includes('Trash Test iPhone')
+            && kept.includes('e2e-trash'), { kept, text: (await third.text()).slice(0, 300) });
+        } else {
+          // A Windows runner whose Recycle Bin can't take it: refused before anything is asked.
+          check(`Move to ${bin} refused with a reason, asking nothing and moving nothing`,
+            process.platform === 'win32' && /Recycle Bin/.test(outcome ?? '') && asked.length === 0 && fs.existsSync(trashDir), { outcome, asked });
+        }
+      }
+      check('no renderer errors (third launch)', third.seriousErrors().length === 0, third.seriousErrors().slice(0, 5));
+    } finally {
+      await third.close();
     }
   },
 };

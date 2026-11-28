@@ -856,8 +856,13 @@ class MessageExtractor:
         """
         text = self._html_escape(msg.get("text") or "", preserve_newlines=True)
         if msg.get("attachments"):
-            render = attachments.render if attachments is not None else _PrintAttachmentWriter._label
-            parts = [render(a) for a in msg["attachments"]]
+            when = msg.get("date")
+            parts = [
+                attachments.render(a, when=when)
+                if attachments is not None
+                else _PrintAttachmentWriter._label(a)
+                for a in msg["attachments"]
+            ]
             if text:
                 parts.append(f'<div class="text">{text}</div>')
             return "".join(parts)
@@ -1197,7 +1202,7 @@ class _PrintAttachmentWriter:
             log_failure("a PDF stopped", e)
             raise SaveStopped(write_error(e, self.no_room)) from None
 
-    def render(self, att: dict) -> str:
+    def render(self, att: dict, when: Optional[str] = None) -> str:
         """Return the HTML for one attachment inside a message bubble."""
         if not self._is_image(att):
             return self._label(att)
@@ -1235,6 +1240,23 @@ class _PrintAttachmentWriter:
             return self._label(att, missing=True, problem=self._problems.get(_att_key(att)))
         alt = MessageExtractor._html_escape(_visible(att.get("transfer_name") or "") or "Image")
         return f'<img src="{rel}" alt="{alt}">'
+
+
+def _set_file_date(path: str, iso) -> None:
+    """Give a saved attachment the date its message was sent, so Finder and Explorer sort by it.
+
+    Sets the modified and accessed times (on a Mac an earlier modified time
+    moves the created date back too). Skips a missing or unreadable date, and
+    one the drive can't store.
+    """
+    dt = local_datetime(iso)
+    if dt is None:
+        return
+    try:
+        stamp = dt.timestamp()
+        os.utime(path, (stamp, stamp))
+    except (OverflowError, OSError):
+        pass
 
 
 class _HtmlAttachmentWriter:
@@ -1320,7 +1342,7 @@ class _HtmlAttachmentWriter:
             except OSError:
                 pass  # something else is in it, or the drive is gone
 
-    def _put(self, src: str, name: str) -> None:
+    def _put(self, src: str, name: str, when: Optional[str] = None) -> None:
         """Copy ``src`` into the folder as ``name``. FileNotSaved is that file's problem, an OSError the save's."""
         dest = os.path.join(self._dir, name)
         there = os.path.lexists(dest)
@@ -1335,6 +1357,7 @@ class _HtmlAttachmentWriter:
             os.makedirs(self._dir, exist_ok=True)
             self._made_dir = True
         copy_whole(src, dest)
+        _set_file_date(dest, when)
         if not there:
             self._made.append(dest)
 
@@ -1344,7 +1367,7 @@ class _HtmlAttachmentWriter:
             self.files_failed += 1
         log_failure(f"file {key} {error.problem}", error)
 
-    def _copy(self, att: dict) -> Optional[str]:
+    def _copy(self, att: dict, when: Optional[str] = None) -> Optional[str]:
         """Copy the attachment into the folder once; its file name, or None."""
         att_id = att.get("attachment_id")
         if isinstance(att_id, int) and att_id in self._written:
@@ -1355,7 +1378,7 @@ class _HtmlAttachmentWriter:
                                                 att.get("available") is True)
             if src:
                 file_name = self._file_name(att)
-                self._put(src, file_name)
+                self._put(src, file_name, when=when)
                 name = file_name
                 self.files_written += 1
             else:
@@ -1366,7 +1389,7 @@ class _HtmlAttachmentWriter:
             self._written[att_id] = name
         return name
 
-    def _preview(self, att: dict, name: str) -> Optional[str]:
+    def _preview(self, att: dict, name: str, when: Optional[str] = None) -> Optional[str]:
         """The JPEG copy of a saved photo browsers can't show; its file name, or None."""
         preview = os.path.splitext(name)[0] + ".jpg"
         path = os.path.join(self._dir, preview)
@@ -1381,6 +1404,7 @@ class _HtmlAttachmentWriter:
         except FileNotSaved as e:
             self._failed(key, e)
             return None
+        _set_file_date(path, when)
         self._made.append(path)
         return preview
 
@@ -1391,9 +1415,9 @@ class _HtmlAttachmentWriter:
             return ""
         return f'<div class="attachment-label">{MessageExtractor._html_escape(f"Preview {problem}")}</div>'
 
-    def render(self, att: dict) -> str:
+    def render(self, att: dict, when: Optional[str] = None) -> str:
         """Return the HTML for one attachment inside a message bubble."""
-        name = self._copy(att)
+        name = self._copy(att, when=when)
         if name is None:
             return _PrintAttachmentWriter._label(att, missing=True, problem=self._problems.get(_att_key(att)))
 
@@ -1405,7 +1429,7 @@ class _HtmlAttachmentWriter:
         if _PrintAttachmentWriter._is_image(att):
             if ext in _BROWSER_IMAGE_EXTENSIONS:
                 return f'<a href="{href}"><img src="{href}" alt="{title}" loading="lazy"></a>'
-            preview = self._preview(att, name)
+            preview = self._preview(att, name, when=when)
             if preview:
                 src = self._href(preview)
                 return f'<a href="{src}"><img src="{src}" alt="{title}" loading="lazy"></a>'

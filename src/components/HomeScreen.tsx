@@ -11,13 +11,15 @@ import FullDiskAccessDialog from './shared/FullDiskAccessDialog';
 import LoadingScreen from './shared/LoadingScreen';
 
 interface Props {
+  /** Changes when the list should be read again without the loading screen (a backup was removed from it). */
+  reload?: number;
   onOpenBackup: (session: RecentSession) => void;
   onOpenFoundBackup: (backup: BackupInfo) => void;
   onCreateBackup: () => void;
   onBrowseForBackup: () => void;
 }
 
-export default function HomeScreen({ onOpenBackup, onOpenFoundBackup, onCreateBackup, onBrowseForBackup }: Props) {
+export default function HomeScreen({ reload = 0, onOpenBackup, onOpenFoundBackup, onCreateBackup, onBrowseForBackup }: Props) {
   const [appState, setAppState] = useState<AppStateData | null>(null);
   const [loading, setLoading] = useState(true);
   const [found, setFound] = useState<FoundBackups | null>(null);
@@ -27,12 +29,15 @@ export default function HomeScreen({ onOpenBackup, onOpenFoundBackup, onCreateBa
   const [askingAccess, setAskingAccess] = useState(false);
 
   useEffect(() => {
-    loadState();
     findBackups();
   }, []);
 
+  // The loading screen shows only until the first answer.
+  useEffect(() => {
+    loadState();
+  }, [reload]);
+
   async function loadState() {
-    setLoading(true);
     try {
       const state = await window.openextract.getAppState();
       setAppState(state);
@@ -124,6 +129,7 @@ export default function HomeScreen({ onOpenBackup, onOpenFoundBackup, onCreateBa
               onOpenBackup(session);
             }
           }}
+          onSessionsChanged={loadState}
           onGetMoreData={onCreateBackup}
           onBrowseForBackup={onBrowseForBackup}
         />
