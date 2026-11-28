@@ -1,11 +1,14 @@
 node_modules/
 dist/
 release/
+release-friends/
 python/dist/
 python/build/
 python/__pycache__/
 python/*.spec
 python/build_info.json
+# Written by scripts/write-build-info.mjs on every build (Ask AI's index.json, or null)
+dist-electron/build-info.json
 *.pyc
 .DS_Store
 Thumbs.db

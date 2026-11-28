@@ -29,15 +29,22 @@ module.exports = async function notarize(context) {
   if (context.electronPlatformName !== 'darwin') return;
 
   const appPath = path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
-  const { APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID } = process.env;
-  if (!APPLE_ID || !APPLE_APP_SPECIFIC_PASSWORD || !APPLE_TEAM_ID) {
-    const missing = 'APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID are needed to notarize';
+  // CI passes the Apple ID, app-specific password and team; a build on a Mac can instead name a
+  // notarytool keychain profile (APPLE_KEYCHAIN_PROFILE, made once with `xcrun notarytool
+  // store-credentials`), so the password never passes through a command line or a script.
+  const { APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID, APPLE_KEYCHAIN_PROFILE } = process.env;
+  let auth;
+  if (APPLE_KEYCHAIN_PROFILE) {
+    auth = ['--keychain-profile', APPLE_KEYCHAIN_PROFILE];
+  } else if (APPLE_ID && APPLE_APP_SPECIFIC_PASSWORD && APPLE_TEAM_ID) {
+    auth = ['--apple-id', APPLE_ID, '--password', APPLE_APP_SPECIFIC_PASSWORD, '--team-id', APPLE_TEAM_ID];
+  } else {
+    const missing = 'APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID (or APPLE_KEYCHAIN_PROFILE) are needed to notarize';
     // A release must be notarized; a local build with a signing identity needn't be.
     if (process.env.CI) throw new Error(missing);
     console.log(`Skipping notarization: ${missing}`);
     return;
   }
-  const auth = ['--apple-id', APPLE_ID, '--password', APPLE_APP_SPECIFIC_PASSWORD, '--team-id', APPLE_TEAM_ID];
 
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'notarize-'));
   try {

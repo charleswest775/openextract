@@ -137,4 +137,24 @@ contextBridge.exposeInMainWorld('openextract', {
 
   // Clipboard (used by the share prompt's Copy link and the feedback form)
   copyText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
+
+  // Ask AI (electron/askAi.ts). Only builds made with OPENEXTRACT_AI_INDEX_URL have it; in every
+  // other build state() is { enabled: false } and the rest answer that it's off, doing nothing.
+  askAi: {
+    state: () => ipcRenderer.invoke('ask-ai:state'),
+    status: () => ipcRenderer.invoke('ask-ai:status'),
+    install: () => ipcRenderer.invoke('ask-ai:install'),
+    connectClaude: () => ipcRenderer.invoke('ask-ai:connect-claude'),
+    // `consent`: the person said OK to one entry being added to ChatGPT's settings file.
+    connectChatGpt: (consent: boolean) => ipcRenderer.invoke('ask-ai:connect-chatgpt', consent),
+    setHidden: (hidden: boolean) => ipcRenderer.invoke('ask-ai:set-hidden', hidden),
+    noteSeen: () => ipcRenderer.invoke('ask-ai:note-seen'),
+    // "Open Settings" on the Full Disk Access step (macOS): main opens its one fixed address.
+    openFullDiskAccess: () => ipcRenderer.invoke('ask-ai:open-full-disk-access'),
+    onProgress: (callback: (progress: any) => void) => {
+      const listener = (_event: any, progress: any) => callback(progress);
+      ipcRenderer.on('ask-ai:progress', listener);
+      return () => ipcRenderer.removeListener('ask-ai:progress', listener);
+    },
+  },
 });

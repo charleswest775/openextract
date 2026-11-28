@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "concurrently \"vite\" \"tsc -p tsconfig.electron.json && wait-on http://127.0.0.1:5179 && electron .\"",
     "build:renderer": "vite build",
-    "build:electron": "tsc -p tsconfig.electron.json",
+    "build:electron": "tsc -p tsconfig.electron.json && node scripts/write-build-info.mjs",
     "build": "npm run build:renderer && npm run build:electron",
     "preview": "vite preview",
     "test": "node scripts/run-tests.mjs",
@@ -55,7 +55,8 @@
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*.js"
+      "dist-electron/**/*.js",
+      "dist-electron/build-info.json"
     ],
     "extraResources": [
       {
