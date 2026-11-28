@@ -1,0 +1,182 @@
+# A test build: the app as it is on a branch, signed and notarized like a release, carrying the
+# pinned OpenExtract AI add-on (ai-addon.json) as a release does, and kept only as this run's
+# artifacts. Nothing is published: no release, no tag, no update feed, no store. Run it from the
+# Actions tab on any branch (or push to experimental/*) to try a change on a real Mac or PC before
+# it ships; Charles shares the files by private link.
+#
+# Its version is <next patch>-test.<run number> unless one is given (only inside the packaged app,
+# package.json is unchanged), so it tells itself apart in feedback reports, isn't offered the
+# release it's built from, and is offered the next real release like everyone else.
+name: Test build
+
+on:
+  push:
+    branches: ['experimental/**']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version inside the app (blank = <next patch>-test.<run number>)'
+        required: false
+        default: ''
+
+concurrency:
+  group: test-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: v
+        env:
+          GIVEN: ${{ inputs.version }}
+        run: |
+          BASE=$(node -p "require('./package.json').version")
+          NEXT=$(node -p "const [a,b,c]=process.argv[1].split('.').map(Number); [a,b,c+1].join('.')" "$BASE")
+          VERSION="${GIVEN:-$NEXT-test.$GITHUB_RUN_NUMBER}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then echo "::error::Bad version $VERSION"; exit 1; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Test build $VERSION (from $BASE)"
+
+  build-macos:
+    needs: version
+    runs-on: macos-latest
+    # build/notarize.js waits up to 45 minutes for Apple's verdict before the dmg is built.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: npm install
+      - name: Check out ios-backup-core (sibling for editable install)
+        uses: ./.github/actions/ios-backup-core
+        with:
+          ref: pinned
+      - name: Install Python dependencies and PyInstaller
+        working-directory: python
+        run: pip install pyinstaller -r requirements.txt
+      - run: npm run python:bundle
+      - name: Fetch the OpenExtract AI add-on
+        shell: bash
+        run: |
+          set -euo pipefail
+          MCPB="$(node scripts/ai-addon-pin.mjs fetch)"
+          echo "OPENEXTRACT_AI_BUNDLED_MCPB=$MCPB" >> "$GITHUB_ENV"
+      - name: Build Electron app
+        run: npm run build
+      - name: Import signing certificate
+        env:
+          MAC_CERTIFICATE_P12: ${{ secrets.MAC_CERTIFICATE_P12 }}
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+        # The same as release.yml's step of this name (see the reasons there).
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          CERT="$RUNNER_TEMP/signing.p12"
+          node -e "require('fs').writeFileSync(process.argv[1], Buffer.from(process.env.MAC_CERTIFICATE_P12, 'base64'))" "$CERT"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT" -k "$KEYCHAIN" -P "$MAC_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          rm -f "$CERT"
+          for CA in DeveloperIDG2CA DeveloperIDCA; do
+            curl -fsSL "https://www.apple.com/certificateauthority/$CA.cer" -o "$RUNNER_TEMP/$CA.cer"
+            security import "$RUNNER_TEMP/$CA.cer" -k "$KEYCHAIN" || true
+          done
+          SEARCH_LIST=("$KEYCHAIN")
+          while read -r KC; do SEARCH_LIST+=("${KC//\"/}"); done < <(security list-keychains -d user)
+          security list-keychains -d user -s "${SEARCH_LIST[@]}"
+          IDENTITIES="$(security find-identity -v -p codesigning "$KEYCHAIN")"
+          echo "$IDENTITIES"
+          if ! grep -q "Developer ID Application" <<< "$IDENTITIES"; then
+            echo "::error::No valid Developer ID Application identity after importing MAC_CERTIFICATE_P12"
+            exit 1
+          fi
+          echo "CSC_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+      - name: Package (signed and notarized, not published)
+        run: npx electron-builder --publish never -c.extraMetadata.version=${{ needs.version.outputs.version }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Check the app carries the add-on
+        run: node scripts/ai-addon-pin.mjs check release/mac-arm64/OpenExtract.app/Contents/Resources
+      - name: Remove signing keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openextract-${{ needs.version.outputs.version }}-mac
+          path: release/*.dmg
+          if-no-files-found: error
+
+  build-windows:
+    needs: version
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: npm install
+      - name: Check out ios-backup-core (sibling for editable install)
+        uses: ./.github/actions/ios-backup-core
+        with:
+          ref: pinned
+      - name: Install Python dependencies and PyInstaller
+        working-directory: python
+        run: pip install pyinstaller -r requirements.txt
+      - run: npm run python:bundle
+      - name: Fetch the OpenExtract AI add-on
+        shell: bash
+        run: |
+          set -euo pipefail
+          MCPB="$(node scripts/ai-addon-pin.mjs fetch)"
+          echo "OPENEXTRACT_AI_BUNDLED_MCPB=$MCPB" >> "$GITHUB_ENV"
+      - name: Build Electron app
+        run: npm run build
+      - name: Package (signed, not published)
+        # bash: PowerShell splits "-c.extraMetadata.version=..." at the first dot
+        shell: bash
+        run: npx electron-builder --publish never -c.extraMetadata.version=${{ needs.version.outputs.version }}
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      - name: Check the app carries the add-on
+        run: node scripts/ai-addon-pin.mjs check release/win-unpacked/resources
+      - name: Verify Authenticode signatures
+        shell: pwsh
+        run: |
+          . ./scripts/app-control/common.ps1
+          $files = @(Get-PeFiles 'release/win-unpacked')
+          $files += Get-ChildItem -Path 'release' -Filter 'OpenExtract Setup *.exe'
+          $unsigned = @($files | Where-Object { (Get-AuthenticodeSignature -LiteralPath $_.FullName).Status -ne 'Valid' })
+          Write-Output "$($files.Count - $unsigned.Count) of $($files.Count) PE files are signed"
+          if ($unsigned.Count -gt 0) {
+            $unsigned | ForEach-Object { Write-Output $_.FullName }
+            Write-Output "::error::$($unsigned.Count) Windows executable(s) or DLL(s) are not validly Authenticode-signed"
+            exit 1
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openextract-${{ needs.version.outputs.version }}-windows
+          path: release/OpenExtract Setup *.exe
+          if-no-files-found: error

@@ -15,6 +15,10 @@ about a new version if someone tells them. This file lists all of it in order.
       pin first: `scripts/bump-ios-backup-core.sh` (it prints what changed since the current pin),
       run the tests, open a PR with the new `ios-backup-core.ref` and merge it
       ([docs/TESTING.md](docs/TESTING.md#which-ios-backup-core)).
+- [ ] The Mac and Windows apps carry the OpenExtract AI add-on pinned in `ai-addon.json`
+      ([below](#openextract-ai)). If this release should ship a new add-on, publish it on
+      openextract-ai-releases and move the pin first; the release fails if the pinned files
+      aren't published there.
 - [ ] Credentials that have broken releases before:
   - Apple: if notarization answers 403 "A required agreement is missing", accept the new
     agreement at developer.apple.com/account.
@@ -139,6 +143,30 @@ links instead of a versioned GitHub file wherever the form takes a link, and add
       README) only now: once the release is published and the stable links above give the new
       version. Keep such a PR a draft until then. Merged earlier, the pages promise a feature that
       the download buttons don't have yet.
+
+## OpenExtract AI
+
+The add-on is built in the private openextract-ai repository and published, as one `.mcpb` per
+computer, on the public charleswest775/openextract-ai-releases. OpenExtract's Mac and Windows
+builds carry the version pinned in `ai-addon.json`, so Ask AI's Install needs no download
+(`scripts/ai-addon-pin.mjs`; Linux carries none and has no Ask AI). When the app carries a newer
+add-on than the one someone installed, Ask AI offers Update. To ship a new add-on:
+
+- [ ] In openextract-ai: tests on the Mac (three time zones) and the PC, then `packaging/build.py`
+      for the Mac `.mcpb` (`--notarize openextract-notary`) and the Build add-on workflow for the
+      Windows one. The Windows add-on must be signed: Smart App Control refuses unsigned code (#169),
+      and Claude runs the add-on's program on the user's PC.
+- [ ] Publish both files and `index.json` as a release `v<version>` on openextract-ai-releases.
+      Marking it Latest also moves `openextract.app/ai/addon/index.json`, which older
+      experimental builds download from.
+- [ ] Put the version and both files' names, sizes and SHA-256s in `ai-addon.json` (the release's
+      `index.json` has them), run `node scripts/ai-addon-pin.mjs fetch` on the Mac to check the
+      pin against the published file, and open a PR. Its Installers check builds with it.
+- [ ] Add a CHANGELOG line for what's new in the add-on, if people will notice.
+
+To try an add-on before it's published: `node scripts/package-friends.mjs --mcpb <file>
+--notarize openextract-notary --version <x.y.z-test.n>` builds a signed, notarized Mac app
+carrying that file, published nowhere.
 
 ## Bumping pymobiledevice3
 

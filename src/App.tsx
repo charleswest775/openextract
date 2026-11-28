@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useBackup, type BackupInfo } from './hooks/useBackup';
 import HomeScreen from './components/HomeScreen';
 import ExploreLayout from './components/explore/ExploreLayout';
@@ -16,8 +16,11 @@ import ExportCheckPrompt from './components/shared/ExportCheckPrompt';
 import FixedReportNotice from './components/shared/FixedReportNotice';
 import { FeedbackProvider, ReportProblemButton } from './components/shared/Feedback';
 import { NoticeProvider } from './components/shared/Notices';
+import AskAiScreen from './components/ai/AskAiScreen';
+import { onOpenAskAi } from './lib/askAi';
 
-type Screen = 'home' | 'explore' | 'create-backup';
+// 'ask-ai' only in builds that have Ask AI (src/lib/askAi.ts): nothing else opens it.
+type Screen = 'home' | 'explore' | 'create-backup' | 'ask-ai';
 
 interface PendingOpen {
   udid: string;
@@ -59,6 +62,9 @@ export default function App() {
   // Counts up to have the home screen read its list again.
   const [homeReload, setHomeReload] = useState(0);
   const [browseChoices, setBrowseChoices] = useState<{ folder: string; backups: BackupInfo[] } | null>(null);
+
+  // Ask AI in the home screen's header, or its note on Home
+  useEffect(() => onOpenAskAi(() => setScreen('ask-ai')), []);
 
   const openAndNavigate = useCallback(async (
     udid: string,
@@ -193,6 +199,8 @@ export default function App() {
           }}
         />
       )}
+
+      {screen === 'ask-ai' && <AskAiScreen onBack={() => setScreen('home')} />}
 
       {screen === 'create-backup' && (
         <BackupFlow

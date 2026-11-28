@@ -13,6 +13,8 @@ import { syncedFolderAt, withSyncedFolderNote } from './syncedFolder';
 import { CHECK_OLDER_TIMEOUT_MS, takeMoveLock, trashBackup, trashOlderBackup } from './olderBackups';
 import { isBusinessAnswer, recordSave, shouldAskBusiness } from './businessUse';
 import { listedSessions } from './recentBackups';
+import { aiIndexUrl, bundledAddon } from './aiAddon';
+import { registerAskAi } from './askAi';
 // ── Media in the window (videos, posters): only from the engine's copy folders ──
 const os = require('os');
 const { nativeImage } = require('electron');
@@ -447,6 +449,23 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('app:get-version', () => app.getVersion());
 
+  // Ask AI (askAi.ts): only in builds made with OPENEXTRACT_AI_INDEX_URL, or carrying the add-on
+  // (OPENEXTRACT_AI_BUNDLED_MCPB), which a packaged app reads from build-info.json beside this file. Without it every call answers that it's off, and
+  // the hooks below (what the engine found and opened, for the add-on's backups.json) do nothing.
+  const askAi = registerAskAi({
+    ipcMain,
+    shell,
+    store,
+    indexUrl: aiIndexUrl({ isPackaged: app.isPackaged, buildInfoDir: __dirname, env: process.env }),
+    bundled: bundledAddon({ isPackaged: app.isPackaged, buildInfoDir: __dirname, resourcesPath: (process as any).resourcesPath, env: process.env }),
+    platform: process.platform,
+    arch: process.arch,
+    translated: app.runningUnderARM64Translation === true,
+    env: process.env,
+    homedir: os.homedir(),
+    fetch: (url: string, init: any) => net.fetch(url, init),
+  });
+
   // ── Sidecar IPC bridge ──────────────────────────────────────────────────
   // Backups being made now: none may go to the Trash meanwhile (backup:trash below).
   let backupsRunning = 0;
@@ -473,6 +492,12 @@ app.whenReady().then(async () => {
         // dated folder name, but it's still the same iPhone.
         const id = (result as any)?.info?.udid ?? params?.udid;
         openDeviceId = typeof id === 'string' && id.trim() ? id : null;
+      }
+      if (method === 'open_backup' && (result as any)?.status === 'open') {
+        askAi.backupOpened((result as any)?.info?.backup_dir ?? params?.backup_dir);
+      }
+      if (method === 'list_backups' && Array.isArray((result as any)?.backups)) {
+        askAi.backupsFound((result as any).backups.map((b: any) => b?.backup_dir));
       }
       if (method === 'open_backup') {
         const ts = new Date().toTimeString().slice(0, 8);

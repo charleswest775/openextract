@@ -1,6 +1,6 @@
 import {
-  ArchiveRestore, ArrowLeft, AudioWaveform, BookUser, Briefcase, CalendarClock, CalendarDays, Check, ChevronRight, Clock, Download, Ellipsis, FolderOpen,
-  Globe, House, Image, LayoutGrid, LifeBuoy, Lock, MessageCircle, MessagesSquare, NotebookPen, PackageOpen, Phone, Play, Plus,
+  ArchiveRestore, ArrowLeft, AudioWaveform, BookUser, Briefcase, CalendarClock, CalendarDays, Check, ChevronRight, Clock, Copy, Download, Ellipsis, FolderOpen,
+  Globe, House, Image, LayoutGrid, LifeBuoy, Lock, MessageCircle, MessageCircleQuestion, MessagesSquare, NotebookPen, PackageOpen, Phone, Play, Plus,
   Podcast, Search,
   Settings, Smartphone, Users, Voicemail,
   type LucideIcon,
@@ -48,6 +48,8 @@ export const PlusIcon = icon(Plus);
 export const SearchIcon = icon(Search);
 export const SettingsIcon = icon(Settings);
 export const HelpIcon = icon(LifeBuoy); // Help and feedback
+export const AskAiIcon = icon(MessageCircleQuestion); // Ask AI (only in builds that have it)
+export const CopyIcon = icon(Copy);
 export const HomeIcon = icon(House); // the backup's home page
 export const ArrowLeftIcon = icon(ArrowLeft);
 export const ChevronRightIcon = icon(ChevronRight);

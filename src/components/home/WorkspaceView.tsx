@@ -5,6 +5,7 @@ import PrivacyFooter from '../shared/PrivacyFooter';
 import RecentSessionList from './RecentSessionList';
 import { BACK_UP_LABEL, OPEN_FOLDER_LABEL } from './HomeActions';
 import { FolderIcon, PhoneIcon } from '../shared/Icons';
+import AskAiNote from '../ai/AskAiNote';
 
 interface Props {
   data: AppStateData;
@@ -37,6 +38,8 @@ export default function WorkspaceView({ data, found, onOpenSession, onSessionsCh
               </button>
             </div>
           </div>
+
+          <AskAiNote />
 
           <RecentSessionList
             sessions={data.sessions}

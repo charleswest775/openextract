@@ -3,6 +3,7 @@ import AppHeader from '../shared/AppHeader';
 import PrivacyFooter from '../shared/PrivacyFooter';
 import { LinesIcon, CameraIcon, ClockIcon, ExportIcon } from '../shared/Icons';
 import HomeActionCards from './HomeActions';
+import AskAiNote from '../ai/AskAiNote';
 
 interface Props {
   /** Backups found in the usual folders, if any. */
@@ -25,6 +26,8 @@ export default function ReturnedView({ found, onGetMyData, onBrowseForBackup }: 
           Once your iPhone is backed up, we'll gently pull out every message, photo, and voicemail —
           all privately on this machine.
         </p>
+
+        <AskAiNote />
 
         {found}
 

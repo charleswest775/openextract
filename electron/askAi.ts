@@ -1,0 +1,295 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import {
+  type AiAppId, type BundledAddon, type Edition, type Fetch, type InstallResult, type Look, type Run, type StatusRunner,
+  addonHome, addonInstalled, addonStatus, backupsFile, claudeAddonVersion, claudeCodeCommand, claudeHasAddon, codexConfigPath, codexEntry,
+  connectCodex, detectAiApps, inMobileSync, installAddon, newerVersion, platformKey, readCurrent, realLook, writeBackupsFile,
+} from './aiAddon';
+
+/**
+ * The Ask AI screen's side of the main process: what the window may ask for, and nothing
+ * more. The window never names a path, a URL or a program; it can only say "install",
+ * "connect Claude", "connect ChatGPT" (with the person's OK), "hide this" and "open the Full
+ * Disk Access settings" (one fixed address).
+ *
+ * It also keeps the add-on's backups.json (FRIENDS-BUILD.md section 3): which backup is open
+ * and the folders OpenExtract knows hold backups, so the add-on finds backups outside Finder's
+ * folder. main.ts tells it what the engine found and opened (the hooks registerAskAi returns).
+ *
+ * Ask AI is off unless the build was made with OPENEXTRACT_AI_INDEX_URL (aiIndexUrl in
+ * aiAddon.ts) or carries the add-on (OPENEXTRACT_AI_BUNDLED_MCPB, bundledAddon). Off, the
+ * handlers are still registered, so the window's bridge is the same in every build, but each answers that it's off and touches nothing: no folder is
+ * looked at, nothing is downloaded or run, and nothing is saved, backups.json included.
+ */
+
+interface Store {
+  get(key: string, fallback?: any): any;
+  set(key: string, value: any): void;
+}
+
+export interface AskAiOptions {
+  ipcMain: { handle(channel: string, listener: (event: any, ...args: any[]) => any): void };
+  shell: { openPath(file: string): Promise<string>; showItemInFolder?(file: string): void; openExternal(url: string): Promise<void> };
+  store: Store;
+  /** index.json, or null. */
+  indexUrl: string | null;
+  /** The add-on this app carries, or null. With one, Install uses it instead of index.json. */
+  bundled?: BundledAddon | null;
+  platform: string;
+  arch: string;
+  translated?: boolean;
+  env: Record<string, string | undefined>;
+  homedir: string;
+  fetch: Fetch;
+  // For tests: where to look and what to run instead of the real thing.
+  look?: Look;
+  systemApps?: string;
+  macBinDirs?: string[];
+  run?: Run;
+  statusRunner?: StatusRunner;
+  stallMs?: number;
+}
+
+/** What every call answers in a build without Ask AI. */
+export const ASK_AI_OFF = "Ask AI isn't part of this copy of OpenExtract.";
+
+export type AskAiState =
+  | { enabled: false }
+  | {
+    enabled: true;
+    /** The AI apps found, in a fixed order. */
+    apps: AiAppId[];
+    /** There's a download for this computer. */
+    available: boolean;
+    /** "Don't show this again" (undone in Settings). */
+    hidden: boolean;
+    /** The "New" note on Home has been seen (closed, or Ask AI opened). */
+    noteSeen: boolean;
+    installed: { version: string } | null;
+    /**
+     * The add-on this copy of OpenExtract carries, when it's newer than the one installed: Install
+     * again puts it in place (the older one stays, for anything still pointing at it).
+     */
+    update: { version: string } | null;
+    /** `outdated`: Claude has an older version than this app carries, so Install there updates it. */
+    claude: { connected: boolean; version: string | null; outdated: boolean } | null;
+    /** `current`: the entry runs the installed program (not an older one). */
+    chatgpt: { connected: boolean; current: boolean; settingsFile: string } | null;
+    /** The command to paste, once the add-on is installed. */
+    claudeCode: { command: string | null } | null;
+    /**
+     * macOS, and the open (or last opened) backup is in Finder's backup folder: Claude and ChatGPT
+     * need Full Disk Access to read it.
+     */
+    fullDiskAccess: boolean;
+    /** 'unrestricted' when this app carries the friends-and-family edition (no limit, no keys). */
+    edition: Edition;
+  };
+
+export type AskAiResult = { ok: true; message?: string } | { ok: false; error: string };
+
+/** Claude for Windows doesn't open .mcpb files (its package declares no file types), so the file is
+ * shown in its folder and the screen says where it goes in Claude. Checked on a real PC 2026-11-25. */
+export const WINDOWS_CLAUDE_STEPS = "In Claude, open Settings, then Extensions. Click Advanced settings, then "
+  + "Install Extension, and choose the file that's selected in the folder that just opened.";
+
+/** System Settings > Privacy & Security > Full Disk Access. The only address ask-ai:open-full-disk-access opens. */
+export const FULL_DISK_ACCESS_URL = 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles';
+
+/** What main.ts tells Ask AI about backups, for backups.json. Both do nothing when Ask AI is off. */
+export interface AskAiHooks {
+  /** A backup was opened (its folder, from open_backup). Writes backups.json if the add-on is installed. */
+  backupOpened(backupDir: unknown): void;
+  /** The engine listed backups (list_backups: Finder's folders, or a folder the person chose). */
+  backupsFound(backupDirs: unknown[]): void;
+}
+
+/** A path as the person would recognise it: ~/.codex/config.toml on a Mac. */
+function shown(file: string, homedir: string, platform: string): string {
+  if (platform === 'win32' || !file.startsWith(homedir + path.sep)) return file;
+  return `~${file.slice(homedir.length)}`;
+}
+
+export function registerAskAi(o: AskAiOptions): AskAiHooks {
+  const { ipcMain } = o;
+  const bundled = o.bundled ?? null;
+  const on = o.indexUrl !== null || bundled !== null;
+  const edition: Edition = bundled?.edition ?? null;
+  const off: AskAiResult = { ok: false, error: ASK_AI_OFF };
+  const look = o.look ?? realLook;
+  const place = { platform: o.platform, env: o.env, homedir: o.homedir };
+  const detect = () => detectAiApps({ ...place, look, systemApps: o.systemApps, macBinDirs: o.macBinDirs });
+
+  // ── backups.json ──
+  // The backup opened in this run, and the backups the engine listed in it. Earlier runs' backups
+  // come from the recent list (the store's sessions), which holds each one's folder.
+  let openedDir: string | null = null;
+  const found: string[] = [];
+  function recentDirs(): string[] {
+    const sessions = o.store.get('sessions', []);
+    if (!Array.isArray(sessions)) return [];
+    return sessions
+      .filter((s: any) => s && typeof s.backupDir === 'string')
+      .sort((a: any, b: any) => (Date.parse(b.lastOpened) || 0) - (Date.parse(a.lastOpened) || 0))
+      .map((s: any) => s.backupDir);
+  }
+  /** The backup open now, or else the last one opened (the newest in the recent list). */
+  function openOrLast(): string | null {
+    return openedDir ?? recentDirs()[0] ?? null;
+  }
+  function writeBackups(): void {
+    try {
+      writeBackupsFile(addonHome(place), backupsFile(openOrLast(), [...found, ...recentDirs()], o.platform));
+    } catch (err) {
+      // Opening a backup or installing never fails over it; the add-on still has the usual folders.
+      console.error('[ask-ai] backups.json not written:', err);
+    }
+  }
+
+  // One install at a time; a second click while one runs waits for the same one.
+  let installing: Promise<InstallResult> | null = null;
+  function install(sender: any): Promise<InstallResult> {
+    if (!installing) {
+      installing = installAddon({
+        ...place,
+        indexUrl: o.indexUrl,
+        bundled,
+        arch: o.arch,
+        translated: o.translated,
+        fetch: o.fetch,
+        run: o.run,
+        stallMs: o.stallMs,
+        onProgress: progress => {
+          try {
+            sender?.send('ask-ai:progress', progress);
+          } catch {
+            // The window was closed; the install goes on.
+          }
+        },
+      }).then(result => {
+        if (result.ok) writeBackups();
+        return result;
+      }).finally(() => {
+        installing = null;
+      });
+    }
+    return installing;
+  }
+
+  function claudeState() {
+    const connected = claudeHasAddon(place, look, edition);
+    const version = connected ? claudeAddonVersion(place, look, edition) : null;
+    return { connected, version, outdated: !!bundled && version !== null && newerVersion(bundled.version, version) };
+  }
+
+  function state(): AskAiState {
+    const apps = detect();
+    const installed = readCurrent(addonHome(place), look);
+    let chatgpt: Extract<AskAiState, { enabled: true }>['chatgpt'] = null;
+    if (apps.includes('chatgpt')) {
+      const file = codexConfigPath(place);
+      let entry: ReturnType<typeof codexEntry> = { state: 'absent' };
+      try {
+        entry = codexEntry(fs.readFileSync(file, 'utf-8'));
+      } catch {
+        // No settings file yet: not connected.
+      }
+      chatgpt = {
+        connected: entry.state === 'block',
+        current: entry.state === 'block' && !!installed && entry.command === installed.command,
+        settingsFile: shown(file, o.homedir, o.platform),
+      };
+    }
+    return {
+      enabled: true,
+      apps,
+      available: bundled ? platformKey(o.platform, o.arch, o.translated) === bundled.platform
+        : platformKey(o.platform, o.arch, o.translated) !== null,
+      hidden: o.store.get('askAiHidden', false) === true,
+      noteSeen: o.store.get('askAiNoteSeen', false) === true,
+      installed: installed ? { version: installed.version } : null,
+      update: bundled && installed && newerVersion(bundled.version, installed.version) ? { version: bundled.version } : null,
+      claude: apps.includes('claude') ? claudeState() : null,
+      chatgpt,
+      claudeCode: apps.includes('claude-code')
+        ? { command: installed ? claudeCodeCommand(installed.command, o.platform) : null }
+        : null,
+      fullDiskAccess: o.platform === 'darwin' && inMobileSync(openOrLast(), o.homedir),
+      edition,
+    };
+  }
+
+  ipcMain.handle('ask-ai:state', (): AskAiState => (on ? state() : { enabled: false }));
+
+  // The add-on's own count: free questions left, or whose key it has. Run with a time limit.
+  ipcMain.handle('ask-ai:status', async () => {
+    if (!on) return off;
+    const installed = readCurrent(addonHome(place), look);
+    if (!installed) return { ok: false, error: "OpenExtract AI isn't installed yet." };
+    return addonStatus(installed.command, { runner: o.statusRunner });
+  });
+
+  ipcMain.handle('ask-ai:install', async (event: any): Promise<AskAiResult> => {
+    if (!on) return off;
+    const result = await install(event?.sender);
+    return result.ok ? { ok: true } : result;
+  });
+
+  // Claude (desktop): open the .mcpb, which shows Claude's own Install dialog.
+  ipcMain.handle('ask-ai:connect-claude', async (event: any): Promise<AskAiResult> => {
+    if (!on) return off;
+    if (!detect().includes('claude')) return { ok: false, error: "Claude isn't on this computer." };
+    const result = await install(event?.sender);
+    if (!result.ok) return result;
+    if (o.platform === 'win32') {
+      o.shell.showItemInFolder?.(result.mcpb);
+      return { ok: true, message: WINDOWS_CLAUDE_STEPS };
+    }
+    const failed = await o.shell.openPath(result.mcpb);
+    if (failed) {
+      return { ok: false, error: `Claude didn't open OpenExtract AI. In Claude, open Settings, then Extensions, and install this file: ${result.mcpb}` };
+    }
+    return { ok: true };
+  });
+
+  // ChatGPT (desktop): only with the person's OK, given on the screen.
+  ipcMain.handle('ask-ai:connect-chatgpt', async (event: any, consent: unknown): Promise<AskAiResult> => {
+    if (!on) return off;
+    if (consent !== true) return { ok: false, error: 'Nothing was changed.' };
+    if (!detect().includes('chatgpt')) return { ok: false, error: "ChatGPT isn't on this computer." };
+    const result = await install(event?.sender);
+    if (!result.ok) return result;
+    const connected = connectCodex(codexConfigPath(place), result.installed.command);
+    return connected.ok ? { ok: true } : connected;
+  });
+
+  ipcMain.handle('ask-ai:set-hidden', (_event: any, hidden: unknown) => {
+    if (on && typeof hidden === 'boolean') o.store.set('askAiHidden', hidden);
+  });
+
+  ipcMain.handle('ask-ai:note-seen', () => {
+    if (on) o.store.set('askAiNoteSeen', true);
+  });
+
+  // "Open Settings" on the Full Disk Access step: this one fixed address, on a Mac, never one from the window.
+  ipcMain.handle('ask-ai:open-full-disk-access', async (): Promise<AskAiResult> => {
+    if (!on) return off;
+    if (o.platform !== 'darwin') return { ok: false, error: 'Full Disk Access is a Mac setting.' };
+    await o.shell.openExternal(FULL_DISK_ACCESS_URL);
+    return { ok: true };
+  });
+
+  return {
+    backupOpened(backupDir) {
+      if (!on || typeof backupDir !== 'string' || !path.isAbsolute(backupDir)) return;
+      openedDir = backupDir;
+      if (addonInstalled(addonHome(place))) writeBackups();
+    },
+    backupsFound(backupDirs) {
+      if (!on || !Array.isArray(backupDirs)) return;
+      for (const dir of backupDirs) {
+        if (typeof dir === 'string' && path.isAbsolute(dir) && !found.includes(dir)) found.push(dir);
+      }
+    },
+  };
+}

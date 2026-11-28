@@ -37,10 +37,16 @@ const EXPECTED_CHANNELS = [
   'backup:trashOlder', 'backup:trash',
   // Whether a chosen backup folder is in OneDrive or the like (electron/syncedFolder.ts)
   'folder:syncedService',
+  // Ask AI (electron/askAi.ts): registered in every build, answering "off" in most
+  'ask-ai:state', 'ask-ai:status', 'ask-ai:install', 'ask-ai:connect-claude', 'ask-ai:connect-chatgpt',
+  'ask-ai:set-hidden', 'ask-ai:note-seen', 'ask-ai:open-full-disk-access',
 ];
 
 // Development-only switches in main.ts that a developer's shell might have set.
-for (const name of ['OPENEXTRACT_E2E', 'OPENEXTRACT_PYTHON', 'OPENEXTRACT_FEEDBACK_SITE']) delete process.env[name];
+// So are Ask AI's switch and the folders it uses.
+for (const name of ['OPENEXTRACT_E2E', 'OPENEXTRACT_PYTHON', 'OPENEXTRACT_FEEDBACK_SITE', 'OPENEXTRACT_AI_INDEX_URL', 'OPENEXTRACT_AI_BUNDLED_MCPB', 'OPENEXTRACT_AI_HOME', 'CODEX_HOME']) {
+  delete process.env[name];
+}
 
 const quiet = quietConsole([
   'Python sidecar started', 'Failed to start Python sidecar', '[shell:openExternal]', 'Sidecar call failed',
@@ -148,9 +154,9 @@ function fakeAutoUpdater() {
  * Load a fresh main.ts and wait for app.whenReady's handler to finish. `state` is
  * written to the state file first (an object as JSON, a string as is). With
  * `real`, the real updater, pdfExport and feedback modules are used (only the
- * engine is faked).
+ * engine is faked). `files` are written beside main.js, as a build writes build-info.json.
  */
-async function loadMain({ userData = freshDir('main-userdata'), state, isPackaged = true, real = false, paths = {}, nativeImage } = {}) {
+async function loadMain({ userData = freshDir('main-userdata'), state, isPackaged = true, real = false, paths = {}, nativeImage, files = {} } = {}) {
   const stateFile = path.join(userData, 'openextract-state.json');
   if (state !== undefined) fs.writeFileSync(stateFile, typeof state === 'string' ? state : JSON.stringify(state));
   const env = createElectron({ paths: { userData, temp: freshDir('main-temp'), ...paths }, isPackaged });
@@ -161,7 +167,7 @@ async function loadMain({ userData = freshDir('main-userdata'), state, isPackage
   Object.assign(stubs, real ? { './sidecar': fakes.stubs['./sidecar'] } : fakes.stubs);
 
   const { timers } = await captureLongTimers(async () => {
-    loadElectronModule('main', stubs);
+    loadElectronModule('main', stubs, files);
     // clipboard:writeText is the last handler main.ts registers.
     await waitFor(() => env.handlers.has('clipboard:writeText'), { what: 'main.ts to finish starting' });
   });
@@ -1098,6 +1104,128 @@ describe('"Using it for paid work?" after saves from many iPhones', () => {
     assert.equal(m.readState().businessUse, null);
     await m.invoke('support:business-answer', 'work');
     assert.equal(m.readState().businessUse, 'work');
+  });
+});
+
+// ── Ask AI: off unless the build switched it on ──────────────────────────────
+// Only a build made with OPENEXTRACT_AI_INDEX_URL has Ask AI (scripts/write-build-info.mjs
+// bakes it into build-info.json). The handlers themselves are tested in
+// scripts/ask-ai-ipc.test.mjs; this checks main.ts reads the switch the right way. ask-ai:state
+// isn't called while it's on: it would look for AI apps in this computer's real folders.
+
+describe('Ask AI is off unless the build switched it on', () => {
+  const OFF = { ok: false, error: "Ask AI isn't part of this copy of OpenExtract." };
+  const NOT_INSTALLED = { ok: false, error: "OpenExtract AI isn't installed yet." };
+  const buildInfo = url => ({ 'build-info.json': `${JSON.stringify({ aiIndexUrl: url })}\n` });
+
+  async function withEnv(vars, fn) {
+    const saved = Object.fromEntries(Object.keys(vars).map(k => [k, process.env[k]]));
+    Object.assign(process.env, vars);
+    try {
+      return await fn();
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  }
+
+  async function everyChannelOff(m) {
+    assert.deepEqual(await m.invoke('ask-ai:state'), { enabled: false });
+    for (const channel of ['ask-ai:status', 'ask-ai:install', 'ask-ai:connect-claude', 'ask-ai:open-full-disk-access']) {
+      assert.deepEqual(await m.invoke(channel), OFF, channel);
+    }
+    assert.deepEqual(await m.invoke('ask-ai:connect-chatgpt', true), OFF);
+    await m.invoke('ask-ai:set-hidden', true);
+    await m.invoke('ask-ai:note-seen');
+    assert.deepEqual(m.env.callsTo('net.fetch'), [], 'nothing fetched');
+    assert.deepEqual(m.env.callsTo('shell.openPath'), [], 'nothing opened');
+    assert.deepEqual(m.env.callsTo('shell.openExternal'), [], 'no settings opened');
+    const saved = fs.existsSync(m.stateFile) ? m.readState() : {};
+    assert.ok(!('askAiHidden' in saved) && !('askAiNoteSeen' in saved), 'nothing saved');
+  }
+
+  test('a packaged build without build-info.json, or one saying null, is off', async () => {
+    await withEnv({ OPENEXTRACT_AI_HOME: freshDir('ai-home') }, async () => {
+      await everyChannelOff(await loadMain({ real: true }));
+      await everyChannelOff(await loadMain({ real: true, files: buildInfo(null) }));
+    });
+  });
+
+  test('a packaged build ignores OPENEXTRACT_AI_INDEX_URL in its environment', async () => {
+    await withEnv({ OPENEXTRACT_AI_INDEX_URL: 'https://dl.test/index.json', OPENEXTRACT_AI_HOME: freshDir('ai-home') }, async () => {
+      await everyChannelOff(await loadMain({ real: true }));
+    });
+  });
+
+  test('a packaged build made with the URL is on', async () => {
+    await withEnv({ OPENEXTRACT_AI_HOME: freshDir('ai-home') }, async () => {
+      const m = await loadMain({ real: true, files: buildInfo('https://dl.test/index.json') });
+      assert.deepEqual(await m.invoke('ask-ai:status'), NOT_INSTALLED);
+      await m.invoke('ask-ai:set-hidden', true);
+      assert.equal(m.readState().askAiHidden, true);
+    });
+  });
+
+  // backups.json: what the engine lists and opens, while the add-on is installed (program/current.json).
+  function engineWithBackups(m, base) {
+    m.sidecar.answer = async (method, params) => {
+      if (method === 'list_backups') {
+        return { backups: [{ udid: 'F1', backup_dir: path.join(base, 'finder', 'F1') }, { udid: 'C1', backup_dir: path.join(base, 'chosen', 'C1') }] };
+      }
+      if (method === 'open_backup') {
+        return params.password === undefined && params.udid === 'LOCKED'
+          ? { status: 'password_required' }
+          : { status: 'open', info: { udid: params.udid, backup_dir: path.join(base, 'chosen', params.udid) } };
+      }
+      return { answered: method };
+    };
+  }
+  function installedAddon() {
+    const home = freshDir('ai-home');
+    fs.mkdirSync(path.join(home, 'program'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'program', 'current.json'), '{"version": "0.2.0", "command": "/nowhere"}');
+    return home;
+  }
+
+  test('on, with the add-on installed: opening a backup writes backups.json from what the engine listed and opened', async () => {
+    const home = installedAddon();
+    const base = freshDir('backups');
+    await withEnv({ OPENEXTRACT_AI_HOME: home }, async () => {
+      const m = await loadMain({ real: true, files: buildInfo('https://dl.test/index.json') });
+      engineWithBackups(m, base);
+      await m.invoke('sidecar:call', 'list_backups', {});
+      assert.equal(fs.existsSync(path.join(home, 'backups.json')), false, 'listing alone writes nothing');
+      await m.invoke('sidecar:call', 'open_backup', { udid: 'LOCKED' });
+      assert.equal(fs.existsSync(path.join(home, 'backups.json')), false, 'a backup waiting for its password isn\'t open');
+      await m.invoke('sidecar:call', 'open_backup', { udid: 'C1', backup_dir: path.join(base, 'chosen', 'C1') });
+      assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home, 'backups.json'), 'utf-8')), {
+        version: 1, open: path.join(base, 'chosen', 'C1'), folders: [path.join(base, 'chosen'), path.join(base, 'finder')],
+      });
+    });
+  });
+
+  test('off, even with the add-on installed: opening backups writes nothing there', async () => {
+    const home = installedAddon();
+    const base = freshDir('backups');
+    await withEnv({ OPENEXTRACT_AI_HOME: home }, async () => {
+      const m = await loadMain({ real: true });
+      engineWithBackups(m, base);
+      await m.invoke('sidecar:call', 'list_backups', {});
+      await m.invoke('sidecar:call', 'open_backup', { udid: 'C1', backup_dir: path.join(base, 'chosen', 'C1') });
+      assert.deepEqual(fs.readdirSync(home), ['program']);
+    });
+  });
+
+  test('a development build follows OPENEXTRACT_AI_INDEX_URL, never a leftover build-info.json', async () => {
+    await withEnv({ OPENEXTRACT_AI_HOME: freshDir('ai-home') }, async () => {
+      await everyChannelOff(await loadMain({ real: true, isPackaged: false, files: buildInfo('https://dl.test/index.json') }));
+      await withEnv({ OPENEXTRACT_AI_INDEX_URL: 'http://127.0.0.1:9/index.json' }, async () => {
+        const m = await loadMain({ real: true, isPackaged: false });
+        assert.deepEqual(await m.invoke('ask-ai:status'), NOT_INSTALLED);
+      });
+    });
   });
 });
 

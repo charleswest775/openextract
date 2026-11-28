@@ -43,6 +43,9 @@ on:
       - 'python/requirements.txt'
       # Moving the pin changes the engine that gets bundled, like a dependency bump.
       - 'ios-backup-core.ref'
+      # Moving the OpenExtract AI pin changes the add-on the Mac and Windows apps carry.
+      - 'ai-addon.json'
+      - 'scripts/ai-addon-pin.mjs'
       - 'scripts/bundle-engine.mjs'
       - 'scripts/installers/**'
       - 'scripts/update-feed.mjs'
@@ -139,6 +142,14 @@ jobs:
 
       - name: Build Python sidecar
         run: npm run python:bundle
+
+      # As release.yml does: the Mac and Windows apps carry the pinned OpenExtract AI add-on.
+      - name: Fetch the OpenExtract AI add-on
+        if: runner.os != 'Linux'
+        run: |
+          set -euo pipefail
+          MCPB="$(node scripts/ai-addon-pin.mjs fetch)"
+          echo "OPENEXTRACT_AI_BUNDLED_MCPB=$MCPB" >> "$GITHUB_ENV"
 
       - name: Build Electron app
         run: npm run build
