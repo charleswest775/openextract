@@ -720,7 +720,7 @@ function TimelineEntryCard({ entry, udid, onOpenWhatsApp, onOpenMessage }: Props
       </>
     );
   } else if (entry.type === 'voicemail' && entry.voicemail) {
-    // The engine's own id, never read as a number: a per-line store's is "A-<UUID>.27"
+    // The engine's own id, never read as a number: a per-line store's is "A-<UUID>.418"
     const { voicemailId: vmId, duration, transcript, phoneNumber } = entry.voicemail;
 
     body = (

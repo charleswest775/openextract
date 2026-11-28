@@ -214,8 +214,8 @@ test('normalizeVoicemail: the number stands in for a missing name', () => {
   assert.deepEqual(e.voicemail, { voicemailId: 5, duration: 45, transcript: '', phoneNumber: '+14065550109' });
   assert.equal(normalizeVoicemail({ ...vm, contact_name: 'Dr. Alvarez', transcript: 'Your appointment…' }).contactName, 'Dr. Alvarez');
   // A per-line store's copy keeps its id as the engine gave it, to play it by
-  assert.equal(normalizeVoicemail({ ...vm, id: 'A-0B1C2D3E-4F50-4A6B-8C7D-9E0F1A2B3C4D.27' }).voicemail.voicemailId,
-    'A-0B1C2D3E-4F50-4A6B-8C7D-9E0F1A2B3C4D.27');
+  assert.equal(normalizeVoicemail({ ...vm, id: 'A-0B1C2D3E-4F50-4A6B-8C7D-9E0F1A2B3C4D.418' }).voicemail.voicemailId,
+    'A-0B1C2D3E-4F50-4A6B-8C7D-9E0F1A2B3C4D.418');
 });
 
 test('normalizePhoto: photos without a date are left off the Timeline', () => {
@@ -447,7 +447,7 @@ const callFrom = (id, date, address, contactName, app = '') => normalizeCall({
   call_id: id, address, contact_name: contactName, date: engine(date), duration: 60, direction: 'incoming', status: 'answered', app,
 });
 const voicemailFrom = (id, date, phoneNumber, contactName) => normalizeVoicemail({
-  id, phone_number: phoneNumber, contact_name: contactName, date_received: engine(date), duration: 20, is_read: true,
+  id, phone_number: phoneNumber, contact_name: contactName, date_received: engine(date), duration: 92, is_read: true,
 });
 
 test('a call or voicemail with no number is in no one\'s stream, even someone the address book calls "Unknown"', () => {
@@ -539,7 +539,7 @@ test('a record named only by its number counts for whoever has the number, read 
   // The engine names a record by its number when it has no name for it
   const entries = [
     callFrom(1, local(2024, 3, 12, 9), '5035550301', '5035550301'),
-    voicemailFrom(2, local(2024, 3, 11, 9), '+1 (503) 555-0301', ''),
+    voicemailFrom(2, local(2024, 3, 7, 9), '+1 (503) 555-0301', ''),
     dianeMsg(3, local(2024, 3, 1, 9)),
     // Her email, hers by name only
     dianeMsg(4, local(2024, 3, 2, 9), { ...DIANE_CHAT, chat_id: 42, chat_identifier: 'diane@icloud.com' }),
@@ -593,12 +593,12 @@ test("picking a phone number never brings in a WhatsApp group whose address ends
 
 test("each kind's count is what ticking it would show: the person, dates and search apply, the kinds ticked don't", () => {
   const DAD_CHAT = { ...MOM_CHAT, chat_id: 13, chat_identifier: '+15035550188', display_name: 'Dad' };
-  const vm = (id, number, date, transcript = '') => normalizeVoicemail({ id, phone_number: number, contact_name: '', date_received: engine(date), duration: 20, is_read: true, transcript });
+  const vm = (id, number, date, transcript = '') => normalizeVoicemail({ id, phone_number: number, contact_name: '', date_received: engine(date), duration: 53, is_read: true, transcript });
   const entries = [
     normalizeMessage(msg(1, local(2024, 3, 1, 9), 'first'), MOM_CHAT),
     normalizeMessage(msg(2, local(2024, 4, 1, 9), 'tent?'), MOM_CHAT),
     normalizeCall({ call_id: 3, address: '+15035550123', contact_name: 'Mom', date: engine(local(2024, 3, 5, 9)), duration: 60, direction: 'incoming', status: 'answered', app: '' }),
-    vm(4, '+15035550123', local(2024, 3, 9, 9), 'call me back'),
+    vm(4, '+15035550123', local(2024, 3, 20, 9), 'call me back'),
     normalizeMessage(msg(5, local(2024, 3, 2, 9), 'from Dad'), DAD_CHAT),
     vm(6, '+15035550188', local(2024, 3, 3, 9)),
     vm(7, '+15035550188', local(2024, 3, 4, 9)),
@@ -686,7 +686,7 @@ test("someone's stream is only what passed between you: chat photos yes, camera 
     normalizeMessage(msg(2, local(2024, 3, 2, 9), null, { message_type: 'attachment', attachments: [smsPhoto(20), smsPhoto(21)] }), MOM_CHAT),
     normalizeMessage(msg(3, local(2024, 3, 3, 9), 'the plan', { attachments: [smsFile(22)] }), MOM_CHAT),
     normalizeMessage(msg(4, local(2024, 3, 4, 9), 'for Riley', { attachments: [smsPhoto(23)] }), RILEY_SMS),
-    normalizeVoicemail({ id: 5, phone_number: '+15035550123', contact_name: '', date_received: engine(local(2024, 3, 5, 9)), duration: 20, is_read: true }),
+    normalizeVoicemail({ id: 5, phone_number: '+15035550123', contact_name: '', date_received: engine(local(2024, 3, 5, 9)), duration: 53, is_read: true }),
     // Between her first and last text, but not hers
     photoAsset('camera', local(2024, 3, 3, 12)),
     note('mine', local(2024, 3, 3, 12), []),

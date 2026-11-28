@@ -51,10 +51,10 @@ def out(tmp_path):
     return tmp_path / "Backups"
 
 
-# ── How a real iPhone writes its Status.plist ────────────────────────────────
+# ── How the iPhone writes its Status.plist ───────────────────────────────────
 
 def _status(state, progress):
-    """The iPhone writing <udid>/Status.plist in place, as a real one does four times."""
+    """The iPhone writing <udid>/Status.plist in place, as it does four times in a backup."""
     return {"op": "UploadFiles", "progress": progress, "files": [
         {"path": "{udid}/Status.plist", "device_name": "Status.plist", "size": 0,
          "generate": "status_plist", "state": state}]}
@@ -64,20 +64,20 @@ def _first(ops, name):
     return next(i for i, op in enumerate(ops) if op["op"] == name)
 
 
-def _like_a_real_iphone(ops=None):
+def _with_status_states(ops=None):
     """
-    A backup plan whose Status.plist says what the iPhone is doing. A real iPhone writes it in
+    A backup plan whose Status.plist says what the iPhone is doing. The iPhone writes it in
     place four times: before the first file, before the first move, before Snapshot is removed,
-    and after. synthetic_backup() does too, but every one says "finished", because the trace
-    keeps names and sizes, never contents. libimobiledevice counts a backup as good only when
-    the last one says "finished", so the earlier ones are modelled as the steps they come before.
+    and after. synthetic_backup() does too, but every one says "finished" (a step's "state"
+    defaults to it). libimobiledevice counts a backup as good only when the last one says
+    "finished", so the earlier ones are modelled as the steps they come before.
     """
     ops = [op for op in (ops or plans.synthetic_backup())
            if not (op["op"] == "UploadFiles" and [f["path"] for f in op["files"]] == ["{udid}/Status.plist"])]
     first_file = _first(ops, "UploadFiles")
     ops.insert(first_file, _status("uploading", ops[first_file].get("progress", 0)))
-    ops.insert(_first(ops, "MoveItems"), _status("moving", 98.9))
-    ops.insert(_first(ops, "RemoveItems"), _status("removing", 99.99))
+    ops.insert(_first(ops, "MoveItems"), _status("moving", 88.25))
+    ops.insert(_first(ops, "RemoveItems"), _status("removing", 95.5))
     last_remove = max(i for i, op in enumerate(ops) if op["op"] == "RemoveItems")
     ops.insert(last_remove + 1, _status("finished", 100))
     return ops
@@ -133,7 +133,7 @@ def _a_week_later(run):
 # ── A backup that finishes ───────────────────────────────────────────────────
 
 def test_a_finished_backup_is_marked_finished(out):
-    run = run_backup(FakeIPhone(_like_a_real_iphone()), out)
+    run = run_backup(FakeIPhone(_with_status_states()), out)
     assert run.error is None, run.error
 
     marker = _marker(run)
@@ -149,7 +149,7 @@ def test_a_finished_backup_is_marked_finished(out):
 def test_iphone_hangs_up_instead_of_answering_after_the_last_step(out):
     # Everything is in place and Snapshot is gone; the iPhone closes the connection instead of
     # sending its final answer. That's a finished backup, and it's marked as one.
-    ops = _like_a_real_iphone()
+    ops = _with_status_states()
     run = run_backup(FakeIPhone(ops[:-1] + [{"op": "Drop"}]), out)
 
     assert run.error is None, run.error
@@ -162,7 +162,7 @@ def test_iphone_hangs_up_instead_of_answering_after_the_last_step(out):
 def test_cut_off_partway_into_an_empty_folder(out):
     # The first backup of this iPhone stops partway: the iPhone hasn't sent its Manifest.db yet,
     # so there's nothing to open, and the app says so instead of "No iPhone backups found".
-    run = run_backup(FakeIPhone(_like_a_real_iphone(), drop_after_bytes=12 * MiB), out)
+    run = run_backup(FakeIPhone(_with_status_states(), drop_after_bytes=12 * MiB), out)
     assert run.error.startswith(DROPPED)
 
     info = _the_one_listed(out)
@@ -182,7 +182,7 @@ def test_cut_off_partway_over_an_older_backup(out, writes_in_place):
     first = run_backup(FakeIPhone(), out)
     assert first.error is None
     _a_week_later(first)
-    run = run_backup(FakeIPhone(_like_a_real_iphone(), drop_after_bytes=6 * MiB), out)
+    run = run_backup(FakeIPhone(_with_status_states(), drop_after_bytes=6 * MiB), out)
     assert run.error.startswith(DROPPED)
 
     info = _the_one_listed(out)
@@ -197,7 +197,7 @@ def test_cut_off_with_every_file_sent_but_none_moved(out, writes_in_place):
     first = run_backup(FakeIPhone(), out)
     assert first.error is None
     _a_week_later(first)
-    run = run_backup(FakeIPhone(_hang_up_before(_like_a_real_iphone(), "MoveItems")), out)
+    run = run_backup(FakeIPhone(_hang_up_before(_with_status_states(), "MoveItems")), out)
     assert run.error.startswith(DROPPED)
 
     info = _the_one_listed(out)
@@ -206,13 +206,13 @@ def test_cut_off_with_every_file_sent_but_none_moved(out, writes_in_place):
 
 
 def test_cut_off_partway_through_the_moves(out, writes_in_place):
-    # A real iPhone moves files out of Snapshot one at a time, 128 to a message, then
+    # The iPhone moves files out of Snapshot one at a time, 128 to a message, then
     # Manifest.plist and Manifest.db. This one stops after the first message: some new files are
     # in place, the rest are still in Snapshot, and the folder's Manifest.db is the older one.
     first = run_backup(FakeIPhone(), out)
     assert first.error is None
     _a_week_later(first)
-    ops = _like_a_real_iphone(plans.synthetic_backup(file_count=300, large_files=()))
+    ops = _with_status_states(plans.synthetic_backup(file_count=300, large_files=()))
     moves = [i for i, op in enumerate(ops) if op["op"] == "MoveItems"]
     assert len(moves) >= 3
     ops.insert(moves[1], {"op": "Drop"})
@@ -233,7 +233,7 @@ def test_iphone_hangs_up_before_removing_snapshot(out):
     # Every file and the new Manifest.db are in place, but the iPhone never finished: it would
     # have removed Snapshot (now 256 empty folders) and written its last Status.plist next.
     # Not a success.
-    run = run_backup(FakeIPhone(_hang_up_before(_like_a_real_iphone(), "RemoveItems")), out)
+    run = run_backup(FakeIPhone(_hang_up_before(_with_status_states(), "RemoveItems")), out)
     assert run.error.startswith(DROPPED), run.error
 
     info = _the_one_listed(out)
@@ -243,15 +243,15 @@ def test_iphone_hangs_up_before_removing_snapshot(out):
 
 
 def test_unplugged_partway(out):
-    run = run_backup(FakeIPhone(_like_a_real_iphone(), drop_after_bytes=6 * MiB, unplug_on_drop=True), out)
+    run = run_backup(FakeIPhone(_with_status_states(), drop_after_bytes=6 * MiB, unplug_on_drop=True), out)
     assert run.error.startswith("DEVICE_DISCONNECTED:")
     assert _the_one_listed(out)["unfinished"] is True
 
 
 def test_a_new_backup_after_one_that_stopped_is_finished(out):
-    first = run_backup(FakeIPhone(_like_a_real_iphone(), drop_after_bytes=6 * MiB), out)
+    first = run_backup(FakeIPhone(_with_status_states(), drop_after_bytes=6 * MiB), out)
     assert first.error is not None
-    run = run_backup(FakeIPhone(_like_a_real_iphone()), out)
+    run = run_backup(FakeIPhone(_with_status_states()), out)
     assert run.error is None, run.error
 
     info = _the_one_listed(out)

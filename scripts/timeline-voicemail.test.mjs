@@ -1,6 +1,6 @@
 // Tests for a voicemail on the Timeline (src/components/timeline/TimelineEntryCard.tsx, with
 // normalizeVoicemail in src/hooks/useTimeline.ts): opening its card plays it whatever its id,
-// a ROWID in the main voicemail store (12) or a copy in a per-line store ("A-<UUID>.27", the
+// a ROWID in the main voicemail store (12) or a copy in a per-line store ("A-<UUID>.418", the
 // engine's id when only that store has the voicemail or its audio), and a caller with no
 // number is named as the engine names them. The card runs in a small stand-in for React's
 // hooks (as in voice-memos-screen.test.mjs). Data is fictional.
@@ -76,7 +76,7 @@ function card(t, raw) {
     call: async (method, params) => {
       if (method !== 'get_voicemail_audio') throw new Error(`unexpected ${method}`);
       // The engine finds audio by the id list_voicemails gave, as a number or as text
-      const known = [12, '12', `${LINE}.27`];
+      const known = [12, '12', `${LINE}.418`];
       return known.includes(params.voicemail_id)
         ? { success: true, data: { data: Buffer.from('#!AMR\n').toString('base64'), mime_type: 'audio/amr', voicemail_id: params.voicemail_id } }
         : { success: true, data: { error: "This voicemail's audio isn't in the backup." } };
@@ -91,7 +91,7 @@ function card(t, raw) {
   const Card = loadTs('src/components/timeline/TimelineEntryCard.tsx', { stubs }).default;
   const entry = normalizeVoicemail({
     phone_number: '+447700900005', contact_name: 'Casey Placeholder', date_received: '2025-05-02T10:10:40+00:00',
-    duration: 19, is_read: true, transcript: 'Hi Sam, Casey here.', ...raw,
+    duration: 63, is_read: true, transcript: 'Hi Sam, Casey here.', ...raw,
   });
   const probe = mount(Card, { entry, udid: 'u1' });
   return { bridge, probe, mount };
@@ -120,8 +120,8 @@ test('a voicemail in the main store plays by its ROWID', async t => {
 
 test('a voicemail whose audio is in a per-line store plays by its "A-<UUID>.<ROWID>" id', async t => {
   // Before: the card read the id as a number (parseInt), which made NaN of it, and the player said "Audio not available"
-  const { asked, audio, html } = await play(card(t, { id: `${LINE}.27` }));
-  assert.deepEqual(asked, [`${LINE}.27`]);
+  const { asked, audio, html } = await play(card(t, { id: `${LINE}.418` }));
+  assert.deepEqual(asked, [`${LINE}.418`]);
   assert.equal(audio.length, 1, html);
   assert.doesNotMatch(html, /not available|Failed/);
 });
@@ -129,7 +129,7 @@ test('a voicemail whose audio is in a per-line store plays by its "A-<UUID>.<ROW
 test('a caller with no number reads "Unknown", not blank', t => {
   // As the engine names them now, and as an older engine left them (no name at all)
   for (const contact_name of ['Unknown', '']) {
-    const { probe } = card(t, { id: 6, phone_number: '', contact_name, transcript: '' });
+    const { probe } = card(t, { id: 563, phone_number: '', contact_name, transcript: '' });
     assert.match(text(probe.out), /\bUnknown\b/, JSON.stringify(contact_name));
   }
 });

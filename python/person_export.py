@@ -163,7 +163,7 @@ def _keep_ids(values) -> Optional[set]:
 
 
 def _str_ids(values) -> set:
-    """Ids compared as text: list_calls gives 12 for a call, "ft_3" or "vm_9" for the others."""
+    """Ids compared as text: list_calls gives 12 for a call, "ft_3" or "vm_74" for the others."""
     return {str(v) for v in values or [] if v is not None and not isinstance(v, bool)}
 
 
@@ -292,7 +292,7 @@ def _safe_part(text, limit: int = 60) -> str:
 
 
 def _safe_id(value) -> str:
-    """An id for a file name: "7", or an account store's "A-0B1C…-4D.7" as "A-0B1C…-4D_7"."""
+    """An id for a file name: "52", or an account store's "A-0B1C…-4D.38" as "A-0B1C…-4D_38"."""
     return re.sub(r"[^A-Za-z0-9_-]", "_", str(value))[:64] or "x"
 
 
@@ -583,7 +583,7 @@ class PersonExporter:
 
         ``chat_ids``: sms.db chat ROWIDs; ``whatsapp_chat_ids``: ChatStorage
         chat ids (never mixed: they overlap). Both are whole chats.
-        ``call_ids``: as list_calls gives them (12, "ft_3", "vm_9").
+        ``call_ids``: as list_calls gives them (12, "ft_3", "vm_74").
         ``voicemail_ids``: as list_voicemails gives them. ``note_ids``: shared
         notes, as list_notes gives them. ``message_ids`` (sms.db ROWIDs) and
         ``whatsapp_message_ids`` (ChatStorage primary keys): when given, only

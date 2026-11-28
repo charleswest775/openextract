@@ -191,7 +191,7 @@ function normalizePhoto(photo: PhotoAsset): TimelineEntry | null {
 }
 
 export interface RawVoicemail {
-  /** A ROWID in the main voicemail store, or "<account folder>.<ROWID>" ("A-<UUID>.27") for a per-line store's copy. */
+  /** A ROWID in the main voicemail store, or "<account folder>.<ROWID>" ("A-<UUID>.418") for a per-line store's copy. */
   id: number | string;
   phone_number: string;
   contact_name: string;

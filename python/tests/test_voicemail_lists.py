@@ -30,10 +30,10 @@ UDID = "00008030-0000000000000001"
 ACCOUNT = "A-0B1C2D3E-4F50-4A6B-8C7D-9E0F1A2B3C4D"
 AMR = b"#!AMR\n" + bytes(32)
 
-# Made-up flag words: the bits the reader knows (0x1 heard, 0x8 deleted, 0x80 spam, 0x2) and
-# one it gives no meaning to (0x40000), which it ignores.
-LIVE, SPAM, TRASHED, DELETED_LONG_AGO = 0x40003, 0x40082, 0x4000A, 0x4000B
-SPAM_THEN_DELETED = 0x4008A
+# Made-up flag words: the bits the reader knows (0x1 heard, 0x8 deleted, 0x80 spam) and
+# two it gives no meaning to (0x40000, 0x200000), which it ignores.
+LIVE, SPAM, TRASHED, DELETED_LONG_AGO = 0x240001, 0x240080, 0x240008, 0x240009
+SPAM_THEN_DELETED = 0x240088
 
 
 def _voicemail_db(rows) -> bytes:
@@ -59,7 +59,7 @@ def _voicemail_db(rows) -> bytes:
 def _make_backup(backup_dir: str, files: dict) -> None:
     os.makedirs(backup_dir)
     with open(os.path.join(backup_dir, "Info.plist"), "wb") as f:
-        plistlib.dump({"Unique Identifier": UDID, "Device Name": "Test iPhone", "Product Version": "26.1"}, f)
+        plistlib.dump({"Unique Identifier": UDID, "Device Name": "Test iPhone", "Product Version": "17.3"}, f)
     with open(os.path.join(backup_dir, "Manifest.plist"), "wb") as f:
         plistlib.dump({"IsEncrypted": False}, f)
     manifest = sqlite3.connect(os.path.join(backup_dir, "Manifest.db"))
@@ -81,17 +81,17 @@ class VoicemailListsTest(unittest.TestCase):
         backup_dir = os.path.join(self.tmp.name, UDID)
         _make_backup(backup_dir, {
             "Library/Voicemail/voicemail.db": _voicemail_db([
-                (1, 1_700_000_000, "+15550000001", 20, LIVE, 0),
-                (2, 1_710_000_000, "+15550000002", 30, SPAM, 0),
-                (3, 1_720_000_000, "+15550000003", 40, TRASHED, 1_720_000_100),
-                (4, 1_600_000_000, "+15550000004", 50, DELETED_LONG_AGO, 0),
-                (5, 1_725_000_000, "+15550000005", 12, SPAM_THEN_DELETED, 1_725_000_100),
+                (1, 1_700_000_000, "+15550000001", 78, LIVE, 0),
+                (2, 1_712_000_000, "+15550000002", 73, SPAM, 0),
+                (3, 1_720_000_000, "+15550000003", 67, TRASHED, 1_720_000_100),
+                (4, 1_600_000_000, "+15550000004", 65, DELETED_LONG_AGO, 0),
+                (5, 1_725_000_000, "+15550000005", 69, SPAM_THEN_DELETED, 1_725_000_100),
             ]),
             f"Library/Voicemail/{ACCOUNT}/voicemail.db": _voicemail_db([
-                (27, 1_730_000_000, "Mum: home?", 60, 0x3, 0),  # only in the account store
+                (418, 1_730_000_000, "Mum: home?", 60, 0x200001, 0),  # only in the account store
             ]),
             **{f"Library/Voicemail/{n}.amr": AMR for n in (1, 2, 3, 4, 5)},
-            f"Library/Voicemail/{ACCOUNT}/27.amr": AMR,
+            f"Library/Voicemail/{ACCOUNT}/418.amr": AMR,
         })
         # Through the app's own manager, which closes Manifest.db: Windows won't
         # delete the temp folder while it's open.
@@ -106,7 +106,7 @@ class VoicemailListsTest(unittest.TestCase):
             {k: stats[k] for k in ("total", "read", "unread", "spam", "deleted")},
             {"total": 3, "read": 2, "unread": 1, "spam": 1, "deleted": 3},
         )
-        self.assertEqual(stats["total_duration_seconds"], 20 + 30 + 60)
+        self.assertEqual(stats["total_duration_seconds"], 78 + 73 + 60)
 
     def test_save_all_writes_every_list(self):
         out = os.path.join(self.tmp.name, "out")
@@ -121,7 +121,7 @@ class VoicemailListsTest(unittest.TestCase):
         self.assertEqual(
             sorted((r[0], r[1]) for r in rows[1:]),
             sorted([("1", "Voicemail"), ("2", "Spam"), ("3", "Deleted"), ("4", "Deleted"), ("5", "Deleted"),
-                    (f"{ACCOUNT}.27", "Voicemail")]),
+                    (f"{ACCOUNT}.418", "Voicemail")]),
         )
         audio = sorted(os.path.relpath(os.path.join(d, f), out) for d, _, fs in os.walk(out) for f in fs if f.endswith(".amr"))
         self.assertEqual(len(audio), 6)
@@ -155,16 +155,16 @@ class VoicemailListsTest(unittest.TestCase):
         by_id = {r["ID"]: r for r in self._saved_list()}
         self.assertEqual({i: (r["List"], r["Spam"]) for i, r in by_id.items()}, {
             "1": ("Voicemail", "False"), "2": ("Spam", "True"), "3": ("Deleted", "False"),
-            "4": ("Deleted", "False"), "5": ("Deleted", "True"), f"{ACCOUNT}.27": ("Voicemail", "False"),
+            "4": ("Deleted", "False"), "5": ("Deleted", "True"), f"{ACCOUNT}.418": ("Voicemail", "False"),
         })
 
     def test_a_voicemail_only_in_the_account_store_plays(self):
-        result = VoicemailExtractor().get_audio(self.backup, f"{ACCOUNT}.27")
+        result = VoicemailExtractor().get_audio(self.backup, f"{ACCOUNT}.418")
         self.assertNotIn("error", result)
-        self.assertEqual(result["voicemail_id"], f"{ACCOUNT}.27")
+        self.assertEqual(result["voicemail_id"], f"{ACCOUNT}.418")
 
     def test_audio_that_isnt_there_says_so(self):
-        result = VoicemailExtractor().get_audio(self.backup, 1940)
+        result = VoicemailExtractor().get_audio(self.backup, 6271)
         self.assertIn("isn't in the backup", result["error"])
 
 
@@ -185,8 +185,8 @@ class VoicemailLocalTimeTest(unittest.TestCase):
         backup_dir = os.path.join(self.tmp.name, UDID)
         _make_backup(backup_dir, {
             "Library/Voicemail/voicemail.db": _voicemail_db([
-                (1, EVENING, "+15550000001", 20, LIVE, 0),
-                (2, 1_720_195_809, "+15550000002", 30, LIVE, 0),  # Jul 5 9:10:09 AM in California
+                (1, EVENING, "+15550000001", 89, LIVE, 0),
+                (2, 1_720_195_809, "+15550000002", 70, LIVE, 0),  # Jul 5 9:10:09 AM in California
             ]),
             "Library/Voicemail/1.amr": AMR,
             "Library/Voicemail/2.amr": AMR,

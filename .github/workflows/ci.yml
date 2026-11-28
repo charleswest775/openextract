@@ -264,7 +264,7 @@ jobs:
           OPENEXTRACT_REQUIRE_GENERATED: '1'
         run: pytest python/tests/corpus -m corpus -v
 
-      # Screenshots and PDFs of the fictional maren and einstein backups only.
+      # Screenshots and PDFs of the generated test backups (scripts/e2e/backups.py) only.
       - name: Upload results
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
