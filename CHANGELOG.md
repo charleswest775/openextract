@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+A backup deleted from the computer no longer stays in Your backups, and on Mac and Windows each backup there now has a ⋯ menu to show it in Finder or File Explorer, move it to the Trash or Recycle Bin, or take it off the list. Back up my iPhone warns when the chosen folder is in OneDrive, iCloud Drive, Dropbox or Google Drive. Saving photos from an encrypted backup no longer needs the whole library's size free on this computer's own drive, a photo that can't be shown now says so, and attachments saved with a Messages webpage keep their message's date.
+
 ### Added
 - Your backups: each backup in the list has a ⋯ menu with Show in Finder (Show in File Explorer on Windows), Move to Trash… (Move to Recycle Bin…) and Remove from list. Move to Trash checks the backup first and then asks, saying first when OpenExtract found no other backup of that iPhone, so it may be the only copy, or when it's the newest one. It won't move a folder that holds anything besides the backup, one on a network drive, or, on Windows, one that doesn't fit in the Recycle Bin beside what's already there, since Windows would erase older things in it for good to make room. It never deletes anything, and a backup put back from the Trash shows up in the list again. Not on Linux
 
