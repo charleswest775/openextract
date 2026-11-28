@@ -105,19 +105,25 @@ def _minute(iso: str) -> int:
 
 
 def test_calls_match_answer_key(ctx):
-    """Every call, plus a missed call for each voicemail that has none (the app merges them in)."""
+    """Every call, plus a missed call for each voicemail that has none (the app merges them in).
+
+    Those come from the Voicemail and Spam lists, not Deleted: Charles chose (2026-11-26) to keep
+    spam voicemails in Calls. A caller with no number has none on the call ("" from the engine,
+    None in the answer key) and is "Unknown".
+    """
     expected = _expected(ctx)
     if not expected.get("calls") and not expected.get("voicemails"):
         pytest.skip("no calls or voicemails in this backup")
     want = Counter(
-        (c["address"], parse_iso(c["date"]), c["duration"], "outgoing" if c["outgoing"] else "incoming",
-         "answered" if c["answered"] else "missed", _APPS[c["service"]], c["contact"] or c["address"])
+        (c["address"] or "", parse_iso(c["date"]), c["duration"], "outgoing" if c["outgoing"] else "incoming",
+         "answered" if c["answered"] else "missed", _APPS[c["service"]], c["contact"] or c["address"] or "Unknown")
         for c in expected["calls"]
     )
-    called = {(c["address"], _minute(c["date"])) for c in expected["calls"]}
+    called = {(c["address"] or "", _minute(c["date"])) for c in expected["calls"]}
     want.update(
-        (v["sender"], parse_iso(v["date"]), v["duration"], "incoming", "missed", "Phone", v["contact"] or v["sender"])
-        for v in expected["voicemails"] if (v["sender"], _minute(v["date"])) not in called
+        (v["sender"] or "", parse_iso(v["date"]), v["duration"], "incoming", "missed", "Phone", v["display_name"])
+        for v in expected["voicemails"]
+        if not v["is_deleted"] and (v["sender"] or "", _minute(v["date"])) not in called
     )
     got = Counter(
         (c["address"], parse_iso(c["date"]), c["duration"], c["direction"], c["status"], c["app"], c["contact_name"])
@@ -127,16 +133,71 @@ def test_calls_match_answer_key(ctx):
     assert not missing and not extra, f"missing {list(missing)[:3]} … extra {list(extra)[:3]} …"
 
 
+def _voicemail_key(v: dict) -> tuple:
+    """An answer-key voicemail as the engine should list it."""
+    return (str(v["id"]), v["sender"] or "", parse_iso(v["date"]), v["duration"], v["display_name"], v["folder"],
+            v["is_spam"], v["is_deleted"], v["transcript"])
+
+
+def _listed_voicemail(v: dict) -> tuple:
+    return (str(v["id"]), v["phone_number"], parse_iso(v["date_received"]), v["duration"], v["contact_name"],
+            v["folder"], v["is_spam"], v["is_deleted"], v["transcript"])
+
+
 def test_voicemails_match_answer_key(ctx):
+    """The Voicemail and Spam lists; Deleted only when asked for. Each with the id the engine plays it
+    by ("A-<UUID>.<ROWID>" for a per-line store's copy) and the name it shows ("Unknown" for no number)."""
     expected = _expected(ctx)
     if "voicemail" in expected.get("absent", {}):
         pytest.skip("no voicemail in this backup")
-    want = Counter((v["sender"], parse_iso(v["date"]), v["duration"], v["contact"] or v["sender"])
-                   for v in expected["voicemails"])
-    got = Counter((v["phone_number"], parse_iso(v["date_received"]), v["duration"], v["contact_name"])
-                  for v in ctx.voicemails_result.get("voicemails", []))
+    want = Counter(_voicemail_key(v) for v in expected["voicemails"] if not v["is_deleted"])
+    got = Counter(_listed_voicemail(v) for v in ctx.voicemails_result.get("voicemails", []))
     missing, extra = want - got, got - want
     assert not missing and not extra, f"missing {list(missing)[:3]} … extra {list(extra)[:3]} …"
+    every = ctx.rpc("list_voicemails", include_deleted=True)
+    want = Counter(_voicemail_key(v) for v in expected["voicemails"])
+    got = Counter(_listed_voicemail(v) for v in every.get("voicemails", []))
+    missing, extra = want - got, got - want
+    assert not missing and not extra, f"missing {list(missing)[:3]} … extra {list(extra)[:3]} …"
+    assert every["counts"] == {folder: sum(1 for v in expected["voicemails"] if v["folder"] == folder)
+                               for folder in ("voicemail", "spam", "deleted")}
+
+
+def test_voicemails_not_in_any_list_arent_listed(ctx):
+    """The answer key's removed voicemails (rows of voicemail.db's deleted table) aren't in any list."""
+    expected = _expected(ctx)
+    removed = expected.get("removed_voicemails") or []
+    if not removed:
+        pytest.skip("no removed voicemails in this backup")
+    every = ctx.rpc("list_voicemails", include_deleted=True).get("voicemails", [])
+    listed = {(v["phone_number"], parse_iso(v["date_received"]), v["duration"]) for v in every}
+    shown = [r for r in removed if (r["sender"] or "", parse_iso(r["date"]), r["duration"]) in listed]
+    assert not shown, shown
+
+
+def test_voicemail_audio_matches_answer_key(ctx):
+    """Every voicemail plays by its id, a per-line store's copy too, unless its audio isn't in the backup."""
+    expected = _expected(ctx)
+    if not expected.get("voicemails"):
+        pytest.skip("no voicemail in this backup")
+    for v in expected["voicemails"]:
+        result = ctx.rpc("get_voicemail_audio", voicemail_id=v["id"])
+        assert bool(result.get("data")) == v["audio_available"], (v["id"], result.get("error"))
+        if result.get("data"):
+            assert base64.b64decode(result["data"]).startswith(b"#!AMR\n"), v["id"]
+
+
+def test_voicemail_totals_leave_out_deleted_ones(ctx):
+    """The home and details screens count the Voicemail and Spam lists; Deleted is counted on its own."""
+    expected = _expected(ctx)
+    if not expected.get("voicemails"):
+        pytest.skip("no voicemail in this backup")
+    folders = Counter(v["folder"] for v in expected["voicemails"])
+    assert ctx.stats["overview"]["total_voicemails"] == folders["voicemail"] + folders["spam"]
+    stats = ctx.stats["voicemails"]
+    assert (stats["total"], stats["spam"], stats["deleted"]) == (
+        folders["voicemail"] + folders["spam"], folders["spam"], folders["deleted"])
+    assert stats["unread"] == sum(1 for v in expected["voicemails"] if not v["is_deleted"] and not v["is_read"])
 
 
 def test_notes_match_answer_key(ctx):

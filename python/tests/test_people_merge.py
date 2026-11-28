@@ -93,6 +93,22 @@ class BundleEntriesTest(unittest.TestCase):
                          ("Diane", 14, 2, "2026-03-03T00:00:00Z"))
         self.assertEqual(diane["ids"], {"5035550301"})
 
+    def test_a_caller_with_no_number_is_no_ones(self):
+        """The engine names a voicemail or call with no number "Unknown"; it still joins no one's history (#310)."""
+        conversation = {"chat_id": 4, "chat_identifier": "+15035550301", "display_name": "Diane", "is_group": False}
+        entries = [
+            {**people_merge.message_entry(conversation, "2026-03-01T00:00:00Z"), "count": 3},
+            people_merge.voicemail_entry({"phone_number": "", "contact_name": "Unknown"}, "2026-03-04T00:00:00Z"),
+            people_merge.call_entry({"address": "", "contact_name": "Unknown"}, "2026-03-04T00:00:00Z"),
+        ]
+        [diane] = people_merge.gather_people(entries)
+        self.assertEqual((diane["name"], diane["total"], diane["counts"]["voicemail"]), ("Diane", 3, 0))
+        # Not even someone the address book calls "Unknown"
+        named = {**conversation, "chat_identifier": "+15035550399", "display_name": "Unknown"}
+        [unknown] = people_merge.gather_people([{**people_merge.message_entry(named, "2026-03-01T00:00:00Z"), "count": 1},
+                                                *entries[1:]])
+        self.assertEqual((unknown["name"], unknown["total"], unknown["counts"]["call"]), ("Unknown", 1, 0))
+
 
 class EntriesFromRecordsTest(unittest.TestCase):
     """Engine records become entries the way the app's Timeline makes them (useTimeline.ts)."""

@@ -177,7 +177,8 @@ export default {
             const shown = tiles.Calls;
             pass = one.length === 1 && files.length === 1 && (rows === null || rows === shown); detail = { files, rows, shown };
           }
-          if (kind === 'voicemail') { const audio = files.filter(f => /\.(amr|m4a|wav|mp3|caf)$/i.test(f)); pass = audio.length === key.voicemails.length; detail = { audio: audio.length }; }
+          // Every list's voicemails, deleted ones too, each whose audio is in the backup
+          if (kind === 'voicemail') { const audio = files.filter(f => /\.(amr|m4a|wav|mp3|caf)$/i.test(f)); pass = audio.length === key.voicemails.filter(v => v.audio_available ?? true).length; detail = { audio: audio.length }; }
           if (kind === 'podcasts' && format === 'opml') {
             const opml = files.filter(f => ext(f) === 'opml');
             const outlines = opml.length === 1 ? (fs.readFileSync(path.join(dir, opml[0]), 'utf-8').match(/<outline\b[^>]*xmlUrl=/g) || []).length : -1;
@@ -251,13 +252,17 @@ export default {
         const wrong = sums.filter(([f, h]) => !fs.existsSync(inBundle(f))
           || crypto.createHash('sha256').update(fs.readFileSync(inBundle(f))).digest('hex') !== h).map(([f]) => f);
         const voicemails = lines('voicemail.jsonl').map(l => JSON.parse(l));
+        // Each voicemail as the answer key has it: its number (none for a caller with no number), and audio when it's in the backup
+        const keyVoicemails = new Map(key.voicemails.map(v => [String(v.id ?? v.rowid), v]));
+        const voicemailRight = v => { const k = keyVoicemails.get(String(v.id)); return !!k && (v.phone_number || null) === (k.sender ?? null)
+          && !!v.audio_sha256 === (k.audio_available ?? true) && typeof v.is_spam === 'boolean'; };
         const detail = {
           format: manifest?.format, version: manifest?.schema_version, messages: lines('messages.jsonl').length,
           voicemails: voicemails.length, sums: sums.length, files: files.length, wrong: wrong.slice(0, 5),
         };
         const pass = manifest?.format === 'openextract-bundle' && manifest?.time_zone_used === 'UTC'
           && detail.messages === key.messages.length && voicemails.length === key.voicemails.length
-          && voicemails.every(v => v.phone_number && v.audio_sha256 && typeof v.is_spam === 'boolean')
+          && voicemails.every(voicemailRight)
           && sums.length === files.length && wrong.length === 0;
         ok('Save panel: data bundle', res, { pass, detail });
         await prompts();

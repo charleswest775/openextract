@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 - Back up my iPhone: choosing a backup folder in OneDrive, iCloud Drive, Dropbox or Google Drive now shows a warning under it. A backup there still takes up space on the computer's own drive, so the space in the online account doesn't count, and the sync app uploading each file as it's saved can make the backup fail. If such a backup runs out of room, the message now says the folder is in OneDrive (or the like) and that its online space doesn't count
 
+### Fixed
+- Timeline: a voicemail kept only in the iPhone's store for one phone line (or whose recording is only there) now plays when you open it, instead of saying "Audio not available"
+- Voicemail: a voicemail from a caller with no number now reads "Unknown", as such a call does on Calls, instead of a blank name, on the Voicemail screen, the Timeline and in saved voicemail lists and file names. It still isn't counted as anyone's on People. A copy of a voicemail in the phone line's store that gives the number without its "+", or a time a second off, is now listed once, not twice
+
 ## [0.21.0] - 2026-11-26
 
 Saving now asks, once each time you open OpenExtract, what it's worth to you: $5, $25, $100 or any amount, with Save without paying right beside it. Calls no longer shows changes to a group chat (someone added or removed, a new name) as FaceTime calls, and Messages now says "Attachment not in this backup", instead of "Conversation update", when the iPhone removed a photo or file from a message.

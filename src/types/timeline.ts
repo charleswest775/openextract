@@ -102,6 +102,8 @@ export interface TimelineEntry {
     duration: number;
   };
   voicemail?: {
+    /** list_voicemails' id: a ROWID in the main store, or "<account folder>.<ROWID>" for a per-line store's copy. */
+    voicemailId: number | string;
     duration: number;
     transcript: string;
     phoneNumber: string;
