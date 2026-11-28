@@ -482,14 +482,40 @@ def test_albums_match_photos_db(ctx):
     assert not listed, f"Photos' own albums are listed: {_sample(listed)}"
 
 
+def _caller_digits(number) -> str:
+    return "".join(ch for ch in str(number or "") if ch.isdigit())
+
+
 def test_every_voicemail_listed(ctx):
+    """Every row of the main voicemail table is listed, Deleted ones (0x8 or a trashed_date) under Deleted.
+
+    A row is listed by its own ROWID, or by its copy in a per-line store (Library/Voicemail/A-<UUID>/):
+    the copy whose audio is in the backup is the one listed, and a deletion recorded only on the copy
+    still puts it under Deleted. A copy has the same length and caller (by the number's digits) and a
+    date at most a second off.
+    """
     ctx.require_open()
-    rows = ctx.raw.query(*VOICEMAIL, "SELECT ROWID FROM voicemail WHERE trashed_date = 0 OR trashed_date IS NULL")
+    rows = ctx.raw.query(*VOICEMAIL, "SELECT ROWID, date, duration, sender, flags, trashed_date FROM voicemail")
     if rows is None:
         pytest.skip("no voicemail.db in this backup")
-    listed = {v["id"] for v in ctx.voicemails_result.get("voicemails", [])}
-    missing = {r["ROWID"] for r in rows} - listed
+    every = ctx.rpc("list_voicemails", include_deleted=True).get("voicemails", [])
+    by_id = {v["id"]: v for v in every}
+
+    def copy_of(row):
+        return next((v for v in every if isinstance(v["id"], str) and v["date_received"] and row["date"]
+                     and (v["duration"] or 0) == (row["duration"] or 0)
+                     and _caller_digits(v["phone_number"]) == _caller_digits(row["sender"])
+                     and abs(int(parse_iso(v["date_received"]).timestamp()) - int(row["date"])) <= 1), None)
+
+    missing, not_deleted = [], []
+    for row in rows:
+        listed = by_id.get(row["ROWID"]) or copy_of(row)
+        if listed is None:
+            missing.append(row["ROWID"])
+        elif ((row["flags"] or 0) & 0x8 or row["trashed_date"]) and listed["folder"] != "deleted":
+            not_deleted.append(row["ROWID"])
     assert not missing, f"voicemails missing from list_voicemails: {_sample(sorted(missing))}"
+    assert not not_deleted, f"deleted voicemails not under Deleted: {_sample(sorted(not_deleted))}"
 
 
 def test_every_safari_visit_listed(ctx):

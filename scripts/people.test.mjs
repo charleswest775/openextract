@@ -12,7 +12,7 @@ import { loadTs } from './test-helpers/load-ts.mjs';
 const {
   normPhone, identifiersMatch, buildIdentifierGroupMap, getContactGroup,
   buildContactOptions, rowsForPerson, identifiersForPerson, formatPhone, displayName, isWhatsAppAddress,
-  namedByNumber, personKey,
+  namedByNumber, personKey, noCallerId,
 } = loadTs('src/lib/people.ts');
 const { gatherPeople, linkCards, idKey, PERSON_KINDS } = loadTs('src/components/people/gather.ts');
 const { matches } = loadTs('src/lib/search.ts');
@@ -435,6 +435,21 @@ test('a call with only a name is the person the address book calls that, never o
   assert.equal(riley.last, at(9));
   assert.equal(riley.identifier, '+15035550142');
   assert.deepEqual([...riley.ids], ['5035550142']);
+});
+
+test('a voicemail with no number is no one\'s, though the engine names it "Unknown" (#310)', () => {
+  // As normalizeVoicemail makes it from { phone_number: '', contact_name: 'Unknown' }
+  const vm = { id: 'voicemail:6', type: 'voicemail', timestamp: at(4), contactName: 'Unknown', contactIdentifier: '',
+    voicemail: { voicemailId: 6, duration: 12, transcript: '', phoneNumber: '' } };
+  const noNumberCall = { ...call('Unknown', '', 3), call: { direction: 'incoming', status: 'missed', duration: 0, app: 'Phone' } };
+  const people = gatherPeople([sms('Riley Okafor', '+15035550142', 7, { chatId: 7 }), vm, noNumberCall]);
+  assert.deepEqual(people.map(p => [p.name, p.total]), [['Riley Okafor', 1]]);
+  // Not even someone the address book calls "Unknown" (a saved spam number, say)
+  const named = gatherPeople([sms('Unknown', '+15035550199', 7, { chatId: 9 }), vm, noNumberCall]);
+  assert.deepEqual(named.map(p => [p.name, p.total, p.counts.voicemail, p.counts.call]), [['Unknown', 1, 0, 0]]);
+  assert.ok(noCallerId(vm) && noCallerId(noNumberCall));
+  // An app's call keeps an id in place of the number (none here) and its name: it isn't one
+  assert.ok(!noCallerId(call('Riley Okafor', null, 2)));
 });
 
 test('a record named only by its number is whoever has the number, or another number on its card', () => {

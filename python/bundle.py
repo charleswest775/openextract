@@ -633,7 +633,9 @@ class BundleExporter:
         try:
             for vm in voicemails["voicemails"]:
                 date = utc(vm.get("date_received"))
-                if people is not None and date:
+                # People counts the Voicemail and Spam lists, as the app's People screen does, not Deleted
+                deleted = bool(vm.get("is_deleted", vm.get("folder") == "deleted"))
+                if people is not None and date and not deleted:
                     people.append(people_merge.voicemail_entry(vm, date))
                 state.done += 1
                 state.report()
@@ -861,8 +863,9 @@ def _known(value) -> Optional[str]:
 
 
 def _name_or_none(name, number) -> Optional[str]:
-    """The address book's name, or None when the reader only echoed the number (or a FaceTime UUID)."""
-    if not name or name == number or _UUID.match(str(name)):
+    """The address book's name, or None when the reader only echoed the number (or a FaceTime UUID), or
+    named a caller with no number "Unknown" (the address book can't name someone with no number)."""
+    if not name or name == number or _UUID.match(str(name)) or (not number and name == "Unknown"):
         return None
     return name
 

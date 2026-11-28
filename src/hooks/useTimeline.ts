@@ -16,6 +16,7 @@ import {
   getContactGroup,
   matchPerson,
   namedByNumber,
+  noCallerId,
   normPhone,
 } from '../lib/people';
 import { matchesTerms, parseQuery, searchText } from '../lib/search';
@@ -190,7 +191,8 @@ function normalizePhoto(photo: PhotoAsset): TimelineEntry | null {
 }
 
 export interface RawVoicemail {
-  id: number;
+  /** A ROWID in the main voicemail store, or "<account folder>.<ROWID>" ("A-<UUID>.27") for a per-line store's copy. */
+  id: number | string;
   phone_number: string;
   contact_name: string;
   date_received: string;
@@ -208,6 +210,7 @@ export function normalizeVoicemail(vm: RawVoicemail): TimelineEntry {
     contactName: name,
     contactIdentifier: vm.phone_number,
     voicemail: {
+      voicemailId: vm.id,
       duration: vm.duration,
       transcript: vm.transcript || '',
       phoneNumber: vm.phone_number,
@@ -862,9 +865,10 @@ export function useTimeline(index: BackupIndex, startingFilters?: Partial<Timeli
           if (namedByNumber(e) && onTheirCards(e.contactIdentifier)) return true;
           return !!selectedName && e.contactName?.toLowerCase() === selectedName;
         }
-        // A WhatsApp chat with no number WhatsApp could tie it to isn't anyone's
-        if (e.type === 'whatsapp') return false;
-        // A call or voicemail with a name but no identifier
+        // A WhatsApp chat with no number WhatsApp could tie it to isn't anyone's, nor is a call or
+        // voicemail with no number at all (which the engine names "Unknown")
+        if (e.type === 'whatsapp' || noCallerId(e)) return false;
+        // An app's call, with a name but no identifier
         return !!selectedName && e.contactName?.toLowerCase() === selectedName;
       };
     }
