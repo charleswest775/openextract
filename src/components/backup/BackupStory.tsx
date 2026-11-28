@@ -18,9 +18,11 @@ import drivePhoto from './story-photos/charles-drive.jpg';
  * still comes at the first save (PriceStep, "What's this worth to you?").
  *
  * A carousel: chapters cross-fade on their own, each up long enough to read, and after the last it
- * starts again for as long as the backup runs (people walk away during long backups). It pauses
- * while the pointer is over it, while OpenExtract isn't the window in front, and with its pause
- * button; Hide folds it away.
+ * starts again for as long as the backup runs (people walk away during long backups). It keeps
+ * going while the window can be seen, even behind another app or with the pointer over it, and
+ * stops only with its pause button or while OpenExtract is minimized or hidden; Hide folds it
+ * away. (It used to pause on hover and whenever another app was in front: its own buttons are
+ * inside it, so every click left it stopped, and so did watching it while typing elsewhere.)
  *
  * Wording rules: every claim is something the app really does, with OpenExtract as the one doing
  * it, and no "all" or "everything" (photos kept only in iCloud and some voicemails aren't in a
@@ -474,27 +476,19 @@ export default function BackupStory() {
   const [index, setIndex] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [userPaused, setUserPaused] = useState(false);
-  const [hovering, setHovering] = useState(false);
-  const [away, setAway] = useState(false); // OpenExtract isn't the window in front
+  // OpenExtract is minimized or hidden: nobody can read it, and Chromium slows its timers then
+  const [away, setAway] = useState(() => document.visibilityState === 'hidden');
   const [hidden, setHidden] = useState(false);
   const last = useRef(performance.now());
 
   const current = story[index];
   const duration = readingTime(current);
-  const paused = userPaused || hovering || away;
+  const paused = userPaused || away;
 
   useEffect(() => {
-    const onBlur = () => setAway(true);
-    const onFocus = () => setAway(false);
     const onVisibility = () => setAway(document.visibilityState === 'hidden');
-    window.addEventListener('blur', onBlur);
-    window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      window.removeEventListener('blur', onBlur);
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
   useEffect(() => {
@@ -534,8 +528,6 @@ export default function BackupStory() {
       className="mt-2"
       aria-label="While you wait"
       data-backup-story
-      onMouseEnter={() => setHovering(true)}
-      onMouseLeave={() => setHovering(false)}
     >
       {/* Where you are: one bar a chapter, the current one fills as it plays */}
       <div className="flex items-center gap-3 mb-3">
@@ -623,9 +615,6 @@ export default function BackupStory() {
                   >
                     <ChevronRight size={16} />
                   </button>
-                  {paused && !userPaused && (
-                    <span className="ml-2 text-[11px] text-text-tertiary">{away ? 'Paused while OpenExtract is in the background' : 'Paused'}</span>
-                  )}
                 </div>
               </div>
             </div>
