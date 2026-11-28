@@ -241,6 +241,33 @@ class TestHtmlExportAttachments(unittest.TestCase):
         self.assertIn('<img src="all_conversations_attachments/8-m.png"', content)
         self.assertTrue(os.path.isfile(os.path.join(self.out, "all_conversations_attachments", "8-m.png")))
 
+    def test_saved_attachments_keep_the_messages_timestamp(self):
+        from datetime import datetime, timezone
+
+        self._file("photo.png", image="PNG")
+        self._file("scan.tiff", image="TIFF")
+        m1 = _msg(1, "", [_att(10, "photo.png", "image/png")])
+        m1["date"] = "2023-06-15T14:30:00+00:00"
+        m2 = _msg(2, "", [_att(11, "scan.tiff", "image/tiff")])
+        m2["date"] = "2024-02-20T08:15:00+00:00"
+        self.ext.get_messages = lambda *a, **k: {"messages": [m1, m2], "total": 2}
+        result = self.ext.export_conversation(FakeBackup(self.files), 1, {}, "html", self.out, display_name="Mom")
+        folder = os.path.splitext(result["file"])[0] + "_attachments"
+        expected1 = datetime.fromisoformat(m1["date"]).astimezone(timezone.utc).timestamp()
+        expected2 = datetime.fromisoformat(m2["date"]).astimezone(timezone.utc).timestamp()
+        self.assertAlmostEqual(os.stat(os.path.join(folder, "10-photo.png")).st_mtime, expected1, places=2)
+        self.assertAlmostEqual(os.stat(os.path.join(folder, "11-scan.tiff")).st_mtime, expected2, places=2)
+        self.assertAlmostEqual(os.stat(os.path.join(folder, "11-scan.jpg")).st_mtime, expected2, places=2)
+
+    def test_saved_attachment_skips_missing_or_unreadable_message_timestamp(self):
+        self._file("note.png", image="PNG")
+        m1 = _msg(1, "", [_att(12, "note.png", "image/png")])
+        m1["date"] = None
+        self.ext.get_messages = lambda *a, **k: {"messages": [m1], "total": 1}
+        result = self.ext.export_conversation(FakeBackup(self.files), 1, {}, "html", self.out, display_name="Mom")
+        folder = os.path.splitext(result["file"])[0] + "_attachments"
+        self.assertTrue(os.path.isfile(os.path.join(folder, "12-note.png")))
+
 
 if __name__ == "__main__":
     unittest.main()

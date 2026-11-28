@@ -62,6 +62,7 @@ from messages import (
     _HtmlAttachmentWriter,
     _PrintAttachmentWriter,
     _nothing_known,
+    _set_file_date,
     _visible,
     _without_lone_surrogates,
 )
@@ -368,7 +369,7 @@ class _TalliedCopy:
         """Where a copied file is, relative to the save: "Mom_attachments/12-IMG_1.jpg"."""
         return f"{self._rel}/{name}"
 
-    def _copy(self, att: dict) -> Optional[str]:
+    def _copy(self, att: dict, when: Optional[str] = None) -> Optional[str]:
         key = self._key(att)
         if key in self._written:
             return self._written[key]
@@ -387,6 +388,7 @@ class _TalliedCopy:
                 try:
                     os.makedirs(self._dir, exist_ok=True)
                     shutil.copyfile(src, dest)
+                    _set_file_date(dest, when)
                     name, status = os.path.basename(dest), "copied"
                 except OSError as e:
                     # A name this file system won't take is that file's problem, not the save's
@@ -407,11 +409,11 @@ class _MessagesFiles(_TalliedCopy, _HtmlAttachmentWriter):
         _HtmlAttachmentWriter.__init__(self, extractor, backup)
         self._init_tally()
 
-    def render(self, att: dict) -> str:
-        name = self._copy(att)
+    def render(self, att: dict, when: Optional[str] = None) -> str:
+        name = self._copy(att, when=when)
         if name is None and self.status(att) == "failed":
             return f'<div class="attachment-label">[{_esc(_messages_label(att, "failed"))}]</div>'
-        return _HtmlAttachmentWriter.render(self, att)
+        return _HtmlAttachmentWriter.render(self, att, when=when)
 
 
 class _WhatsAppFiles(_TalliedCopy, _WhatsAppHtmlMedia):
@@ -509,8 +511,8 @@ class _PdfMedia:
 
 
 class _PdfMessages(_PdfMedia):
-    def render(self, att: dict) -> str:
-        drawn = self.printer.render(att)
+    def render(self, att: dict, when: Optional[str] = None) -> str:
+        drawn = self.printer.render(att, when=when)
         return drawn + self._note(att, drawn)
 
 
